@@ -8,11 +8,7 @@ _see the [meta](#meta) section at the end of this file for format reference._
 
 ### phase 1 - domain core + dates
 
-- ⭕ `high priority` `medium effort` `HaracalndeDate` class: parse, format, compare, era arithmetic; mirror `attubot/client/calendar.py`
-- ⭕ `high priority` `low effort` gregorian conversion (TT N -> ~N BC) with documented edge cases
-- ⭕ `high priority` `medium effort` domain types and tree ops (add person, link parents/spouse, remove, validate cycles)
-- ⭕ `medium priority` `low effort` id generator emitting 5-char codes matching FamilyScript shape
-- ⭕ `high priority` `low effort` unit tests for date math (PC<->TT boundary, 360-day arithmetic, ABT preservation)
+_phase 1 complete; see the completed section below_
 
 ### phase 2 - import/export
 
@@ -86,6 +82,17 @@ _see the [meta](#meta) section at the end of this file for format reference._
 - 🔴 `25 April 2026` `notes/agents.md`, `notes/dev/dev_setup.md`, `notes/dev/testing.md` filled out
 - 🔴 `25 April 2026` `README.md` rewritten with stack, layout, and common commands
 
+### phase 1 - domain core + dates
+
+- 🔴 `25 April 2026` `utils/result.ts` discriminated-union helper for parser and validator boundaries
+- 🔴 `25 April 2026` `HaracalndeDate` class with FamilyScript / GEDCOM / narrative parsers and serializers, era arithmetic across the TT/PC boundary, and a 360-day day-index for ordering
+- 🔴 `25 April 2026` `gregorian.ts` cosmetic Haracalnde -> Gregorian-year approximation for tooltips
+- 🔴 `25 April 2026` `domain/types.ts` Person, CoupleRecord, Tree types
+- 🔴 `25 April 2026` `domain/ids.ts` 5-char alphanumeric id generator with rejection sampling and collision retry; `START` sentinel
+- 🔴 `25 April 2026` `domain/tree.ts` immutable add / update / remove / linkParent / linkSpouse plus ancestor/descendant/sibling iterators
+- 🔴 `25 April 2026` `domain/validate.ts` orphan-reference, cycle, duplicate-spouse, missing-root, invalid-id findings
+- 🔴 `25 April 2026` 91 unit tests passing across the date and domain modules
+
 ---
 
 ## meta
@@ -116,5 +123,5 @@ when adding a new item, sort it into the appropriate section by topic, or add a 
 
 ```yaml
 last_updated: 25 April 2026
-total_completed: 9
+total_completed: 17
 ```
