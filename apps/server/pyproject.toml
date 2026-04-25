@@ -1,0 +1,137 @@
+[project]
+name = "attu-tree"
+version = "0.0.0"
+description = "backend for the attu family tree editor"
+requires-python = "==3.13.*"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "aiosqlite>=0.20.0",
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.7.0",
+    "httpx>=0.28.0",
+]
+
+[tool.uv]
+package = false
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=6.0.0",
+    "respx>=0.22.0",
+    "freezegun>=1.5.0",
+    "ruff>=0.8.0",
+    "basedpyright>=1.39.0",
+    "asgi-lifespan>=2.1.0",
+]
+
+[tool.ruff]
+exclude = ["*.wip.py", "wip/", ".venv/"]
+target-version = "py313"
+line-length = 320
+preview = true
+
+[tool.ruff.lint]
+select = [
+    "E",
+    "F",
+    "Q",
+    "W",
+    "I",
+    "UP",
+    "ASYNC",
+    "S",
+    "A",
+    "COM",
+    "SIM",
+    "PTH",
+    "PL",
+    "RUF",
+]
+ignore = [
+    "E111",
+    "E114",
+    "E117",
+    "E303",
+    "PLC1901",
+    "PLC2701",
+    "PLR0904",
+    "PLR0914",
+    "PLR0917",
+    "PLR1702",
+    "PLR6104",
+    "PLR6201",
+    "PLR6301",
+    "PLW1514",
+    "RUF029",
+    "RUF052",
+    "RUF067",
+    "RUF069",
+    "S404",
+    "E501",
+    "PLC0415",
+    "PLR0913",
+    "PLE1205",
+    "PLR2004",
+    "RUF012",
+    "S311",
+    "UP037",
+    "COM812",
+]
+
+[tool.ruff.lint.flake8-quotes]
+docstring-quotes = "double"
+inline-quotes = "single"
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"
+skip-magic-trailing-comma = false
+
+[tool.ruff.lint.isort]
+lines-after-imports = 2
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = [
+    "S101",
+    "S106",
+    "E402",
+]
+
+[tool.basedpyright]
+pythonPlatform = "Linux"
+typeCheckingMode = "standard"
+reportOptionalOperand = false
+reportOptionalMemberAccess = false
+reportOptionalSubscript = false
+reportInvalidCast = false
+reportFunctionMemberAccess = false
+reportAttributeAccessIssue = false
+exclude = ["*.wip.py", "wip/", ".venv/"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v"
+asyncio_mode = "auto"
+markers = [
+    "unit: isolated unit tests; no external services",
+    "integration: tests requiring a running server",
+]
+
+[tool.coverage.run]
+source = ["attu_tree"]
+branch = true
+omit = ["wip/*", "*.wip.py"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "@(abc\\.)?abstractmethod",
+]

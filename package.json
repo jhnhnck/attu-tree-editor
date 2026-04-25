@@ -1,0 +1,25 @@
+{
+    "name": "family-tree-editor",
+    "version": "0.0.0",
+    "private": true,
+    "description": "client-side family tree viewer and editor for the attu project wiki",
+    "license": "MIT",
+    "packageManager": "pnpm@10.33.2",
+    "engines": {
+        "node": ">=22",
+        "pnpm": ">=10"
+    },
+    "scripts": {
+        "dev": "pnpm -F web dev",
+        "build": "pnpm -F web build",
+        "typecheck": "pnpm -F web typecheck",
+        "lint": "pnpm -F web lint",
+        "test": "pnpm -F web test",
+        "test:unit": "pnpm -F web test:unit",
+        "test:e2e": "pnpm -F web test:e2e",
+        "server:dev": "cd apps/server && uv run uvicorn attu_tree.main:app --reload --port 8000",
+        "server:test": "cd apps/server && uv run pytest",
+        "server:lint": "cd apps/server && uv run ruff check . && uv run basedpyright",
+        "verify": "pnpm typecheck && pnpm lint && pnpm test:unit && pnpm build && pnpm server:lint && pnpm server:test"
+    }
+}

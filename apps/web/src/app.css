@@ -1,0 +1,51 @@
+/*
+ * FamilyTreeEditor - global stylesheet; tailwind v4 entry plus theme tokens
+ * licensed under the MIT license; see LICENSE.md for full text
+ */
+
+@import "tailwindcss";
+
+/* haracalnde-inspired color tokens; tuned for dark default with light fallback */
+@theme {
+    --color-canvas: #0e0d0c;
+    --color-canvas-elev: #181614;
+    --color-fg: #ece3d8;
+    --color-fg-muted: #9b8f80;
+    --color-line: #3a342e;
+    --color-accent: #c79964;
+    --color-accent-strong: #e0b787;
+}
+
+@media (prefers-color-scheme: light) {
+    @theme {
+        --color-canvas: #fefdfc;
+        --color-canvas-elev: #f6f0e8;
+        --color-fg: #2a221d;
+        --color-fg-muted: #6b6055;
+        --color-line: #c9bfb2;
+        --color-accent: #8b5e34;
+        --color-accent-strong: #6b4421;
+    }
+}
+
+html,
+body {
+    height: 100%;
+    margin: 0;
+    font-family:
+        ui-sans-serif,
+        system-ui,
+        -apple-system,
+        sans-serif;
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        transition-duration: 0ms !important;
+        animation-duration: 0ms !important;
+    }
+}
