@@ -34,13 +34,12 @@ _phase 4 complete; see the completed section below_
 
 ### phase 5 - backend + auth + sync
 
-- ⭕ `high priority` `medium effort` server `db.py` aiosqlite pool + initial migration
-- ⭕ `high priority` `medium effort` discord magic-code flow with hmac verification of doom-bot callbacks
-- ⭕ `high priority` `medium effort` session cookie middleware
-- ⭕ `high priority` `high effort` trees crud + per-user share grants
-- ⭕ `high priority` `high effort` revision-checked autosave with field-level merge
-- ⭕ `high priority` `medium effort` openapi -> ts client into `packages/api-client/`
-- ⭕ `medium priority` `medium effort` doom-bot `/link account` slash command (separate pr in that repo)
+_phase 5 largely complete; see the completed section below_
+
+- ⭕ `high priority` `high effort` field-level merge on autosave conflict (currently last-write-wins via revision check; needs per-field diff + merge for concurrent edits to different people)
+- ⭕ `medium priority` `medium effort` doom-bot `/trees link`, `/trees show`, `/trees share` slash commands (separate PR in that repo; see `notes/features/bot-integration.md` for the contract)
+- ⭕ `medium priority` `low effort` Caddy config: add `handle_path /trees/*` blocks to prod + dev Caddyfile (`/etc/caddy/Caddyfile.d/attuproject-org.caddyfile`)
+- ⭕ `medium priority` `low effort` parent compose include: add `include:` directive to `docker-compose.dev.yml` and `docker-compose.prod.yml` in the `attu-wiki-dev` root
 
 ### phase 6 - polish + a11y + mobile + gadget
 
@@ -138,6 +137,22 @@ _phase 4 complete; see the completed section below_
 - 🔴 `26 April 2026` `state/tree.svelte.ts` adds `dirty` + `hydrate(tree)` so the autosave effect can distinguish user mutations from initial Dexie load
 - 🔴 `26 April 2026` 222 unit tests (11 persistence, 6 autosave, 4 wiki); 8 e2e (4 import-edit + persistence-roundtrip on chromium + mobile); `pnpm verify` green
 
+### phase 5 - backend + auth + sync
+
+- 🔴 `26 April 2026` `apps/server/attu_tree/settings.py` pydantic-settings `Settings` with database_url, session/hmac secrets, cookie path, cors origins, initial admin discord id
+- 🔴 `26 April 2026` `apps/server/attu_tree/db.py` aiosqlite connection lifecycle, WAL mode, migration runner (numbered `.sql` files tracked in `_meta` table)
+- 🔴 `26 April 2026` `apps/server/attu_tree/migrations/001_initial.sql` schema: users (uuid pk, discord_id, role), sessions, link_codes, trees (uuid pk), tree_grants, tree_revisions
+- 🔴 `26 April 2026` `apps/server/attu_tree/auth/` — hmac verification middleware (`X-Attu-Timestamp` + `sha256=` sig, ±300s skew), session helpers (create/resolve/delete), `current_user` / `optional_user` / `current_admin` FastAPI deps
+- 🔴 `26 April 2026` link-code auth flow: web calls `POST /api/auth/start` → pre-issued session cookie + 6-char code; user runs `/trees link code:XXXXXX` on Discord; bot calls `POST /api/bot/auth/link`; web polls `GET /api/auth/check`; bootstrap admin on first sign-in or matching `INITIAL_ADMIN_DISCORD_ID`
+- 🔴 `26 April 2026` `apps/server/attu_tree/routers/trees.py` full CRUD + per-tree grants (add/revoke by discord_id); revision-checked `PUT /api/trees/{id}` returns 200 on match, 409 `TreeConflictResponse` on mismatch
+- 🔴 `26 April 2026` `apps/server/attu_tree/routers/bot.py` bot-only endpoints (HMAC-gated): link auth, list user trees, add/revoke grants, issue view-link
+- 🔴 `26 April 2026` `apps/server/attu_tree/routers/admin.py` admin-only: list users (paginated), update role/display_name, soft-delete + session revoke
+- 🔴 `26 April 2026` `packages/api-client/src/index.ts` hand-written TypeScript types matching all server pydantic models; `apps/web/src/lib/api/client.ts` typed fetch wrapper with 401/409 handling
+- 🔴 `26 April 2026` `apps/web/src/lib/state/auth.svelte.ts` and `sync.svelte.ts` runes stores; `LinkCodeDialog`, `AuthBar`, `ShareDialog`, `AdminPanel` shell components; `App.svelte` wires auth, sync, conflict toast, read-only view route
+- 🔴 `26 April 2026` 45 server tests (auth, trees, bot, admin, health) green; `pnpm verify` green (45 server + 231 web)
+- 🔴 `26 April 2026` `Dockerfile` (root) 3-stage combined build (SPA + Python venv + runtime); `docker-compose.yml` `family-tree` service with `external: attu_dev` network, `/trees/` cookie path, `family-tree-data` volume; `apps/web/Dockerfile` standalone SPA builder
+- 🔴 `26 April 2026` `notes/features/bot-integration.md` full interface contract for doom-bot team (HMAC scheme, all endpoints, slash command shapes, ephemeral message conventions)
+
 ---
 
 ## meta
@@ -168,5 +183,5 @@ when adding a new item, sort it into the appropriate section by topic, or add a 
 
 ```yaml
 last_updated: 26 April 2026
-total_completed: 49
+total_completed: 62
 ```

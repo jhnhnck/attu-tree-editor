@@ -17,6 +17,9 @@
     import { createToastsStore } from "$lib/state/toasts.svelte";
     import { createPortraitUrlCache } from "$lib/state/portraitUrls.svelte";
     import { makeAutosaver } from "$lib/state/autosave";
+    import { authStore } from "$lib/state/auth.svelte";
+    import { syncStore } from "$lib/state/sync.svelte";
+    import { onUnauthorized, trees as treesApi } from "$lib/api/client";
     import { detectFormat } from "$lib/io/detect";
     import { parseFamilyScript } from "$lib/io/familyscript/parse";
     import { parseGedcom } from "$lib/io/gedcom/parse";
@@ -35,6 +38,9 @@
     import Toasts from "$lib/components/ui/Toasts.svelte";
     import ContextMenu, { type ContextMenuItem } from "$lib/components/ui/ContextMenu.svelte";
     import RecentTrees from "$lib/components/shell/RecentTrees.svelte";
+    import AuthBar from "$lib/components/shell/AuthBar.svelte";
+    import ShareDialog from "$lib/components/shell/ShareDialog.svelte";
+    import AdminPanel from "$lib/components/shell/AdminPanel.svelte";
     import type { Person, PersonId } from "$lib/domain/types";
 
     const PLACEHOLDERS = [
@@ -55,6 +61,11 @@
 
     let recents = $state<TreeListing[]>([]);
     let firstLoadComplete = $state(false);
+    let showShare = $state(false);
+    let showAdmin = $state(false);
+
+    // read-only mode: set when loading a tree via /view/<uuid> route
+    let readOnly = $state(false);
 
     async function refreshRecents(): Promise<void> {
         recents = await listTrees(20);
@@ -64,10 +75,27 @@
         onError: (msg) => toasts.push(`autosave failed: ${msg}`, "error"),
         onSaved: () => {
             void refreshRecents();
+            syncStore.onLocalSave(treeStore.tree);
         },
     });
 
+    // when the server rejects our session, clear the auth state silently
+    onUnauthorized(() => {
+        authStore.clear();
+    });
+
     onMount(async () => {
+        // check if this is a /view/<uuid> deep link from discord
+        const viewMatch = /\/view\/([^/?#]+)/.exec(window.location.pathname);
+        if (viewMatch?.[1]) {
+            await loadViewRoute(viewMatch[1]);
+            firstLoadComplete = true;
+            return;
+        }
+
+        // try to restore the last session
+        await authStore.fetch();
+
         try {
             const lastId = await getSetting<string>(SETTING_KEYS.lastOpenedTreeId);
             if (lastId) {
@@ -82,13 +110,42 @@
         }
     });
 
-    // schedule a save whenever the user mutates the active tree
+    async function loadViewRoute(treeId: string): Promise<void> {
+        readOnly = true;
+        if (!authStore.user) await authStore.fetch();
+        if (!authStore.user) {
+            toasts.push("sign in to view this tree", "info", 0);
+            return;
+        }
+        try {
+            const r = await treesApi.get(treeId);
+            // the server blob is the full Tree JSON; cast and hydrate
+            treeStore.hydrate(r.blob as ReturnType<typeof createTree>);
+            syncStore.setRevision(r.revision);
+            toasts.push(`viewing: ${r.name || "untitled"} (read-only)`, "info", 5000);
+        } catch {
+            toasts.push("could not load that tree (no access or not found)", "error");
+        }
+    }
+
     $effect(() => {
         const tree = treeStore.tree;
         const dirty = treeStore.dirty;
         if (!firstLoadComplete) return;
         if (!dirty) return;
+        if (readOnly) return;
         autosaver.schedule(tree);
+    });
+
+    // show conflict toast when sync detects a revision mismatch
+    $effect(() => {
+        if (syncStore.mode === "conflict" && syncStore.conflict) {
+            toasts.push(
+                "save conflict: another client wrote a newer version. your local version is preserved.",
+                "error",
+                0,
+            );
+        }
     });
 
     async function loadFromRecents(id: string): Promise<void> {
@@ -100,7 +157,9 @@
             return;
         }
         portraitUrls.clear();
+        readOnly = false;
         treeStore.hydrate(r.value);
+        syncStore.setRevision(1); // local tree; revision unknown until first server push
         await setSetting(SETTING_KEYS.lastOpenedTreeId, id);
         console.info("[tree] loaded %s (%s)", r.value.name || "untitled", id);
         toasts.push(`loaded ${r.value.name || "untitled"}`, "info", 3000);
@@ -109,6 +168,7 @@
     async function startNewTree(): Promise<void> {
         await autosaver.flush();
         portraitUrls.clear();
+        readOnly = false;
         treeStore.reset(emptyTree());
         console.info("[tree] new tree");
         toasts.push("started a new tree", "info", 3000);
@@ -174,15 +234,11 @@
         const parent = t.people[id];
         if (!parent) return;
         const { tree, id: newId } = addPerson(t, blankPerson());
-        // attribute the new child to the parent
         const linkedOne = linkParent(tree, newId, id);
         if (!linkedOne.ok) {
             toasts.push(linkedOne.error, "error");
             return;
         }
-        // if the parent has exactly one partner, default the new child to that
-        // couple too. avoids relatives-tree's "parent in two distinct families"
-        // crash and matches what the user almost always wants in a 2-parent tree.
         let next = linkedOne.value;
         if (parent.spouseIds.length === 1) {
             const partnerId = parent.spouseIds[0];
@@ -198,7 +254,6 @@
     function deletePerson(id: PersonId): void {
         treeStore.update((t) => {
             const next = removePerson(t, id);
-            // if we just deleted the root, reassign rootId to any surviving person
             if (next.rootId === id) {
                 const fallback = Object.keys(next.people)[0];
                 return fallback ? { ...next, rootId: fallback } : next;
@@ -209,6 +264,8 @@
     }
 
     function menuItems(personId: PersonId): ContextMenuItem[] {
+        if (readOnly)
+            return [{ label: "edit person", onclick: () => selection.openEditor(personId) }];
         return [
             { label: "edit person", onclick: () => selection.openEditor(personId) },
             { label: "add parent", onclick: () => addParent(personId) },
@@ -236,44 +293,36 @@
             if (format === "gedzip") {
                 const r = readBundle(bytes);
                 if (!r.ok) {
-                    console.error("[io] import failed '%s':", file.name, r.error);
                     toasts.push(`import failed: ${r.error}`, "error");
                     return;
                 }
                 const count = Object.keys(r.value.tree.people).length;
-                console.info("[io] imported %d people from '%s' (gedzip)", count, file.name);
                 treeStore.reset(r.value.tree);
                 toasts.push(`loaded ${String(count)} people from ${file.name}`, "success");
             } else if (format === "gedcom") {
                 const text = new TextDecoder().decode(bytes);
                 const r = parseGedcom(text);
                 if (!r.ok) {
-                    console.error("[io] import failed '%s':", file.name, r.error);
                     toasts.push(`import failed: ${r.error}`, "error");
                     return;
                 }
                 const count = Object.keys(r.value.tree.people).length;
-                console.info("[io] imported %d people from '%s' (gedcom)", count, file.name);
                 treeStore.reset(r.value.tree);
                 toasts.push(`loaded ${String(count)} people from ${file.name}`, "success");
             } else if (format === "familyscript") {
                 const text = new TextDecoder().decode(bytes);
                 const r = parseFamilyScript(text);
                 if (!r.ok) {
-                    console.error("[io] import failed '%s':", file.name, r.error);
                     toasts.push(`import failed: ${r.error}`, "error");
                     return;
                 }
                 const count = Object.keys(r.value.tree.people).length;
-                console.info("[io] imported %d people from '%s' (familyscript)", count, file.name);
                 treeStore.reset(r.value.tree);
                 toasts.push(`loaded ${String(count)} people from ${file.name}`, "success");
             } else {
-                console.warn("[io] unrecognized format for '%s'", file.name);
                 toasts.push(`unrecognized file format: ${file.name}`, "error");
             }
         } catch (err) {
-            console.error("[io] import error:", err);
             toasts.push(`import error: ${String(err)}`, "error");
         } finally {
             toasts.dismiss(loadingId);
@@ -295,55 +344,93 @@
     }
 
     function onSave(id: string, patch: Partial<Person>): void {
+        if (readOnly) return;
         treeStore.update((t) => updatePerson(t, id, patch));
     }
+
+    const syncLabel = $derived(
+        syncStore.mode === "syncing"
+            ? "syncing…"
+            : syncStore.mode === "conflict"
+              ? "conflict"
+              : null,
+    );
 </script>
 
 <div class="bg-canvas text-fg flex h-dvh flex-col">
     <header class="border-line bg-canvas-elev flex items-center gap-2 border-b px-3 py-2">
-        <h1 class="text-fg mr-auto text-sm font-semibold tracking-wide">family tree editor</h1>
+        <h1 class="text-fg mr-auto text-sm font-semibold tracking-wide">
+            family tree editor
+            {#if readOnly}
+                <span class="text-fg-muted ml-1 font-normal">(read-only)</span>
+            {/if}
+        </h1>
 
-        <Button
-            type="button"
-            variant="ghost"
-            disabled={!treeStore.canUndo}
-            onclick={() => treeStore.undo()}
-        >
-            {#snippet children()}undo{/snippet}
-        </Button>
-        <Button
-            type="button"
-            variant="ghost"
-            disabled={!treeStore.canRedo}
-            onclick={() => treeStore.redo()}
-        >
-            {#snippet children()}redo{/snippet}
-        </Button>
+        {#if !readOnly}
+            <Button
+                type="button"
+                variant="ghost"
+                disabled={!treeStore.canUndo}
+                onclick={() => treeStore.undo()}
+            >
+                {#snippet children()}undo{/snippet}
+            </Button>
+            <Button
+                type="button"
+                variant="ghost"
+                disabled={!treeStore.canRedo}
+                onclick={() => treeStore.redo()}
+            >
+                {#snippet children()}redo{/snippet}
+            </Button>
+        {/if}
 
-        <RecentTrees
-            listings={recents}
-            activeId={treeStore.tree.id}
-            onpick={(id: string) => void loadFromRecents(id)}
-            onnew={() => void startNewTree()}
-            ondelete={(id: string) => void removeTree(id)}
-        />
-
-        <label
-            class="text-fg hover:bg-canvas focus-within:outline-accent inline-flex cursor-pointer items-center rounded-md px-3 py-1.5 text-sm font-medium focus-within:outline-2"
-        >
-            import
-            <input
-                type="file"
-                class="sr-only"
-                accept=".txt,.ged,.gedcom,.gdz,.zip"
-                onchange={onImport}
-                data-testid="import-input"
+        {#if !readOnly}
+            <RecentTrees
+                listings={recents}
+                activeId={treeStore.tree.id}
+                onpick={(id: string) => void loadFromRecents(id)}
+                onnew={() => void startNewTree()}
+                ondelete={(id: string) => void removeTree(id)}
             />
-        </label>
+        {/if}
 
-        <Button type="button" variant="primary" onclick={onExport}>
-            {#snippet children()}export .gdz{/snippet}
-        </Button>
+        {#if syncLabel}
+            <span class="text-fg-muted text-xs">{syncLabel}</span>
+        {/if}
+
+        {#if !readOnly}
+            <label
+                class="text-fg hover:bg-canvas focus-within:outline-accent inline-flex cursor-pointer items-center rounded-md px-3 py-1.5 text-sm font-medium focus-within:outline-2"
+            >
+                import
+                <input
+                    type="file"
+                    class="sr-only"
+                    accept=".txt,.ged,.gedcom,.gdz,.zip"
+                    onchange={onImport}
+                    data-testid="import-input"
+                />
+            </label>
+
+            <Button type="button" variant="primary" onclick={onExport}>
+                {#snippet children()}export .gdz{/snippet}
+            </Button>
+        {/if}
+
+        {#if authStore.user && !readOnly}
+            <Button type="button" variant="ghost" onclick={() => (showShare = !showShare)}>
+                {#snippet children()}share{/snippet}
+            </Button>
+        {/if}
+
+        {#if authStore.user?.role === "admin"}
+            <Button type="button" variant="ghost" onclick={() => (showAdmin = !showAdmin)}>
+                {#snippet children()}admin{/snippet}
+            </Button>
+        {/if}
+
+        <AuthBar onSignedIn={() => void authStore.fetch()} />
     </header>
 
     <main class="flex-1 overflow-hidden">
@@ -376,5 +463,13 @@
             items={menuItems(contextMenu.personId)}
             onclose={() => (contextMenu = undefined)}
         />
+    {/if}
+
+    {#if showShare}
+        <ShareDialog treeId={treeStore.tree.id} onClose={() => (showShare = false)} />
+    {/if}
+
+    {#if showAdmin}
+        <AdminPanel onClose={() => (showAdmin = false)} />
     {/if}
 </div>

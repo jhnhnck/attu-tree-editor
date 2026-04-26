@@ -21,6 +21,7 @@
         "server:dev": "cd apps/server && .venv/bin/uvicorn attu_tree.main:app --reload --port 8000",
         "server:test": "cd apps/server && .venv/bin/pytest",
         "server:lint": "cd apps/server && .venv/bin/ruff check . && .venv/bin/basedpyright",
+        "gen:api": "pnpm -F @attu/api-client gen",
         "verify": "pnpm typecheck && pnpm lint && pnpm test:unit && pnpm build && pnpm server:setup && pnpm server:lint && pnpm server:test"
     }
 }

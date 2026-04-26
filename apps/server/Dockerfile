@@ -1,5 +1,5 @@
-# multi-stage build using uv for reproducible installs
-# matches the doom-bot stack: python 3.13, slim base, non-root runtime user
+# standalone server dockerfile (dev / backend-only iteration)
+# for the full production image (spa + server) use the top-level Dockerfile.
 
 FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim AS builder
 
@@ -9,12 +9,10 @@ ENV UV_COMPILE_BYTECODE=1 \
 
 WORKDIR /app
 
-# install deps separately so they cache between source edits
 COPY pyproject.toml uv.lock* ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-install-project --no-dev || uv sync --no-install-project --no-dev
 
-# copy app source and finalize the install
 COPY attu_tree ./attu_tree
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --no-dev
@@ -22,7 +20,6 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 FROM python:3.13-slim-bookworm AS runtime
 
-# small footprint; only the venv and source make it into the final image
 RUN groupadd --system --gid 1000 app \
     && useradd --system --uid 1000 --gid app --shell /usr/sbin/nologin --create-home app
 

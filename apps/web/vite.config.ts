@@ -9,6 +9,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { fileURLToPath } from "node:url";
 
 export default defineConfig({
+    base: process.env["VITE_BASE"] ?? "/",
     plugins: [svelte(), tailwindcss()],
     resolve: {
         alias: {

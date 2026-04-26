@@ -16,6 +16,7 @@
         "test:e2e": "playwright test"
     },
     "dependencies": {
+        "@attu/api-client": "workspace:*",
         "@panzoom/panzoom": "^4.6.2",
         "cropperjs": "^2.1.1",
         "dexie": "^4.4.2",

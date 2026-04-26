@@ -1,5 +1,5 @@
 /*
- * FamilyTreeEditor - DateInput structured picker
+ * FamilyTreeEditor - DateInput popover picker
  * licensed under the MIT license; see LICENSE.md for full text
  */
 
@@ -9,73 +9,137 @@ import DateInput from "$lib/components/form/DateInput.svelte";
 import type { HaracalndeDateData } from "$lib/date/HaracalndeDate";
 
 describe("DateInput", () => {
-    it("populates year and era from the initial value", () => {
+    it("renders the formatted date in the field", () => {
         render(DateInput, {
-            value: { era: "TT", year: 1234 } satisfies HaracalndeDateData,
+            value: { era: "TT", year: 1234, month: 3, day: 5 } satisfies HaracalndeDateData,
             onchange: vi.fn(),
         });
-        const year = screen.getByRole<HTMLInputElement>("textbox", { name: /year/i });
-        expect(year.value).toBe("1234");
-        const era = screen.getByRole<HTMLSelectElement>("combobox", { name: /era/i });
-        expect(era.value).toBe("TT");
+        const field = screen.getByRole<HTMLInputElement>("textbox", { name: /date/i });
+        expect(field.value).toBe("5-3 1234 TT");
+        expect(field).toHaveAttribute("readonly");
     });
 
-    it("emits onchange when a valid year is typed", async () => {
-        const onchange = vi.fn();
-        render(DateInput, { value: undefined, onchange });
-        const year = screen.getByRole("textbox", { name: /year/i });
-        await fireEvent.input(year, { target: { value: "1500" } });
-        expect(onchange).toHaveBeenCalledWith({ era: "PC", year: 1500 });
+    it("shows placeholder when no value is set", () => {
+        render(DateInput, { value: undefined, onchange: vi.fn(), placeholder: "set date" });
+        const field = screen.getByRole<HTMLInputElement>("textbox", { name: /date/i });
+        expect(field.value).toBe("");
+        expect(field.placeholder).toBe("set date");
     });
 
-    it("emits undefined when the year field is cleared", async () => {
-        const onchange = vi.fn();
-        render(DateInput, { value: { era: "PC", year: 1234 }, onchange });
-        const year = screen.getByRole("textbox", { name: /year/i });
-        await fireEvent.input(year, { target: { value: "" } });
-        expect(onchange).toHaveBeenCalledWith(undefined);
+    it("opens the calendar picker on click", async () => {
+        render(DateInput, { value: { era: "PC", year: 1700 }, onchange: vi.fn() });
+        expect(screen.queryByRole("dialog")).toBeNull();
+        const field = screen.getByRole("textbox", { name: /date/i });
+        await fireEvent.click(field);
+        expect(screen.getByRole("dialog", { name: /calendar/i })).toBeInTheDocument();
     });
 
-    it("shows a year error and does not emit when year is invalid", async () => {
-        const onchange = vi.fn();
-        render(DateInput, { value: undefined, onchange });
-        const year = screen.getByRole("textbox", { name: /year/i });
-        await fireEvent.input(year, { target: { value: "0" } });
-        expect(onchange).not.toHaveBeenCalled();
-        expect(screen.getByRole("alert")).toHaveTextContent(/year must be/i);
-        expect(year).toHaveAttribute("aria-invalid", "true");
-    });
-
-    it("includes month and day in the emitted value when selected", async () => {
+    it("commits picker selection on Done", async () => {
         const onchange = vi.fn();
         render(DateInput, { value: { era: "PC", year: 1700 }, onchange });
-        const month = screen.getByRole("combobox", { name: /month/i });
-        await fireEvent.change(month, { target: { value: "3" } });
-        const day = screen.getByRole("combobox", { name: /day/i });
-        await fireEvent.change(day, { target: { value: "5" } });
-        const last = onchange.mock.calls.at(-1)?.[0] as HaracalndeDateData;
-        expect(last).toMatchObject({ era: "PC", year: 1700, month: 3, day: 5 });
+        await fireEvent.click(screen.getByRole("textbox", { name: /date/i }));
+        await fireEvent.click(screen.getByRole("button", { name: /day 5/i }));
+        await fireEvent.click(screen.getByRole("button", { name: /^done$/i }));
+        expect(onchange).toHaveBeenCalledWith({
+            era: "PC",
+            year: 1700,
+            month: 1,
+            day: 5,
+        });
     });
 
-    it("sets approximate when the ~ checkbox is ticked", async () => {
+    it("does not commit when Cancel is clicked", async () => {
         const onchange = vi.fn();
-        render(DateInput, { value: { era: "PC", year: 1500 }, onchange });
+        render(DateInput, { value: { era: "PC", year: 1700 }, onchange });
+        await fireEvent.click(screen.getByRole("textbox", { name: /date/i }));
+        await fireEvent.click(screen.getByRole("button", { name: /day 5/i }));
+        await fireEvent.click(screen.getByRole("button", { name: /^cancel$/i }));
+        expect(onchange).not.toHaveBeenCalled();
+        expect(screen.queryByRole("dialog")).toBeNull();
+    });
+
+    it("scrolls months with the arrow buttons", async () => {
+        const onchange = vi.fn();
+        render(DateInput, {
+            value: { era: "PC", year: 1700, month: 5, day: 10 },
+            onchange,
+        });
+        await fireEvent.click(screen.getByRole("textbox", { name: /date/i }));
+        await fireEvent.click(screen.getByRole("button", { name: /next month/i }));
+        await fireEvent.click(screen.getByRole("button", { name: /^done$/i }));
+        const last = onchange.mock.calls.at(-1)?.[0] as HaracalndeDateData;
+        expect(last.month).toBe(6);
+    });
+
+    it("crosses the PC/TT boundary when scrolling years backward", async () => {
+        const onchange = vi.fn();
+        render(DateInput, { value: { era: "PC", year: 1, month: 1, day: 1 }, onchange });
+        await fireEvent.click(screen.getByRole("textbox", { name: /date/i }));
+        await fireEvent.click(screen.getByRole("button", { name: /previous year/i }));
+        await fireEvent.click(screen.getByRole("button", { name: /^done$/i }));
+        const last = onchange.mock.calls.at(-1)?.[0] as HaracalndeDateData;
+        expect(last.era).toBe("TT");
+        expect(last.year).toBe(1);
+    });
+
+    it("toggles era via the era pill", async () => {
+        const onchange = vi.fn();
+        render(DateInput, { value: { era: "PC", year: 100, month: 1, day: 1 }, onchange });
+        await fireEvent.click(screen.getByRole("textbox", { name: /date/i }));
+        await fireEvent.click(screen.getByRole("button", { name: /toggle era/i }));
+        await fireEvent.click(screen.getByRole("button", { name: /^done$/i }));
+        const last = onchange.mock.calls.at(-1)?.[0] as HaracalndeDateData;
+        expect(last.era).toBe("TT");
+    });
+
+    it("includes approximate when the checkbox is ticked in the picker", async () => {
+        const onchange = vi.fn();
+        render(DateInput, { value: { era: "PC", year: 1500, month: 1, day: 1 }, onchange });
+        await fireEvent.click(screen.getByRole("textbox", { name: /date/i }));
         const approx = screen.getByRole("checkbox", { name: /approximate/i });
-        await fireEvent.change(approx, { target: { checked: true } });
+        await fireEvent.click(approx);
+        await fireEvent.click(screen.getByRole("button", { name: /^done$/i }));
         const last = onchange.mock.calls.at(-1)?.[0] as HaracalndeDateData;
         expect(last.approximate).toBe(true);
     });
 
-    it("clears day when month is reset to blank", async () => {
+    it("switches to manual text entry on second click and commits a parsed date", async () => {
         const onchange = vi.fn();
-        render(DateInput, {
-            value: { era: "PC", year: 1700, month: 3, day: 15 },
-            onchange,
+        render(DateInput, { value: undefined, onchange });
+        const field = screen.getByRole<HTMLInputElement>("textbox", { name: /date/i });
+        await fireEvent.click(field);
+        await fireEvent.click(field); // second click → manual mode
+        expect(field).not.toHaveAttribute("readonly");
+        await fireEvent.input(field, { target: { value: "15-3 1700 PC" } });
+        await fireEvent.keyDown(field, { key: "Enter" });
+        expect(onchange).toHaveBeenLastCalledWith({
+            era: "PC",
+            year: 1700,
+            month: 3,
+            day: 15,
         });
-        const month = screen.getByRole("combobox", { name: /month/i });
-        await fireEvent.change(month, { target: { value: "" } });
-        const last = onchange.mock.calls.at(-1)?.[0] as HaracalndeDateData;
-        expect(last.month).toBeUndefined();
-        expect(last.day).toBeUndefined();
+    });
+
+    it("clears the value when manual text is emptied", async () => {
+        const onchange = vi.fn();
+        render(DateInput, { value: { era: "PC", year: 1700 }, onchange });
+        const field = screen.getByRole<HTMLInputElement>("textbox", { name: /date/i });
+        await fireEvent.click(field);
+        await fireEvent.click(field);
+        await fireEvent.input(field, { target: { value: "" } });
+        await fireEvent.keyDown(field, { key: "Enter" });
+        expect(onchange).toHaveBeenLastCalledWith(undefined);
+    });
+
+    it("shows an error and does not emit when manual text is invalid", async () => {
+        const onchange = vi.fn();
+        render(DateInput, { value: undefined, onchange });
+        const field = screen.getByRole<HTMLInputElement>("textbox", { name: /date/i });
+        await fireEvent.click(field);
+        await fireEvent.click(field);
+        await fireEvent.input(field, { target: { value: "not a date" } });
+        await fireEvent.keyDown(field, { key: "Enter" });
+        expect(onchange).not.toHaveBeenCalled();
+        expect(screen.getByRole("alert")).toHaveTextContent(/invalid date/i);
     });
 });
