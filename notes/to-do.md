@@ -12,13 +12,10 @@ _phase 1 complete; see the completed section below_
 
 ### phase 2 - import/export
 
-- ⭕ `high priority` `medium effort` FamilyScript tokenizer (`i ^ g p l q b d m f s T j z V` + `e<n>` couple records)
-- ⭕ `high priority` `medium effort` FamilyScript serializer; byte-stable round-trip on the example file
-- ⭕ `high priority` `medium effort` GEDCOM parse via read-gedcom; map BC -> TT, ABT preserved, OBJE -> portrait refs
-- ⭕ `high priority` `medium effort` GEDCOM serialize via gedcom-io; emit OBJE blocks for portraits
-- ⭕ `medium priority` `medium effort` zip bundle reader/writer for `.ged` + `portraits/` archives
-- ⭕ `medium priority` `low effort` export warning ui listing fields that will be dropped per format
-- ⭕ `high priority` `low effort` golden snapshot tests committed for both example files
+_phase 2 complete; see the completed section below_
+
+- ⭕ `medium priority` `low effort` OBJE block emission for portraits in the GEDCOM serializer (currently dropped with a finding; needs the portrait bundle linker from phase 4)
+- ⭕ `medium priority` `low effort` MARR / `_PRIMARY` / `_CURRENT` round-trip on CoupleRecord (currently dropped with a finding)
 
 ### phase 3 - render + edit
 
@@ -62,6 +59,12 @@ _phase 1 complete; see the completed section below_
 - ⭕ `low priority` `low effort` add `pnpm verify` to a github actions workflow
 - ⭕ `future idea` `medium effort` real-time multi-user collaboration via websocket
 
+### schema evolution (gates a schema version bump each)
+
+- ⭕ `future idea` `high effort` replace `motherId` / `fatherId` with `parentIds: PersonId[]` (each entry carries optional `role: 'mother' | 'father' | 'parent' | 'progenitor'` and `pedi: 'birth' | 'adopted' | 'foster'`); supports asexual / multi-parent / non-binary single parents; ships with a v1 -> v2 migration in `domain/schema.ts`
+- ⭕ `future idea` `medium effort` add generic `relationships: { kind: 'transformed-from' | 'alias-of' | 'sworn-bond' | 'master-apprentice' | ...; targetId; notes? }[]` for transmutation, alias, adoption-not-yet-mapped, and other fictional bonds; ships with a v2 -> v3 migration
+- ⭕ `future idea` `low effort` add `birthOrder?: number` on `Person` for twin / triplet / cohort ordering inside a sibship (currently lost — sibship is derived from shared parents only); ships with a v3 -> v4 migration
+
 ### meta
 
 - `high priority` `low effort` assign any to-dos without an effort or category; update priorities; move completed and sort all
@@ -93,6 +96,27 @@ _phase 1 complete; see the completed section below_
 - 🔴 `25 April 2026` `domain/validate.ts` orphan-reference, cycle, duplicate-spouse, missing-root, invalid-id findings
 - 🔴 `25 April 2026` 91 unit tests passing across the date and domain modules
 
+### phase 2 - import / export
+
+- 🔴 `25 April 2026` `io/familyscript/tokens.ts` tag constants and small enum maps
+- 🔴 `25 April 2026` `io/familyscript/parse.ts` tab-split tokenizer covering all 15 person tags + `e<n>` couple records; preserves V-tag and other extras for round-trip
+- 🔴 `25 April 2026` `io/familyscript/serialize.ts` canonical-order serializer with golden snapshot stable across two round-trips
+- 🔴 `25 April 2026` `io/gedcom/parse.ts` wraps `read-gedcom` (npm) low-level tree, walks INDI / FAM, resolves _MARNM / NPFX / FAMC / FAMS, derives parent links from single-parent FAM records the way FamilyEcho exports them
+- 🔴 `25 April 2026` `io/gedcom/serialize.ts` deterministic xref allocation, HEAD round-trip, FAM derived from observed (mother, father) pairings; golden snapshot stable across two round-trips
+- 🔴 `25 April 2026` `io/detect.ts` filename + magic-byte format sniffer (familyscript / gedcom / gedzip)
+- 🔴 `25 April 2026` `io/merge/merge.ts` dual-import merge: name+year matcher, field-conflict resolver, spouse and couple union; verified against the real-world Akarians .txt + .ged dual import
+- 🔴 `25 April 2026` `io/warnings.ts` per-target export warnings (portraits dropped for FS, anchor/locationOrigin/display dropped for GEDCOM, etc.)
+- 🔴 `25 April 2026` `io/bundle/{read,write}.ts` GEDZIP-style bundle (`gedcom.ged` + `media/<personId>.<ext>`) using fflate
+- 🔴 `25 April 2026` 146 unit tests passing across phase 1 + phase 2
+
+### weird-families relaxation (post-phase-2 audit)
+
+- 🔴 `25 April 2026` `linkSpouse` accepts self-couples (single-id `CoupleRecord`); `validate` flags them with a non-blocking `self-couple` finding
+- 🔴 `25 April 2026` GEDCOM emit + parse: same-sex marriages serialized as duplicate `1 HUSB` or `1 WIFE` tags; `applyFam` walks all spouse roles and emits one `CoupleRecord` per pair
+- 🔴 `25 April 2026` `linkParent` no longer rejects cycles; `validate` already flags them as findings (matches the importer behavior)
+- 🔴 `25 April 2026` retired `io/familyscript/serialize.ts` and the gedcom plain-export warning target; only GEDZIP and (future) JSON are export targets going forward
+- 🔴 `25 April 2026` `domain/schema.ts` schema-version registry + migration runner; GEDZIP bundles ship `manifest.json` with `schemaVersion`/`createdBy`/`createdAt`; reader migrates forward and refuses bundles stamped newer than this build
+
 ---
 
 ## meta
@@ -123,5 +147,5 @@ when adding a new item, sort it into the appropriate section by topic, or add a 
 
 ```yaml
 last_updated: 25 April 2026
-total_completed: 17
+total_completed: 32
 ```

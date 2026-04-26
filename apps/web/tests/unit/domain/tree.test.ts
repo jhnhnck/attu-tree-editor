@@ -139,13 +139,15 @@ describe("removePerson", () => {
 });
 
 describe("linkParent", () => {
-    it("rejects self-link", () => {
-        const t = createTree("x", bareRoot());
+    it("accepts self-link (asexual self-reproduction in fictional worlds)", () => {
+        const t = createTree("x", { ...bareRoot(), gender: "m" });
         const r = linkParent(t, ROOT_ID, ROOT_ID);
-        expect(r.ok).toBe(false);
+        expect(r.ok).toBe(true);
+        if (!r.ok) return;
+        expect(r.value.people[ROOT_ID]?.fatherId).toBe(ROOT_ID);
     });
 
-    it("rejects a deep cycle", () => {
+    it("accepts a deep cycle (validate flags it later)", () => {
         // build A child-of B child-of C, then attempt to make C a child of A
         let t = createTree("x", { ...bareRoot(), given: "C", gender: "m" });
         const c = ROOT_ID;
@@ -160,8 +162,9 @@ describe("linkParent", () => {
         if (!linkA.ok) throw new Error(linkA.error);
         t = linkA.value;
         const cycle = linkParent(t, c, addA.id);
-        expect(cycle.ok).toBe(false);
-        if (!cycle.ok) expect(cycle.error).toMatch(/cycle/);
+        expect(cycle.ok).toBe(true);
+        if (!cycle.ok) return;
+        expect(cycle.value.people[c]?.fatherId).toBe(addA.id);
     });
 
     it("uses motherId for female parents and fatherId for male/unknown", () => {
@@ -186,10 +189,15 @@ describe("unlinkParent", () => {
 });
 
 describe("linkSpouse", () => {
-    it("rejects same-person link", () => {
+    it("accepts self-spouse and records a single-id couple", () => {
         const t = createTree("x", bareRoot());
         const r = linkSpouse(t, ROOT_ID, ROOT_ID);
-        expect(r.ok).toBe(false);
+        expect(r.ok).toBe(true);
+        if (!r.ok) return;
+        expect(r.value.people[ROOT_ID]?.spouseIds).toEqual([ROOT_ID]);
+        expect(r.value.couples).toEqual([
+            { leftId: ROOT_ID, rightId: ROOT_ID, unionIndex: 1, childIds: [] },
+        ]);
     });
 
     it("is idempotent: linking twice does not duplicate spouseIds", () => {

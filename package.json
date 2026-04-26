@@ -17,9 +17,10 @@
         "test": "pnpm -F web test",
         "test:unit": "pnpm -F web test:unit",
         "test:e2e": "pnpm -F web test:e2e",
-        "server:dev": "cd apps/server && uv run uvicorn attu_tree.main:app --reload --port 8000",
-        "server:test": "cd apps/server && uv run pytest",
-        "server:lint": "cd apps/server && uv run ruff check . && uv run basedpyright",
-        "verify": "pnpm typecheck && pnpm lint && pnpm test:unit && pnpm build && pnpm server:lint && pnpm server:test"
+        "server:setup": "cd apps/server && env -u VIRTUAL_ENV uv sync",
+        "server:dev": "cd apps/server && .venv/bin/uvicorn attu_tree.main:app --reload --port 8000",
+        "server:test": "cd apps/server && .venv/bin/pytest",
+        "server:lint": "cd apps/server && .venv/bin/ruff check . && .venv/bin/basedpyright",
+        "verify": "pnpm typecheck && pnpm lint && pnpm test:unit && pnpm build && pnpm server:setup && pnpm server:lint && pnpm server:test"
     }
 }

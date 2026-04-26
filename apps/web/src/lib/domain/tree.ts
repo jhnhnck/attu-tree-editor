@@ -63,12 +63,10 @@ export function linkParent(t: Tree, childId: PersonId, parentId: PersonId): Resu
     const parent = t.people[parentId];
     if (!child) return err(`unknown child id: ${childId}`);
     if (!parent) return err(`unknown parent id: ${parentId}`);
-    if (childId === parentId) return err("cannot link person as their own parent");
 
-    if (descendantSet(t, childId).has(parentId)) {
-        return err(`cycle: ${parentId} is already a descendant of ${childId}`);
-    }
-
+    // self-parent and ancestral cycles are allowed (time travel, recursive
+    // lineage, asexual self-reproduction); validate.ts flags them as findings
+    // so the editor can surface the loop without blocking the operation
     const role: "motherId" | "fatherId" = parent.gender === "f" ? "motherId" : "fatherId";
     const next: Person = { ...child, [role]: parentId };
     return ok({ ...t, people: { ...t.people, [childId]: next } });
@@ -89,11 +87,21 @@ export function linkSpouse(
     bId: PersonId,
     unionIndex?: number,
 ): Result<Tree, string> {
-    if (aId === bId) return err("cannot link a person as their own spouse");
     const a = t.people[aId];
     const b = t.people[bId];
     if (!a) return err(`unknown spouse id: ${aId}`);
     if (!b) return err(`unknown spouse id: ${bId}`);
+
+    if (aId === bId) {
+        // self-spouse is allowed; record as a single-id couple and flag in validate
+        const spouseIds = a.spouseIds.includes(aId) ? a.spouseIds : [...a.spouseIds, aId];
+        const couples = upsertCouple(t.couples, aId, aId, unionIndex ?? nextUnionIndex(t.couples));
+        return ok({
+            ...t,
+            people: { ...t.people, [aId]: { ...a, spouseIds } },
+            couples,
+        });
+    }
 
     const aSpouses = a.spouseIds.includes(bId) ? a.spouseIds : [...a.spouseIds, bId];
     const bSpouses = b.spouseIds.includes(aId) ? b.spouseIds : [...b.spouseIds, aId];
@@ -201,13 +209,6 @@ function directChildren(t: Tree, id: PersonId): PersonId[] {
         if (p.motherId === id || p.fatherId === id) out.push(p.id);
     }
     return out;
-}
-
-function descendantSet(t: Tree, id: PersonId): Set<PersonId> {
-    const result = new Set<PersonId>();
-    for (const d of descendantsOf(t, id)) result.add(d.id);
-    result.add(id);
-    return result;
 }
 
 function cryptoUuid(): string {

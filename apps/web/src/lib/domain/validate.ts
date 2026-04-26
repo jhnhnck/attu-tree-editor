@@ -15,8 +15,25 @@ export type Finding =
       }
     | { kind: "cycle"; path: PersonId[] }
     | { kind: "duplicate-spouse"; person: PersonId; spouse: PersonId }
+    | { kind: "self-couple"; person: PersonId }
     | { kind: "missing-root"; rootId: PersonId }
-    | { kind: "invalid-id"; id: PersonId };
+    | { kind: "invalid-id"; id: PersonId }
+    // io: parser-emitted
+    | { kind: "unknown-line"; line: string; lineNumber: number }
+    | { kind: "unknown-tag"; from: PersonId; tag: string; value: string }
+    | { kind: "bad-date"; from: PersonId; field: "birth" | "death"; raw: string; reason: string }
+    | { kind: "dropped-subtag"; from: PersonId; tag: string }
+    // merge-emitted
+    | { kind: "unmatched-person"; person: PersonId; source: "familyscript" | "gedcom" }
+    | { kind: "ambiguous-match"; person: PersonId; candidates: PersonId[] }
+    | {
+          kind: "field-conflict";
+          person: PersonId;
+          field: string;
+          fromFamilyScript: unknown;
+          fromGedcom: unknown;
+          chosen: "familyscript" | "gedcom";
+      };
 
 export function validate(t: Tree): Finding[] {
     const findings: Finding[] = [];
@@ -66,6 +83,9 @@ export function validate(t: Tree): Finding[] {
                     missing: sid,
                 });
                 continue;
+            }
+            if (sid === person.id) {
+                findings.push({ kind: "self-couple", person: person.id });
             }
             if (spouseSeen.has(sid)) {
                 findings.push({ kind: "duplicate-spouse", person: person.id, spouse: sid });

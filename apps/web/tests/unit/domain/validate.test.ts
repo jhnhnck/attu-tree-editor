@@ -134,6 +134,15 @@ describe("validate (structural problems)", () => {
         expect(findings).toContainEqual({ kind: "invalid-id", id: "lower" });
     });
 
+    it("flags a self-couple", () => {
+        const t = createTree("x", { ...makeRoot(), gender: "u" });
+        const root = t.people[ROOT_ID];
+        if (!root) throw new Error("missing root");
+        root.spouseIds.push(ROOT_ID);
+        const findings = validate(t);
+        expect(findings).toContainEqual({ kind: "self-couple", person: ROOT_ID });
+    });
+
     it("does not flag the START sentinel as an invalid id", () => {
         const t = createTree("x", makeRoot());
         const findings = validate(t);
