@@ -8,7 +8,9 @@ server side lives in [`apps/server/attu_tree/routers/bot.py`](../../apps/server/
 
 ## 1. summary
 
-the bot owns discord identity. the family tree editor mirrors `{discord_id, discord_username, display_name}` per linked user but never authenticates against discord directly. all bot-to-server calls share a single hmac-signed channel.
+the bot owns discord identity **and discord-side roles**. the family tree editor mirrors `{discord_id, discord_username, display_name, role}` per linked user but never authenticates against discord directly and never elects admins itself. role authority is bot/discord side: the bot ships the user's discord-side role list on every link, and the server picks the highest-precedence value it recognises (today: `admin` > `user`) and silently drops the rest.
+
+all bot-to-server calls share a single hmac-signed channel.
 
 three top-level user-facing commands plus admin variants:
 
@@ -59,9 +61,18 @@ Content-Type: application/json
 {
   "code": "K7M3QX",
   "discord_id": "123456789012345678",
-  "discord_username": "haradar"
+  "discord_username": "haradar",
+  "roles": ["admin"]
 }
 ```
+
+`roles` semantics:
+
+- the bot supplies the user's discord-side role names (whatever shape makes sense to the bot - guild role names, slugs, etc.).
+- the server keeps only entries it recognises. as of today the recognised set is `{"admin", "user"}`; any other string is silently dropped, so the bot can ship new role names ahead of the server adopting them.
+- precedence is by the server's known-roles ordering: if `"admin"` appears anywhere in the list, the user is admin; otherwise they're `user`.
+- empty list (or field omitted) → `user`. **nobody is auto-promoted; if no admin role ever links, the system has no admins.**
+- the role is **re-applied on every link**, not just on first sign-in. a user demoted on the discord side loses admin the next time they re-run `/trees link` (and likewise gains it). there is no other path for changing a user's role.
 
 success (200):
 
@@ -69,13 +80,23 @@ success (200):
 { "display_name": "Haradar Karn" }
 ```
 
-errors:
+errors (all return `422 Unprocessable Entity` with a `detail` field):
 
-- 404 `code_not_found` - never issued or already cleaned up
-- 410 `code_expired` - past 10-minute window
-- 409 `code_already_used` - someone redeemed it (possibly the same user from another channel)
+- `code_not_found` - never issued or already cleaned up
+- `code_expired` - past 10-minute window
+- `code_already_used` - someone redeemed it (possibly the same user from another channel)
 
 bot uses `display_name` in the ephemeral confirmation text.
+
+### 3.1a recommended bot-side role mapping
+
+the bot is free to model its own role taxonomy; the wire only cares about strings. a simple, shippable approach:
+
+- on link, walk `member.roles` for the calling user in the relevant guild.
+- map each guild role name (or id) through a bot-side config (e.g. `attu_role_mapping = { "Family Tree Admin": "admin" }`); pass the mapped values through.
+- include `"user"` as a base entry only if you want to be explicit; the server defaults to `user` either way.
+
+if multiple guilds carry conflicting roles, the bot decides whose verdict wins before sending. the server takes the request as authoritative.
 
 ### 3.2 list a user's trees
 
@@ -175,6 +196,7 @@ at minimum the bot must capture and forward:
 | :--- | :--- | :--- |
 | `discord_id` | `interaction.user.id` (snowflake, send as string) | identity matching |
 | `discord_username` | `interaction.user.global_name` (fall back to `interaction.user.name`) | mirrored for display until next link |
+| `roles` | derived from `interaction.user.roles` in the relevant guild, mapped through the bot's config (see 3.1a) | mirrored to the user's role on every link |
 
 for share/unshare, also capture the target user via discord's native user-picker option (so we get id + global_name cleanly without name-resolution races):
 
@@ -194,6 +216,8 @@ register the group at the application level (not guild-scoped) so every server g
 | Option | Type | Required | Notes |
 | :--- | :--- | :--- | :--- |
 | `code` | string | yes | 6 chars, alphanumeric, case-insensitive on the bot side; pass uppercase to the server |
+
+the bot also captures the caller's discord roles (no user-supplied option) and forwards them as `roles: list[str]` per 3.1.
 
 ephemeral replies:
 
@@ -271,7 +295,7 @@ never echo raw server error bodies into discord.
 ## 8. open questions for the bot team
 
 - should `/trees show` paginate via buttons (current plan) or a select-menu? both work; pick one and stick with it.
-- do we want a per-guild admin command (`/trees admin promote user:<...>`) that calls the family-tree-editor admin api? scoped to discord users with a configured admin role on the bot side. **deferred** - admin role mutations are web-only at first.
+- ~~per-guild admin command for role mutation~~ - resolved: admin role flows entirely through the discord-side role list on `/trees link`. there is no `/trees admin promote` and no web-side role mutation. to promote a user, give them the configured admin role on discord and have them re-run `/trees link`.
 
 ---
 
@@ -280,4 +304,6 @@ never echo raw server error bodies into discord.
 ```yaml
 last_updated: 26 April 2026
 status: contract-draft (server impl in phase 5; bot impl in a sibling pr)
+changelog:
+  - 26 April 2026 (round 1 hardening) - 3.1 now requires roles[]; admin role mutation is bot/discord side only; error codes corrected (all 422 with detail)
 ```

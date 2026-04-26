@@ -15,6 +15,12 @@ export interface AutosaverOptions {
     onError?: (error: string) => void;
     /** called after each successful flush so the UI can show "saved" state */
     onSaved?: () => void;
+    /**
+     * how often to sweep orphan portrait blobs, in number of saves. defaults
+     * to 20 - the per-save scan was a hot spot at large blob counts. set to 1
+     * for tests that want immediate cleanup.
+     */
+    gcEvery?: number;
 }
 
 export interface Autosaver {
@@ -28,21 +34,28 @@ export interface Autosaver {
 
 export function makeAutosaver(opts: AutosaverOptions = {}): Autosaver {
     const debounceMs = opts.debounceMs ?? 1000;
+    const gcEvery = Math.max(1, opts.gcEvery ?? 20);
     let timer: ReturnType<typeof setTimeout> | undefined;
     let pending: Tree | undefined;
     let inFlight: Promise<void> | undefined;
+    let savesSinceGc = 0;
 
     async function persist(tree: Tree): Promise<void> {
         console.debug("[autosave] saving %s (%s)", tree.name, tree.id);
         try {
             await saveTree(tree);
             await setSetting(SETTING_KEYS.lastOpenedTreeId, tree.id);
-            // sweep any portrait blobs whose person no longer references them
-            const referenced = new Set<string>();
-            for (const p of Object.values(tree.people)) {
-                if (p.portraitBlobId) referenced.add(p.portraitBlobId);
+            // sweep orphan portrait blobs every gcEvery saves; the per-save
+            // scan was a hot spot when a tree carries many portraits
+            savesSinceGc += 1;
+            if (savesSinceGc >= gcEvery) {
+                savesSinceGc = 0;
+                const referenced = new Set<string>();
+                for (const p of Object.values(tree.people)) {
+                    if (p.portraitBlobId) referenced.add(p.portraitBlobId);
+                }
+                await gcOrphanBlobs(tree.id, referenced);
             }
-            await gcOrphanBlobs(tree.id, referenced);
             console.debug("[autosave] saved %s (%s)", tree.name, tree.id);
             opts.onSaved?.();
         } catch (e) {

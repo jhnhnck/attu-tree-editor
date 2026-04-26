@@ -22,7 +22,8 @@ from attu_tree.models import (
     TreeSaveRequest,
     TreeSaveResponse,
 )
-from attu_tree.sync.autosave import RevisionConflict, apply_save
+from attu_tree.settings import settings
+from attu_tree.sync.autosave import BlobTooLarge, RevisionConflict, apply_save
 from attu_tree.trees.access import tree_owner, tree_read, tree_write
 
 
@@ -31,6 +32,21 @@ router = APIRouter(prefix='/api/trees', tags=['trees'])
 
 def _now_iso() -> str:
     return datetime.now(UTC).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
+
+
+def _serialize_blob(blob: object) -> str:
+    """json-encode a blob and reject if it exceeds the configured cap.
+
+    enforces the size limit at the boundary so a malformed-or-malicious payload
+    can't bloat the trees / tree_revisions tables. raises 413.
+    """
+    s = json.dumps(blob)
+    if len(s.encode('utf-8')) > settings.max_tree_blob_bytes:
+        raise HTTPException(
+            status_code=413,
+            detail=f'tree blob exceeds maximum size of {settings.max_tree_blob_bytes} bytes',
+        )
+    return s
 
 
 @router.get('', response_model=TreeListResponse)
@@ -64,7 +80,7 @@ async def create_tree(
     conn: aiosqlite.Connection = Depends(get_db),
 ) -> TreeCreateResponse:
     tree_id = str(uuid.uuid4())
-    blob_str = json.dumps(body.blob)
+    blob_str = _serialize_blob(body.blob)
     await conn.execute(
         'INSERT INTO trees(id, owner_id, name, schema_version, blob, revision, updated_at) VALUES (?,?,?,?,?,1,?)',
         (tree_id, user['id'], body.name, body.schema_version, blob_str, _now_iso()),
@@ -109,6 +125,11 @@ async def save_tree(
             schema_version=body.schema_version,
         )
         return TreeSaveResponse(revision=new_rev, updated_at=updated_at)
+    except BlobTooLarge as exc:
+        raise HTTPException(
+            status_code=413,
+            detail=f'tree blob exceeds maximum size of {exc.limit} bytes',
+        ) from exc
     except RevisionConflict as exc:
         return Response(
             content=TreeConflictResponse(

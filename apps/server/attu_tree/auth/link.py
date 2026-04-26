@@ -2,7 +2,12 @@
 
 web calls start_link() → gets a 6-char code and pre-issued session token.
 web polls check_link() every 2s until the bot redeems.
-bot calls redeem_link() with discord user info → code is consumed, session bound to user.
+bot calls redeem_link() with discord user info + roles → code is consumed,
+session bound to user, role mirrored from the bot-supplied roles list.
+
+role authority is the discord side. unknown roles are silently dropped. if
+no admin roles have been linked yet, the system simply has no admins; we do
+not auto-promote anyone.
 """
 
 import logging
@@ -13,7 +18,6 @@ from datetime import UTC, datetime, timedelta
 import aiosqlite
 
 from attu_tree.auth.session import new_token
-from attu_tree.settings import settings
 
 
 log = logging.getLogger(__name__)
@@ -24,6 +28,20 @@ _CODE_LEN = 6
 _CODE_TTL_MINUTES = 10
 # keep at most this many recent revisions per tree
 REVISION_CAP = 20
+
+# roles the server understands; anything else from the bot is dropped.
+# precedence is by list order: first match wins when multiple known roles are
+# supplied (e.g. ['admin', 'user'] resolves to 'admin').
+_KNOWN_ROLES: tuple[str, ...] = ('admin', 'user')
+
+
+def resolve_role(roles: list[str]) -> str:
+    """pick the highest-precedence role we recognise; default to 'user'."""
+    s = {r for r in roles if isinstance(r, str)}
+    for known in _KNOWN_ROLES:
+        if known in s:
+            return known
+    return 'user'
 
 
 def _now_iso() -> str:
@@ -82,59 +100,73 @@ async def redeem_link(
     code: str,
     discord_id: str,
     discord_username: str,
+    roles: list[str] | None = None,
 ) -> str:
-    """bot calls this. marks code consumed, upserts user, binds session. returns display_name."""
+    """bot calls this. marks code consumed, upserts user, binds session.
+
+    atomicity comes from the `UPDATE ... WHERE consumed_at IS NULL` pattern:
+    two concurrent calls can't both win because sqlite serialises writes and
+    the loser sees rowcount=0. role is resolved from the supplied list on
+    every link, so a user demoted on discord loses admin the next time they
+    re-link.
+    """
+    role = resolve_role(roles or [])
+    code_upper = code.upper()
+    now = _now_iso()
+
+    # step 1: read the code row so we can give a precise error and grab the
+    # pre-issued session token. this is just for diagnostics + reading the
+    # token; the actual consume-claim happens atomically below.
     row = await (await conn.execute(
-        'SELECT code, session_token, expires_at, consumed_at FROM link_codes WHERE code = ?',
-        (code.upper(),),
+        'SELECT session_token, expires_at, consumed_at FROM link_codes WHERE code = ?',
+        (code_upper,),
     )).fetchone()
     if row is None:
         raise LinkCodeError('code_not_found')
-    if row['expires_at'] < _now_iso():
+    if row['expires_at'] < now:
         raise LinkCodeError('code_expired')
     if row['consumed_at'] is not None:
         raise LinkCodeError('code_already_used')
 
-    # find or create the user
+    # step 2: upsert the user. atomic via UNIQUE(discord_id) + ON CONFLICT;
+    # the candidate id we'd assign for a new row is discarded if a concurrent
+    # call beat us with the same discord_id.
+    candidate_id = str(uuid.uuid4())
+    await conn.execute(
+        """
+        INSERT INTO users(id, discord_id, discord_username, display_name, role)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(discord_id) DO UPDATE SET
+            discord_username = excluded.discord_username,
+            role = excluded.role
+        """,
+        (candidate_id, discord_id, discord_username, discord_username, role),
+    )
     user_row = await (await conn.execute(
-        'SELECT id, display_name, role FROM users WHERE discord_id = ?',
+        'SELECT id, display_name FROM users WHERE discord_id = ?',
         (discord_id,),
     )).fetchone()
+    user_id = user_row['id']
+    display_name = user_row['display_name']
 
-    no_admins = (await (await conn.execute("SELECT COUNT(*) FROM users WHERE role='admin'")).fetchone())[0] == 0
-    is_bootstrap_admin = settings.initial_admin_discord_id and discord_id == settings.initial_admin_discord_id
-
-    if user_row is None:
-        user_id = str(uuid.uuid4())
-        role = 'admin' if (is_bootstrap_admin or no_admins) else 'user'
-        display_name = discord_username
-        await conn.execute(
-            'INSERT INTO users(id, discord_id, discord_username, display_name, role) VALUES (?,?,?,?,?)',
-            (user_id, discord_id, discord_username, display_name, role),
-        )
-    else:
-        user_id = user_row['id']
-        display_name = user_row['display_name']
-        role = user_row['role']
-        # promote if bootstrap admin matches and they're not already admin
-        if is_bootstrap_admin and role != 'admin':
-            await conn.execute("UPDATE users SET role='admin' WHERE id=?", (user_id,))
-        # refresh username
-        await conn.execute('UPDATE users SET discord_username=? WHERE id=?', (discord_username, user_id))
-
-    # bind the pre-issued session to the user and consume the code
-    session_token = row['session_token']
-    expires_at = _expiry_from_now_days(30)
-    await conn.execute(
-        'INSERT OR REPLACE INTO sessions(token, user_id, expires_at) VALUES (?,?,?)',
-        (session_token, user_id, expires_at),
+    # step 3: atomically claim the code. rowcount=0 means a concurrent caller
+    # consumed it between our step 1 read and now.
+    cursor = await conn.execute(
+        'UPDATE link_codes SET consumed_at = ?, user_id = ? WHERE code = ? AND consumed_at IS NULL',
+        (now, user_id, code_upper),
     )
+    if cursor.rowcount == 0:
+        # commit the upsert (user is now persisted) but signal the loss
+        await conn.commit()
+        raise LinkCodeError('code_already_used')
+
+    # step 4: bind the pre-issued session to the user
     await conn.execute(
-        'UPDATE link_codes SET consumed_at=?, user_id=? WHERE code=?',
-        (_now_iso(), user_id, code.upper()),
+        'INSERT OR REPLACE INTO sessions(token, user_id, expires_at) VALUES (?, ?, ?)',
+        (row['session_token'], user_id, _expiry_from_now_days(30)),
     )
     await conn.commit()
-    log.info('link code redeemed for discord_id=%s user_id=%s', discord_id, user_id)
+    log.info('link code redeemed for discord_id=%s user_id=%s role=%s', discord_id, user_id, role)
     return display_name
 
 

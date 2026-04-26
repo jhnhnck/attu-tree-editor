@@ -33,7 +33,13 @@ async def bot_link(
     conn: aiosqlite.Connection = Depends(get_db),
 ) -> BotLinkResponse:
     try:
-        display_name = await redeem_link(conn, body.code, body.discord_id, body.discord_username)
+        display_name = await redeem_link(
+            conn,
+            body.code,
+            body.discord_id,
+            body.discord_username,
+            roles=body.roles,
+        )
     except LinkCodeError as exc:
         raise HTTPException(status_code=422, detail=exc.reason) from exc
     return BotLinkResponse(display_name=display_name)

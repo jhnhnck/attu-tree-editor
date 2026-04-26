@@ -21,7 +21,13 @@ export type Finding =
     // io: parser-emitted
     | { kind: "unknown-line"; line: string; lineNumber: number }
     | { kind: "unknown-tag"; from: PersonId; tag: string; value: string }
-    | { kind: "bad-date"; from: PersonId; field: "birth" | "death"; raw: string; reason: string }
+    | {
+          kind: "bad-date";
+          from: PersonId;
+          field: "birth" | "death" | "marriage";
+          raw: string;
+          reason: string;
+      }
     | { kind: "dropped-subtag"; from: PersonId; tag: string }
     // merge-emitted
     | { kind: "unmatched-person"; person: PersonId; source: "familyscript" | "gedcom" }

@@ -1,5 +1,6 @@
 """tests for the link-code auth flow and session management."""
 
+import asyncio
 import hashlib
 import hmac as _hmac
 import json
@@ -8,7 +9,7 @@ import time
 import pytest
 from httpx import AsyncClient
 
-from tests.conftest import TEST_HMAC_SECRET, hmac_headers
+from tests.conftest import TEST_HMAC_SECRET, authed, hmac_headers
 
 
 @pytest.mark.unit
@@ -46,8 +47,14 @@ async def test_bot_link_happy_path(client: AsyncClient):
     session_cookie = r.cookies['attu_session']
 
     # bot redeems
-    body = json.dumps({'code': code, 'discord_id': '111', 'discord_username': 'testuser'}).encode()
-    r2 = await client.post('/api/bot/auth/link', content=body, headers={**hmac_headers(body), 'content-type': 'application/json'})
+    body = json.dumps({
+        'code': code, 'discord_id': '111', 'discord_username': 'testuser', 'roles': [],
+    }).encode()
+    r2 = await client.post(
+        '/api/bot/auth/link',
+        content=body,
+        headers={**hmac_headers(body), 'content-type': 'application/json'},
+    )
     assert r2.status_code == 200
     assert r2.json()['display_name'] == 'testuser'
 
@@ -59,8 +66,14 @@ async def test_bot_link_happy_path(client: AsyncClient):
 
 @pytest.mark.unit
 async def test_bot_link_code_not_found(client: AsyncClient):
-    body = json.dumps({'code': 'XXXXXX', 'discord_id': '111', 'discord_username': 'x'}).encode()
-    r = await client.post('/api/bot/auth/link', content=body, headers={**hmac_headers(body), 'content-type': 'application/json'})
+    body = json.dumps({
+        'code': 'XXXXXX', 'discord_id': '111', 'discord_username': 'x', 'roles': [],
+    }).encode()
+    r = await client.post(
+        '/api/bot/auth/link',
+        content=body,
+        headers={**hmac_headers(body), 'content-type': 'application/json'},
+    )
     assert r.status_code == 422
     assert r.json()['detail'] == 'code_not_found'
 
@@ -70,14 +83,18 @@ async def test_bot_link_code_already_used(client: AsyncClient):
     r = await client.post('/api/auth/start')
     code = r.json()['code']
 
-    payload = {'code': code, 'discord_id': '111', 'discord_username': 'x'}
+    payload = {'code': code, 'discord_id': '111', 'discord_username': 'x', 'roles': []}
     body = json.dumps(payload).encode()
     headers = {**hmac_headers(body), 'content-type': 'application/json'}
 
     await client.post('/api/bot/auth/link', content=body, headers=headers)
     # second attempt
     body2 = json.dumps(payload).encode()
-    r2 = await client.post('/api/bot/auth/link', content=body2, headers={**hmac_headers(body2), 'content-type': 'application/json'})
+    r2 = await client.post(
+        '/api/bot/auth/link',
+        content=body2,
+        headers={**hmac_headers(body2), 'content-type': 'application/json'},
+    )
     assert r2.status_code == 422
     assert r2.json()['detail'] == 'code_already_used'
 
@@ -88,7 +105,11 @@ async def test_bot_link_hmac_mismatch(client: AsyncClient):
     code = r.json()['code']
     body = json.dumps({'code': code, 'discord_id': '111', 'discord_username': 'x'}).encode()
     bad_headers = hmac_headers(body, secret='wrong-secret')
-    r2 = await client.post('/api/bot/auth/link', content=body, headers={**bad_headers, 'content-type': 'application/json'})
+    r2 = await client.post(
+        '/api/bot/auth/link',
+        content=body,
+        headers={**bad_headers, 'content-type': 'application/json'},
+    )
     assert r2.status_code == 401
 
 
@@ -101,23 +122,38 @@ async def test_bot_link_hmac_replay(client: AsyncClient):
     ts = str(int(time.time()) - 400)
     payload = f'{ts}.'.encode() + body
     sig = _hmac.new(TEST_HMAC_SECRET.encode(), payload, hashlib.sha256).hexdigest()
-    bad_headers = {'x-attu-timestamp': ts, 'x-attu-signature': f'sha256={sig}', 'content-type': 'application/json'}
+    bad_headers = {
+        'x-attu-timestamp': ts,
+        'x-attu-signature': f'sha256={sig}',
+        'content-type': 'application/json',
+    }
     r2 = await client.post('/api/bot/auth/link', content=body, headers=bad_headers)
     assert r2.status_code == 401
 
 
 @pytest.mark.unit
-async def test_me_returns_user(client: AsyncClient):
-    # link first
-    r = await client.post('/api/auth/start')
-    code, cookie = r.json()['code'], r.cookies['attu_session']
-    body = json.dumps({'code': code, 'discord_id': '999', 'discord_username': 'meeee'}).encode()
-    await client.post('/api/bot/auth/link', content=body, headers={**hmac_headers(body), 'content-type': 'application/json'})
+async def test_bot_link_hmac_implausible_timestamp(client: AsyncClient):
+    """absurdly large timestamps are rejected as invalid, not silently let
+    through into the skew comparison."""
+    body = b'{}'
+    ts = '99999999999999'  # past the clamp
+    payload = f'{ts}.'.encode() + body
+    sig = _hmac.new(TEST_HMAC_SECRET.encode(), payload, hashlib.sha256).hexdigest()
+    headers = {
+        'x-attu-timestamp': ts,
+        'x-attu-signature': f'sha256={sig}',
+        'content-type': 'application/json',
+    }
+    r = await client.post('/api/bot/auth/link', content=body, headers=headers)
+    assert r.status_code == 401
 
-    client.cookies.set('attu_session', cookie)
-    r2 = await client.get('/api/auth/me')
-    assert r2.status_code == 200
-    me = r2.json()
+
+@pytest.mark.unit
+async def test_me_returns_user(client: AsyncClient):
+    await authed(client, '999', 'meeee')
+    r = await client.get('/api/auth/me')
+    assert r.status_code == 200
+    me = r.json()
     assert me['discord_id'] == '999'
     assert me['discord_username'] == 'meeee'
 
@@ -130,12 +166,7 @@ async def test_me_unauthenticated(client: AsyncClient):
 
 @pytest.mark.unit
 async def test_logout_clears_session(client: AsyncClient):
-    r = await client.post('/api/auth/start')
-    code, cookie = r.json()['code'], r.cookies['attu_session']
-    body = json.dumps({'code': code, 'discord_id': '777', 'discord_username': 'logoutuser'}).encode()
-    await client.post('/api/bot/auth/link', content=body, headers={**hmac_headers(body), 'content-type': 'application/json'})
-
-    client.cookies.set('attu_session', cookie)
+    await authed(client, '777', 'logoutuser')
     await client.post('/api/auth/logout')
     client.cookies.delete('attu_session')
 
@@ -143,44 +174,115 @@ async def test_logout_clears_session(client: AsyncClient):
     assert r2.status_code == 401
 
 
-@pytest.mark.unit
-async def test_bootstrap_admin_promotion(client: AsyncClient, monkeypatch):
-    from attu_tree.settings import settings
-    monkeypatch.setattr(settings, 'initial_admin_discord_id', '42')
-
-    r = await client.post('/api/auth/start')
-    code, cookie = r.json()['code'], r.cookies['attu_session']
-    body = json.dumps({'code': code, 'discord_id': '42', 'discord_username': 'bootstrap'}).encode()
-    await client.post('/api/bot/auth/link', content=body, headers={**hmac_headers(body), 'content-type': 'application/json'})
-
-    client.cookies.set('attu_session', cookie)
-    me = (await client.get('/api/auth/me')).json()
-    assert me['role'] == 'admin'
-
+# ---------------------------------------------------------------------------
+# bot-supplied roles
+# ---------------------------------------------------------------------------
 
 @pytest.mark.unit
-async def test_first_user_auto_admin(client: AsyncClient):
-    r = await client.post('/api/auth/start')
-    code, cookie = r.json()['code'], r.cookies['attu_session']
-    body = json.dumps({'code': code, 'discord_id': '1', 'discord_username': 'first'}).encode()
-    await client.post('/api/bot/auth/link', content=body, headers={**hmac_headers(body), 'content-type': 'application/json'})
-
-    client.cookies.set('attu_session', cookie)
-    me = (await client.get('/api/auth/me')).json()
-    assert me['role'] == 'admin'
-
-
-@pytest.mark.unit
-async def test_second_user_is_not_admin(client: AsyncClient):
-    async def _link(discord_id: str, username: str):
-        r = await client.post('/api/auth/start')
-        code = r.json()['code']
-        body = json.dumps({'code': code, 'discord_id': discord_id, 'discord_username': username}).encode()
-        await client.post('/api/bot/auth/link', content=body, headers={**hmac_headers(body), 'content-type': 'application/json'})
-        return r.cookies['attu_session']
-
-    await _link('1', 'first')
-    cookie2 = await _link('2', 'second')
-    client.cookies.set('attu_session', cookie2)
+async def test_default_role_is_user(client: AsyncClient):
+    """no roles supplied (or empty list) → user is plain 'user'."""
+    await authed(client, '1', 'first')
     me = (await client.get('/api/auth/me')).json()
     assert me['role'] == 'user'
+
+
+@pytest.mark.unit
+async def test_admin_role_from_bot(client: AsyncClient):
+    """bot supplies roles=['admin'] → user is admin."""
+    await authed(client, '1', 'boss', roles=['admin'])
+    me = (await client.get('/api/auth/me')).json()
+    assert me['role'] == 'admin'
+
+
+@pytest.mark.unit
+async def test_unknown_roles_dropped(client: AsyncClient):
+    """unknown role strings are silently ignored; falls back to 'user'."""
+    await authed(client, '1', 'x', roles=['mod', 'wizard', 'verified'])
+    me = (await client.get('/api/auth/me')).json()
+    assert me['role'] == 'user'
+
+
+@pytest.mark.unit
+async def test_admin_among_unknown_still_admin(client: AsyncClient):
+    """an admin alongside unknown roles still resolves to admin."""
+    await authed(client, '1', 'x', roles=['mod', 'admin', 'wizard'])
+    me = (await client.get('/api/auth/me')).json()
+    assert me['role'] == 'admin'
+
+
+@pytest.mark.unit
+async def test_role_demotion_on_relink(client: AsyncClient):
+    """a user whose discord roles change on the bot side gets demoted on
+    next re-link (no admin ui needed for role mutation)."""
+    cookie = await authed(client, '1', 'x', roles=['admin'])
+    me = (await client.get('/api/auth/me')).json()
+    assert me['role'] == 'admin'
+
+    # bot re-links the same discord user without the admin role
+    client.cookies.delete('attu_session')
+    await authed(client, '1', 'x', roles=[])
+
+    # original session is still bound to the user; check via /me
+    me2 = (await client.get('/api/auth/me')).json()
+    assert me2['role'] == 'user'
+
+    # the originally-issued cookie also reflects the demotion (same user_id)
+    client.cookies.set('attu_session', cookie)
+    me3 = (await client.get('/api/auth/me')).json()
+    assert me3['role'] == 'user'
+
+
+@pytest.mark.unit
+async def test_role_promotion_on_relink(client: AsyncClient):
+    """a user gaining the admin role on discord becomes admin on re-link."""
+    await authed(client, '1', 'x', roles=[])
+    me = (await client.get('/api/auth/me')).json()
+    assert me['role'] == 'user'
+
+    client.cookies.delete('attu_session')
+    await authed(client, '1', 'x', roles=['admin'])
+    me2 = (await client.get('/api/auth/me')).json()
+    assert me2['role'] == 'admin'
+
+
+@pytest.mark.unit
+async def test_no_admin_election_on_first_user(client: AsyncClient):
+    """unlike the previous bootstrap behaviour, the first user is not
+    auto-promoted; if no one logs in with the admin role, the system has
+    no admins at all."""
+    await authed(client, '1', 'first')  # roles=[]
+    me = (await client.get('/api/auth/me')).json()
+    assert me['role'] == 'user'
+
+    # admin endpoints are inaccessible
+    r = await client.get('/api/admin/users')
+    assert r.status_code == 403
+
+
+@pytest.mark.unit
+async def test_concurrent_redeem_only_one_wins(client: AsyncClient):
+    """two concurrent bot calls with the same code: one succeeds, the other
+    sees `code_already_used`. validates the BEGIN IMMEDIATE wrapper."""
+    r = await client.post('/api/auth/start')
+    code = r.json()['code']
+
+    body_a = json.dumps({
+        'code': code, 'discord_id': '1', 'discord_username': 'a', 'roles': [],
+    }).encode()
+    body_b = json.dumps({
+        'code': code, 'discord_id': '2', 'discord_username': 'b', 'roles': [],
+    }).encode()
+
+    async def _post(body: bytes):
+        return await client.post(
+            '/api/bot/auth/link',
+            content=body,
+            headers={**hmac_headers(body), 'content-type': 'application/json'},
+        )
+
+    r1, r2 = await asyncio.gather(_post(body_a), _post(body_b))
+    statuses = sorted((r1.status_code, r2.status_code))
+    # one 200, one 422 (code_already_used)
+    assert statuses == [200, 422]
+    losing = r1 if r1.status_code == 422 else r2
+    assert losing.json()['detail'] == 'code_already_used'

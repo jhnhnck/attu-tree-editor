@@ -32,9 +32,20 @@ export interface BundleWriteInput {
 }
 
 export function writeBundle(input: BundleWriteInput): Uint8Array {
+    // pre-compute media paths so the gedcom stream can emit `1 OBJE / 2 FILE`
+    // pointing at the same files we pack into the archive
+    const portraitMediaPathById: Record<PersonId, string> = {};
+    if (input.portraits) {
+        for (const portrait of input.portraits) {
+            const safeExt = portrait.ext.replace(/[^a-zA-Z0-9]/g, "");
+            portraitMediaPathById[portrait.personId] = `media/${portrait.personId}.${safeExt}`;
+        }
+    }
+
     const gedText = serializeGedcom(input.tree, {
         ...(input.head ? { head: input.head } : {}),
         ...(input.xrefByPersonId ? { xrefByPersonId: input.xrefByPersonId } : {}),
+        portraitMediaPathById,
     });
 
     const manifest: BundleManifest = {

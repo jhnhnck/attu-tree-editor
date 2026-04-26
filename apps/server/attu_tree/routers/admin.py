@@ -47,9 +47,12 @@ async def list_users(
 async def update_user(
     user_id: str,
     body: AdminUserUpdateRequest,
-    admin: Annotated[aiosqlite.Row, Depends(current_admin)],
+    _: Annotated[aiosqlite.Row, Depends(current_admin)],
     conn: aiosqlite.Connection = Depends(get_db),
 ) -> AdminUserListing:
+    """admin can rename a user's display_name. role mutation lives on the
+    discord side and is mirrored into our users table on every link redemption,
+    so it's not exposed here."""
     row = await (await conn.execute(
         'SELECT id, discord_id, discord_username, display_name, role, created_at, deleted_at FROM users WHERE id = ?',
         (user_id,),
@@ -57,18 +60,11 @@ async def update_user(
     if row is None:
         raise HTTPException(status_code=404, detail='user not found')
 
-    updates: list[str] = []
-    params: list[object] = []
-    if body.role is not None:
-        updates.append('role = ?')
-        params.append(body.role)
     if body.display_name is not None:
-        updates.append('display_name = ?')
-        params.append(body.display_name)
-
-    if updates:
-        params.append(user_id)
-        await conn.execute(f"UPDATE users SET {', '.join(updates)} WHERE id = ?", params)  # noqa: S608
+        await conn.execute(
+            'UPDATE users SET display_name = ? WHERE id = ?',
+            (body.display_name, user_id),
+        )
         await conn.commit()
         row = await (await conn.execute(
             'SELECT id, discord_id, discord_username, display_name, role, created_at, deleted_at FROM users WHERE id = ?',

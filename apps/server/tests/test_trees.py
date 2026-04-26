@@ -1,27 +1,10 @@
 """tests for trees CRUD, share grants, and revision-checked autosave."""
 
-import json
-
 import pytest
 from httpx import AsyncClient
 
-from tests.conftest import hmac_headers
-
-
-async def _create_user(client: AsyncClient, discord_id: str, username: str) -> str:
-    """link a user and return the session cookie."""
-    r = await client.post('/api/auth/start')
-    code, cookie = r.json()['code'], r.cookies['attu_session']
-    body = json.dumps({'code': code, 'discord_id': discord_id, 'discord_username': username}).encode()
-    await client.post('/api/bot/auth/link', content=body, headers={**hmac_headers(body), 'content-type': 'application/json'})
-    return cookie
-
-
-async def _authed(client: AsyncClient, discord_id: str, username: str = 'u') -> AsyncClient:
-    """return a client with the user's session cookie set."""
-    cookie = await _create_user(client, discord_id, username)
-    client.cookies.set('attu_session', cookie)
-    return client
+from attu_tree.settings import settings
+from tests.conftest import authed, link_user
 
 
 # ---------------------------------------------------------------------------
@@ -30,7 +13,7 @@ async def _authed(client: AsyncClient, discord_id: str, username: str = 'u') -> 
 
 @pytest.mark.unit
 async def test_create_tree(client: AsyncClient):
-    await _authed(client, '1')
+    await authed(client, '1')
     r = await client.post('/api/trees', json={'name': 'my tree', 'blob': {'people': {}}})
     assert r.status_code == 201
     body = r.json()
@@ -46,7 +29,7 @@ async def test_create_tree_unauthenticated(client: AsyncClient):
 
 @pytest.mark.unit
 async def test_list_trees(client: AsyncClient):
-    await _authed(client, '1')
+    await authed(client, '1')
     await client.post('/api/trees', json={'name': 'tree-a'})
     await client.post('/api/trees', json={'name': 'tree-b'})
     r = await client.get('/api/trees')
@@ -57,7 +40,7 @@ async def test_list_trees(client: AsyncClient):
 
 @pytest.mark.unit
 async def test_get_tree(client: AsyncClient):
-    await _authed(client, '1')
+    await authed(client, '1')
     tree_id = (await client.post('/api/trees', json={'name': 'test', 'blob': {'x': 1}})).json()['id']
     r = await client.get(f'/api/trees/{tree_id}')
     assert r.status_code == 200
@@ -69,14 +52,14 @@ async def test_get_tree(client: AsyncClient):
 
 @pytest.mark.unit
 async def test_get_tree_not_found(client: AsyncClient):
-    await _authed(client, '1')
+    await authed(client, '1')
     r = await client.get('/api/trees/nonexistent-id')
     assert r.status_code == 404
 
 
 @pytest.mark.unit
 async def test_delete_tree(client: AsyncClient):
-    await _authed(client, '1')
+    await authed(client, '1')
     tree_id = (await client.post('/api/trees', json={'name': 'bye'})).json()['id']
     r = await client.delete(f'/api/trees/{tree_id}')
     assert r.status_code == 204
@@ -85,11 +68,11 @@ async def test_delete_tree(client: AsyncClient):
 
 @pytest.mark.unit
 async def test_delete_tree_not_owner(client: AsyncClient):
-    owner_cookie = await _create_user(client, '1', 'owner')
+    owner_cookie = await link_user(client, '1', 'owner')
     client.cookies.set('attu_session', owner_cookie)
     tree_id = (await client.post('/api/trees', json={'name': 'secret'})).json()['id']
 
-    intruder_cookie = await _create_user(client, '2', 'intruder')
+    intruder_cookie = await link_user(client, '2', 'intruder')
     client.cookies.set('attu_session', intruder_cookie)
     r = await client.delete(f'/api/trees/{tree_id}')
     assert r.status_code == 403
@@ -101,8 +84,8 @@ async def test_delete_tree_not_owner(client: AsyncClient):
 
 @pytest.mark.unit
 async def test_add_and_revoke_grant(client: AsyncClient):
-    owner_cookie = await _create_user(client, '1', 'owner')
-    await _create_user(client, '2', 'editor')  # ensure user exists
+    owner_cookie = await link_user(client, '1', 'owner')
+    await link_user(client, '2', 'editor')  # ensure user exists
 
     client.cookies.set('attu_session', owner_cookie)
     tree_id = (await client.post('/api/trees', json={'name': 'shared'})).json()['id']
@@ -112,7 +95,7 @@ async def test_add_and_revoke_grant(client: AsyncClient):
     grantee_id = r.json()['user_id']
 
     # grantee can read
-    grantee_cookie = await _create_user(client, '2', 'editor')
+    grantee_cookie = await link_user(client, '2', 'editor')
     client.cookies.set('attu_session', grantee_cookie)
     r2 = await client.get(f'/api/trees/{tree_id}')
     assert r2.status_code == 200
@@ -131,8 +114,8 @@ async def test_add_and_revoke_grant(client: AsyncClient):
 
 @pytest.mark.unit
 async def test_viewer_cannot_write(client: AsyncClient):
-    owner_cookie = await _create_user(client, '1', 'owner')
-    viewer_cookie = await _create_user(client, '2', 'viewer')
+    owner_cookie = await link_user(client, '1', 'owner')
+    viewer_cookie = await link_user(client, '2', 'viewer')
 
     client.cookies.set('attu_session', owner_cookie)
     tree_id = (await client.post('/api/trees', json={'name': 'ro'})).json()['id']
@@ -145,8 +128,8 @@ async def test_viewer_cannot_write(client: AsyncClient):
 
 @pytest.mark.unit
 async def test_outsider_cannot_read(client: AsyncClient):
-    owner_cookie = await _create_user(client, '1', 'owner')
-    outsider_cookie = await _create_user(client, '2', 'outsider')
+    owner_cookie = await link_user(client, '1', 'owner')
+    outsider_cookie = await link_user(client, '2', 'outsider')
 
     client.cookies.set('attu_session', owner_cookie)
     tree_id = (await client.post('/api/trees', json={'name': 'private'})).json()['id']
@@ -158,8 +141,8 @@ async def test_outsider_cannot_read(client: AsyncClient):
 
 @pytest.mark.unit
 async def test_listed_trees_include_shared(client: AsyncClient):
-    owner_cookie = await _create_user(client, '1', 'owner')
-    editor_cookie = await _create_user(client, '2', 'editor')
+    owner_cookie = await link_user(client, '1', 'owner')
+    editor_cookie = await link_user(client, '2', 'editor')
 
     client.cookies.set('attu_session', owner_cookie)
     tree_id = (await client.post('/api/trees', json={'name': 'collaborative'})).json()['id']
@@ -177,7 +160,7 @@ async def test_listed_trees_include_shared(client: AsyncClient):
 
 @pytest.mark.unit
 async def test_save_lww_happy_path(client: AsyncClient):
-    await _authed(client, '1')
+    await authed(client, '1')
     tree_id = (await client.post('/api/trees', json={'name': 'test', 'blob': {}})).json()['id']
 
     r = await client.put(f'/api/trees/{tree_id}', json={'blob': {'x': 1}, 'expected_revision': 1})
@@ -189,7 +172,7 @@ async def test_save_lww_happy_path(client: AsyncClient):
 
 @pytest.mark.unit
 async def test_save_conflict_returns_409(client: AsyncClient):
-    await _authed(client, '1')
+    await authed(client, '1')
     tree_id = (await client.post('/api/trees', json={'name': 'conflict', 'blob': {'v': 0}})).json()['id']
 
     # send wrong expected_revision
@@ -202,7 +185,7 @@ async def test_save_conflict_returns_409(client: AsyncClient):
 
 @pytest.mark.unit
 async def test_save_updates_name(client: AsyncClient):
-    await _authed(client, '1')
+    await authed(client, '1')
     tree_id = (await client.post('/api/trees', json={'name': 'old', 'blob': {}})).json()['id']
     await client.put(f'/api/trees/{tree_id}', json={'name': 'new', 'blob': {}, 'expected_revision': 1})
     r = await client.get(f'/api/trees/{tree_id}')
@@ -211,8 +194,35 @@ async def test_save_updates_name(client: AsyncClient):
 
 @pytest.mark.unit
 async def test_save_revision_increments(client: AsyncClient):
-    await _authed(client, '1')
+    await authed(client, '1')
     tree_id = (await client.post('/api/trees', json={'blob': {}})).json()['id']
     for i in range(3):
         r = await client.put(f'/api/trees/{tree_id}', json={'blob': {}, 'expected_revision': i + 1})
         assert r.json()['revision'] == i + 2
+
+
+# ---------------------------------------------------------------------------
+# blob size cap
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+async def test_create_tree_rejects_oversized_blob(client: AsyncClient, monkeypatch):
+    monkeypatch.setattr(settings, 'max_tree_blob_bytes', 256)
+    await authed(client, '1')
+    big = {'people': {f'p{i}': {'given': 'x' * 50} for i in range(100)}}
+    r = await client.post('/api/trees', json={'name': 'big', 'blob': big})
+    assert r.status_code == 413
+
+
+@pytest.mark.unit
+async def test_save_tree_rejects_oversized_blob(client: AsyncClient, monkeypatch):
+    await authed(client, '1')
+    tree_id = (await client.post('/api/trees', json={'name': 't', 'blob': {}})).json()['id']
+
+    monkeypatch.setattr(settings, 'max_tree_blob_bytes', 256)
+    big = {'people': {f'p{i}': {'given': 'x' * 50} for i in range(100)}}
+    r = await client.put(
+        f'/api/trees/{tree_id}',
+        json={'blob': big, 'expected_revision': 1},
+    )
+    assert r.status_code == 413

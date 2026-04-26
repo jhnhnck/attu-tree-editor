@@ -12,6 +12,7 @@ from datetime import UTC, datetime
 import aiosqlite
 
 from attu_tree.auth.link import REVISION_CAP
+from attu_tree.settings import settings
 
 
 def _now_iso() -> str:
@@ -24,6 +25,15 @@ class RevisionConflict(Exception):
         self.server_revision = server_revision
         self.server_blob = server_blob
         self.server_updated_at = server_updated_at
+
+
+class BlobTooLarge(Exception):
+    """raised when a save payload exceeds settings.max_tree_blob_bytes."""
+
+    def __init__(self, size: int, limit: int) -> None:
+        super().__init__(f'blob size {size} exceeds limit {limit}')
+        self.size = size
+        self.limit = limit
 
 
 async def apply_save(
@@ -53,6 +63,9 @@ async def apply_save(
     new_revision = row['revision'] + 1
     now = _now_iso()
     blob_str = json.dumps(blob)
+    encoded_size = len(blob_str.encode('utf-8'))
+    if encoded_size > settings.max_tree_blob_bytes:
+        raise BlobTooLarge(encoded_size, settings.max_tree_blob_bytes)
     new_name = name if name is not None else row['name']
     new_sv = schema_version if schema_version is not None else row['schema_version']
 

@@ -173,6 +173,101 @@ describe("parseGedcom - synthetic", () => {
         expect(kid?.fatherId).toBeUndefined();
     });
 
+    it("MARR with DATE populates CoupleRecord.marriageDate", () => {
+        const text = [
+            "0 HEAD",
+            "1 GEDC",
+            "2 VERS 5.5.1",
+            "0 @I1@ INDI",
+            "1 NAME Dad /X/",
+            "1 SEX M",
+            "0 @I2@ INDI",
+            "1 NAME Mom /X/",
+            "1 SEX F",
+            "0 @F1@ FAM",
+            "1 HUSB @I1@",
+            "1 WIFE @I2@",
+            "1 MARR",
+            "2 DATE 8 JAN 1145 BC",
+            "0 TRLR",
+        ].join("\r\n");
+        const r = unwrap(parseGedcom(text));
+        const couple = r.tree.couples[0];
+        expect(couple?.marriageDate).toBeDefined();
+        expect(couple?.marriageDate?.year).toBe(1145);
+        expect(couple?.marriageDate?.era).toBe("TT");
+    });
+
+    it("_PRIMARY and _CURRENT round-trip onto CoupleRecord", () => {
+        const text = [
+            "0 HEAD",
+            "1 GEDC",
+            "2 VERS 5.5.1",
+            "0 @I1@ INDI",
+            "1 NAME Dad /X/",
+            "1 SEX M",
+            "0 @I2@ INDI",
+            "1 NAME Mom /X/",
+            "1 SEX F",
+            "0 @F1@ FAM",
+            "1 HUSB @I1@",
+            "1 WIFE @I2@",
+            "1 _CURRENT Y",
+            "1 _PRIMARY N",
+            "0 TRLR",
+        ].join("\r\n");
+        const r = unwrap(parseGedcom(text));
+        const couple = r.tree.couples[0];
+        expect(couple?.isCurrent).toBe(true);
+        expect(couple?.isPrimary).toBe(false);
+    });
+
+    it("MARR / _PRIMARY / _CURRENT no longer report dropped-subtag findings", () => {
+        const text = [
+            "0 HEAD",
+            "1 GEDC",
+            "2 VERS 5.5.1",
+            "0 @I1@ INDI",
+            "1 NAME Dad /X/",
+            "1 SEX M",
+            "0 @I2@ INDI",
+            "1 NAME Mom /X/",
+            "1 SEX F",
+            "0 @F1@ FAM",
+            "1 HUSB @I1@",
+            "1 WIFE @I2@",
+            "1 MARR",
+            "1 _CURRENT Y",
+            "1 _PRIMARY Y",
+            "0 TRLR",
+        ].join("\r\n");
+        const r = unwrap(parseGedcom(text));
+        const dropped = r.findings.filter(
+            (f) =>
+                f.kind === "dropped-subtag" &&
+                (f.tag.includes("MARR") ||
+                    f.tag.includes("_PRIMARY") ||
+                    f.tag.includes("_CURRENT")),
+        );
+        expect(dropped).toEqual([]);
+    });
+
+    it("OBJE on INDI no longer reports a dropped-subtag finding", () => {
+        const text = [
+            "0 HEAD",
+            "1 GEDC",
+            "2 VERS 5.5.1",
+            "0 @I1@ INDI",
+            "1 NAME X /Y/",
+            "1 OBJE",
+            "2 FILE media/X.webp",
+            "0 TRLR",
+        ].join("\r\n");
+        const r = unwrap(parseGedcom(text));
+        const dropped = r.findings.filter((f) => f.kind === "dropped-subtag" && f.tag === "OBJE");
+        expect(dropped).toEqual([]);
+    });
+
     it("BIRT Y without DATE is tolerated (no birth recorded, no error)", () => {
         const text = [
             "0 HEAD",

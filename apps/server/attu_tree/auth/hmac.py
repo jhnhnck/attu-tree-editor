@@ -21,6 +21,9 @@ from attu_tree.settings import settings
 log = logging.getLogger(__name__)
 
 _SKEW_SECONDS = 300
+# clamp to a sane epoch range so a malformed-but-numeric timestamp can't
+# push abs() into pathological values; year 2286 is plenty of headroom
+_MAX_REASONABLE_TS = 10_000_000_000
 
 
 def _sign(body: bytes, timestamp: str) -> str:
@@ -40,7 +43,10 @@ async def verify_bot_hmac(
 
     try:
         ts = int(x_attu_timestamp)
-    except ValueError:
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail='invalid timestamp') from exc
+
+    if ts < 0 or ts > _MAX_REASONABLE_TS:
         raise HTTPException(status_code=401, detail='invalid timestamp')
 
     if abs(time.time() - ts) > _SKEW_SECONDS:

@@ -2,6 +2,7 @@
 
 import hashlib
 import hmac
+import json
 import secrets
 import time
 from collections.abc import AsyncGenerator
@@ -24,7 +25,6 @@ def configure_test_settings(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, 'discord_bot_hmac_secret', TEST_HMAC_SECRET)
     monkeypatch.setattr(settings, 'session_secret', 'test-session-secret')
     monkeypatch.setattr(settings, 'session_cookie_path', '/')
-    monkeypatch.setattr(settings, 'initial_admin_discord_id', '')
     monkeypatch.setattr(settings, 'cors_origins', ['http://localhost:5173'])
 
 
@@ -42,3 +42,43 @@ def hmac_headers(body: bytes, secret: str = TEST_HMAC_SECRET) -> dict[str, str]:
     payload = f'{ts}.'.encode() + body
     sig = hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
     return {'x-attu-timestamp': ts, 'x-attu-signature': f'sha256={sig}'}
+
+
+async def link_user(
+    client: AsyncClient,
+    discord_id: str,
+    username: str = 'u',
+    roles: list[str] | None = None,
+) -> str:
+    """run the full link flow and return the user's session cookie.
+
+    `roles` is the bot-supplied discord-side role list; defaults to empty
+    (which the server resolves to plain 'user'). pass ['admin'] to make the
+    user an admin.
+    """
+    r = await client.post('/api/auth/start')
+    code, cookie = r.json()['code'], r.cookies['attu_session']
+    body = json.dumps({
+        'code': code,
+        'discord_id': discord_id,
+        'discord_username': username,
+        'roles': roles or [],
+    }).encode()
+    await client.post(
+        '/api/bot/auth/link',
+        content=body,
+        headers={**hmac_headers(body), 'content-type': 'application/json'},
+    )
+    return cookie
+
+
+async def authed(
+    client: AsyncClient,
+    discord_id: str,
+    username: str = 'u',
+    roles: list[str] | None = None,
+) -> str:
+    """link a user and set the session cookie on the client."""
+    cookie = await link_user(client, discord_id, username, roles=roles)
+    client.cookies.set('attu_session', cookie)
+    return cookie

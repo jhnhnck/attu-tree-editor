@@ -162,8 +162,10 @@ function buildPerson(id: PersonId, indi: TreeNode, findings: Finding[]): Person 
                 // resolved in pass 2
                 break;
             case "OBJE":
-                // portraits land in phase 4 alongside the bundle reader
-                findings.push({ kind: "dropped-subtag", from: id, tag: "OBJE" });
+                // portraits round-trip via the bundle reader, which pulls
+                // bytes from media/<personId>.<ext>. the OBJE block in the
+                // GEDCOM stream is informational and round-tripped by the
+                // serializer when the bundle has matching media.
                 break;
             default:
                 if (sub.tag !== null) {
@@ -241,6 +243,9 @@ function applyFam(
     const husbIds: PersonId[] = [];
     const wifeIds: PersonId[] = [];
     const childIds: PersonId[] = [];
+    let marriageDate: import("$lib/date/HaracalndeDate").HaracalndeDateData | undefined;
+    let isPrimary: boolean | undefined;
+    let isCurrent: boolean | undefined;
 
     for (const sub of fam.children) {
         switch (sub.tag) {
@@ -269,16 +274,36 @@ function applyFam(
                 break;
             }
             case "MARR":
-            case "_PRIMARY":
-            case "_CURRENT":
-            case "EVEN":
-                if (fam.pointer && sub.tag) {
-                    findings.push({
-                        kind: "dropped-subtag",
-                        from: fam.pointer,
-                        tag: `FAM.${sub.tag}`,
-                    });
+                // walk the DATE subtag if present; absence of DATE is fine
+                // (FamilyEcho emits bare MARR for "marriage occurred but no
+                // date known", typically alongside `1 EVEN / 2 TYPE Ending`)
+                for (const grand of sub.children) {
+                    if (grand.tag === "DATE" && grand.value) {
+                        const parsed = HaracalndeDate.parseGedcom(grand.value);
+                        if (parsed.ok) {
+                            marriageDate = parsed.value.toJSON();
+                        } else if (fam.pointer) {
+                            findings.push({
+                                kind: "bad-date",
+                                from: fam.pointer,
+                                field: "marriage",
+                                raw: grand.value,
+                                reason: parsed.error,
+                            });
+                        }
+                    }
                 }
+                break;
+            case "_PRIMARY":
+                isPrimary = (sub.value ?? "").trim().toUpperCase() === "Y";
+                break;
+            case "_CURRENT":
+                isCurrent = (sub.value ?? "").trim().toUpperCase() === "Y";
+                break;
+            case "EVEN":
+                // EVEN bare or with TYPE: not modelled, drop quietly. families
+                // commonly carry `1 EVEN / 2 TYPE Ending` to mark a divorce/
+                // dissolution; useful future signal, but no slot for it today.
                 break;
         }
     }
@@ -323,12 +348,16 @@ function applyFam(
             // share the marital bond but the bi-parent schema can't claim
             // co-parentage on them
             const isPrimaryPair = i === 0 && j === 1;
-            couples.push({
+            const couple: CoupleRecord = {
                 leftId,
                 rightId,
                 unionIndex: 0,
                 childIds: isPrimaryPair ? [...childIds] : [],
-            });
+            };
+            if (marriageDate !== undefined) couple.marriageDate = marriageDate;
+            if (isPrimary !== undefined) couple.isPrimary = isPrimary;
+            if (isCurrent !== undefined) couple.isCurrent = isCurrent;
+            couples.push(couple);
         }
     }
     return couples;

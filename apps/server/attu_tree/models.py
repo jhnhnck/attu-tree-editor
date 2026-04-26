@@ -100,6 +100,11 @@ class BotLinkRequest(BaseModel):
     code: str
     discord_id: str
     discord_username: str
+    # discord-side roles the user holds. server keeps only entries it recognises
+    # (today: 'admin', 'user'); unknown strings are silently dropped so the bot
+    # can ship new role names ahead of the server. applied on every link, so
+    # role changes on discord propagate the next time the user re-links.
+    roles: list[str] = Field(default_factory=list)
 
 
 class BotLinkResponse(BaseModel):
@@ -146,5 +151,6 @@ class AdminUserListResponse(BaseModel):
 
 
 class AdminUserUpdateRequest(BaseModel):
-    role: Literal['admin', 'user'] | None = None
+    # role is intentionally not mutable here: the bot's link payload (mirroring
+    # discord roles) is the only source of truth. see BotLinkRequest.roles.
     display_name: str | None = None

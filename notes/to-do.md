@@ -14,9 +14,6 @@ _phase 1 complete; see the completed section below_
 
 _phase 2 complete; see the completed section below_
 
-- ⭕ `medium priority` `low effort` OBJE block emission for portraits in the GEDCOM serializer (currently dropped with a finding; needs the portrait bundle linker from phase 4)
-- ⭕ `medium priority` `low effort` MARR / `_PRIMARY` / `_CURRENT` round-trip on CoupleRecord (currently dropped with a finding)
-
 ### phase 3 - render + edit
 
 _phase 3 complete; see the completed section below_
@@ -28,32 +25,38 @@ _phase 3 complete; see the completed section below_
 
 _phase 4 complete; see the completed section below_
 
-- ⭕ `medium priority` `low effort` `loadFromRecents` doesn't snapshot the active tree before swapping; if the user clicks a recent while the autosave debounce is mid-flight, the in-flight save can race the load. flush ordering looks correct on paper but should be tested under load
 - ⭕ `low priority` `low effort` cropperjs styles are loaded from `cdn.jsdelivr.net` for bundle slimness; switch to a local import once we have a CSP/offline story
-- ⭕ `low priority` `low effort` blob garbage collection runs on every save; for large trees this iterates every blob row. cap to a periodic sweep if profiling shows it
+- ⭕ `low priority` `low effort` wiki title field should autocomplete from the wiki - query `/w/api.php?action=opensearch&search=...` and offer suggestions in the person editor / inspector Details tab
 
 ### phase 5 - backend + auth + sync
 
 _phase 5 largely complete; see the completed section below_
 
 - ⭕ `high priority` `high effort` field-level merge on autosave conflict (currently last-write-wins via revision check; needs per-field diff + merge for concurrent edits to different people)
-- ⭕ `medium priority` `medium effort` doom-bot `/trees link`, `/trees show`, `/trees share` slash commands (separate PR in that repo; see `notes/features/bot-integration.md` for the contract)
+- ⭕ `high priority` `low effort` web shell follow-up to the auth-model rework: drop the role toggle from `AdminPanel.svelte` and remove the `role` field from the typed admin client. server side already refuses to mutate role through that endpoint, but the UI still shows the toggle. lives in the UI workstream
+- ⭕ `medium priority` `medium effort` doom-bot `/trees link`, `/trees show`, `/trees share` slash commands (separate PR in that repo; see `notes/features/bot-integration.md` for the contract). also: bot now needs to send the `roles: list[str]` field on link redemption per the new server contract
 - ⭕ `medium priority` `low effort` Caddy config: add `handle_path /trees/*` blocks to prod + dev Caddyfile (`/etc/caddy/Caddyfile.d/attuproject-org.caddyfile`)
 - ⭕ `medium priority` `low effort` parent compose include: add `include:` directive to `docker-compose.dev.yml` and `docker-compose.prod.yml` in the `attu-wiki-dev` root
+- ⭕ `low priority` `low effort` rate-limit `/api/auth/start` and tree-id-keyed routes against enumeration / abuse; deferred from the security audit because impact is low (CORS allowlist already blocks the cross-origin read path) but worth doing before opening the service to the wider public
+- ⭕ `low priority` `low effort` document the deployment-time invariant that `cors_origins` must be an explicit allowlist (never wildcard) when `allow_credentials=True`; add a startup assertion in `main.py` if we want it enforced
 
-### phase 6 - polish + a11y + mobile + gadget
+### phase 6 - polish + a11y + mobile
 
 - ⭕ `high priority` `medium effort` keyboard navigation across nodes (roving tabindex)
 - ⭕ `high priority` `medium effort` aria roles for tree (`role="tree"`, `treeitem`)
 - ⭕ `high priority` `medium effort` mobile bottom-sheet variant of the editor panel
+- ⭕ `medium priority` `medium effort` zoom-aware label sizing - shrink card padding and grow text size as zoom decreases so the next-level-up card stays readable as long as possible (PersonNode + the `levelFromScale` thresholds in TreeCanvas)
+- ⭕ `medium priority` `medium effort` compact layout tuning - tighten relatives-tree SIZE constants and add a post-layout compaction pass to remove dead space between sibships
+- ⭕ `medium priority` `high effort` hide unrelated branches based on the selected person - needs a "related-to" rule (default: ancestors + descendants + spouses); expose as a View menu toggle so users can flip between full tree and focused view
 - ⭕ `medium priority` `low effort` minimap + search-by-name popover
-- ⭕ `high priority` `medium effort` second vite build target producing iife + css string for mediawiki gadget
-- ⭕ `medium priority` `medium effort` `wiki/gadget.ts` exporting `init(mountEl, options)` for resourceloader
+- ⭕ `low priority` `low effort` edge lines should grow thicker / darker as the canvas zooms out so the topology stays readable when individual cards become unreadable (EdgeLayer)
+- ⭕ `future idea` `medium effort` decide and prototype a wiki integration story (mechanism tbd; the original mediawiki-gadget approach is shelved)
 
 ### tooling / infra
 
+- ⭕ `medium priority` `low effort` update `notes/features/keyboard-shortcuts.md` to reflect what actually shipped: drop Mod+N (browser new-window), Mod+Shift+N (browser private-window) and Mod+1 (browser tab-1) from the canonical spec; document the soft-conflict pattern where Mod+S/O/P/D/I/E/0 work via `preventDefault` like Figma/VS Code; add a "browser-safe" rule of thumb for future bindings
 - ⭕ `low priority` `low effort` revisit prettier-plugin-tailwindcss once upstream supports svelte 5
-- ⭕ `low priority` `low effort` add `pnpm verify` to a github actions workflow
+- ⭕ `future idea` `low effort` add `pnpm verify` to a github actions workflow
 - ⭕ `future idea` `medium effort` real-time multi-user collaboration via websocket
 
 ### schema evolution (gates a schema version bump each)
@@ -61,6 +64,7 @@ _phase 5 largely complete; see the completed section below_
 - ⭕ `future idea` `high effort` replace `motherId` / `fatherId` with `parentIds: PersonId[]` (each entry carries optional `role: 'mother' | 'father' | 'parent' | 'progenitor'` and `pedi: 'birth' | 'adopted' | 'foster'`); supports asexual / multi-parent / non-binary single parents; ships with a v1 -> v2 migration in `domain/schema.ts`
 - ⭕ `future idea` `medium effort` add generic `relationships: { kind: 'transformed-from' | 'alias-of' | 'sworn-bond' | 'master-apprentice' | ...; targetId; notes? }[]` for transmutation, alias, adoption-not-yet-mapped, and other fictional bonds; ships with a v2 -> v3 migration
 - ⭕ `future idea` `low effort` add `birthOrder?: number` on `Person` for twin / triplet / cohort ordering inside a sibship (currently lost — sibship is derived from shared parents only); ships with a v3 -> v4 migration
+- ⭕ `future idea` `low effort` add optional `name?: string` to `CoupleRecord` so families can be referenced by a chosen surname / household name (currently no way to rename families); ships with a v? -> v? migration and an Inspector Connections-tab UI to set it
 
 ### meta
 
@@ -143,15 +147,26 @@ _phase 5 largely complete; see the completed section below_
 - 🔴 `26 April 2026` `apps/server/attu_tree/db.py` aiosqlite connection lifecycle, WAL mode, migration runner (numbered `.sql` files tracked in `_meta` table)
 - 🔴 `26 April 2026` `apps/server/attu_tree/migrations/001_initial.sql` schema: users (uuid pk, discord_id, role), sessions, link_codes, trees (uuid pk), tree_grants, tree_revisions
 - 🔴 `26 April 2026` `apps/server/attu_tree/auth/` — hmac verification middleware (`X-Attu-Timestamp` + `sha256=` sig, ±300s skew), session helpers (create/resolve/delete), `current_user` / `optional_user` / `current_admin` FastAPI deps
-- 🔴 `26 April 2026` link-code auth flow: web calls `POST /api/auth/start` → pre-issued session cookie + 6-char code; user runs `/trees link code:XXXXXX` on Discord; bot calls `POST /api/bot/auth/link`; web polls `GET /api/auth/check`; bootstrap admin on first sign-in or matching `INITIAL_ADMIN_DISCORD_ID`
+- 🔴 `26 April 2026` link-code auth flow: web calls `POST /api/auth/start` → pre-issued session cookie + 6-char code; user runs `/trees link code:XXXXXX` on Discord; bot calls `POST /api/bot/auth/link` carrying `roles: list[str]` from the discord side; server filters to known roles and binds the session
 - 🔴 `26 April 2026` `apps/server/attu_tree/routers/trees.py` full CRUD + per-tree grants (add/revoke by discord_id); revision-checked `PUT /api/trees/{id}` returns 200 on match, 409 `TreeConflictResponse` on mismatch
 - 🔴 `26 April 2026` `apps/server/attu_tree/routers/bot.py` bot-only endpoints (HMAC-gated): link auth, list user trees, add/revoke grants, issue view-link
-- 🔴 `26 April 2026` `apps/server/attu_tree/routers/admin.py` admin-only: list users (paginated), update role/display_name, soft-delete + session revoke
+- 🔴 `26 April 2026` `apps/server/attu_tree/routers/admin.py` admin-only: list users (paginated), rename display_name, soft-delete + session revoke. role mutation lives on the discord side, not here
 - 🔴 `26 April 2026` `packages/api-client/src/index.ts` hand-written TypeScript types matching all server pydantic models; `apps/web/src/lib/api/client.ts` typed fetch wrapper with 401/409 handling
 - 🔴 `26 April 2026` `apps/web/src/lib/state/auth.svelte.ts` and `sync.svelte.ts` runes stores; `LinkCodeDialog`, `AuthBar`, `ShareDialog`, `AdminPanel` shell components; `App.svelte` wires auth, sync, conflict toast, read-only view route
 - 🔴 `26 April 2026` 45 server tests (auth, trees, bot, admin, health) green; `pnpm verify` green (45 server + 231 web)
 - 🔴 `26 April 2026` `Dockerfile` (root) 3-stage combined build (SPA + Python venv + runtime); `docker-compose.yml` `family-tree` service with `external: attu_dev` network, `/trees/` cookie path, `family-tree-data` volume; `apps/web/Dockerfile` standalone SPA builder
 - 🔴 `26 April 2026` `notes/features/bot-integration.md` full interface contract for doom-bot team (HMAC scheme, all endpoints, slash command shapes, ephemeral message conventions)
+
+### round 1 hardening (post-audit)
+
+- 🔴 `26 April 2026` GEDCOM `OBJE` round-trip on portraits: bundle writer hands serializer a `personId → media/<personId>.<ext>` map; serializer emits `1 OBJE / 2 FILE` under matching INDIs; parser stops flagging OBJE as a dropped subtag
+- 🔴 `26 April 2026` GEDCOM `MARR / DATE / _PRIMARY / _CURRENT` round-trip on `CoupleRecord` (new `marriageDate?`, `isPrimary?`, `isCurrent?` optional fields; no schema bump needed); parser tests + serializer golden refreshed
+- 🔴 `26 April 2026` orphan-blob GC capped: now sweeps every `gcEvery` saves (default 20) instead of every save; new `gcEvery` autosaver option for tests
+- 🔴 `26 April 2026` `loadFromRecents` race fix: `autosaver.cancel()` after `treeStore.hydrate()` drops any save scheduled mid-load; the previous `flush() → loadTree()` ordering left a window where an in-flight debounce could race the swap
+- 🔴 `26 April 2026` auth model rework: `POST /api/bot/auth/link` accepts `roles: list[str]`; server filters to known roles (`admin`, `user`), drops unknown strings, applies on every link so discord role changes propagate; bootstrap-admin election + `INITIAL_ADMIN_DISCORD_ID` removed; in-app role mutation removed from `routers/admin.py` + `AdminUserUpdateRequest`. closes the f-string column-list audit finding
+- 🔴 `26 April 2026` link-code redemption made race-safe via atomic `UPDATE … WHERE consumed_at IS NULL` + `INSERT … ON CONFLICT(discord_id) DO UPDATE` upsert; closes the link-code-race + bootstrap-admin-race audit findings without needing explicit `BEGIN IMMEDIATE`. new `test_concurrent_redeem_only_one_wins` verifies
+- 🔴 `26 April 2026` admin cross-tree authority covered by tests: read / edit / delete / share / revoke on trees the admin doesn't own all green via the existing `tree_owner` bypass in `trees/access.py`
+- 🔴 `26 April 2026` HMAC timestamp upper-bound clamp (rejects implausibly large epochs before the skew comparison); session cookie `samesite=strict`; `TreeCreateRequest.blob` + `apply_save` enforce `settings.max_tree_blob_bytes` (default 10 MB) with 413 on overflow
 
 ---
 
@@ -183,5 +198,5 @@ when adding a new item, sort it into the appropriate section by topic, or add a 
 
 ```yaml
 last_updated: 26 April 2026
-total_completed: 62
+total_completed: 70
 ```

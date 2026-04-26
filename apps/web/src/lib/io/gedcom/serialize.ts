@@ -5,13 +5,20 @@
 
 import type { TreeNode } from "read-gedcom";
 import { HaracalndeDate } from "$lib/date/HaracalndeDate";
-import type { Person, PersonId, Tree } from "$lib/domain/types";
+import type { CoupleRecord, Person, PersonId, Tree } from "$lib/domain/types";
 import type { GedHead } from "$lib/io/gedcom/parse";
 
 export interface GedSerializeOptions {
     head?: GedHead;
     /** Map from person id to original xref (e.g. "@I12@"); fresh xrefs allocated for the rest. */
     xrefByPersonId?: Record<PersonId, string>;
+    /**
+     * Map from person id to a media path inside the bundle (e.g. "media/abc.webp").
+     * When supplied, the serializer emits `1 OBJE / 2 FILE <path>` under the
+     * matching INDI so the GEDCOM stream references the bundled portrait
+     * the same way GEDZIP readers expect.
+     */
+    portraitMediaPathById?: Record<PersonId, string>;
 }
 
 const LINE_END = "\r\n";
@@ -37,11 +44,12 @@ export function serializeGedcom(tree: Tree, opts: GedSerializeOptions = {}): str
         (a, b) => xrefSortKey(a[1]) - xrefSortKey(b[1]),
     );
 
+    const portraitMediaPath = opts.portraitMediaPathById ?? {};
     for (const [pid] of xrefSorted) {
         const person = tree.people[pid];
         const xref = xrefByPerson.get(pid);
         if (!person || !xref) continue;
-        appendIndi(lines, person, xref, xrefByPerson);
+        appendIndi(lines, person, xref, xrefByPerson, portraitMediaPath[pid]);
     }
 
     // FAM records: derived from EVERY (mother, father) pairing observed on children
@@ -102,6 +110,13 @@ interface DerivedFamily {
     husbIds: PersonId[];
     wifeIds: PersonId[];
     childIds: PersonId[];
+    /**
+     * The CoupleRecord whose marriage metadata (date, _PRIMARY, _CURRENT)
+     * should be emitted under this FAM. unset when this FAM was synthesised
+     * purely from observed (mother, father) pairings on children with no
+     * explicit CoupleRecord backing it.
+     */
+    couple?: CoupleRecord;
 }
 
 function deriveFamilies(tree: Tree, xrefByPerson: Map<PersonId, string>): DerivedFamily[] {
@@ -128,7 +143,8 @@ function deriveFamilies(tree: Tree, xrefByPerson: Map<PersonId, string>): Derive
         group.childIds.push(person.id);
     }
 
-    // add explicit couples; same-sex pairs produce duplicate HUSB or WIFE
+    // add explicit couples; same-sex pairs produce duplicate HUSB or WIFE.
+    // attach the CoupleRecord so MARR/_PRIMARY/_CURRENT round-trip out
     for (const couple of tree.couples) {
         const left = tree.people[couple.leftId];
         const right = tree.people[couple.rightId];
@@ -141,9 +157,15 @@ function deriveFamilies(tree: Tree, xrefByPerson: Map<PersonId, string>): Derive
             right.gender,
         );
         const key = groupKey(husbIds, wifeIds);
-        if (!groups.has(key)) {
-            groups.set(key, { husbIds, wifeIds, childIds: [] });
+        let group = groups.get(key);
+        if (!group) {
+            group = { husbIds, wifeIds, childIds: [] };
+            groups.set(key, group);
         }
+        // first matching CoupleRecord wins; rare polyamorous overlaps where
+        // two CoupleRecords share the same FAM grouping all share the same
+        // marital metadata in practice, so this collision is benign
+        if (group.couple === undefined) group.couple = couple;
     }
 
     // sort families and children by xref so the order is stable across reparse
@@ -202,6 +224,7 @@ function appendIndi(
     person: Person,
     xref: string,
     xrefByPerson: Map<PersonId, string>,
+    portraitMediaPath: string | undefined,
 ): void {
     lines.push(`0 ${xref} INDI`);
 
@@ -228,6 +251,14 @@ function appendIndi(
 
     if (person.occupation !== undefined) lines.push(`1 OCCU ${person.occupation}`);
 
+    // OBJE / FILE: portrait media reference. only emitted when the caller
+    // (bundle/write.ts) hands us a path; bare GEDCOM serialisation has no
+    // bundled media to point at and skips the block.
+    if (portraitMediaPath !== undefined) {
+        lines.push("1 OBJE");
+        lines.push(`2 FILE ${portraitMediaPath}`);
+    }
+
     // FAMS / FAMC links omitted intentionally: read-gedcom does not require them
     // (they're a redundancy; HUSB/WIFE/CHIL on the FAM side carries the same info)
     // and including them would require we know which FAM xref each person belongs to.
@@ -253,6 +284,23 @@ function appendFam(
     for (const cid of fam.childIds) {
         const x = xrefByPerson.get(cid);
         if (x) lines.push(`1 CHIL ${x}`);
+    }
+
+    // marital metadata (round-trip MARR / _PRIMARY / _CURRENT). only emitted
+    // when an explicit CoupleRecord backs this FAM; FAMs synthesised purely
+    // from observed (mother, father) pairings on children carry no metadata
+    const couple = fam.couple;
+    if (couple !== undefined) {
+        if (couple.marriageDate !== undefined) {
+            lines.push("1 MARR");
+            lines.push(`2 DATE ${HaracalndeDate.of(couple.marriageDate).toGedcom()}`);
+        }
+        if (couple.isCurrent !== undefined) {
+            lines.push(`1 _CURRENT ${couple.isCurrent ? "Y" : "N"}`);
+        }
+        if (couple.isPrimary !== undefined) {
+            lines.push(`1 _PRIMARY ${couple.isPrimary ? "Y" : "N"}`);
+        }
     }
 }
 

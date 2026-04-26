@@ -53,7 +53,7 @@ client-side typescript spa (svelte 5, vite, tailwind v4) for viewing and editing
 | `src/lib/components/shell/` | `RecentTrees.svelte` (top-bar dropdown of recently-saved trees, new/delete actions) |
 | `src/lib/components/form/` | `DateInput.svelte` (parses on blur via `HaracalndeDate.parseNarrative`), `Field.svelte` |
 | `src/lib/components/ui/` | `Button.svelte` and other primitives |
-| `src/lib/wiki/` | `linkResolver.ts` builds `<base>/wiki/<title>` URLs (default base `https://attuproject.org`, override via `VITE_WIKI_BASE_URL`); phase 6 gadget shim lives here too |
+| `src/lib/wiki/` | `linkResolver.ts` builds `<base>/wiki/<title>` URLs (default base `https://attuproject.org`, override via `VITE_WIKI_BASE_URL`) |
 
 ### apps/server internals
 

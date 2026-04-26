@@ -5,21 +5,7 @@ import json
 import pytest
 from httpx import AsyncClient
 
-from tests.conftest import hmac_headers
-
-
-async def _link_user(client: AsyncClient, discord_id: str, username: str = 'u') -> str:
-    r = await client.post('/api/auth/start')
-    code, cookie = r.json()['code'], r.cookies['attu_session']
-    body = json.dumps({'code': code, 'discord_id': discord_id, 'discord_username': username}).encode()
-    await client.post('/api/bot/auth/link', content=body, headers={**hmac_headers(body), 'content-type': 'application/json'})
-    return cookie
-
-
-async def _authed(client: AsyncClient, discord_id: str, username: str = 'u') -> str:
-    cookie = await _link_user(client, discord_id, username)
-    client.cookies.set('attu_session', cookie)
-    return cookie
+from tests.conftest import authed, hmac_headers, link_user
 
 
 # ---------------------------------------------------------------------------
@@ -28,7 +14,7 @@ async def _authed(client: AsyncClient, discord_id: str, username: str = 'u') -> 
 
 @pytest.mark.unit
 async def test_bot_user_trees_empty(client: AsyncClient):
-    await _link_user(client, '1', 'owner')
+    await link_user(client, '1', 'owner')
     body = b''
     r = await client.get('/api/bot/users/1/trees', headers=hmac_headers(body))
     assert r.status_code == 200
@@ -37,8 +23,7 @@ async def test_bot_user_trees_empty(client: AsyncClient):
 
 @pytest.mark.unit
 async def test_bot_user_trees_shows_owned(client: AsyncClient):
-    cookie = await _link_user(client, '1', 'owner')
-    client.cookies.set('attu_session', cookie)
+    await authed(client, '1', 'owner')
     tree_id = (await client.post('/api/trees', json={'name': 'bot-tree'})).json()['id']
 
     body = b''
@@ -62,62 +47,113 @@ async def test_bot_user_trees_not_linked(client: AsyncClient):
 
 @pytest.mark.unit
 async def test_bot_grant_and_revoke(client: AsyncClient):
-    owner_cookie = await _link_user(client, '1', 'owner')
-    await _link_user(client, '2', 'target')
+    owner_cookie = await link_user(client, '1', 'owner')
+    await link_user(client, '2', 'target')
 
     client.cookies.set('attu_session', owner_cookie)
     tree_id = (await client.post('/api/trees', json={'name': 'shared-via-bot'})).json()['id']
 
     # grant via bot endpoint
-    grant_body = json.dumps({'actor_discord_id': '1', 'target_discord_id': '2', 'target_discord_username': 'target', 'role': 'editor'}).encode()
-    r = await client.post(f'/api/bot/trees/{tree_id}/grants', content=grant_body, headers={**hmac_headers(grant_body), 'content-type': 'application/json'})
+    grant_body = json.dumps({
+        'actor_discord_id': '1',
+        'target_discord_id': '2',
+        'target_discord_username': 'target',
+        'role': 'editor',
+    }).encode()
+    r = await client.post(
+        f'/api/bot/trees/{tree_id}/grants',
+        content=grant_body,
+        headers={**hmac_headers(grant_body), 'content-type': 'application/json'},
+    )
     assert r.status_code == 201
 
     # revoke via bot endpoint
     revoke_body = json.dumps({'actor_discord_id': '1', 'target_discord_id': '2'}).encode()
-    r2 = await client.request('DELETE', f'/api/bot/trees/{tree_id}/grants', content=revoke_body, headers={**hmac_headers(revoke_body), 'content-type': 'application/json'})
+    r2 = await client.request(
+        'DELETE',
+        f'/api/bot/trees/{tree_id}/grants',
+        content=revoke_body,
+        headers={**hmac_headers(revoke_body), 'content-type': 'application/json'},
+    )
     assert r2.status_code == 204
 
 
 @pytest.mark.unit
 async def test_bot_grant_non_owner_rejected(client: AsyncClient):
-    await _link_user(client, '1', 'owner')
-    intruder_cookie = await _link_user(client, '2', 'intruder')
+    """an actor who isn't the owner (and isn't admin) can't grant."""
+    await link_user(client, '2', 'intruder')
+    owner_cookie = await link_user(client, '3', 'realowner')
 
-    client.cookies.set('attu_session', (await _link_user(client, '1', 'owner') or intruder_cookie))
-    # owner creates tree
-    owner_cookie = await _link_user(client, '3', 'realowner')
     client.cookies.set('attu_session', owner_cookie)
     tree_id = (await client.post('/api/trees', json={'name': 'protected'})).json()['id']
 
     # intruder tries to grant
-    grant_body = json.dumps({'actor_discord_id': '2', 'target_discord_id': '1', 'target_discord_username': 'x', 'role': 'editor'}).encode()
-    r = await client.post(f'/api/bot/trees/{tree_id}/grants', content=grant_body, headers={**hmac_headers(grant_body), 'content-type': 'application/json'})
+    grant_body = json.dumps({
+        'actor_discord_id': '2',
+        'target_discord_id': '1',
+        'target_discord_username': 'x',
+        'role': 'editor',
+    }).encode()
+    r = await client.post(
+        f'/api/bot/trees/{tree_id}/grants',
+        content=grant_body,
+        headers={**hmac_headers(grant_body), 'content-type': 'application/json'},
+    )
     assert r.status_code == 403
 
 
 @pytest.mark.unit
+async def test_bot_grant_admin_actor_allowed(client: AsyncClient):
+    """admin actor can grant on a tree they don't own (cross-tree authority)."""
+    owner_cookie = await link_user(client, '1', 'owner')
+    await link_user(client, '2', 'admin', roles=['admin'])
+
+    client.cookies.set('attu_session', owner_cookie)
+    tree_id = (await client.post('/api/trees', json={'name': 'shared'})).json()['id']
+
+    grant_body = json.dumps({
+        'actor_discord_id': '2',
+        'target_discord_id': '3',
+        'target_discord_username': 'newcomer',
+        'role': 'editor',
+    }).encode()
+    r = await client.post(
+        f'/api/bot/trees/{tree_id}/grants',
+        content=grant_body,
+        headers={**hmac_headers(grant_body), 'content-type': 'application/json'},
+    )
+    assert r.status_code == 201
+
+
+@pytest.mark.unit
 async def test_bot_view_link(client: AsyncClient):
-    cookie = await _link_user(client, '1', 'owner')
-    client.cookies.set('attu_session', cookie)
+    await authed(client, '1', 'owner')
     tree_id = (await client.post('/api/trees', json={'name': 'viewable'})).json()['id']
 
     body = json.dumps({'actor_discord_id': '1'}).encode()
-    r = await client.post(f'/api/bot/trees/{tree_id}/view-link', content=body, headers={**hmac_headers(body), 'content-type': 'application/json'})
+    r = await client.post(
+        f'/api/bot/trees/{tree_id}/view-link',
+        content=body,
+        headers={**hmac_headers(body), 'content-type': 'application/json'},
+    )
     assert r.status_code == 200
     assert f'/view/{tree_id}' in r.json()['url']
 
 
 @pytest.mark.unit
 async def test_bot_view_link_no_access(client: AsyncClient):
-    owner_cookie = await _link_user(client, '1', 'owner')
-    await _link_user(client, '2', 'outsider')
+    owner_cookie = await link_user(client, '1', 'owner')
+    await link_user(client, '2', 'outsider')
 
     client.cookies.set('attu_session', owner_cookie)
     tree_id = (await client.post('/api/trees', json={'name': 'private'})).json()['id']
 
     body = json.dumps({'actor_discord_id': '2'}).encode()
-    r = await client.post(f'/api/bot/trees/{tree_id}/view-link', content=body, headers={**hmac_headers(body), 'content-type': 'application/json'})
+    r = await client.post(
+        f'/api/bot/trees/{tree_id}/view-link',
+        content=body,
+        headers={**hmac_headers(body), 'content-type': 'application/json'},
+    )
     assert r.status_code == 403
 
 

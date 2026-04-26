@@ -152,6 +152,47 @@ describe("serializeGedcom - synthetic", () => {
         expect(out).toContain("1 HUSB @I1@");
         expect(out).not.toContain("1 WIFE @I2@");
     });
+
+    it("emits MARR with DATE when CoupleRecord carries a marriage date", () => {
+        const base = tinyTree();
+        const couple = base.couples[0];
+        if (!couple) throw new Error("fixture missing couple");
+        couple.marriageDate = { era: "PC", year: 10, month: 4, day: 1 };
+        const out = serializeGedcom(base);
+        expect(out).toContain("1 MARR\r\n2 DATE 1 APR 0010");
+    });
+
+    it("emits _CURRENT and _PRIMARY when CoupleRecord carries them", () => {
+        const base = tinyTree();
+        const couple = base.couples[0];
+        if (!couple) throw new Error("fixture missing couple");
+        couple.isCurrent = true;
+        couple.isPrimary = false;
+        const out = serializeGedcom(base);
+        expect(out).toContain("1 _CURRENT Y");
+        expect(out).toContain("1 _PRIMARY N");
+    });
+
+    it("does not emit MARR / _CURRENT / _PRIMARY for FAMs synthesized purely from child links", () => {
+        const base = tinyTree();
+        // wipe the explicit couple; the FAM is then derived purely from the
+        // (motherId, fatherId) on CCCCC
+        base.couples = [];
+        const out = serializeGedcom(base);
+        expect(out).not.toContain("1 MARR");
+        expect(out).not.toContain("1 _CURRENT");
+        expect(out).not.toContain("1 _PRIMARY");
+    });
+
+    it("emits OBJE / FILE for persons whose portrait media path is supplied", () => {
+        const out = serializeGedcom(tinyTree(), {
+            portraitMediaPathById: { AAAAA: "media/AAAAA.webp" },
+        });
+        expect(out).toContain("1 OBJE\r\n2 FILE media/AAAAA.webp");
+        // BBBBB has no portrait → no OBJE under their INDI
+        const indiB = out.split("0 @I2@ INDI")[1]?.split("0 @")[0] ?? "";
+        expect(indiB).not.toContain("OBJE");
+    });
 });
 
 describe("serializeGedcom - golden snapshot", () => {

@@ -59,7 +59,7 @@ async def auth_logout(
         path=settings.session_cookie_path,
         httponly=True,
         secure=True,
-        samesite='lax',
+        samesite='strict',
     )
 
 
@@ -82,7 +82,7 @@ def _set_cookie(response: Response, token: str) -> None:
         value=token,
         httponly=True,
         secure=True,
-        samesite='lax',
+        samesite='strict',
         path=settings.session_cookie_path,
         max_age=30 * 24 * 3600,
     )

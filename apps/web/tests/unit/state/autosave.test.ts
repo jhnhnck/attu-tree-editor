@@ -112,7 +112,9 @@ describe("makeAutosaver", () => {
         const t0 = tinyTree("eee");
         const t1 = updatePerson(t0, ROOT_ID, { portraitBlobId: keep });
 
-        const saver = makeAutosaver({ debounceMs: 20 });
+        // gcEvery: 1 forces a sweep on every save; the production default of
+        // 20 amortises the scan over many saves
+        const saver = makeAutosaver({ debounceMs: 20, gcEvery: 1 });
         saver.schedule(t1);
         await wait(40);
         await saver.flush();
@@ -120,6 +122,30 @@ describe("makeAutosaver", () => {
         expect((await getBlob(keep)).ok).toBe(true);
         expect((await getBlob(orphan1)).ok).toBe(false);
         expect((await getBlob(orphan2)).ok).toBe(false);
+    });
+
+    it("orphan-blob gc only runs every gcEvery saves", async () => {
+        const orphan = await putBlob({
+            treeId: "ggg",
+            personId: ROOT_ID,
+            mime: "image/webp",
+            bytes: new Uint8Array([9]),
+        });
+
+        const saver = makeAutosaver({ debounceMs: 5, gcEvery: 5 });
+        // first save: gc has not yet fired (counter = 1 of 5)
+        saver.schedule(tinyTree("ggg"));
+        await wait(15);
+        await saver.flush();
+        expect((await getBlob(orphan)).ok).toBe(true);
+
+        // four more saves bring the counter to 5 -> sweep
+        for (let i = 0; i < 4; i++) {
+            saver.schedule(tinyTree("ggg"));
+            await wait(15);
+            await saver.flush();
+        }
+        expect((await getBlob(orphan)).ok).toBe(false);
     });
 
     it("onError fires when persistence throws", async () => {

@@ -34,6 +34,19 @@ export interface CoupleRecord {
     rightId: PersonId;
     unionIndex: number;
     childIds: PersonId[];
+    /** date of marriage (GEDCOM `1 MARR / 2 DATE`) when known */
+    marriageDate?: HaracalndeDateData;
+    /**
+     * FamilyEcho's `_PRIMARY Y/N` flag - whether this is the spouse's
+     * primary marriage. defaults to true for new couples; preserved on
+     * round-trip so the wiki side can still surface a "main marriage".
+     */
+    isPrimary?: boolean;
+    /**
+     * FamilyEcho's `_CURRENT Y/N` flag - whether the marriage is ongoing
+     * (vs ended / divorced / widowed). preserved on round-trip.
+     */
+    isCurrent?: boolean;
 }
 
 export interface Tree {

@@ -12,8 +12,8 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ['http://localhost:5173', 'http://127.0.0.1:5173']
     # path prefix the session cookie is scoped to; / for dev, /trees/ in prod
     session_cookie_path: str = '/'
-    # discord id to auto-promote to admin on first sign-in (bootstrap)
-    initial_admin_discord_id: str = ''
+    # max bytes accepted for a single tree blob (json) on create / save
+    max_tree_blob_bytes: int = 10 * 1024 * 1024
 
     # raw sqlite path extracted from database_url for aiosqlite
     @property
