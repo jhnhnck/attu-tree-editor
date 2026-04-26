@@ -583,6 +583,7 @@
     onpointerdown={onPointerDown}
     onclick={onHostClick}
     onkeydown={onHostKeyDown}
+    oncontextmenu={(e) => e.preventDefault()}
 >
     <div
         bind:this={panEl}

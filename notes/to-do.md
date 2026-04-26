@@ -50,6 +50,7 @@ _phase 5 largely complete; see the completed section below_
 - ⭕ `medium priority` `high effort` hide unrelated branches based on the selected person - needs a "related-to" rule (default: ancestors + descendants + spouses); expose as a View menu toggle so users can flip between full tree and focused view
 - ⭕ `medium priority` `low effort` minimap + search-by-name popover
 - ⭕ `low priority` `low effort` edge lines should grow thicker / darker as the canvas zooms out so the topology stays readable when individual cards become unreadable (EdgeLayer)
+- ⭕ `low priority` `low effort` cursor correctness audit - the canvas root's `cursor-grab` overrides cards / buttons inside it (should show pointer over PersonNodes), and the cursor occasionally stays in `grabbing` after a pan ends outside the window. fix the grab/grabbing/default/pointer transitions so the OS cursor always matches what's under the pointer
 - ⭕ `future idea` `medium effort` decide and prototype a wiki integration story (mechanism tbd; the original mediawiki-gadget approach is shelved)
 
 ### tooling / infra

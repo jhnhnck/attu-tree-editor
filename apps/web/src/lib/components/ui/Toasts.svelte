@@ -13,7 +13,7 @@
 </script>
 
 <div
-    class="pointer-events-none fixed top-14 right-3 z-50 flex w-80 max-w-[calc(100vw-1.5rem)] flex-col gap-2"
+    class="pointer-events-none fixed top-20 right-3 z-50 flex w-80 max-w-[calc(100vw-1.5rem)] flex-col gap-2"
     aria-live="polite"
     aria-atomic="false"
 >

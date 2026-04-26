@@ -13,6 +13,9 @@ importers:
       '@attu/api-client':
         specifier: workspace:*
         version: link:../../packages/api-client
+      '@lucide/svelte':
+        specifier: ^1.11.0
+        version: 1.11.0(svelte@5.55.5(@typescript-eslint/types@8.59.0))
       '@panzoom/panzoom':
         specifier: ^4.6.2
         version: 4.6.2
@@ -421,6 +424,11 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
+
+  '@lucide/svelte@1.11.0':
+    resolution: {integrity: sha512-4I9b+RuxIf8OkGG883bIYDIXjqVOH0ClgrB0j+jI6CrzEziroEwxiubQwW2xKT3esdJcRVTtW9RtCQM9D+r+ew==}
+    peerDependencies:
+      svelte: ^5
 
   '@panzoom/panzoom@4.6.2':
     resolution: {integrity: sha512-Zn3B5/hwa6eYIPRSKX0xf2clv8nviTX8AnAU5kU/EugiTDhG41ya2wlBqYrZJYCWQROr/5XkWObZhIkepi89qw==}
@@ -2309,6 +2317,10 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
+
+  '@lucide/svelte@1.11.0(svelte@5.55.5(@typescript-eslint/types@8.59.0))':
+    dependencies:
+      svelte: 5.55.5(@typescript-eslint/types@8.59.0)
 
   '@panzoom/panzoom@4.6.2': {}
 
