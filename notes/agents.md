@@ -46,9 +46,12 @@ client-side typescript spa (svelte 5, vite, tailwind v4) for viewing and editing
 | `src/lib/io/warnings.ts` | per-target `fieldsDroppedFor()` helper |
 | `src/lib/utils/result.ts` | `Result<T, E>` discriminated union for parser / validator returns |
 | `src/lib/persistence/` | dexie schema + sync coordinator (phase 4) |
-| `src/lib/layout/` | relatives-tree adapter (phase 3) |
-| `src/lib/state/` | `$state` runes for tree, selection, viewport, auth (phase 3) |
-| `src/lib/components/` | canvas, panels, form, portrait, ui primitives (phase 3) |
+| `src/lib/layout/` | `relativesTreeAdapter.ts` translates a `Tree` into `relatives-tree` input + runs layout |
+| `src/lib/state/` | runes-based stores: `tree.svelte.ts` (snapshot undo/redo), `selection.svelte.ts`, `viewport.svelte.ts` |
+| `src/lib/components/tree/` | `TreeCanvas.svelte` (svg + panzoom), `PersonNode.svelte` (foreignObject card), `EdgeLayer.svelte` (svg connectors) |
+| `src/lib/components/editor/` | `PersonEditor.svelte` (`<dialog>` form, set-or-delete patches) |
+| `src/lib/components/form/` | `DateInput.svelte` (parses on blur via `HaracalndeDate.parseNarrative`), `Field.svelte` |
+| `src/lib/components/ui/` | `Button.svelte` and other primitives |
 | `src/lib/wiki/` | wiki link resolution + (phase 6) gadget shim |
 
 ### apps/server internals
@@ -118,10 +121,10 @@ precedence: env vars > `.env` > defaults in `Settings`.
 ### web
 
 - **unit**: `apps/web/tests/unit/**/*.test.ts` - vitest, jsdom, no browser deps
-- **component**: `apps/web/tests/component/**/*.test.ts` - vitest browser mode (added in phase 3)
+- **component**: `apps/web/tests/component/**/*.test.ts` - vitest + jsdom + `@testing-library/svelte`; `tests/setup.ts` registers jest-dom matchers and per-test cleanup. `vitest.config.ts` sets `resolve.conditions: ['browser']` so the svelte plugin returns the client build, not the SSR one
 - **e2e**: `apps/web/tests/e2e/**/*.spec.ts` - playwright with `chromium` + `mobile` projects
-- `pnpm test:unit` runs vitest, `pnpm test:e2e` runs playwright
-- fixtures symlinked from top-level `examples/` into `apps/web/tests/fixtures/` (added in phase 2)
+- `pnpm test:unit` runs vitest (unit + component), `pnpm test:e2e` runs playwright
+- fixtures symlinked from top-level `examples/` into `apps/web/tests/fixtures/` (added in phase 2); a `tiny.ged` lives there for fast import-flow e2es
 
 ### server
 
@@ -205,6 +208,10 @@ when adding a schema-breaking domain change: bump `CURRENT_SCHEMA_VERSION`, push
 5. **eslint and config files**: `eslint.config.js` and `svelte.config.js` are excluded from typescript-eslint's project service (see the `disableTypeChecked` block in `apps/web/eslint.config.js`); without it, lint errors with "not found by the project service".
 6. **fflate's instanceof check**: `fflate` checks `value instanceof Uint8Array` internally and the jsdom realm has its own `Uint8Array` prototype that doesn't match node's. tests that drive `bundle/{read,write}.ts` use `// @vitest-environment node` at the top of the file. do not switch the bundle tests back to jsdom.
 7. **stable serializer ordering**: domain person ids are randomly allocated by the parser, so any output sort that uses them changes every round-trip. the GEDCOM serializer sorts by **xref** instead (which is preserved through round-trip), and uses `~` as a placeholder for missing HUSB / WIFE slots so single-parent FAMs sort the same way mixed-pair FAMs do. preserve that pattern when adding new sortable output.
+8. **`relatives-tree` const enums**: `Gender` and `RelType` are TS const enums; with `isolatedModules` we can't reference their members. The runtime values are plain strings, so `relativesTreeAdapter.ts` casts string literals via `as unknown as RelType` etc. Don't try to `import { RelType }` and use `RelType.blood` - it won't compile.
+9. **svelte component tests on jsdom**: vitest `resolve.conditions: ['browser']` is required, otherwise `mount()` calls into the SSR build and crashes with `lifecycle_function_unavailable`. Also, jsdom doesn't implement `HTMLDialogElement.showModal/close`; component tests for anything using `<dialog>` need a `beforeAll` shim (see `PersonEditor.test.ts` for the pattern).
+10. **inline callback typing in svelte templates**: typescript-eslint can't infer prop types across `.svelte` boundaries, so an inline arrow like `onselect={(id) => ...}` lints as `id: any`. Annotate explicitly: `onselect={(id: string) => ...}`.
+11. **set-or-delete for optional fields**: `exactOptionalPropertyTypes` forbids `target.field = undefined` for `field?: T`. Use the `setOptional(target, key, value)` helper pattern (see `merge.ts` and `PersonEditor.svelte`); it `delete`s when value is undefined and assigns otherwise. Note this means clearing a field via patch isn't currently supported through `updatePerson` - tracked in to-do.md.
 
 ---
 
@@ -298,5 +305,5 @@ FamilyTreeEditor/
 ## metadata
 
 ```yaml
-last_updated: 25 April 2026
+last_updated: 25 April 2026 (phase 3)
 ```

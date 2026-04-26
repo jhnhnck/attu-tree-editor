@@ -5,26 +5,27 @@
 
 @import "tailwindcss";
 
-/* haracalnde-inspired color tokens; tuned for dark default with light fallback */
+/* color tokens matched to attuproject.org's citizen skin
+ * (cool dark blue-grey chrome, bright blue accent at hue 220deg) */
 @theme {
-    --color-canvas: #0e0d0c;
-    --color-canvas-elev: #181614;
-    --color-fg: #ece3d8;
-    --color-fg-muted: #9b8f80;
-    --color-line: #3a342e;
-    --color-accent: #c79964;
-    --color-accent-strong: #e0b787;
+    --color-canvas: hsl(220 30% 5%); /* #0a0d12 - near-black blue (wiki theme-color) */
+    --color-canvas-elev: hsl(220 35% 10%); /* #111721 - lifted surface */
+    --color-fg: hsl(220 10% 88%); /* #dde0e5 - cool light grey */
+    --color-fg-muted: hsl(220 12% 60%); /* #8893a3 */
+    --color-line: hsl(220 25% 22%); /* #2b3548 - subtle border */
+    --color-accent: hsl(220 100% 65%); /* #4d8aff - link blue */
+    --color-accent-strong: hsl(220 100% 75%); /* #80acff - hover/active */
 }
 
 @media (prefers-color-scheme: light) {
     @theme {
-        --color-canvas: #fefdfc;
-        --color-canvas-elev: #f6f0e8;
-        --color-fg: #2a221d;
-        --color-fg-muted: #6b6055;
-        --color-line: #c9bfb2;
-        --color-accent: #8b5e34;
-        --color-accent-strong: #6b4421;
+        --color-canvas: hsl(220 30% 97%); /* #f5f7fa */
+        --color-canvas-elev: hsl(220 35% 92%); /* #e4e9f0 */
+        --color-fg: hsl(220 12% 18%); /* #282d35 */
+        --color-fg-muted: hsl(220 10% 45%); /* #67707d */
+        --color-line: hsl(220 25% 78%); /* #b8c2d4 */
+        --color-accent: hsl(220 100% 45%); /* #0057e6 */
+        --color-accent-strong: hsl(220 100% 35%); /* #0044b3 */
     }
 }
 

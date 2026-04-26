@@ -19,13 +19,10 @@ _phase 2 complete; see the completed section below_
 
 ### phase 3 - render + edit
 
-- ⭕ `high priority` `low effort` relatives-tree adapter that takes domain tree -> layout positions
-- ⭕ `high priority` `high effort` `TreeCanvas.svelte` with svg root and panzoom
-- ⭕ `high priority` `medium effort` `PersonNode.svelte` with portrait, name, dates, faded `z0` styling
-- ⭕ `high priority` `medium effort` `EdgeLayer.svelte` for parent/spouse lines
-- ⭕ `high priority` `medium effort` `PersonEditor.svelte` panel inside `<dialog>` with `DateInput`
-- ⭕ `medium priority` `medium effort` undo/redo via patches on the runes tree state
-- ⭕ `medium priority` `low effort` component tests for `PersonNode`, `DateInput`
+_phase 3 complete; see the completed section below_
+
+- ⭕ `medium priority` `low effort` editor cannot clear optional fields (title, occupation, location, birth, death) - `Partial<Person>` plus `exactOptionalPropertyTypes` forbids passing `undefined` through; needs an explicit "clear" sentinel or a refactored `updatePerson` signature
+- ⭕ `low priority` `low effort` person count of relatives-tree layout for ~1800 nodes hasn't been profiled; canvas may need a virtualization pass before phase 6 mobile work
 
 ### phase 4 - persistence + portraits + wiki
 
@@ -117,6 +114,17 @@ _phase 2 complete; see the completed section below_
 - 🔴 `25 April 2026` retired `io/familyscript/serialize.ts` and the gedcom plain-export warning target; only GEDZIP and (future) JSON are export targets going forward
 - 🔴 `25 April 2026` `domain/schema.ts` schema-version registry + migration runner; GEDZIP bundles ship `manifest.json` with `schemaVersion`/`createdBy`/`createdAt`; reader migrates forward and refuses bundles stamped newer than this build
 
+### phase 3 - render + edit
+
+- 🔴 `25 April 2026` `state/{tree,selection,viewport}.svelte.ts` runes-based stores; tree store carries snapshot-based undo/redo capped at 200 entries
+- 🔴 `25 April 2026` `layout/relativesTreeAdapter.ts` adapts domain `Tree` into `relatives-tree` `Node[]` and runs `calcTree`; orphan refs and self-spouses filtered before layout
+- 🔴 `25 April 2026` `components/ui/Button.svelte`, `components/form/Field.svelte`, `components/form/DateInput.svelte` (parses on blur via `HaracalndeDate.parseNarrative`)
+- 🔴 `25 April 2026` `components/editor/PersonEditor.svelte` `<dialog>`-based form covering given/surname/title/gender/birth/death/occupation/location/display
+- 🔴 `25 April 2026` `components/tree/{PersonNode,EdgeLayer,TreeCanvas}.svelte`; canvas uses svg with `<foreignObject>`-hosted PersonNode cards and `@panzoom/panzoom` on the inner `<g>`
+- 🔴 `25 April 2026` `App.svelte` shell rewritten: top bar (undo/redo/import/export), import dispatches via `detectFormat` to `parseFamilyScript` / `parseGedcom` / `readBundle`, export emits a `.gdz` blob via `writeBundle`
+- 🔴 `25 April 2026` vitest config picks up `tests/component/**/*.test.ts`, jsdom + `@testing-library/svelte`, `resolve.conditions: ['browser']` so the svelte plugin returns the client build
+- 🔴 `25 April 2026` 21 component tests across `DateInput`, `PersonNode`, `PersonEditor`; e2e import-edit flow loads `tiny.ged`, opens the editor on double-click; `pnpm verify` green at 192 unit + 4 e2e
+
 ---
 
 ## meta
@@ -147,5 +155,5 @@ when adding a new item, sort it into the appropriate section by topic, or add a 
 
 ```yaml
 last_updated: 25 April 2026
-total_completed: 32
+total_completed: 40
 ```

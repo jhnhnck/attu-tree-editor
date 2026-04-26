@@ -13,10 +13,14 @@ export default defineConfig({
         alias: {
             $lib: fileURLToPath(new URL("./src/lib", import.meta.url)),
         },
+        // jsdom is a browser-shaped env; without this the svelte plugin returns
+        // the server-only build of components, which crashes inside mount()
+        conditions: ["browser"],
     },
     test: {
-        include: ["tests/unit/**/*.test.ts"],
+        include: ["tests/unit/**/*.test.ts", "tests/component/**/*.test.ts"],
         environment: "jsdom",
+        setupFiles: ["./tests/setup.ts"],
         globals: false,
         css: false,
         coverage: {
