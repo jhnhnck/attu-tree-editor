@@ -122,6 +122,9 @@ function buildTree(root: TreeNodeRoot): GedParseResult {
     };
 
     findings.push(...validate(tree));
+
+    if (findings.length > 0) console.warn("[io:gedcom] %d finding(s):", findings.length, findings);
+
     return { tree, head, findings, xrefByPersonId };
 }
 

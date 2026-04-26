@@ -107,7 +107,7 @@ export function adaptToLayout(tree: Tree): AdaptResult {
         try {
             compLayout = calcTree(compNodes, { rootId: compRootId, placeholders: true });
         } catch (e) {
-            console.warn("relatives-tree layout failed for component; using grid", e);
+            console.warn(`[layout] component ${componentInfo.length} layout failed; using grid`, e);
             compLayout = fallbackGrid(compNodes);
         }
         for (const n of compLayout.nodes) {
@@ -164,6 +164,12 @@ export function adaptToLayout(tree: Tree): AdaptResult {
     for (const n of combinedNodes) {
         if (realIds.has(n.id)) laidOutPeople += 1;
     }
+
+    console.debug(
+        "[layout] %d people laid out across %d component(s)",
+        laidOutPeople,
+        componentInfo.length,
+    );
 
     return {
         layout,

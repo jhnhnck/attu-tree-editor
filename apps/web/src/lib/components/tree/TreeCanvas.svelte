@@ -433,17 +433,26 @@
                 }
             }
 
-            // (4) drop from bus down to each child's top edge
+            // (4) drop from bus to each child's top. when two or more children
+            // share the same X (vertical stack), draw one line to the deepest
+            // child rather than N overlapping segments.
+            const deepestJoint = new Map<number, number>(); // x → max topY
             for (const c of kids) {
                 const x = topMidX(c.pos);
-                out.push({ kind: "parent", x1: x, y1: busY, x2: x, y2: topY(c.pos) });
+                const y = topY(c.pos);
+                deepestJoint.set(x, Math.max(deepestJoint.get(x) ?? 0, y));
                 handledChildren.add(c.id);
+            }
+            for (const [x, maxY] of deepestJoint) {
+                out.push({ kind: "parent", x1: x, y1: busY, x2: x, y2: maxY });
             }
         }
 
         // remaining: single-parent links (only one of mother/father set, or
-        // the other parent isn't in the tree). draw an L-shape from parent
-        // bottom to child top.
+        // the other parent isn't in the tree).
+        // group siblings under a shared bus so multiple children of the same
+        // parent don't each get their own individual line.
+        const kidsByParent = new Map<PersonId, { pPos: Pos; kids: { pos: Pos }[] }>();
         for (const person of Object.values(t.people)) {
             if (handledChildren.has(person.id)) continue;
             const cPos = posMap.get(person.id);
@@ -452,17 +461,50 @@
                 if (!parentId) continue;
                 const pPos = posMap.get(parentId);
                 if (!pPos) continue;
-                const px = topMidX(pPos);
-                const py = bottomY(pPos);
-                const cx = topMidX(cPos);
-                const cy = topY(cPos);
+                const entry = kidsByParent.get(parentId) ?? { pPos, kids: [] };
+                entry.kids.push({ pos: cPos });
+                kidsByParent.set(parentId, entry);
+            }
+        }
+
+        for (const { pPos, kids } of kidsByParent.values()) {
+            const dropX = topMidX(pPos);
+            const py = bottomY(pPos);
+
+            if (kids.length === 1) {
+                const c = kids[0]!;
+                const cx = topMidX(c.pos);
+                const cy = topY(c.pos);
                 const my = (py + cy) / 2;
-                if (px !== cx) {
-                    out.push({ kind: "parent", x1: px, y1: py, x2: px, y2: my });
-                    out.push({ kind: "parent", x1: px, y1: my, x2: cx, y2: my });
+                if (dropX !== cx) {
+                    out.push({ kind: "parent", x1: dropX, y1: py, x2: dropX, y2: my });
+                    out.push({ kind: "parent", x1: dropX, y1: my, x2: cx, y2: my });
                     out.push({ kind: "parent", x1: cx, y1: my, x2: cx, y2: cy });
                 } else {
-                    out.push({ kind: "parent", x1: px, y1: py, x2: cx, y2: cy });
+                    out.push({ kind: "parent", x1: dropX, y1: py, x2: cx, y2: cy });
+                }
+            } else {
+                // drop → horizontal bus → per-column vertical drops
+                const minChildTop = Math.min(...kids.map((c) => topY(c.pos)));
+                const busY = (py + minChildTop) / 2;
+                out.push({ kind: "parent", x1: dropX, y1: py, x2: dropX, y2: busY });
+
+                const xs = kids.map((c) => topMidX(c.pos));
+                const minX = Math.min(...xs, dropX);
+                const maxX = Math.max(...xs, dropX);
+                if (minX !== maxX) {
+                    out.push({ kind: "parent", x1: minX, y1: busY, x2: maxX, y2: busY });
+                }
+
+                // deduplicate vertical drops for any children sharing the same X
+                const deepest = new Map<number, number>();
+                for (const c of kids) {
+                    const x = topMidX(c.pos);
+                    const y = topY(c.pos);
+                    deepest.set(x, Math.max(deepest.get(x) ?? 0, y));
+                }
+                for (const [x, maxY] of deepest) {
+                    out.push({ kind: "parent", x1: x, y1: busY, x2: x, y2: maxY });
                 }
             }
         }

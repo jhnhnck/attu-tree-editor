@@ -33,6 +33,7 @@ export function makeAutosaver(opts: AutosaverOptions = {}): Autosaver {
     let inFlight: Promise<void> | undefined;
 
     async function persist(tree: Tree): Promise<void> {
+        console.debug("[autosave] saving %s (%s)", tree.name, tree.id);
         try {
             await saveTree(tree);
             await setSetting(SETTING_KEYS.lastOpenedTreeId, tree.id);
@@ -42,8 +43,10 @@ export function makeAutosaver(opts: AutosaverOptions = {}): Autosaver {
                 if (p.portraitBlobId) referenced.add(p.portraitBlobId);
             }
             await gcOrphanBlobs(tree.id, referenced);
+            console.debug("[autosave] saved %s (%s)", tree.name, tree.id);
             opts.onSaved?.();
         } catch (e) {
+            console.error("[autosave] save failed %s:", tree.id, e);
             opts.onError?.(e instanceof Error ? e.message : String(e));
         } finally {
             inFlight = undefined;

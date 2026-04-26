@@ -1,9 +1,9 @@
 <!--
-    FamilyTreeEditor - text input that round-trips through HaracalndeDate parseNarrative
+    FamilyTreeEditor - structured date picker for partial Haracalnde dates
     licensed under the MIT license; see LICENSE.md for full text
 -->
 <script lang="ts">
-    import { HaracalndeDate, type HaracalndeDateData } from "$lib/date/HaracalndeDate";
+    import { type Era, type HaracalndeDateData } from "$lib/date/HaracalndeDate";
 
     interface Props {
         value: HaracalndeDateData | undefined;
@@ -12,78 +12,118 @@
         onchange: (next: HaracalndeDateData | undefined) => void;
     }
 
-    let { value, id, placeholder = "e.g. ABT 1234 PC, or 5-3 1700 TT", onchange }: Props = $props();
+    let { value, id, onchange }: Props = $props();
 
-    let raw = $state("");
-    let error = $state<string | undefined>(undefined);
+    let yearStr = $state("");
+    let month = $state<number | "">("");
+    let day = $state<number | "">("");
+    let era = $state<Era>("PC");
+    let approx = $state(false);
 
-    // mirror the bound value onto `raw` whenever the parent rewrites it.
-    // partial keystrokes don't propagate (commit only fires on blur/Enter), so
-    // user input isn't clobbered mid-edit. $effect.pre runs before paint so the
-    // initial render shows the formatted value rather than an empty input.
+    let yearError = $derived(
+        yearStr !== "" &&
+            (isNaN(Number(yearStr)) || !Number.isInteger(Number(yearStr)) || Number(yearStr) < 1)
+            ? "year must be 1 or greater"
+            : undefined,
+    );
+
     $effect.pre(() => {
-        raw = formatValue(value);
-        error = undefined;
+        if (!value) {
+            yearStr = "";
+            month = "";
+            day = "";
+            era = "PC";
+            approx = false;
+        } else {
+            yearStr = String(value.year);
+            month = value.month ?? "";
+            day = value.day ?? "";
+            era = value.era;
+            approx = value.approximate ?? false;
+        }
     });
 
-    function formatValue(v: HaracalndeDateData | undefined): string {
-        if (!v) return "";
-        try {
-            return HaracalndeDate.of(v).toNarrative();
-        } catch {
-            return "";
-        }
-    }
-
-    function commit(): void {
-        const trimmed = raw.trim();
-        if (trimmed === "") {
-            error = undefined;
+    function emit(): void {
+        if (yearStr === "") {
             onchange(undefined);
             return;
         }
-        const parsed = HaracalndeDate.parseNarrative(trimmed);
-        if (!parsed.ok) {
-            error = humanise(parsed.error);
-            return;
-        }
-        error = undefined;
-        onchange(parsed.value.toJSON());
+        const y = Number(yearStr);
+        if (!Number.isInteger(y) || y < 1) return;
+        const out: HaracalndeDateData = { era, year: y };
+        if (month !== "") out.month = Number(month);
+        if (day !== "") out.day = Number(day);
+        if (approx) out.approximate = true;
+        onchange(out);
     }
 
-    function humanise(code: string): string {
-        switch (code) {
-            case "BadShape":
-                return "expected: [ABT] [day-month] year era";
-            case "YearZero":
-                return "year must be 1 or greater";
-            case "MonthOutOfRange":
-                return "month must be 1-12";
-            case "DayOutOfRange":
-                return "day must be 1-30";
-            default:
-                return "invalid date";
-        }
+    function onMonthChange(): void {
+        if (month === "") day = "";
+        emit();
     }
+
+    const selectCls =
+        "bg-canvas border-line text-fg focus:border-accent focus:ring-accent min-w-0 rounded border px-1 py-1 text-sm focus:ring-1 focus:outline-none";
 </script>
 
-<input
-    {id}
-    type="text"
-    class="bg-canvas border-line text-fg focus:border-accent focus:ring-accent w-full rounded-md border px-2 py-1 font-mono text-sm focus:ring-1 focus:outline-none"
-    class:border-red-500={error}
-    bind:value={raw}
-    onblur={commit}
-    onkeydown={(e) => {
-        if (e.key === "Enter") {
-            e.preventDefault();
-            commit();
-        }
-    }}
-    {placeholder}
-    aria-invalid={error ? "true" : undefined}
-    aria-errormessage={error ? `${id ?? "date"}-error` : undefined}
-/>
-{#if error}
-    <p id="{id ?? 'date'}-error" class="mt-1 text-xs text-red-400" role="alert">{error}</p>
-{/if}
+<div class="space-y-1.5">
+    <div class="flex gap-1.5">
+        <input
+            {id}
+            type="text"
+            inputmode="numeric"
+            placeholder="year"
+            class="bg-canvas border-line text-fg focus:border-accent focus:ring-accent w-full min-w-0 rounded border px-2 py-1 text-sm focus:ring-1 focus:outline-none"
+            class:border-red-500={yearError}
+            bind:value={yearStr}
+            oninput={emit}
+            aria-label="year"
+            aria-invalid={yearError ? "true" : undefined}
+            aria-errormessage={yearError ? `${id ?? "date"}-year-error` : undefined}
+        />
+        <select bind:value={era} onchange={emit} class="{selectCls} shrink-0" aria-label="era">
+            <option value="PC">PC</option>
+            <option value="TT">TT</option>
+        </select>
+    </div>
+    <div class="flex items-center gap-1.5">
+        <select
+            bind:value={month}
+            onchange={onMonthChange}
+            class="{selectCls} flex-1"
+            aria-label="month"
+        >
+            <option value="">—</option>
+            {#each { length: 12 } as _, i}
+                <option value={i + 1}>{i + 1}</option>
+            {/each}
+        </select>
+        <select
+            bind:value={day}
+            onchange={emit}
+            disabled={month === ""}
+            class="{selectCls} flex-1"
+            aria-label="day"
+        >
+            <option value="">—</option>
+            {#each { length: 30 } as _, i}
+                <option value={i + 1}>{i + 1}</option>
+            {/each}
+        </select>
+        <label
+            class="text-fg-muted flex shrink-0 cursor-pointer items-center gap-1 text-sm select-none"
+        >
+            <input
+                type="checkbox"
+                bind:checked={approx}
+                onchange={emit}
+                class="accent-accent"
+                aria-label="approximate"
+            />
+            ~
+        </label>
+    </div>
+    {#if yearError}
+        <p id="{id ?? 'date'}-year-error" class="text-xs text-red-400" role="alert">{yearError}</p>
+    {/if}
+</div>

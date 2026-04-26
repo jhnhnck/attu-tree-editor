@@ -99,7 +99,7 @@
     {#if level <= 0}
         {#if portraitUrl}
             <div class="border-line/40 mb-1 h-10 w-full overflow-hidden rounded border">
-                <img src={portraitUrl} alt="" class="h-full w-full object-cover" />
+                <img src={portraitUrl} alt="" class="h-full w-full object-cover object-top" />
             </div>
         {/if}
         <span class="line-clamp-2 text-sm leading-tight font-semibold">

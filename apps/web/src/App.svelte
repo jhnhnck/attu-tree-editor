@@ -95,12 +95,14 @@
         await autosaver.flush();
         const r = await loadTree(id);
         if (!r.ok) {
+            console.error("[tree] load failed %s:", id, r.error);
             toasts.push(`could not load tree: ${r.error}`, "error");
             return;
         }
         portraitUrls.clear();
         treeStore.hydrate(r.value);
         await setSetting(SETTING_KEYS.lastOpenedTreeId, id);
+        console.info("[tree] loaded %s (%s)", r.value.name || "untitled", id);
         toasts.push(`loaded ${r.value.name || "untitled"}`, "info", 3000);
     }
 
@@ -108,11 +110,13 @@
         await autosaver.flush();
         portraitUrls.clear();
         treeStore.reset(emptyTree());
+        console.info("[tree] new tree");
         toasts.push("started a new tree", "info", 3000);
     }
 
     async function removeTree(id: string): Promise<void> {
         await deletePersistedTree(id);
+        console.info("[tree] deleted %s", id);
         toasts.push("tree deleted", "info", 3000);
         if (treeStore.tree.id === id) {
             treeStore.reset(emptyTree());
@@ -232,42 +236,44 @@
             if (format === "gedzip") {
                 const r = readBundle(bytes);
                 if (!r.ok) {
+                    console.error("[io] import failed '%s':", file.name, r.error);
                     toasts.push(`import failed: ${r.error}`, "error");
                     return;
                 }
+                const count = Object.keys(r.value.tree.people).length;
+                console.info("[io] imported %d people from '%s' (gedzip)", count, file.name);
                 treeStore.reset(r.value.tree);
-                toasts.push(
-                    `loaded ${String(Object.keys(r.value.tree.people).length)} people from ${file.name}`,
-                    "success",
-                );
+                toasts.push(`loaded ${String(count)} people from ${file.name}`, "success");
             } else if (format === "gedcom") {
                 const text = new TextDecoder().decode(bytes);
                 const r = parseGedcom(text);
                 if (!r.ok) {
+                    console.error("[io] import failed '%s':", file.name, r.error);
                     toasts.push(`import failed: ${r.error}`, "error");
                     return;
                 }
+                const count = Object.keys(r.value.tree.people).length;
+                console.info("[io] imported %d people from '%s' (gedcom)", count, file.name);
                 treeStore.reset(r.value.tree);
-                toasts.push(
-                    `loaded ${String(Object.keys(r.value.tree.people).length)} people from ${file.name}`,
-                    "success",
-                );
+                toasts.push(`loaded ${String(count)} people from ${file.name}`, "success");
             } else if (format === "familyscript") {
                 const text = new TextDecoder().decode(bytes);
                 const r = parseFamilyScript(text);
                 if (!r.ok) {
+                    console.error("[io] import failed '%s':", file.name, r.error);
                     toasts.push(`import failed: ${r.error}`, "error");
                     return;
                 }
+                const count = Object.keys(r.value.tree.people).length;
+                console.info("[io] imported %d people from '%s' (familyscript)", count, file.name);
                 treeStore.reset(r.value.tree);
-                toasts.push(
-                    `loaded ${String(Object.keys(r.value.tree.people).length)} people from ${file.name}`,
-                    "success",
-                );
+                toasts.push(`loaded ${String(count)} people from ${file.name}`, "success");
             } else {
+                console.warn("[io] unrecognized format for '%s'", file.name);
                 toasts.push(`unrecognized file format: ${file.name}`, "error");
             }
         } catch (err) {
+            console.error("[io] import error:", err);
             toasts.push(`import error: ${String(err)}`, "error");
         } finally {
             toasts.dismiss(loadingId);

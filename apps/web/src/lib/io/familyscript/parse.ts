@@ -106,6 +106,9 @@ export function parseFamilyScript(text: string): Result<FsParseResult, string> {
 
     findings.push(...validate(tree));
 
+    if (findings.length > 0)
+        console.warn("[io:familyscript] %d finding(s):", findings.length, findings);
+
     return ok({ tree, header, findings, personExtras, coupleExtras });
 }
 
