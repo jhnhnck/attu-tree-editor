@@ -34,7 +34,7 @@ _phase 5 largely complete; see the completed section below_
 
 - ⭕ `high priority` `high effort` field-level merge on autosave conflict (currently last-write-wins via revision check; needs per-field diff + merge for concurrent edits to different people)
 - ⭕ `high priority` `low effort` web shell follow-up to the auth-model rework: drop the role toggle from `AdminPanel.svelte` and remove the `role` field from the typed admin client. server side already refuses to mutate role through that endpoint, but the UI still shows the toggle. lives in the UI workstream
-- ⭕ `medium priority` `medium effort` doom-bot `/trees link`, `/trees show`, `/trees share` slash commands (separate PR in that repo; see `notes/features/bot-integration.md` for the contract). also: bot now needs to send the `roles: list[str]` field on link redemption per the new server contract
+- ⭕ `medium priority` `medium effort` doom-bot `/trees link`, `/trees show`, `/trees share` slash commands (separate PR in that repo; see `notes/features/bot-integration.md` for the contract). bot now needs to (a) send the `roles: list[str]` field on link redemption, and (b) inspect char[1] of the user-supplied code to route between dev and prod backends per §3.1b - so bot config carries both `ATTU_TREES_DEV_BASE_URL` and `ATTU_TREES_PROD_BASE_URL`
 - ⭕ `medium priority` `low effort` Caddy config: add `handle_path /trees/*` blocks to prod + dev Caddyfile (`/etc/caddy/Caddyfile.d/attuproject-org.caddyfile`)
 - ⭕ `medium priority` `low effort` parent compose include: add `include:` directive to `docker-compose.dev.yml` and `docker-compose.prod.yml` in the `attu-wiki-dev` root
 - ⭕ `low priority` `low effort` rate-limit `/api/auth/start` and tree-id-keyed routes against enumeration / abuse; deferred from the security audit because impact is low (CORS allowlist already blocks the cross-origin read path) but worth doing before opening the service to the wider public
@@ -58,6 +58,7 @@ _phase 5 largely complete; see the completed section below_
 - ⭕ `medium priority` `low effort` update `notes/features/keyboard-shortcuts.md` to reflect what actually shipped: drop Mod+N (browser new-window), Mod+Shift+N (browser private-window) and Mod+1 (browser tab-1) from the canonical spec; document the soft-conflict pattern where Mod+S/O/P/D/I/E/0 work via `preventDefault` like Figma/VS Code; add a "browser-safe" rule of thumb for future bindings
 - ⭕ `low priority` `low effort` revisit prettier-plugin-tailwindcss once upstream supports svelte 5
 - ⭕ `future idea` `low effort` add `pnpm verify` to a github actions workflow
+- ⭕ `future idea` `low effort` move server-side env to a tier-2 toml config (e.g. `assets/attu-tree.toml`) instead of the current `.env` + pydantic-settings, matching doom-bot's configuration-tier convention. settings live in `attu_tree/settings.py` today; switch to `tomllib` + a small `Settings` loader, keep env-var overrides for secrets (`DISCORD_BOT_HMAC_SECRET`, `SESSION_SECRET`), update `notes/agents.md` §4 and the bot-integration.md cross-reference once shipped
 - ⭕ `future idea` `medium effort` real-time multi-user collaboration via websocket
 
 ### schema evolution (gates a schema version bump each)
@@ -168,6 +169,7 @@ _phase 5 largely complete; see the completed section below_
 - 🔴 `26 April 2026` link-code redemption made race-safe via atomic `UPDATE … WHERE consumed_at IS NULL` + `INSERT … ON CONFLICT(discord_id) DO UPDATE` upsert; closes the link-code-race + bootstrap-admin-race audit findings without needing explicit `BEGIN IMMEDIATE`. new `test_concurrent_redeem_only_one_wins` verifies
 - 🔴 `26 April 2026` admin cross-tree authority covered by tests: read / edit / delete / share / revoke on trees the admin doesn't own all green via the existing `tree_owner` bypass in `trees/access.py`
 - 🔴 `26 April 2026` HMAC timestamp upper-bound clamp (rejects implausibly large epochs before the skew comparison); session cookie `samesite=strict`; `TreeCreateRequest.blob` + `apply_save` enforce `settings.max_tree_blob_bytes` (default 10 MB) with 413 on overflow
+- 🔴 `26 April 2026` link code reshape + dev/prod routing partition: codes are now `AB-123456` (2 alpha, dash, 6 digits); the second alpha char encodes the environment (dev = X/Z, prod = the other 22 letters) so a single bot deployment can route `/trees link` to the correct backend just by inspecting char[1]. server normalises any input form (case, dash, whitespace). new `settings.environment: Literal['dev', 'prod']` plumbing; bot-integration.md §3.1b documents the partition for the bot team. covered by 3 new tests in `test_auth.py`
 
 ---
 
@@ -199,5 +201,5 @@ when adding a new item, sort it into the appropriate section by topic, or add a 
 
 ```yaml
 last_updated: 26 April 2026
-total_completed: 70
+total_completed: 71
 ```

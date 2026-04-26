@@ -1,5 +1,7 @@
 """app settings loaded from environment / .env via pydantic-settings."""
 
+from typing import Literal
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -14,6 +16,11 @@ class Settings(BaseSettings):
     session_cookie_path: str = '/'
     # max bytes accepted for a single tree blob (json) on create / save
     max_tree_blob_bytes: int = 10 * 1024 * 1024
+    # which environment we're running as. encoded into link codes (the second
+    # alpha character) so a single discord bot can route /trees link to the
+    # right backend without the user needing to think about it. see
+    # auth/link.py for the dev/prod alphabet partition.
+    environment: Literal['dev', 'prod'] = 'dev'
 
     # raw sqlite path extracted from database_url for aiosqlite
     @property

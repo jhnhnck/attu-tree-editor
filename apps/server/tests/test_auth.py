@@ -17,10 +17,60 @@ async def test_auth_start_returns_code(client: AsyncClient):
     r = await client.post('/api/auth/start')
     assert r.status_code == 200
     body = r.json()
-    assert len(body['code']) == 6
+    code = body['code']
+    # display form: `AB-123456`
+    assert len(code) == 9
+    assert code[2] == '-'
+    assert code[:2].isalpha()
+    assert code[3:].isdigit()
     assert 'expires_at' in body
     # cookie is set
     assert 'attu_session' in r.cookies
+
+
+@pytest.mark.unit
+async def test_auth_start_dev_codes_use_dev_alphabet(client: AsyncClient, monkeypatch):
+    """on dev, the second alpha char is in {X, Z} so the bot can route."""
+    from attu_tree.settings import settings
+    monkeypatch.setattr(settings, 'environment', 'dev')
+    # 50 samples is plenty to catch a partition bug
+    for _ in range(50):
+        r = await client.post('/api/auth/start')
+        code = r.json()['code']
+        assert code[1] in 'XZ', f'dev code {code} second char {code[1]!r} not in XZ'
+
+
+@pytest.mark.unit
+async def test_auth_start_prod_codes_avoid_dev_alphabet(client: AsyncClient, monkeypatch):
+    """on prod, the second alpha char is never in {X, Z}; that's how the bot
+    decides to route to the prod backend rather than dev."""
+    from attu_tree.settings import settings
+    monkeypatch.setattr(settings, 'environment', 'prod')
+    for _ in range(50):
+        r = await client.post('/api/auth/start')
+        code = r.json()['code']
+        assert code[1] not in 'XZ', f'prod code {code} leaked dev alphabet at char {code[1]!r}'
+
+
+@pytest.mark.unit
+async def test_redeem_accepts_various_input_forms(client: AsyncClient):
+    """server normalises supplied codes - `AB-123456`, `ab123456`, etc. all work."""
+    import json as _json
+    from tests.conftest import hmac_headers
+
+    r = await client.post('/api/auth/start')
+    code = r.json()['code']
+    # try the lowercased / dash-stripped form (what a sloppy bot might send)
+    sloppy = code.lower().replace('-', '')
+    body = _json.dumps({
+        'code': sloppy, 'discord_id': '1', 'discord_username': 'x', 'roles': [],
+    }).encode()
+    r2 = await client.post(
+        '/api/bot/auth/link',
+        content=body,
+        headers={**hmac_headers(body), 'content-type': 'application/json'},
+    )
+    assert r2.status_code == 200
 
 
 @pytest.mark.unit

@@ -16,10 +16,12 @@ three top-level user-facing commands plus admin variants:
 
 | Command | Purpose |
 | :--- | :--- |
-| `/trees link code:<code>` | redeem a 6-char code shown by the web editor to link the discord user to a family-tree-editor account |
+| `/trees link code:<code>` | redeem a code shown by the web editor (shape: `AB-123456`) to link the discord user to a family-tree-editor account |
 | `/trees show` | list the user's owned + shared trees with a "view" button per tree |
 | `/trees share tree:<...> user:<...> role:<viewer\|editor>` | grant another discord user access to a tree the caller owns |
 | `/trees unshare tree:<...> user:<...>` | revoke a grant |
+
+a single bot deployment talks to both the dev and prod family-tree backends. routing is encoded in the link code itself (see [§3.1b](#31b-link-code-shape--dev--prod-routing)) so the user never has to know which environment they're on.
 
 every reply is **ephemeral** - codes, tree names, and grant lists must never leak into shared channels. use `interaction.response.send_message(..., ephemeral=True)` (or pycord's equivalent).
 
@@ -59,12 +61,14 @@ POST /api/bot/auth/link
 Content-Type: application/json
 
 {
-  "code": "K7M3QX",
+  "code": "AB-123456",
   "discord_id": "123456789012345678",
   "discord_username": "haradar",
   "roles": ["admin"]
 }
 ```
+
+`code` is what the user typed into discord. The server normalises it (uppercases and strips non-alphanumerics) before comparing against the stored canonical form, so `ab-123456`, `AB123456`, `ab 123456`, etc. all match. **Pass it through verbatim** if you like; or do the same normalisation on the bot side, doesn't matter.
 
 `roles` semantics:
 
@@ -87,6 +91,36 @@ errors (all return `422 Unprocessable Entity` with a `detail` field):
 - `code_already_used` - someone redeemed it (possibly the same user from another channel)
 
 bot uses `display_name` in the ephemeral confirmation text.
+
+### 3.1b link code shape + dev / prod routing
+
+a code looks like `AB-123456`:
+
+| Position | Charset | Meaning |
+| :--- | :--- | :--- |
+| `[0]` | one of 24 letters (A-Z minus I, O) | random, no meaning |
+| `[1]` | dev: `X` or `Z`; prod: any of the other 22 letters (A-Z minus I, O, X, Z) | environment marker |
+| `[2]` | literal `-` | display-only separator (servers strip it on input) |
+| `[3..]` | 6 digits (0-9) | random |
+
+a single bot deployment serves both the dev and prod editor instances. when a code arrives via `/trees link`, **the bot inspects the second alpha character to choose which backend to call**:
+
+```python
+# pseudo-code
+def route_for(code: str) -> str:
+    norm = ''.join(ch for ch in code.upper() if ch.isalnum())
+    if len(norm) < 2:
+        return PROD_BASE_URL  # malformed; let prod give the canonical 422
+    return DEV_BASE_URL if norm[1] in {'X', 'Z'} else PROD_BASE_URL
+```
+
+then sign + post to that backend's `/api/bot/auth/link`. this keeps the user-visible flow identical between environments — they paste whatever code the editor showed them, no `--env` flag, no separate command.
+
+reasoning behind the partition:
+
+- only two letters (`X`, `Z`) are reserved for dev. dev sees less traffic; prod gets the larger search space (22 of 24 second-char letters). search space: prod ≈ 528M codes, dev ≈ 48M codes.
+- the alphabet is otherwise the standard ambiguity-stripped set (no `I` / `O`).
+- if a third environment ever lands (staging?), pick another letter or two and update both server (`auth/link.py`) and bot in lockstep.
 
 ### 3.1a recommended bot-side role mapping
 
@@ -215,9 +249,9 @@ register the group at the application level (not guild-scoped) so every server g
 
 | Option | Type | Required | Notes |
 | :--- | :--- | :--- | :--- |
-| `code` | string | yes | 6 chars, alphanumeric, case-insensitive on the bot side; pass uppercase to the server |
+| `code` | string | yes | shape: `AB-123456` (8 alphanumeric chars + dash); case-insensitive; the server normalises whatever the user typed |
 
-the bot also captures the caller's discord roles (no user-supplied option) and forwards them as `roles: list[str]` per 3.1.
+the bot also captures the caller's discord roles (no user-supplied option) and forwards them as `roles: list[str]` per 3.1. **routing**: char[1] of the code (after stripping the dash) decides which backend to hit - see 3.1b.
 
 ephemeral replies:
 
@@ -271,14 +305,19 @@ reply on success: `removed **{target_display}**'s access to **{tree_name}**.`
 
 ## 6. configuration
 
-bot-side env vars:
+bot-side config:
 
 | Var | Purpose | Example |
 | :--- | :--- | :--- |
-| `DISCORD_BOT_HMAC_SECRET` | shared with the server; signs every bot→server request | `<32-byte hex>` |
-| `ATTU_TREES_API_BASE_URL` | server base url; trailing slash optional | `http://attu-tree:8000` |
+| `DISCORD_BOT_HMAC_SECRET` | shared with **both** family-tree backends; signs every bot→server request. dev and prod use the same secret today (rotate together) | `<32-byte hex>` |
+| `ATTU_TREES_DEV_BASE_URL` | dev backend base url; trailing slash optional | `http://attu-tree-dev:8000` or `https://attuproject.org/trees-dev` |
+| `ATTU_TREES_PROD_BASE_URL` | prod backend base url | `http://attu-tree:8000` or `https://attuproject.org/trees` |
 
-put these in `assets/attu-bot.toml` (the bot's tier-2 config), not `.env`, matching the configuration-tier rules in `doom-bot.md`. the public docker-compose service name `attu-tree` resolves inside the shared `attu_dev` / `attu_prod` network; cross-host setups should use the public `https://attuproject.org/trees` url.
+put these in `assets/attu-bot.toml` (the bot's tier-2 config), not `.env`, matching the configuration-tier rules in `doom-bot.md`. the public docker-compose service names `attu-tree` / `attu-tree-dev` resolve inside the shared `attu_dev` / `attu_prod` networks; cross-host setups should use the public urls instead.
+
+the bot picks between the two URLs per request, based on the code's char[1] for `/trees link` (see 3.1b). for the other commands (`/trees show`, `/trees share`, `/trees unshare`) the bot needs another route signal, since those don't carry a code. simplest cut: pin those commands to **prod only** until the editor exposes an `/api/bot/users/{discord_id}/trees` query that searches across both backends. dev users can do everything *except* re-share / re-list through the bot until they re-link in prod.
+
+if that's too restrictive, a follow-up option is to query both backends in parallel and merge the results. we'll cross that bridge when the bot ships.
 
 ---
 
@@ -306,4 +345,5 @@ last_updated: 26 April 2026
 status: contract-draft (server impl in phase 5; bot impl in a sibling pr)
 changelog:
   - 26 April 2026 (round 1 hardening) - 3.1 now requires roles[]; admin role mutation is bot/discord side only; error codes corrected (all 422 with detail)
+  - 26 April 2026 (link-code partition) - link codes are now `AB-123456`-shaped; second alpha char (X / Z = dev, otherwise = prod) lets a single bot deployment route /trees link to the right backend without an env flag. bot config picks up DEV + PROD base URLs.
 ```

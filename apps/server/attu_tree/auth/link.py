@@ -1,6 +1,6 @@
 """link code flow: web-initiated, bot-redeemed.
 
-web calls start_link() → gets a 6-char code and pre-issued session token.
+web calls start_link() → gets an `AB-123456`-shaped code and pre-issued session token.
 web polls check_link() every 2s until the bot redeems.
 bot calls redeem_link() with discord user info + roles → code is consumed,
 session bound to user, role mirrored from the bot-supplied roles list.
@@ -12,22 +12,66 @@ not auto-promote anyone.
 
 import logging
 import random
+import re
 import uuid
 from datetime import UTC, datetime, timedelta
 
 import aiosqlite
 
 from attu_tree.auth.session import new_token
+from attu_tree.settings import settings
 
 
 log = logging.getLogger(__name__)
 
-# ambiguity-stripped charset: no 0, O, I, 1, l
-_CHARSET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-_CODE_LEN = 6
+# code shape: `AB-123456` (display) / `AB123456` (storage).
+# - char[0]: any of the 24 ambiguity-stripped letters (no I, no O)
+# - char[1]: env discriminator. dev uses {X, Z}; prod uses the other 22.
+#   one bot instance can route `/trees link` to the right backend just by
+#   inspecting char[1] of the user-supplied code.
+# - dash separator (display only; stripped on storage and input)
+# - 6 digits (full 0-9; intra-segment ambiguity isn't a concern with the
+#   alpha/digit split made obvious by the dash)
+#
+# search space: prod = 24 * 22 * 10^6 ≈ 528M codes; dev = 24 * 2 * 10^6 ≈ 48M.
+# both comfortably above brute-force-in-10-min territory once /api/auth/start
+# rate limiting (separate to-do) is in place.
+_ALPHA_FIRST = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
+_ALPHA_DEV = 'XZ'
+_ALPHA_PROD = ''.join(c for c in _ALPHA_FIRST if c not in _ALPHA_DEV)
+_DIGITS = '0123456789'
+_DIGIT_LEN = 6
 _CODE_TTL_MINUTES = 10
 # keep at most this many recent revisions per tree
 REVISION_CAP = 20
+
+_NON_ALNUM = re.compile(r'[^A-Z0-9]')
+
+
+def _alpha_for_env() -> str:
+    return _ALPHA_DEV if settings.environment == 'dev' else _ALPHA_PROD
+
+
+def _gen_code() -> str:
+    """generate a fresh code in the storage form (no dash, uppercase)."""
+    first = random.choice(_ALPHA_FIRST)
+    second = random.choice(_alpha_for_env())
+    digits = ''.join(random.choices(_DIGITS, k=_DIGIT_LEN))
+    return f'{first}{second}{digits}'
+
+
+def format_code(stored: str) -> str:
+    """user-facing form: `AB-123456`."""
+    if len(stored) < 2:
+        return stored
+    return f'{stored[:2]}-{stored[2:]}'
+
+
+def normalize_code(supplied: str) -> str:
+    """server- and bot-facing normalisation: strip non-alphanumeric and
+    uppercase. accepts `AB-123456`, `ab-123456`, `AB123456`, `ab 123456`,
+    etc. matches the storage form so callers can pass straight to the db."""
+    return _NON_ALNUM.sub('', supplied.upper())
 
 # roles the server understands; anything else from the bot is dropped.
 # precedence is by list order: first match wins when multiple known roles are
@@ -53,21 +97,22 @@ def _expiry_iso(minutes: int = _CODE_TTL_MINUTES) -> str:
     return dt.isoformat(timespec='milliseconds').replace('+00:00', 'Z')
 
 
-def _gen_code() -> str:
-    return ''.join(random.choices(_CHARSET, k=_CODE_LEN))
-
-
 async def start_link(conn: aiosqlite.Connection) -> tuple[str, str, str]:
-    """create a fresh link code + pre-issued session token. returns (code, session_token, expires_at)."""
-    code = _gen_code()
+    """create a fresh link code + pre-issued session token.
+
+    returns (display_code, session_token, expires_at). the storage form (no
+    dash) is what lands in the db; the display form (`AB-123456`) is what we
+    hand back to the spa, which renders it to the user.
+    """
+    stored = _gen_code()
     token = new_token()
     expires_at = _expiry_iso()
     await conn.execute(
         'INSERT INTO link_codes(code, session_token, expires_at) VALUES (?, ?, ?)',
-        (code, token, expires_at),
+        (stored, token, expires_at),
     )
     await conn.commit()
-    return code, token, expires_at
+    return format_code(stored), token, expires_at
 
 
 async def check_link(conn: aiosqlite.Connection, session_token: str) -> str:
@@ -111,7 +156,9 @@ async def redeem_link(
     re-link.
     """
     role = resolve_role(roles or [])
-    code_upper = code.upper()
+    # accept the code in any of the user-typeable forms; the db stores the
+    # dashless uppercase canonical form
+    code_norm = normalize_code(code)
     now = _now_iso()
 
     # step 1: read the code row so we can give a precise error and grab the
@@ -119,7 +166,7 @@ async def redeem_link(
     # token; the actual consume-claim happens atomically below.
     row = await (await conn.execute(
         'SELECT session_token, expires_at, consumed_at FROM link_codes WHERE code = ?',
-        (code_upper,),
+        (code_norm,),
     )).fetchone()
     if row is None:
         raise LinkCodeError('code_not_found')
@@ -153,7 +200,7 @@ async def redeem_link(
     # consumed it between our step 1 read and now.
     cursor = await conn.execute(
         'UPDATE link_codes SET consumed_at = ?, user_id = ? WHERE code = ? AND consumed_at IS NULL',
-        (now, user_id, code_upper),
+        (now, user_id, code_norm),
     )
     if cursor.rowcount == 0:
         # commit the upsert (user is now persisted) but signal the loss
