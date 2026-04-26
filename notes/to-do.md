@@ -26,10 +26,11 @@ _phase 3 complete; see the completed section below_
 
 ### phase 4 - persistence + portraits + wiki
 
-- ⭕ `high priority` `medium effort` dexie schema (trees, blobs, settings); debounced autosave
-- ⭕ `high priority` `medium effort` `CropperDialog.svelte` lazy-imports cropperjs; blobs in dexie
-- ⭕ `medium priority` `low effort` `wiki/linkResolver.ts` opens `wikiTitle` in a new tab using configurable base url
-- ⭕ `medium priority` `low effort` recent-trees list on the shell
+_phase 4 complete; see the completed section below_
+
+- ⭕ `medium priority` `low effort` `loadFromRecents` doesn't snapshot the active tree before swapping; if the user clicks a recent while the autosave debounce is mid-flight, the in-flight save can race the load. flush ordering looks correct on paper but should be tested under load
+- ⭕ `low priority` `low effort` cropperjs styles are loaded from `cdn.jsdelivr.net` for bundle slimness; switch to a local import once we have a CSP/offline story
+- ⭕ `low priority` `low effort` blob garbage collection runs on every save; for large trees this iterates every blob row. cap to a periodic sweep if profiling shows it
 
 ### phase 5 - backend + auth + sync
 
@@ -125,6 +126,18 @@ _phase 3 complete; see the completed section below_
 - 🔴 `25 April 2026` vitest config picks up `tests/component/**/*.test.ts`, jsdom + `@testing-library/svelte`, `resolve.conditions: ['browser']` so the svelte plugin returns the client build
 - 🔴 `25 April 2026` 21 component tests across `DateInput`, `PersonNode`, `PersonEditor`; e2e import-edit flow loads `tiny.ged`, opens the editor on double-click; `pnpm verify` green at 192 unit + 4 e2e
 
+### phase 4 - persistence + portraits + wiki
+
+- 🔴 `26 April 2026` `persistence/{db,trees,blobs,settings}.ts` Dexie schema (trees / blobs / settings); CRUD helpers parameterised on a `FamilyTreeDb` instance for testability; trees stored as JSON-cloned plain objects to side-step Svelte 5 `$state` proxies + structured-clone
+- 🔴 `26 April 2026` `state/autosave.ts` debounced (1s default) sync of `treeStore.tree` into Dexie; flushes in-flight saves on demand; orphan-blob GC after each save; emits `onSaved` / `onError` callbacks for the toast layer
+- 🔴 `26 April 2026` `state/portraitUrls.svelte.ts` `Map<blobId, objectURL>` rune store with on-demand fetch + revoke on tree swap or blob change
+- 🔴 `26 April 2026` `wiki/linkResolver.ts` builds `wikiUrlFor(title, baseUrl?)` with default `https://attuproject.org`; PersonEditor exposes a "view ↗" button when `wikiTitle` is set; configurable via `VITE_WIKI_BASE_URL`
+- 🔴 `26 April 2026` `components/editor/CropperDialog.svelte` lazy-imports cropperjs, outputs `image/webp` quality 0.85 at 600×600; CSS pulled from jsdelivr to keep the initial bundle slim
+- 🔴 `26 April 2026` `components/editor/PortraitField.svelte` upload + thumbnail control; saves via `putBlob`, dispatches `portraitBlobId` patches; `TreeCanvas` resolves `portraitBlobId → URL` through the cache so cards show their portrait at zoom level 0
+- 🔴 `26 April 2026` `components/shell/RecentTrees.svelte` top-bar dropdown; new/load/delete actions; updates `lastOpenedTreeId` setting
+- 🔴 `26 April 2026` `state/tree.svelte.ts` adds `dirty` + `hydrate(tree)` so the autosave effect can distinguish user mutations from initial Dexie load
+- 🔴 `26 April 2026` 222 unit tests (11 persistence, 6 autosave, 4 wiki); 8 e2e (4 import-edit + persistence-roundtrip on chromium + mobile); `pnpm verify` green
+
 ---
 
 ## meta
@@ -154,6 +167,6 @@ when adding a new item, sort it into the appropriate section by topic, or add a 
 ### metadata
 
 ```yaml
-last_updated: 25 April 2026
-total_completed: 40
+last_updated: 26 April 2026
+total_completed: 49
 ```

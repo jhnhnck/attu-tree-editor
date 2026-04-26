@@ -12,7 +12,9 @@
         person: Person;
         selected?: boolean;
         level?: PersonNodeLevel;
-        portraitUrl?: string;
+        /** canvas scale, used to keep border thickness visually constant */
+        scale?: number;
+        portraitUrl?: string | undefined;
         onselect?: (id: string) => void;
         onedit?: (id: string) => void;
         oncontextmenu?: (id: string, x: number, y: number) => void;
@@ -22,6 +24,7 @@
         person,
         selected = false,
         level = 0,
+        scale = 1,
         portraitUrl,
         onselect,
         onedit,
@@ -53,21 +56,33 @@
         return "";
     }
 
+    // at level 5 (dot) use a solid opaque fill so the tiny shape reads clearly
     let genderClass = $derived(
-        person.gender === "m"
-            ? "bg-sky-700/35 border-sky-400/70"
-            : person.gender === "f"
-              ? "bg-rose-700/35 border-rose-400/70"
-              : "bg-amber-600/30 border-amber-400/70",
+        level >= 5
+            ? person.gender === "m"
+                ? "bg-sky-500"
+                : person.gender === "f"
+                  ? "bg-rose-500"
+                  : "bg-amber-400"
+            : person.gender === "m"
+              ? "bg-sky-700/35 border-sky-400/70"
+              : person.gender === "f"
+                ? "bg-rose-700/35 border-rose-400/70"
+                : "bg-amber-600/30 border-amber-400/70",
     );
+
+    // keep visual border thickness at ~2px regardless of canvas zoom
+    let borderWidth = $derived(level >= 5 ? "0px" : `${(2 / Math.max(scale, 0.001)).toFixed(2)}px`);
 </script>
 
 <button
     type="button"
-    class="text-fg group relative flex h-full w-full flex-col items-stretch overflow-hidden rounded-md border-2 px-2 py-1 text-center outline-none transition-colors hover:z-10 focus:outline-none focus-visible:outline-none {genderClass} {level ===
-        0 && !portraitUrl
-        ? 'justify-center'
-        : ''}"
+    class="text-fg group relative flex h-full w-full flex-col items-stretch overflow-hidden px-2 py-1 text-center outline-none transition-colors hover:z-10 focus:outline-none focus-visible:outline-none {genderClass} {level >=
+    5
+        ? 'rounded-full'
+        : 'rounded-md'} {level === 0 && !portraitUrl ? 'justify-center' : ''}"
+    style:border-width={borderWidth}
+    style:border-style="solid"
     class:is-faded={person.display === "z0"}
     class:is-selected={selected}
     data-person-id={person.id}
@@ -91,14 +106,14 @@
             {fullName || "(unnamed)"}
         </span>
         {#if dateRange}
-            <span class="mt-0.5 font-mono text-[11px] opacity-70">{dateRange}</span>
+            <span class="mt-0.5 font-mono text-[11px] opacity-80">{dateRange}</span>
         {/if}
     {:else if level === 1}
         <span class="m-auto line-clamp-2 text-base leading-tight font-semibold">
             {fullName || "(unnamed)"}
         </span>
         {#if dateRange}
-            <span class="mt-0.5 font-mono text-xs opacity-70">{dateRange}</span>
+            <span class="mt-0.5 font-mono text-xs opacity-80">{dateRange}</span>
         {/if}
     {:else if level === 2}
         <span

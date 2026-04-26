@@ -119,4 +119,53 @@ describe("adaptToLayout", () => {
         if (!alpha) throw new Error("missing alpha");
         expect(alpha.siblings.map((s) => s.id)).toEqual([b.id]);
     });
+
+    it("lays out disconnected family clusters side by side instead of dropping them", () => {
+        // component A: root --parent-of--> childA
+        // component B: elderB --parent-of--> youngB
+        const t0 = createTree("multi", { ...blank("rootKorak"), gender: "m" });
+        const a = addPerson(t0, { ...blank("kidKorak"), gender: "u" });
+        const linkA = linkParent(a.tree, a.id, ROOT_ID);
+        if (!linkA.ok) throw new Error(linkA.error);
+
+        const b1 = addPerson(linkA.value, { ...blank("elderMarai"), gender: "f" });
+        const b2 = addPerson(b1.tree, { ...blank("youngBanchar"), gender: "u" });
+        const linkB = linkParent(b2.tree, b2.id, b1.id);
+        if (!linkB.ok) throw new Error(linkB.error);
+
+        const result = adaptToLayout(linkB.value);
+        expect(result.totalPeople).toBe(4);
+        expect(result.laidOutPeople).toBe(4);
+        expect(result.components.length).toBe(2);
+        // root's component should sort first
+        expect(result.components[0]?.rootId).toBe(ROOT_ID);
+        // disjoint components shouldn't share x ranges
+        const positionsA = result.layout.nodes
+            .filter((n) => n.id === ROOT_ID || n.id === a.id)
+            .map((n) => n.left);
+        const positionsB = result.layout.nodes
+            .filter((n) => n.id === b1.id || n.id === b2.id)
+            .map((n) => n.left);
+        const maxA = Math.max(...positionsA);
+        const minB = Math.min(...positionsB);
+        expect(minB).toBeGreaterThan(maxA);
+    });
+
+    it("renders fully-isolated people in a grid so they aren't lost", () => {
+        // seed root has no relations, so it's isolated too; plus three hermits
+        const t0 = createTree("iso", { ...blank("rootKorak"), gender: "m" });
+        const lonely1 = addPerson(t0, { ...blank("Hermit1"), gender: "u" });
+        const lonely2 = addPerson(lonely1.tree, { ...blank("Hermit2"), gender: "u" });
+        const lonely3 = addPerson(lonely2.tree, { ...blank("Hermit3"), gender: "u" });
+
+        const result = adaptToLayout(lonely3.tree);
+        expect(result.isolated.length).toBe(4);
+        // every person still landed somewhere on the canvas
+        expect(result.laidOutPeople).toBe(4);
+        const ids = new Set(result.layout.nodes.map((n) => n.id));
+        expect(ids.has(ROOT_ID)).toBe(true);
+        expect(ids.has(lonely1.id)).toBe(true);
+        expect(ids.has(lonely2.id)).toBe(true);
+        expect(ids.has(lonely3.id)).toBe(true);
+    });
 });

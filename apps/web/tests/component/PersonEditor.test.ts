@@ -6,6 +6,7 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/svelte";
 import PersonEditor from "$lib/components/editor/PersonEditor.svelte";
+import type { PortraitUrlCache } from "$lib/state/portraitUrls.svelte";
 import type { Person } from "$lib/domain/types";
 
 function person(): Person {
@@ -18,6 +19,15 @@ function person(): Person {
         display: "z1",
     };
 }
+
+const portraitUrls: PortraitUrlCache = {
+    get: () => undefined,
+    request: () => undefined,
+    invalidate: () => undefined,
+    clear: () => undefined,
+};
+
+const editorBaseProps = { treeId: "test-tree", portraitUrls };
 
 // jsdom does not implement <dialog> showModal/close; stub them so the editor
 // can drive the open/close lifecycle the same way it does in a real browser
@@ -42,6 +52,7 @@ beforeAll(() => {
 describe("PersonEditor", () => {
     it("renders fields seeded from the supplied Person", () => {
         render(PersonEditor, {
+            ...editorBaseProps,
             person: person(),
             onsave: vi.fn(),
             onclose: vi.fn(),
@@ -53,7 +64,7 @@ describe("PersonEditor", () => {
     it("dispatches onsave with the edited fields and closes", async () => {
         const onsave = vi.fn();
         const onclose = vi.fn();
-        render(PersonEditor, { person: person(), onsave, onclose });
+        render(PersonEditor, { ...editorBaseProps, person: person(), onsave, onclose });
 
         const given = screen.getByLabelText<HTMLInputElement>("given");
         await fireEvent.input(given, { target: { value: "Renamed" } });
@@ -70,7 +81,7 @@ describe("PersonEditor", () => {
     it("cancel triggers onclose without onsave", async () => {
         const onsave = vi.fn();
         const onclose = vi.fn();
-        render(PersonEditor, { person: person(), onsave, onclose });
+        render(PersonEditor, { ...editorBaseProps, person: person(), onsave, onclose });
         await fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
         expect(onsave).not.toHaveBeenCalled();
         expect(onclose).toHaveBeenCalled();

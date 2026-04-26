@@ -8,17 +8,21 @@
     import EdgeLayer from "$lib/components/tree/EdgeLayer.svelte";
     import PersonNode from "$lib/components/tree/PersonNode.svelte";
     import type { DerivedEdge, PersonNodeLevel } from "$lib/components/tree/edges";
+    import type { PortraitUrlCache } from "$lib/state/portraitUrls.svelte";
     import type { PersonId, Tree } from "$lib/domain/types";
 
     interface Props {
         tree: Tree;
         selectedId?: PersonId | undefined;
+        portraitUrls?: PortraitUrlCache;
         onselect?: (id: PersonId) => void;
+        ondeselect?: () => void;
         onedit?: (id: PersonId) => void;
         oncontextmenu?: (id: PersonId, x: number, y: number) => void;
     }
 
-    let { tree, selectedId, onselect, onedit, oncontextmenu }: Props = $props();
+    let { tree, selectedId, portraitUrls, onselect, ondeselect, onedit, oncontextmenu }: Props =
+        $props();
 
     // pixels per relatives-tree unit. relatives-tree assumes nodes occupy a
     // 2x2 unit cell; we render the card narrower in height than width so it
@@ -73,9 +77,9 @@
         });
         resizeObs.observe(hostEl);
 
-        // wait one frame for the inner stage to lay out, then fit
+        // wait one frame for the inner stage to lay out, then reset to 100%
         requestAnimationFrame(() => {
-            fitToView();
+            resetView();
             firstFitDone = true;
         });
     });
@@ -93,13 +97,14 @@
         untrack(() => {
             if (treeKey !== lastFitTreeId && hostEl && firstFitDone) {
                 lastFitTreeId = treeKey;
-                requestAnimationFrame(fitToView);
+                requestAnimationFrame(resetView);
             } else if (!lastFitTreeId) {
                 lastFitTreeId = treeKey;
             }
         });
     });
 
+    /** zoom-to-fit: shows the whole tree (used by the "fit" button) */
     function fitToView(): void {
         if (!hostEl) return;
         const rect = hostEl.getBoundingClientRect();
@@ -113,6 +118,35 @@
         scale = s;
         panX = (rect.width - canvasW * s) / 2;
         panY = (rect.height - canvasH * s) / 2;
+    }
+
+    /** 100% zoom centered on the root person (used on initial load + import) */
+    function resetView(): void {
+        if (!hostEl) return;
+        const rect = hostEl.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) return;
+        cancelPanAnim();
+        scale = 1;
+        const rootPos = positionByPersonId.get(tree.rootId);
+        if (rootPos) {
+            const cx = rootPos.left * UNIT + CELL_W / 2;
+            const cy = rootPos.top * UNIT + CELL_H / 2;
+            panX = rect.width / 2 - cx;
+            panY = rect.height / 2 - cy;
+        } else {
+            panX = (rect.width - canvasW) / 2;
+            panY = (rect.height - canvasH) / 2;
+        }
+    }
+
+    /** deselect when clicking the canvas background (not a card) */
+    function onHostClick(e: MouseEvent): void {
+        if (e.target === hostEl || e.target === panEl) ondeselect?.();
+    }
+
+    /** Escape key deselects; paired with onclick to satisfy a11y requirements */
+    function onHostKeyDown(e: KeyboardEvent): void {
+        if (e.key === "Escape") ondeselect?.();
     }
 
     function clamp(n: number, lo: number, hi: number): number {
@@ -495,14 +529,18 @@
     }
 </script>
 
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_no_noninteractive_tabindex -->
 <div
     bind:this={hostEl}
     class="bg-canvas relative h-full w-full cursor-grab overflow-hidden"
     style:touch-action="none"
     role="application"
+    tabindex="0"
     aria-label="family tree canvas"
     onwheel={onWheel}
     onpointerdown={onPointerDown}
+    onclick={onHostClick}
+    onkeydown={onHostKeyDown}
 >
     <div
         bind:this={panEl}
@@ -534,7 +572,9 @@
                     <PersonNode
                         {person}
                         level={cardLevel}
+                        {scale}
                         selected={selectedId === person.id}
+                        portraitUrl={portraitUrls?.get(person.portraitBlobId)}
                         onselect={(id: string) => onselect?.(id)}
                         onedit={(id: string) => onedit?.(id)}
                         oncontextmenu={(id: string, x: number, y: number) =>
@@ -553,6 +593,25 @@
         >
             fit
         </button>
+        <span
+            class="text-fg-muted bg-canvas-elev/80 border-line rounded-md border px-2 py-1 font-mono text-[10px]"
+            title={layout.components.length > 1
+                ? `${String(layout.components.length)} clusters` +
+                  (layout.isolated.length > 0
+                      ? ` + ${String(layout.isolated.length)} isolated`
+                      : "")
+                : undefined}
+        >
+            {String(layout.totalPeople)} people
+            {#if layout.components.length > 1 || layout.isolated.length > 0}
+                <span class="text-amber-400"
+                    >· {String(layout.components.length)}{#if layout.isolated.length > 0}+{String(
+                            layout.isolated.length,
+                        )}{/if}
+                    clusters</span
+                >
+            {/if}
+        </span>
         <span
             class="text-fg-muted bg-canvas-elev/80 border-line rounded-md border px-2 py-1 font-mono text-[10px]"
         >

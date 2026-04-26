@@ -45,14 +45,15 @@ client-side typescript spa (svelte 5, vite, tailwind v4) for viewing and editing
 | `src/lib/io/detect.ts` | filename + magic-byte format sniffer |
 | `src/lib/io/warnings.ts` | per-target `fieldsDroppedFor()` helper |
 | `src/lib/utils/result.ts` | `Result<T, E>` discriminated union for parser / validator returns |
-| `src/lib/persistence/` | dexie schema + sync coordinator (phase 4) |
+| `src/lib/persistence/` | dexie schema (`db.ts`), trees + blobs + settings CRUD; autosave coordinator lives in `state/autosave.ts` |
 | `src/lib/layout/` | `relativesTreeAdapter.ts` translates a `Tree` into `relatives-tree` input + runs layout |
-| `src/lib/state/` | runes-based stores: `tree.svelte.ts` (snapshot undo/redo), `selection.svelte.ts`, `viewport.svelte.ts` |
+| `src/lib/state/` | runes-based stores: `tree.svelte.ts` (snapshot undo/redo + dirty flag), `selection.svelte.ts`, `viewport.svelte.ts`, `toasts.svelte.ts`, `portraitUrls.svelte.ts` (blob → object-URL cache); `autosave.ts` debounces tree changes into Dexie writes |
 | `src/lib/components/tree/` | `TreeCanvas.svelte` (svg + panzoom), `PersonNode.svelte` (foreignObject card), `EdgeLayer.svelte` (svg connectors) |
-| `src/lib/components/editor/` | `PersonEditor.svelte` (`<dialog>` form, set-or-delete patches) |
+| `src/lib/components/editor/` | `PersonEditor.svelte` (`<dialog>` form, set-or-delete patches), `PortraitField.svelte` (upload + thumb), `CropperDialog.svelte` (lazy `cropperjs` import; outputs webp) |
+| `src/lib/components/shell/` | `RecentTrees.svelte` (top-bar dropdown of recently-saved trees, new/delete actions) |
 | `src/lib/components/form/` | `DateInput.svelte` (parses on blur via `HaracalndeDate.parseNarrative`), `Field.svelte` |
 | `src/lib/components/ui/` | `Button.svelte` and other primitives |
-| `src/lib/wiki/` | wiki link resolution + (phase 6) gadget shim |
+| `src/lib/wiki/` | `linkResolver.ts` builds `<base>/wiki/<title>` URLs (default base `https://attuproject.org`, override via `VITE_WIKI_BASE_URL`); phase 6 gadget shim lives here too |
 
 ### apps/server internals
 
@@ -113,6 +114,14 @@ precedence: env vars > `.env` > defaults in `Settings`.
 - spaces for indentation everywhere
 - prefer brief statements over long explanations
 - error messages are lowercase, no terminal punctuation
+
+### placeholder names
+
+when a test, fixture, doc, or example needs a generic person, use these akarian-style placeholders (the `john doe` of this project). modeled on patterns from [`notes/examples/Akarians-1-Jun-2025-150206898.txt`](examples/Akarians-1-Jun-2025-150206898.txt); `nokar` is an invented kadrike that does not collide with any in the source.
+
+- male: `Korak Nokar`
+- female: `Marai Nokar`
+- unknown: `Banchar Nokar`
 
 ---
 
@@ -212,6 +221,9 @@ when adding a schema-breaking domain change: bump `CURRENT_SCHEMA_VERSION`, push
 9. **svelte component tests on jsdom**: vitest `resolve.conditions: ['browser']` is required, otherwise `mount()` calls into the SSR build and crashes with `lifecycle_function_unavailable`. Also, jsdom doesn't implement `HTMLDialogElement.showModal/close`; component tests for anything using `<dialog>` need a `beforeAll` shim (see `PersonEditor.test.ts` for the pattern).
 10. **inline callback typing in svelte templates**: typescript-eslint can't infer prop types across `.svelte` boundaries, so an inline arrow like `onselect={(id) => ...}` lints as `id: any`. Annotate explicitly: `onselect={(id: string) => ...}`.
 11. **set-or-delete for optional fields**: `exactOptionalPropertyTypes` forbids `target.field = undefined` for `field?: T`. Use the `setOptional(target, key, value)` helper pattern (see `merge.ts` and `PersonEditor.svelte`); it `delete`s when value is undefined and assigns otherwise. Note this means clearing a field via patch isn't currently supported through `updatePerson` - tracked in to-do.md.
+12. **dexie + svelte 5 $state proxies**: anything written to IndexedDB via Dexie goes through structured-clone, which throws `DataCloneError` when given a Svelte 5 `$state` proxy. `persistence/trees.ts:saveTree` round-trips the `Tree` through `JSON.parse(JSON.stringify(...))` to drop the reactivity wrappers. Domain types are JSON-safe (no `Date`, `Map`, functions) so this is lossless. Apply the same pattern when writing other reactive runes to Dexie.
+13. **storing blobs in dexie**: store image bytes as `Uint8Array`, never as `Blob`. fake-indexeddb (used in tests) mangles Blob round-trips, and even real IndexedDB has subtle differences across browsers. `persistence/blobs.ts:putBlob` requires `Uint8Array`; the cropper output (a `Blob` from `canvas.toBlob`) is converted via `new Uint8Array(await blob.arrayBuffer())` at the call site. Read sites wrap back in `new Blob([bytes.slice()], { type: mime })` to create object URLs.
+14. **autosave + first-load semantics**: `treeStore.dirty` distinguishes user mutations from initial-load hydration. App.svelte's autosave `$effect` only schedules a save when `firstLoadComplete && treeStore.dirty`. `treeStore.hydrate(tree)` resets state without flipping dirty (used to restore from Dexie); `treeStore.reset(tree)` does flip dirty (used by import). Don't conflate the two - hydrate-then-save would just rewrite what we read.
 
 ---
 
@@ -305,5 +317,5 @@ FamilyTreeEditor/
 ## metadata
 
 ```yaml
-last_updated: 25 April 2026 (phase 3)
+last_updated: 26 April 2026 (phase 4)
 ```

@@ -13,6 +13,12 @@ importers:
       '@panzoom/panzoom':
         specifier: ^4.6.2
         version: 4.6.2
+      cropperjs:
+        specifier: ^2.1.1
+        version: 2.1.1
+      dexie:
+        specifier: ^4.4.2
+        version: 4.4.2
       fflate:
         specifier: ^0.8.2
         version: 0.8.2
@@ -56,6 +62,9 @@ importers:
       eslint-plugin-svelte:
         specifier: ^2.45.0
         version: 2.46.1(eslint@9.39.4(jiti@2.6.1))(svelte@5.55.5(@typescript-eslint/types@8.59.0))
+      fake-indexeddb:
+        specifier: ^6.2.5
+        version: 6.2.5
       globals:
         specifier: ^15.0.0
         version: 15.15.0
@@ -109,6 +118,39 @@ packages:
   '@babel/runtime@7.29.2':
     resolution: {integrity: sha512-JiDShH45zKHWyGe4ZNVRrCjBz8Nh9TMmZG1kh4QTK8hCBTWBi8Da+i7s1fJw7/lYpM4ccepSNfqzZ/QvABBi5g==}
     engines: {node: '>=6.9.0'}
+
+  '@cropper/element-canvas@2.1.1':
+    resolution: {integrity: sha512-QHiHnPHsykkc4salOiCLOIKWPK3sLQ1SzpJYFE/yQPvqTPu6ERZNcxVwB1x7WhNN+SdP0S0CEHPYIkgIfUo7VA==}
+
+  '@cropper/element-crosshair@2.1.1':
+    resolution: {integrity: sha512-DtZnOiY2RZSizDZzMUvya3wZ55YnWclf3hmIrLW6jdcFlQkYEbX6bkOyOJzQmEX0yIbmwMkXfFcMkEZ9dE1rJQ==}
+
+  '@cropper/element-grid@2.1.1':
+    resolution: {integrity: sha512-MZdPBh5QMU10T78nqG+5cK+gq4DHoWZvdOo+/wZ9/z3VH0u21sROeHOCnf0QAdxguPHSSFsPjzARK+ffS4Loog==}
+
+  '@cropper/element-handle@2.1.1':
+    resolution: {integrity: sha512-TmSSphyMr2NEA0DqUTf9PCN8kcpzM0BxreOMyzbfuq1NUUePV1LxYgSOUT7dftMjZnTcu8cHQeFYa69U2BZnBA==}
+
+  '@cropper/element-image@2.1.1':
+    resolution: {integrity: sha512-cldzN3hVJo0Luui+FDSIkmbQtwIjxWiTcTMLCMSi3hqIq6lc7YOBz+rC5R8AYnYV7YvsWonE6PrJZS+iZpBkdQ==}
+
+  '@cropper/element-selection@2.1.1':
+    resolution: {integrity: sha512-QtMYhcuR+8JG3QEv8iSRCfQEVYljor61vLPrnGCFIkDJhvcyEWDx4H/Kfn6Jrdo90PyXf2VbpTG7TgH8i/EZFg==}
+
+  '@cropper/element-shade@2.1.1':
+    resolution: {integrity: sha512-MhJVc3jC87TjQu4EfBnNFddL3LxvA+Wzjy1Qhyi0wNdeTAzs97uYJ3KwGVtvzPYP/4JaSU4JDpw+BfIdUqR0bg==}
+
+  '@cropper/element-viewer@2.1.1':
+    resolution: {integrity: sha512-RpXTGW/rTtJVNd3/R3imdCBJzyZRhA/OeWNo7RID4qW7UYEiL6Lwh7Six3QhFIci/IaUAyL9NAAN10av2YWqog==}
+
+  '@cropper/element@2.1.1':
+    resolution: {integrity: sha512-pthgIQq3PFAFRGUts96yrMgmMY/4rS/zKEq/Vvw7L0Ur09MgzrUg15z4k96K53bJ8XvNeXdQ0qIDw90gh4Xcug==}
+
+  '@cropper/elements@2.1.1':
+    resolution: {integrity: sha512-cHShk4l6iExM4S6B1xx7+09gtDs+kdxWqe7Yv6DEbAyWhxVIVJyJAPpKlzLfA5MYnlSnkvCvY66hLLQPwooRMQ==}
+
+  '@cropper/utils@2.1.1':
+    resolution: {integrity: sha512-0eQs08WyQUNFMfU3ieE091dEQkrW0YdgZ3n6Thnk1EUQv45ypfiL+MevHwr7UzNnUlqUYR2FNSCgE6qBxK0sFw==}
 
   '@csstools/color-helpers@5.1.0':
     resolution: {integrity: sha512-S11EXWJyy0Mz5SYvRmY8nJYTFFd1LCNV+7cXyAgQtOOuzb4EsgfqDufL+9esx72/eLhsRdGZwaldu/h+E4t4BA==}
@@ -880,6 +922,9 @@ packages:
   concat-map@0.0.1:
     resolution: {integrity: sha512-/Srv4dswyQNBfohGpz9o6Yb3Gz3SrUDqBH5rTuhGR7ahtlbYKnVxw2bCFMRljaA7EXHaXZ8wsHdodFvbkhKmqg==}
 
+  cropperjs@2.1.1:
+    resolution: {integrity: sha512-FDJMarkY+/SepYarPZsvkG2LmI2PElecciMFnvBiBIoKnFYua/scprC5qejCLLyuX2jEqJRS2njbAsHxfjtIXA==}
+
   cross-spawn@7.0.6:
     resolution: {integrity: sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==}
     engines: {node: '>= 8'}
@@ -937,6 +982,9 @@ packages:
 
   devalue@5.7.1:
     resolution: {integrity: sha512-MUbZ586EgQqdRnC4yDrlod3BEdyvE4TapGYHMW2CiaW+KkkFmWEFqBUaLltEZCGi0iFXCEjRF0OjF0DV2QHjOA==}
+
+  dexie@4.4.2:
+    resolution: {integrity: sha512-zMtV8q79EFE5U8FKZvt0Y/77PCU/Hr/RDxv1EDeo228L+m/HTbeN2AjoQm674rhQCX8n3ljK87lajt7UQuZfvw==}
 
   dom-accessibility-api@0.5.16:
     resolution: {integrity: sha512-X7BJ2yElsnOJ30pZF4uIIDfBEVgF4XEBxL9Bxhy6dnrm5hkzqmsWHGTiHqRiITNhMyFLyAiWndIJP7Z1NTteDg==}
@@ -1071,6 +1119,10 @@ packages:
   expect-type@1.3.0:
     resolution: {integrity: sha512-knvyeauYhqjOYvQ66MznSMs83wmHrCycNEN6Ao+2AeYEfxUIkuiVxdEa1qlGEPK+We3n0THiDciYSsCcgW/DoA==}
     engines: {node: '>=12.0.0'}
+
+  fake-indexeddb@6.2.5:
+    resolution: {integrity: sha512-CGnyrvbhPlWYMngksqrSSUT1BAVP49dZocrHuK0SvtR0D5TMs5wP0o3j7jexDJW01KSadjBp1M/71o/KR3nD1w==}
+    engines: {node: '>=18'}
 
   fast-deep-equal@3.1.3:
     resolution: {integrity: sha512-f3qQ9oQy9j2AhBe/H9VC91wLmKBCCU/gDOnKNAYG5hswO7BLKj09Hc5HYNz9cGI++xlpDCIgDaitVs03ATR84Q==}
@@ -1927,6 +1979,72 @@ snapshots:
 
   '@babel/runtime@7.29.2': {}
 
+  '@cropper/element-canvas@2.1.1':
+    dependencies:
+      '@cropper/element': 2.1.1
+      '@cropper/utils': 2.1.1
+
+  '@cropper/element-crosshair@2.1.1':
+    dependencies:
+      '@cropper/element': 2.1.1
+      '@cropper/utils': 2.1.1
+
+  '@cropper/element-grid@2.1.1':
+    dependencies:
+      '@cropper/element': 2.1.1
+      '@cropper/utils': 2.1.1
+
+  '@cropper/element-handle@2.1.1':
+    dependencies:
+      '@cropper/element': 2.1.1
+      '@cropper/utils': 2.1.1
+
+  '@cropper/element-image@2.1.1':
+    dependencies:
+      '@cropper/element': 2.1.1
+      '@cropper/element-canvas': 2.1.1
+      '@cropper/utils': 2.1.1
+
+  '@cropper/element-selection@2.1.1':
+    dependencies:
+      '@cropper/element': 2.1.1
+      '@cropper/element-canvas': 2.1.1
+      '@cropper/element-image': 2.1.1
+      '@cropper/utils': 2.1.1
+
+  '@cropper/element-shade@2.1.1':
+    dependencies:
+      '@cropper/element': 2.1.1
+      '@cropper/element-canvas': 2.1.1
+      '@cropper/element-selection': 2.1.1
+      '@cropper/utils': 2.1.1
+
+  '@cropper/element-viewer@2.1.1':
+    dependencies:
+      '@cropper/element': 2.1.1
+      '@cropper/element-canvas': 2.1.1
+      '@cropper/element-image': 2.1.1
+      '@cropper/element-selection': 2.1.1
+      '@cropper/utils': 2.1.1
+
+  '@cropper/element@2.1.1':
+    dependencies:
+      '@cropper/utils': 2.1.1
+
+  '@cropper/elements@2.1.1':
+    dependencies:
+      '@cropper/element': 2.1.1
+      '@cropper/element-canvas': 2.1.1
+      '@cropper/element-crosshair': 2.1.1
+      '@cropper/element-grid': 2.1.1
+      '@cropper/element-handle': 2.1.1
+      '@cropper/element-image': 2.1.1
+      '@cropper/element-selection': 2.1.1
+      '@cropper/element-shade': 2.1.1
+      '@cropper/element-viewer': 2.1.1
+
+  '@cropper/utils@2.1.1': {}
+
   '@csstools/color-helpers@5.1.0': {}
 
   '@csstools/css-calc@2.1.4(@csstools/css-parser-algorithms@3.0.5(@csstools/css-tokenizer@3.0.4))(@csstools/css-tokenizer@3.0.4)':
@@ -2562,6 +2680,11 @@ snapshots:
 
   concat-map@0.0.1: {}
 
+  cropperjs@2.1.1:
+    dependencies:
+      '@cropper/elements': 2.1.1
+      '@cropper/utils': 2.1.1
+
   cross-spawn@7.0.6:
     dependencies:
       path-key: 3.1.1
@@ -2601,6 +2724,8 @@ snapshots:
   detect-libc@2.1.2: {}
 
   devalue@5.7.1: {}
+
+  dexie@4.4.2: {}
 
   dom-accessibility-api@0.5.16: {}
 
@@ -2785,6 +2910,8 @@ snapshots:
   esutils@2.0.3: {}
 
   expect-type@1.3.0: {}
+
+  fake-indexeddb@6.2.5: {}
 
   fast-deep-equal@3.1.3: {}
 

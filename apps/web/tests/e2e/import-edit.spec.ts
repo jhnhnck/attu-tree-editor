@@ -21,12 +21,12 @@ test("import a tiny ged file, render person cards, open the editor", async ({ pa
     await expect(cards.first()).toBeVisible();
     expect(await cards.count()).toBeGreaterThanOrEqual(3);
 
-    // double-click a card opens the editor dialog
+    // double-click a card opens the editor dialog (heading shows the person's name)
     await cards.first().dblclick();
-    await expect(page.getByRole("heading", { name: "edit person" })).toBeVisible();
     await expect(page.getByLabel("given")).toBeVisible();
+    await expect(page.getByLabel("surname")).toBeVisible();
 
     // cancel returns to canvas without crashing
     await page.getByRole("button", { name: "cancel" }).click();
-    await expect(page.getByRole("heading", { name: "edit person" })).not.toBeVisible();
+    await expect(page.getByLabel("given")).not.toBeVisible();
 });

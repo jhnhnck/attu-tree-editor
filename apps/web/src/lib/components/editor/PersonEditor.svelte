@@ -5,17 +5,23 @@
 <script lang="ts">
     import type { HaracalndeDateData } from "$lib/date/HaracalndeDate";
     import type { Gender, Person } from "$lib/domain/types";
+    import { wikiUrlFor } from "$lib/wiki/linkResolver";
+    import type { PortraitUrlCache } from "$lib/state/portraitUrls.svelte";
     import Button from "$lib/components/ui/Button.svelte";
     import Field from "$lib/components/form/Field.svelte";
     import DateInput from "$lib/components/form/DateInput.svelte";
+    import PortraitField from "$lib/components/editor/PortraitField.svelte";
 
     interface Props {
         person: Person | undefined;
+        treeId: string;
+        portraitUrls: PortraitUrlCache;
         onsave: (id: string, patch: Partial<Person>) => void;
+        onerror?: (msg: string) => void;
         onclose: () => void;
     }
 
-    let { person, onsave, onclose }: Props = $props();
+    let { person, treeId, portraitUrls, onsave, onerror, onclose }: Props = $props();
 
     let dialogEl: HTMLDialogElement | undefined = $state();
 
@@ -27,7 +33,9 @@
     let death = $state<HaracalndeDateData | undefined>(undefined);
     let occupation = $state("");
     let location = $state("");
+    let wikiTitle = $state("");
     let display = $state<"z0" | "z1">("z1");
+    let portraitBlobId = $state<string | undefined>(undefined);
 
     $effect.pre(() => {
         if (!person) return;
@@ -39,7 +47,9 @@
         death = person.death;
         occupation = person.occupation ?? "";
         location = person.location ?? "";
+        wikiTitle = person.wikiTitle ?? "";
         display = person.display;
+        portraitBlobId = person.portraitBlobId;
     });
 
     $effect(() => {
@@ -59,6 +69,8 @@
         setOptional(patch, "title", title.trim() || undefined);
         setOptional(patch, "occupation", occupation.trim() || undefined);
         setOptional(patch, "location", location.trim() || undefined);
+        setOptional(patch, "wikiTitle", wikiTitle.trim() || undefined);
+        setOptional(patch, "portraitBlobId", portraitBlobId);
         setOptional(patch, "birth", birth);
         setOptional(patch, "death", death);
         onsave(person.id, patch);
@@ -117,6 +129,20 @@
 
             <div class="flex-1 overflow-y-auto px-5 py-4">
                 <section class="space-y-3">
+                    <h3 class="text-fg-muted text-[10px] font-semibold tracking-widest uppercase">
+                        portrait
+                    </h3>
+                    <PortraitField
+                        {treeId}
+                        personId={person.id}
+                        currentBlobId={portraitBlobId}
+                        {portraitUrls}
+                        onchange={(id: string | undefined) => (portraitBlobId = id)}
+                        onerror={(msg: string) => onerror?.(msg)}
+                    />
+                </section>
+
+                <section class="mt-5 space-y-3">
                     <h3 class="text-fg-muted text-[10px] font-semibold tracking-widest uppercase">
                         identity
                     </h3>
@@ -211,6 +237,29 @@
                     <Field label="location" for_="ed-loc">
                         {#snippet children()}
                             <input id="ed-loc" type="text" bind:value={location} class={inputCls} />
+                        {/snippet}
+                    </Field>
+                    <Field label="wiki title" for_="ed-wiki" hint="opens this title on the wiki">
+                        {#snippet children()}
+                            <div class="flex gap-2">
+                                <input
+                                    id="ed-wiki"
+                                    type="text"
+                                    bind:value={wikiTitle}
+                                    placeholder="page title"
+                                    class={inputCls}
+                                />
+                                {#if wikiUrlFor(wikiTitle)}
+                                    <a
+                                        href={wikiUrlFor(wikiTitle)}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        class="bg-canvas border-line text-fg hover:border-accent hover:text-accent inline-flex shrink-0 items-center rounded-md border px-3 py-2 text-sm"
+                                    >
+                                        view ↗
+                                    </a>
+                                {/if}
+                            </div>
                         {/snippet}
                     </Field>
                 </section>

@@ -20,6 +20,7 @@
             y1={e.y1}
             x2={e.x2}
             y2={e.y2}
+            vector-effect="non-scaling-stroke"
         />
     {/each}
 </g>

@@ -11,7 +11,7 @@
     --color-canvas: hsl(220 30% 5%); /* #0a0d12 - near-black blue (wiki theme-color) */
     --color-canvas-elev: hsl(220 35% 10%); /* #111721 - lifted surface */
     --color-fg: hsl(220 10% 88%); /* #dde0e5 - cool light grey */
-    --color-fg-muted: hsl(220 12% 60%); /* #8893a3 */
+    --color-fg-muted: hsl(220 15% 72%); /* #a4afc1 - brightened for legibility */
     --color-line: hsl(220 25% 22%); /* #2b3548 - subtle border */
     --color-accent: hsl(220 100% 65%); /* #4d8aff - link blue */
     --color-accent-strong: hsl(220 100% 75%); /* #80acff - hover/active */
@@ -22,7 +22,7 @@
         --color-canvas: hsl(220 30% 97%); /* #f5f7fa */
         --color-canvas-elev: hsl(220 35% 92%); /* #e4e9f0 */
         --color-fg: hsl(220 12% 18%); /* #282d35 */
-        --color-fg-muted: hsl(220 10% 45%); /* #67707d */
+        --color-fg-muted: hsl(220 12% 35%); /* #4e5769 - darkened for legibility */
         --color-line: hsl(220 25% 78%); /* #b8c2d4 */
         --color-accent: hsl(220 100% 45%); /* #0057e6 */
         --color-accent-strong: hsl(220 100% 35%); /* #0044b3 */
