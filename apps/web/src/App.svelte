@@ -59,11 +59,8 @@
     import { authStore } from "$lib/state/auth.svelte";
     import { syncStore } from "$lib/state/sync.svelte";
     import { onUnauthorized, trees as treesApi } from "$lib/api/client";
-    import { detectFormat } from "$lib/io/detect";
-    import { parseFamilyScript } from "$lib/io/familyscript/parse";
-    import { parseGedcom } from "$lib/io/gedcom/parse";
-    import { readBundle } from "$lib/io/bundle/read";
     import { writeBundle } from "$lib/io/bundle/write";
+    import { importFile as importFileFromBytes } from "$lib/io/importFile";
     import {
         deleteTree as deletePersistedTree,
         listTrees,
@@ -75,16 +72,26 @@
     import { SHORTCUTS } from "$lib/shortcuts";
 
     import TreeCanvas from "$lib/components/tree/TreeCanvas.svelte";
+    import type { CanvasController } from "$lib/components/tree/canvasController";
     import Inspector from "$lib/components/inspector/Inspector.svelte";
     import Toasts from "$lib/components/ui/Toasts.svelte";
     import ContextMenu, { type ContextMenuItem } from "$lib/components/ui/ContextMenu.svelte";
-    import RecentTrees from "$lib/components/shell/RecentTrees.svelte";
+    import OpenDialog from "$lib/components/shell/OpenDialog.svelte";
     import AuthBar from "$lib/components/shell/AuthBar.svelte";
     import ShareDialog from "$lib/components/shell/ShareDialog.svelte";
     import AdminPanel from "$lib/components/shell/AdminPanel.svelte";
     import MenuBar from "$lib/components/shell/MenuBar.svelte";
-    import type { MenuConfig, MenuEntry } from "$lib/components/shell/menu";
+    import type { MenuConfig, MenuEntry, IconComponent } from "$lib/components/shell/menu";
     import ShortcutsOverlay from "$lib/components/help/ShortcutsOverlay.svelte";
+    import CommandPalette from "$lib/components/palette/CommandPalette.svelte";
+    import {
+        buildCommands,
+        commandById,
+        type Command as PaletteCommand,
+        type CommandGroup,
+    } from "$lib/components/palette/commands";
+    import ZoomWidget from "$lib/components/canvas/ZoomWidget.svelte";
+    import SaveStatusPill from "$lib/components/shell/SaveStatusPill.svelte";
     import type { Person, PersonId } from "$lib/domain/types";
 
     const PLACEHOLDERS = [
@@ -111,6 +118,27 @@
     let showInspector = $state(true);
     let inspectorInitialTab = $state<"personal" | "connections" | "details" | "bio">("personal");
 
+    // command palette
+    let showPalette = $state(false);
+    let paletteMode = $state<"anything" | "commands">("anything");
+
+    // open-tree dialog
+    let showOpenDialog = $state(false);
+
+    // drag-drop import overlay
+    let isDraggingFile = $state(false);
+    let dragDepth = 0;
+
+    // canvas widget mirror state (kept in sync via callbacks from TreeCanvas)
+    let canvasController = $state<CanvasController | undefined>(undefined);
+    let canvasScale = $state(1);
+    let canvasMode = $state<"select" | "hand">("select");
+
+    // save-pill state
+    let lastSavedAt = $state<number | undefined>(undefined);
+    let lastError = $state<string | undefined>(undefined);
+    let syncedFlashUntil = $state<number | undefined>(undefined);
+
     // read-only mode: set when loading a tree via /view/<uuid> route
     let readOnly = $state(false);
 
@@ -127,11 +155,27 @@
     }
 
     const autosaver = makeAutosaver({
-        onError: (msg) => toasts.push(`autosave failed: ${msg}`, "error"),
+        onError: (msg) => {
+            lastError = msg;
+            toasts.push(`autosave failed: ${msg}`, "error");
+        },
         onSaved: () => {
+            lastSavedAt = Date.now();
+            lastError = undefined;
             void refreshRecents();
             syncStore.onLocalSave(treeStore.tree);
         },
+    });
+
+    // briefly flash the "Synced" tone after the sync store transitions back to
+    // local from syncing (i.e. a successful server push)
+    let prevSyncMode = $state<"local" | "syncing" | "conflict">("local");
+    $effect(() => {
+        const m = syncStore.mode;
+        if (prevSyncMode === "syncing" && m === "local") {
+            syncedFlashUntil = Date.now() + 2000;
+        }
+        prevSyncMode = m;
     });
 
     onUnauthorized(() => {
@@ -460,59 +504,77 @@
         importInputEl?.click();
     }
 
-    async function onImport(e: Event): Promise<void> {
-        const input = e.currentTarget as HTMLInputElement;
-        const file = input.files?.[0];
-        if (!file) return;
-
+    async function importFile(file: File): Promise<void> {
         const loadingId = toasts.push(`reading ${file.name}…`, "info", 60_000);
         try {
-            const buffer = await file.arrayBuffer();
-            const bytes = new Uint8Array(buffer);
-            const format = detectFormat({
-                filename: file.name,
-                firstBytes: bytes.subarray(0, 8),
-                firstChars: new TextDecoder().decode(bytes.subarray(0, 32)),
-            });
-
-            if (format === "gedzip") {
-                const r = readBundle(bytes);
-                if (!r.ok) {
-                    toasts.push(`import failed: ${r.error}`, "error");
-                    return;
-                }
-                const count = Object.keys(r.value.tree.people).length;
-                treeStore.reset(r.value.tree);
-                toasts.push(`loaded ${String(count)} people from ${file.name}`, "success");
-            } else if (format === "gedcom") {
-                const text = new TextDecoder().decode(bytes);
-                const r = parseGedcom(text);
-                if (!r.ok) {
-                    toasts.push(`import failed: ${r.error}`, "error");
-                    return;
-                }
-                const count = Object.keys(r.value.tree.people).length;
-                treeStore.reset(r.value.tree);
-                toasts.push(`loaded ${String(count)} people from ${file.name}`, "success");
-            } else if (format === "familyscript") {
-                const text = new TextDecoder().decode(bytes);
-                const r = parseFamilyScript(text);
-                if (!r.ok) {
-                    toasts.push(`import failed: ${r.error}`, "error");
-                    return;
-                }
-                const count = Object.keys(r.value.tree.people).length;
-                treeStore.reset(r.value.tree);
-                toasts.push(`loaded ${String(count)} people from ${file.name}`, "success");
-            } else {
-                toasts.push(`unrecognized file format: ${file.name}`, "error");
+            const r = await importFileFromBytes(file);
+            if (!r.ok) {
+                toasts.push(`import failed: ${r.error}`, "error");
+                return;
             }
+            treeStore.reset(r.value.tree);
+            toasts.push(`loaded ${String(r.value.count)} people from ${file.name}`, "success");
         } catch (err) {
             toasts.push(`import error: ${String(err)}`, "error");
         } finally {
             toasts.dismiss(loadingId);
+        }
+    }
+
+    async function onImport(e: Event): Promise<void> {
+        const input = e.currentTarget as HTMLInputElement;
+        const file = input.files?.[0];
+        if (!file) return;
+        try {
+            await importFile(file);
+        } finally {
             input.value = "";
         }
+    }
+
+    // -------- drag-drop import on canvas --------
+
+    function dtHasFiles(dt: DataTransfer | null): boolean {
+        if (!dt) return false;
+        // dataTransfer.types is always a DOMStringList; "Files" present iff drop carries files
+        return Array.from(dt.types).includes("Files");
+    }
+
+    function onDragEnter(e: DragEvent): void {
+        if (readOnly) return;
+        if (!dtHasFiles(e.dataTransfer)) return;
+        e.preventDefault();
+        dragDepth += 1;
+        isDraggingFile = true;
+    }
+
+    function onDragOver(e: DragEvent): void {
+        if (readOnly) return;
+        if (!dtHasFiles(e.dataTransfer)) return;
+        // critical: cancel default so the browser doesn't navigate to file://
+        e.preventDefault();
+        if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+    }
+
+    function onDragLeave(e: DragEvent): void {
+        if (readOnly) return;
+        if (!dtHasFiles(e.dataTransfer)) return;
+        dragDepth -= 1;
+        if (dragDepth <= 0) {
+            dragDepth = 0;
+            isDraggingFile = false;
+        }
+    }
+
+    async function onDrop(e: DragEvent): Promise<void> {
+        if (readOnly) return;
+        if (!dtHasFiles(e.dataTransfer)) return;
+        e.preventDefault();
+        dragDepth = 0;
+        isDraggingFile = false;
+        const file = e.dataTransfer?.files[0];
+        if (!file) return;
+        await importFile(file);
     }
 
     function onExport(): void {
@@ -590,47 +652,104 @@
         toasts.push(`${name} — coming soon`, "info", 1500);
     }
 
-    // single source of truth for action wiring; menu items + shortcuts both reference these
-    const actions: Record<string, () => void> = {
-        "app.undo": () => treeStore.undo(),
-        "app.redo": () => treeStore.redo(),
-        "app.save": () => void forceSave(),
-        "app.new": () => void startNewTree(),
-        "app.open": () => stub("Open dialog"),
-        "app.import": () => triggerImport(),
-        "app.export": () => onExport(),
-        "app.settings": () => stub("Settings"),
-        "app.help": () => (showHelp = true),
-        "view.fit": () => stub("Fit to window"),
-        "view.zoom100": () => stub("Zoom to 100%"),
-        "view.fitSelection": () => stub("Fit selection"),
-        "view.focus": () => stub("Focus selection"),
-        "view.handTool": () => stub("Hand tool"),
-        "view.selectTool": () => stub("Select tool"),
-        "view.zoomIn": () => stub("Zoom in"),
-        "view.zoomOut": () => stub("Zoom out"),
-        "view.centerRoot": () => stub("Center on root"),
-        "select.clear": () => selection.select(undefined),
-        "select.edit": () => withSelected((id) => focusPerson(id, "personal")),
-        "select.delete": () => withSelected((id) => deletePerson(id)),
-        "select.duplicate": () => withSelected((id) => duplicatePerson(id)),
-        "person.addChild": () => withSelected((id) => addChild(id)),
-        "person.addPartner": () => withSelected((id) => addPartner(id)),
-        "person.addParent": () => withSelected((id) => addParent(id)),
-        "person.addUnattached": () => addUnattached(),
-        "palette.findPerson": () => stub("Find person"),
-        "palette.commands": () => stub("Command palette"),
-        "tree.rename": () => startTitleEdit(),
-        "tree.setRoot": () => withSelected((id) => setRootAction(id)),
-        "tree.delete": () => void deleteCurrentTree(),
-        "tree.statistics": () => stub("Statistics"),
-        "tree.resetLayout": () => stub("Reset layout"),
-        "view.toggleInspector": () => (showInspector = !showInspector),
+    function openPalette(mode: "anything" | "commands"): void {
+        paletteMode = mode;
+        showPalette = true;
+    }
+
+    function withCanvas(fn: (c: CanvasController) => void, msg = "canvas not ready"): void {
+        if (!canvasController) {
+            toasts.push(msg, "info", 1500);
+            return;
+        }
+        fn(canvasController);
+    }
+
+    // map the literal action ids onto handler functions in one place; commands.ts
+    // reads from this bag to assemble the registry.
+    const handlers = {
+        appUndo: () => treeStore.undo(),
+        appRedo: () => treeStore.redo(),
+        appSave: () => void forceSave(),
+        appNew: () => void startNewTree(),
+        appOpen: () => (showOpenDialog = true),
+        appImport: () => triggerImport(),
+        appExport: () => onExport(),
+        appSettings: () => stub("Settings"),
+        appHelp: () => (showHelp = true),
+        viewFit: () => withCanvas((c) => c.fit()),
+        viewZoom100: () => withCanvas((c) => c.zoom100()),
+        viewFitSelection: () => withCanvas((c) => c.fitSelection()),
+        viewFocus: () => withCanvas((c) => c.focusSelection()),
+        viewHandTool: () => withCanvas((c) => c.setMode("hand")),
+        viewSelectTool: () => withCanvas((c) => c.setMode("select")),
+        viewZoomIn: () => withCanvas((c) => c.zoomBy(1.25)),
+        viewZoomOut: () => withCanvas((c) => c.zoomBy(0.8)),
+        viewCenterRoot: () => withCanvas((c) => c.centerOnRoot()),
+        viewToggleInspector: () => (showInspector = !showInspector),
+        selectClear: () => selection.select(undefined),
+        selectEdit: () => withSelected((id) => focusPerson(id, "personal")),
+        selectDelete: () => withSelected((id) => deletePerson(id)),
+        selectDuplicate: () => withSelected((id) => duplicatePerson(id)),
+        personAddChild: () => withSelected((id) => addChild(id)),
+        personAddPartner: () => withSelected((id) => addPartner(id)),
+        personAddParent: () => withSelected((id) => addParent(id)),
+        personAddUnattached: () => addUnattached(),
+        paletteFindPerson: () => openPalette("anything"),
+        paletteCommands: () => openPalette("commands"),
+        treeRename: () => startTitleEdit(),
+        treeSetRoot: () => withSelected((id) => setRootAction(id)),
+        treeDelete: () => void deleteCurrentTree(),
+        treeStatistics: () => stub("Statistics"),
+        treeResetLayout: () => stub("Reset layout"),
     };
 
+    // icon mapping per actionId (kept here so commands.ts stays presentation-free)
+    const icons: Partial<Record<string, IconComponent>> = {
+        "app.new": FilePlus,
+        "app.open": FolderOpen,
+        "app.save": Save,
+        "app.import": Upload,
+        "app.export": Download,
+        "tree.delete": Trash2,
+        "app.undo": Undo2,
+        "app.redo": Redo2,
+        "palette.findPerson": Search,
+        "palette.commands": Command,
+        "app.settings": Settings,
+        "view.fit": Maximize2,
+        "view.zoom100": ZoomIn,
+        "view.focus": Focus,
+        "view.zoomIn": ZoomIn,
+        "view.zoomOut": ZoomOut,
+        "view.handTool": Hand,
+        "view.selectTool": MousePointer2,
+        "view.toggleInspector": SidebarOpen,
+        "person.addChild": Baby,
+        "person.addPartner": Heart,
+        "person.addParent": UserPlus,
+        "person.addUnattached": UserPlus2,
+        "tree.rename": Pencil,
+        "tree.setRoot": Crown,
+        "tree.statistics": BarChart3,
+        "tree.resetLayout": RefreshCw,
+        "view.centerRoot": HomeIcon,
+        "app.help": Keyboard,
+    };
+
+    const commands = $derived<readonly PaletteCommand[]>(
+        buildCommands(handlers, icons, {
+            canUndo: () => treeStore.canUndo,
+            canRedo: () => treeStore.canRedo,
+        }),
+    );
+
     const bindings: ShortcutBinding[] = SHORTCUTS.flatMap((s) => {
-        const action = actions[s.actionId];
-        if (!action) return [];
+        const action = (e: KeyboardEvent): void => {
+            void e;
+            const cmd = commandById(commands, s.actionId);
+            cmd?.run();
+        };
         const main: ShortcutBinding = { combo: s.combo, scope: s.scope, action };
         if (s.alt) {
             return [main, { combo: s.alt, scope: s.scope, action }];
@@ -645,224 +764,44 @@
         return SHORTCUTS.find((s) => s.actionId === actionId)?.combo;
     }
 
-    const fileMenu = $derived<MenuConfig>({
-        label: "File",
-        items: [
-            {
-                label: "New tree",
-                icon: FilePlus,
-                shortcut: comboFor("app.new"),
-                onclick: actions["app.new"],
-            },
-            {
-                label: "Open tree…",
-                icon: FolderOpen,
-                shortcut: comboFor("app.open"),
-                onclick: actions["app.open"],
-            },
-            "divider",
-            {
-                label: "Save",
-                icon: Save,
-                shortcut: comboFor("app.save"),
-                onclick: actions["app.save"],
-            },
-            {
-                label: "Import…",
-                icon: Upload,
-                shortcut: comboFor("app.import"),
-                onclick: actions["app.import"],
-            },
-            {
-                label: "Export .gdz",
-                icon: Download,
-                shortcut: comboFor("app.export"),
-                onclick: actions["app.export"],
-            },
-            "divider",
-            {
-                label: "Delete this tree…",
-                icon: Trash2,
-                danger: true,
-                onclick: actions["tree.delete"],
-            },
-        ] satisfies MenuEntry[],
-    });
+    /** turn a group of commands into a MenuConfig, honouring dividerBefore hints. */
+    function menuFromGroup(label: string, group: CommandGroup): MenuConfig {
+        const entries: MenuEntry[] = [];
+        for (const c of commands) {
+            if (c.group !== group) continue;
+            if (c.dividerBefore && entries.length > 0) entries.push("divider");
+            const item: MenuItemDraft = { label: c.label };
+            const sc = comboFor(c.id);
+            if (sc !== undefined) item.shortcut = sc;
+            if (c.icon !== undefined) item.icon = c.icon;
+            if (c.danger) item.danger = true;
+            const enabled = c.enabled ? c.enabled() : true;
+            if (!enabled) item.disabled = true;
+            item.onclick = () => c.run();
+            entries.push(item);
+        }
+        return { label, items: entries };
+    }
 
-    const editMenu = $derived<MenuConfig>({
-        label: "Edit",
-        items: [
-            {
-                label: "Undo",
-                icon: Undo2,
-                shortcut: comboFor("app.undo"),
-                disabled: !treeStore.canUndo,
-                onclick: actions["app.undo"],
-            },
-            {
-                label: "Redo",
-                icon: Redo2,
-                shortcut: comboFor("app.redo"),
-                disabled: !treeStore.canRedo,
-                onclick: actions["app.redo"],
-            },
-            "divider",
-            {
-                label: "Find person…",
-                icon: Search,
-                shortcut: comboFor("palette.findPerson"),
-                onclick: actions["palette.findPerson"],
-            },
-            {
-                label: "Command palette…",
-                icon: Command,
-                shortcut: comboFor("palette.commands"),
-                onclick: actions["palette.commands"],
-            },
-            "divider",
-            {
-                label: "Settings…",
-                icon: Settings,
-                shortcut: comboFor("app.settings"),
-                onclick: actions["app.settings"],
-            },
-        ] satisfies MenuEntry[],
-    });
+    interface MenuItemDraft {
+        label: string;
+        shortcut?: string;
+        icon?: unknown;
+        onclick?: () => void;
+        disabled?: boolean;
+        danger?: boolean;
+    }
 
-    const viewMenu = $derived<MenuConfig>({
-        label: "View",
-        items: [
-            {
-                label: "Fit to window",
-                icon: Maximize2,
-                shortcut: comboFor("view.fit"),
-                onclick: actions["view.fit"],
-            },
-            {
-                label: "Zoom to 100%",
-                icon: ZoomIn,
-                shortcut: comboFor("view.zoom100"),
-                onclick: actions["view.zoom100"],
-            },
-            {
-                label: "Fit selection",
-                shortcut: comboFor("view.fitSelection"),
-                onclick: actions["view.fitSelection"],
-            },
-            {
-                label: "Focus selection",
-                icon: Focus,
-                shortcut: comboFor("view.focus"),
-                onclick: actions["view.focus"],
-            },
-            "divider",
-            {
-                label: "Zoom in",
-                icon: ZoomIn,
-                shortcut: comboFor("view.zoomIn"),
-                onclick: actions["view.zoomIn"],
-            },
-            {
-                label: "Zoom out",
-                icon: ZoomOut,
-                shortcut: comboFor("view.zoomOut"),
-                onclick: actions["view.zoomOut"],
-            },
-            "divider",
-            {
-                label: "Hand tool",
-                icon: Hand,
-                shortcut: comboFor("view.handTool"),
-                onclick: actions["view.handTool"],
-            },
-            {
-                label: "Select tool",
-                icon: MousePointer2,
-                shortcut: comboFor("view.selectTool"),
-                onclick: actions["view.selectTool"],
-            },
-            "divider",
-            {
-                label: "Show inspector",
-                icon: SidebarOpen,
-                onclick: actions["view.toggleInspector"],
-            },
-        ] satisfies MenuEntry[],
-    });
-
-    const insertMenu = $derived<MenuConfig>({
-        label: "Insert",
-        items: [
-            {
-                label: "Add child of selected",
-                icon: Baby,
-                shortcut: comboFor("person.addChild"),
-                onclick: actions["person.addChild"],
-            },
-            {
-                label: "Add partner of selected",
-                icon: Heart,
-                shortcut: comboFor("person.addPartner"),
-                onclick: actions["person.addPartner"],
-            },
-            {
-                label: "Add parent of selected",
-                icon: UserPlus,
-                shortcut: comboFor("person.addParent"),
-                onclick: actions["person.addParent"],
-            },
-            {
-                label: "Add unattached person",
-                icon: UserPlus2,
-                shortcut: comboFor("person.addUnattached"),
-                onclick: actions["person.addUnattached"],
-            },
-        ] satisfies MenuEntry[],
-    });
-
-    const treeMenu = $derived<MenuConfig>({
-        label: "Tree",
-        items: [
-            {
-                label: "Rename tree…",
-                icon: Pencil,
-                onclick: actions["tree.rename"],
-            },
-            {
-                label: "Set selected as root",
-                icon: Crown,
-                onclick: actions["tree.setRoot"],
-            },
-            {
-                label: "Statistics…",
-                icon: BarChart3,
-                onclick: actions["tree.statistics"],
-            },
-            "divider",
-            {
-                label: "Reset layout",
-                icon: RefreshCw,
-                onclick: actions["tree.resetLayout"],
-            },
-            "divider",
-            {
-                label: "Center on root",
-                icon: HomeIcon,
-                shortcut: comboFor("view.centerRoot"),
-                onclick: actions["view.centerRoot"],
-            },
-        ] satisfies MenuEntry[],
-    });
-
+    const fileMenu = $derived<MenuConfig>(menuFromGroup("File", "File"));
+    const editMenu = $derived<MenuConfig>(menuFromGroup("Edit", "Edit"));
+    const viewMenu = $derived<MenuConfig>(menuFromGroup("View", "View"));
+    const insertMenu = $derived<MenuConfig>(menuFromGroup("Insert", "Insert"));
+    const treeMenu = $derived<MenuConfig>(menuFromGroup("Tree", "Tree"));
     const helpMenu = $derived<MenuConfig>({
         label: "Help",
         items: [
-            {
-                label: "Keyboard shortcuts",
-                icon: Keyboard,
-                shortcut: comboFor("app.help"),
-                onclick: actions["app.help"],
-            },
+            ...menuFromGroup("Help", "Help").items,
+            "divider",
             {
                 label: "About",
                 icon: Info,
@@ -877,13 +816,15 @@
             : [fileMenu, editMenu, viewMenu, insertMenu, treeMenu, helpMenu],
     );
 
-    const syncLabel = $derived(
-        syncStore.mode === "syncing"
-            ? "syncing…"
-            : syncStore.mode === "conflict"
-              ? "conflict"
-              : null,
-    );
+    function onPalettePick(kind: "person" | "command", id: string): void {
+        showPalette = false;
+        if (kind === "person") {
+            focusPerson(id, "personal");
+            return;
+        }
+        const cmd = commandById(commands, id);
+        cmd?.run();
+    }
 </script>
 
 <div class="bg-canvas text-fg flex h-dvh flex-col">
@@ -915,8 +856,17 @@
                 <span class="text-fg-muted text-xs">(read-only)</span>
             {/if}
             <div class="ml-auto flex items-center gap-2">
-                {#if syncLabel}
-                    <span class="text-fg-muted text-xs">{syncLabel}</span>
+                {#if !readOnly}
+                    <SaveStatusPill
+                        {lastSavedAt}
+                        syncMode={syncStore.mode}
+                        {syncedFlashUntil}
+                        {lastError}
+                        onretry={() => void forceSave()}
+                        onconflict={() =>
+                            toasts.push("save conflict — see console for details", "error")}
+                        onforceSave={() => void forceSave()}
+                    />
                 {/if}
                 <AuthBar onSignedIn={() => void authStore.fetch()} />
             </div>
@@ -928,14 +878,6 @@
 
             <div class="ml-auto flex items-center gap-0.5">
                 {#if !readOnly}
-                    <RecentTrees
-                        listings={recents}
-                        activeId={treeStore.tree.id}
-                        onpick={(id: string) => void loadFromRecents(id)}
-                        onnew={() => void startNewTree()}
-                        ondelete={(id: string) => void removeTree(id)}
-                    />
-
                     <button
                         type="button"
                         class="text-fg hover:bg-canvas flex h-7 w-7 items-center justify-center rounded disabled:cursor-not-allowed disabled:opacity-40"
@@ -995,8 +937,14 @@
         </div>
     </header>
 
-    <main class="flex flex-1 overflow-hidden">
-        <div class="flex-1 overflow-hidden">
+    <main
+        class="relative flex flex-1 overflow-hidden"
+        ondragenter={onDragEnter}
+        ondragover={onDragOver}
+        ondragleave={onDragLeave}
+        ondrop={(e) => void onDrop(e)}
+    >
+        <div class="relative flex-1 overflow-hidden">
             <TreeCanvas
                 tree={treeStore.tree}
                 selectedId={selection.selectedPersonId}
@@ -1007,7 +955,23 @@
                 oncontextmenu={(id: string, x: number, y: number) => {
                     contextMenu = { personId: id, x, y };
                 }}
+                oncontroller={(c: CanvasController) => {
+                    canvasController = c;
+                    canvasScale = c.getScale();
+                    canvasMode = c.getMode();
+                }}
+                onscalechange={(s: number) => (canvasScale = s)}
+                onmodechange={(m: "select" | "hand") => (canvasMode = m)}
             />
+            {#if canvasController}
+                <ZoomWidget
+                    scale={canvasScale}
+                    mode={canvasMode}
+                    onzoom={(n: number) => canvasController?.setScale(n)}
+                    onfit={() => canvasController?.fit()}
+                    onmodechange={(m: "select" | "hand") => canvasController?.setMode(m)}
+                />
+            {/if}
         </div>
         {#if showInspector}
             <Inspector
@@ -1033,6 +997,19 @@
                 onerror={(msg: string) => toasts.push(msg, "error")}
             />
         {/if}
+
+        {#if isDraggingFile}
+            <div
+                class="bg-accent/20 border-accent pointer-events-none absolute inset-0 z-30 flex items-center justify-center border-4 border-dashed"
+                data-testid="drop-overlay"
+            >
+                <div
+                    class="bg-canvas-elev border-line text-fg rounded-lg border px-6 py-4 text-lg font-semibold shadow-xl"
+                >
+                    drop a .gdz / .ged / .txt file to import
+                </div>
+            </div>
+        {/if}
     </main>
 
     <Toasts store={toasts} />
@@ -1055,6 +1032,27 @@
 
     {#if showHelp}
         <ShortcutsOverlay onclose={() => (showHelp = false)} />
+    {/if}
+
+    {#if showPalette}
+        <CommandPalette
+            tree={treeStore.tree}
+            {commands}
+            mode={paletteMode}
+            onpick={onPalettePick}
+            onclose={() => (showPalette = false)}
+        />
+    {/if}
+
+    {#if showOpenDialog}
+        <OpenDialog
+            listings={recents}
+            activeId={treeStore.tree.id}
+            onpick={(id: string) => void loadFromRecents(id)}
+            ondelete={(id: string) => removeTree(id)}
+            onclose={() => (showOpenDialog = false)}
+            onnotice={(msg: string) => toasts.push(msg, "info", 2500)}
+        />
     {/if}
 
     <!-- hidden file input for File > Import / Mod+I -->

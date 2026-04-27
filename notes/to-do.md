@@ -24,6 +24,7 @@ _phase 3 complete; see the completed section below_
 
 _phase 4 complete; see the completed section below_
 
+- ⭕ `medium priority` `medium effort` portrait cropper polish - the default crop area is tiny, the box doesn't snap to image edges, and the initial zoom defaults to something unhelpfully small; pick sensible defaults and tune `CropperDialog.svelte` so a typical portrait upload needs little or no nudging before save
 - ⭕ `low priority` `low effort` cropperjs styles are loaded from `cdn.jsdelivr.net` for bundle slimness; switch to a local import once we have a CSP/offline story
 - ⭕ `low priority` `low effort` wiki title field should autocomplete from the wiki - query `/w/api.php?action=opensearch&search=...` and offer suggestions in the person editor / inspector Details tab
 
@@ -50,10 +51,18 @@ _phase 5 largely complete; see the completed section below_
 - ⭕ `medium priority` `medium effort` selectable lineage trace - clicking an edge (or a person + an "trace" action) highlights a chain through the graph in a unique color so the user can see where a relationship goes; pairs naturally with the "hide unrelated branches" toggle
 - ⭕ `medium priority` `low effort` hover tooltip at far zoom levels - PersonNode at level 4 (initials) and 5 (dot) drops the name; add a native `title` or floating tooltip showing the full name + dates so users can identify cards before zooming in
 - ⭕ `medium priority` `low effort` unified loading-bar / progress indicator - generic UI for long operations (import, autosave flush, server push, layout recompute on big trees); replaces the scattered `reading file…` toast pattern with a top-of-canvas progress strip
+- ⭕ `medium priority` `low effort` command-palette pick should re-focus the canvas on the selected person via `canvasController.focusSelection()` (currently it only opens the inspector; the canvas stays where it was)
 - ⭕ `medium priority` `low effort` minimap + search-by-name popover
+- ⭕ `low priority` `low effort` people-count pill (bottom-left of TreeCanvas) should toggle the Inspector pane when clicked; today it's just a static stat badge
+- ⭕ `low priority` `low effort` Menu's first item is always visually highlighted on open even when the user opened it with the mouse - only auto-highlight after an explicit keyboard nav (↑/↓ or End/Home), not on mouse open
+- ⭕ `low priority` `low effort` Inspector tab spacing feels off (Personal / Connections / Details / Bio row in `Inspector.svelte`) - tighten or rebalance icon-to-label gap, py-1.5 vs px-1, and the border-b-2 alignment so the row reads cleanly
 - ⭕ `low priority` `low effort` edge lines should grow thicker / darker as the canvas zooms out so the topology stays readable when individual cards become unreadable (EdgeLayer)
 - ⭕ `low priority` `low effort` cursor correctness audit - the canvas root's `cursor-grab` overrides cards / buttons inside it (should show pointer over PersonNodes), and the cursor occasionally stays in `grabbing` after a pan ends outside the window. fix the grab/grabbing/default/pointer transitions so the OS cursor always matches what's under the pointer
 - ⭕ `future idea` `medium effort` decide and prototype a wiki integration story (mechanism tbd; the original mediawiki-gadget approach is shelved)
+
+### user preferences
+
+- ⭕ `medium priority` `medium effort` user-settings dialog (localStorage-backed) - theme override (light / dark / auto; today the app follows `prefers-color-scheme` only), inspector side (left / right), and any other ergonomic toggles that don't need server persistence; replaces the stubbed `app.settings` shortcut and Edit > Settings menu item
 
 ### tooling / infra
 
@@ -173,6 +182,31 @@ _phase 5 largely complete; see the completed section below_
 - 🔴 `26 April 2026` HMAC timestamp upper-bound clamp (rejects implausibly large epochs before the skew comparison); session cookie `samesite=strict`; `TreeCreateRequest.blob` + `apply_save` enforce `settings.max_tree_blob_bytes` (default 10 MB) with 413 on overflow
 - 🔴 `26 April 2026` link code reshape + dev/prod routing partition: codes are now `AB-123456` (2 alpha, dash, 6 digits); the second alpha char encodes the environment (dev = X/Z, prod = the other 22 letters) so a single bot deployment can route `/trees link` to the correct backend just by inspecting char[1]. server normalises any input form (case, dash, whitespace). new `settings.environment: Literal['dev', 'prod']` plumbing; bot-integration.md §3.1b documents the partition for the bot team. covered by 3 new tests in `test_auth.py`
 
+### ui overhaul (phases A-D)
+
+- 🔴 `26 April 2026` `keyboard.ts` global key handler with combo parser (Mod = Cmd on macOS / Ctrl elsewhere), platform detection, scope-aware dispatch (suppressed in text inputs unless `scope: "global"`), `formatCombo()` for display
+- 🔴 `26 April 2026` `shortcuts.ts` single source of truth — every binding from `notes/features/keyboard-shortcuts.md` wired into the action map; browser-reserved combos (Mod+N, Mod+Shift+N, Mod+1) intentionally dropped with inline comments explaining why
+- 🔴 `26 April 2026` `ShortcutsOverlay.svelte` — `?` opens a platform-aware (⌘ vs Ctrl) cheatsheet grouped by Canvas / Selection / Add Relatives / Search & Command / App
+- 🔴 `26 April 2026` `MenuBar.svelte` + `Menu.svelte` Google-Docs-style File / Edit / View / Insert / Tree / Help; arrow-key nav between menus, hover-switch when one is open, leading lucide icons, right-aligned shortcut hints
+- 🔴 `26 April 2026` `lucide-svelte` added; topbar undo/redo/share/admin/help iconized; tree-pine icon as the app mark; tree title click-to-rename in the title strip
+- 🔴 `26 April 2026` Phase A polish: toast position fixed (`top-14 → top-20`) so toasts clear the new menu bar; canvas right-click on blank space suppresses the browser context menu; danger menu items pink instead of red
+- 🔴 `26 April 2026` `Inspector.svelte` right sidebar (~360px) replaces the centered `<dialog>` editor: header (name/id), `⋯` actions menu (Duplicate / Set as root / Copy ID / Delete), 4 tabs, empty-state tree-summary card; toggleable via View > Show inspector / `I`
+- 🔴 `26 April 2026` `PersonalTab` + `DetailsTab` (portrait / identity / dates / occupation / location / wiki / display) auto-commit on blur — no Save/Cancel buttons; `display` lives on Details after the design pass
+- 🔴 `26 April 2026` `ConnectionsTab.svelte` + `PersonChooser.svelte` popover — edit parents / partners / children with link / unlink / change / relink; closes the long-deferred "edit-connections menu option" design issue
+- 🔴 `26 April 2026` `updatePerson` + new `PersonPatch` type honors `undefined` to clear optional fields (delete-on-undefined for optional keys, required keys protected); closes the phase-3 "editor cannot clear optional fields" papercut
+- 🔴 `26 April 2026` `linkParent` accepts an optional role override so "set as mother / father" works regardless of parent gender; `unlinkParent` + `unlinkSpouse` already existed and now feed the Connections-tab callbacks
+- 🔴 `26 April 2026` Context menu extended with `edit connections` (jumps to Connections tab) and `set as tree root`; old `PersonEditor.svelte` `<dialog>` deleted
+- 🔴 `26 April 2026` `commands.ts` action registry — single source feeding menus, palette, and shortcut binder via `buildCommands(handlers, icons, enabledFlags)`; App.svelte's old inline action map is gone
+- 🔴 `26 April 2026` `CommandPalette.svelte` — Mod+P / Mod+Shift+P, fuzzy match, `@person` / `>command` prefix toggles, ↑↓/Enter/Esc nav, outside-click closes
+- 🔴 `26 April 2026` `ZoomWidget.svelte` — bottom-right canvas pill, log-scale slider 10–500%, click-to-edit %, fit / 100% / hand-toggle, auto-fades after 2s, hidden on `pointer:coarse`
+- 🔴 `26 April 2026` `SaveStatusPill.svelte` replaces the bare sync text with five tones (saved / saving / synced / failed / conflict) and a click-to-popover (last save, last sync, force-save)
+- 🔴 `26 April 2026` `canvasController.ts` — TreeCanvas exposes an imperative handle (fit / zoom100 / zoomBy / setScale / focusSelection / fitSelection / centerOnRoot / get-set Mode) consumed by both the widget and the View shortcuts; F / H / V / Mod+0 / + / - / Home all unstubbed
+- 🔴 `26 April 2026` `OpenDialog.svelte` replaces the topbar `RecentTrees` dropdown (deleted): searchable list (left) + lazy-loaded preview pane (right) with root + 3 sample person names; footer Open / Delete (confirm-gated) / Open-from-URL (stub) / Cancel; double-click row to open
+- 🔴 `26 April 2026` `importFile.ts` extracted from App.svelte so the file-input handler and drag-drop share parsing
+- 🔴 `26 April 2026` Drag-drop file import on the canvas — dragenter / over / leave / drop with depth counter (no flicker), translucent dashed-border overlay, gated to `dataTransfer` files
+- 🔴 `26 April 2026` `ShareDialog` polish — copy view-link button (clipboard + transient confirmation), grants list with revoke; new server endpoint `GET /api/trees/{id}/grants` + `GrantListing` / `GrantListResponse` pydantic models + matching TS types in `@attu/api-client` and a `listGrants` wrapper in `lib/api/client.ts`
+- 🔴 `26 April 2026` 280 unit + component tests passing (49 new across the four phases); `pnpm -F web verify` green; 4 pre-existing a11y warnings unchanged
+
 ---
 
 ## meta
@@ -203,5 +237,5 @@ when adding a new item, sort it into the appropriate section by topic, or add a 
 
 ```yaml
 last_updated: 26 April 2026
-total_completed: 71
+total_completed: 93
 ```

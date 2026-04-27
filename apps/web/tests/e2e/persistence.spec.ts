@@ -28,14 +28,18 @@ test("imported tree survives a page reload via dexie autosave", async ({ page })
     await expect(cards).toHaveCount(3, { timeout: 10_000 });
 });
 
-test("recent dropdown lists the saved tree", async ({ page }) => {
+test("File > Open tree dialog lists the saved tree", async ({ page }) => {
     await page.goto("/");
 
     await page.locator('[data-testid="import-input"]').setInputFiles(TINY);
     await expect(page.getByText(/loaded \d+ people/)).toBeVisible();
     await page.waitForTimeout(2500);
 
-    // open the recents dropdown - it should contain the freshly-saved tree
-    await page.locator('[data-testid="recents-trigger"]').click();
+    // open the File menu and trigger Open tree…
+    await page.getByRole("button", { name: /^File$/ }).click();
+    await page.getByRole("menuitem", { name: /Open tree/i }).click();
+
+    // dialog appears with the freshly-saved tree
+    await expect(page.locator('[data-testid="open-dialog"]')).toBeVisible();
     await expect(page.getByText(/3 people/).first()).toBeVisible();
 });

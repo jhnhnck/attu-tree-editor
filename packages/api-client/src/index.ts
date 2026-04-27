@@ -85,6 +85,17 @@ export interface GrantResponse {
     role: string;
 }
 
+export interface GrantListing {
+    user_id: string;
+    discord_id: string;
+    display_name: string;
+    role: "viewer" | "editor";
+}
+
+export interface GrantListResponse {
+    grants: GrantListing[];
+}
+
 export interface AdminUserListing {
     id: string;
     discord_id: string;

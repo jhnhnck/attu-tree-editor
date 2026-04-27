@@ -92,6 +92,17 @@ class GrantResponse(BaseModel):
     role: str
 
 
+class GrantListing(BaseModel):
+    user_id: str
+    discord_id: str
+    display_name: str
+    role: Literal['viewer', 'editor']
+
+
+class GrantListResponse(BaseModel):
+    grants: list[GrantListing]
+
+
 # ---------------------------------------------------------------------------
 # bot-only
 # ---------------------------------------------------------------------------

@@ -10,6 +10,7 @@
     import type { DerivedEdge, PersonNodeLevel } from "$lib/components/tree/edges";
     import type { PortraitUrlCache } from "$lib/state/portraitUrls.svelte";
     import type { PersonId, Tree } from "$lib/domain/types";
+    import type { CanvasController } from "./canvasController";
 
     interface Props {
         tree: Tree;
@@ -19,10 +20,26 @@
         ondeselect?: () => void;
         onedit?: (id: PersonId) => void;
         oncontextmenu?: (id: PersonId, x: number, y: number) => void;
+        /** invoked once on mount with an imperative handle */
+        oncontroller?: ((c: CanvasController) => void) | undefined;
+        /** notifies the parent on every scale change so the zoom widget can re-render */
+        onscalechange?: ((s: number) => void) | undefined;
+        /** notifies the parent when the active tool flips */
+        onmodechange?: ((m: "select" | "hand") => void) | undefined;
     }
 
-    let { tree, selectedId, portraitUrls, onselect, ondeselect, onedit, oncontextmenu }: Props =
-        $props();
+    let {
+        tree,
+        selectedId,
+        portraitUrls,
+        onselect,
+        ondeselect,
+        onedit,
+        oncontextmenu,
+        oncontroller,
+        onscalechange,
+        onmodechange,
+    }: Props = $props();
 
     // pixels per relatives-tree unit. relatives-tree assumes nodes occupy a
     // 2x2 unit cell; we render the card narrower in height than width so it
@@ -36,7 +53,7 @@
     const NODE_W = CELL_W - GAP; // 146
     const NODE_H = CELL_H - GAP; // 82
     const MIN_SCALE = 0.05;
-    const MAX_SCALE = 1.5;
+    const MAX_SCALE = 5.0;
     const DRAG_THRESHOLD_PX = 4;
     const SELECT_PAN_MS = 320; // duration of "center on selection" tween
 
@@ -56,6 +73,22 @@
     let hostH = $state(0);
     let firstFitDone = $state(false);
     let lastFitTreeId = "";
+
+    // tool mode - "select" is normal click-to-select; "hand" is cosmetic for now
+    // (pan works in either mode, cursor changes on the host element).
+    let mode = $state<"select" | "hand">("select");
+
+    // notify parent on scale changes
+    $effect(() => {
+        const s = scale;
+        untrack(() => onscalechange?.(s));
+    });
+
+    $effect(() => {
+        const m = mode;
+        untrack(() => onmodechange?.(m));
+        if (hostEl) hostEl.style.cursor = m === "hand" ? "grab" : "default";
+    });
 
     // apply transform whenever any of scale/panX/panY change
     $effect(() => {
@@ -206,6 +239,74 @@
         const id = selectedId;
         untrack(() => {
             if (id && firstFitDone) centerOnPerson(id);
+        });
+    });
+
+    // --- imperative controller exposed to App.svelte ---
+
+    function setScale(next: number): void {
+        if (!hostEl) {
+            scale = clamp(next, MIN_SCALE, MAX_SCALE);
+            return;
+        }
+        const rect = hostEl.getBoundingClientRect();
+        const target = clamp(next, MIN_SCALE, MAX_SCALE);
+        if (target === scale) return;
+        const cx = rect.width / 2;
+        const cy = rect.height / 2;
+        const cuX = (cx - panX) / scale;
+        const cuY = (cy - panY) / scale;
+        panX = cx - cuX * target;
+        panY = cy - cuY * target;
+        scale = target;
+    }
+
+    function zoomBy(factor: number): void {
+        setScale(scale * factor);
+    }
+
+    function zoom100(): void {
+        setScale(1);
+    }
+
+    function focusSelection(): void {
+        if (selectedId) centerOnPerson(selectedId);
+    }
+
+    function fitSelection(): void {
+        if (!selectedId || !hostEl) return;
+        const pos = positionByPersonId.get(selectedId);
+        if (!pos) return;
+        const rect = hostEl.getBoundingClientRect();
+        const padding = 96;
+        const sx = (rect.width - padding * 2) / CELL_W;
+        const sy = (rect.height - padding * 2) / CELL_H;
+        const target = clamp(Math.min(sx, sy), MIN_SCALE, MAX_SCALE);
+        scale = target;
+        const cx = pos.left * UNIT + CELL_W / 2;
+        const cy = pos.top * UNIT + CELL_H / 2;
+        panX = rect.width / 2 - cx * target;
+        panY = rect.height / 2 - cy * target;
+    }
+
+    function centerOnRoot(): void {
+        const rid = tree.rootId;
+        if (rid) centerOnPerson(rid);
+    }
+
+    onMount(() => {
+        oncontroller?.({
+            getScale: () => scale,
+            setScale,
+            zoomBy,
+            fit: fitToView,
+            zoom100,
+            focusSelection,
+            fitSelection,
+            centerOnPerson,
+            centerOnRoot,
+            getMode: () => mode,
+            setMode: (m) => (mode = m),
         });
     });
 
@@ -565,10 +666,6 @@
     }
 
     let cardLevel = $derived(levelFromScale(scale));
-
-    function reset(): void {
-        fitToView();
-    }
 </script>
 
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_no_noninteractive_tabindex -->
@@ -628,14 +725,7 @@
         {/each}
     </div>
 
-    <div class="pointer-events-none absolute right-3 bottom-3 flex items-center gap-2">
-        <button
-            type="button"
-            onclick={reset}
-            class="text-fg-muted bg-canvas-elev/80 border-line hover:text-fg pointer-events-auto rounded-md border px-2 py-1 font-mono text-[10px] uppercase backdrop-blur"
-        >
-            fit
-        </button>
+    <div class="pointer-events-none absolute left-3 bottom-3 flex items-center gap-2">
         <span
             class="text-fg-muted bg-canvas-elev/80 border-line rounded-md border px-2 py-1 font-mono text-[10px]"
             title={layout.components.length > 1
@@ -654,11 +744,6 @@
                     clusters</span
                 >
             {/if}
-        </span>
-        <span
-            class="text-fg-muted bg-canvas-elev/80 border-line rounded-md border px-2 py-1 font-mono text-[10px]"
-        >
-            {Math.round(scale * 100)}%
         </span>
     </div>
 </div>

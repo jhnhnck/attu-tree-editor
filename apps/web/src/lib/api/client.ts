@@ -5,6 +5,7 @@
  */
 
 import type {
+    GrantListResponse,
     GrantRequest,
     GrantResponse,
     LinkCheckResponse,
@@ -104,6 +105,7 @@ export const trees = {
     delete: (id: string) => req<void>("DELETE", `/api/trees/${id}`),
     addGrant: (id: string, body: GrantRequest) =>
         req<GrantResponse>("POST", `/api/trees/${id}/grants`, body),
+    listGrants: (id: string) => req<GrantListResponse>("GET", `/api/trees/${id}/grants`),
     revokeGrant: (treeId: string, userId: string) =>
         req<void>("DELETE", `/api/trees/${treeId}/grants/${userId}`),
 };
@@ -120,4 +122,10 @@ export const admin = {
 };
 
 // re-export convenience types used in components
-export type { MeResponse, TreeListing, TreeResponse, AdminUserListing } from "@attu/api-client";
+export type {
+    AdminUserListing,
+    GrantListing,
+    MeResponse,
+    TreeListing,
+    TreeResponse,
+} from "@attu/api-client";

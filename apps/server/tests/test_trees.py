@@ -140,6 +140,37 @@ async def test_outsider_cannot_read(client: AsyncClient):
 
 
 @pytest.mark.unit
+async def test_list_grants(client: AsyncClient):
+    owner_cookie = await link_user(client, '1', 'owner')
+    await link_user(client, '2', 'editor-user')
+
+    client.cookies.set('attu_session', owner_cookie)
+    tree_id = (await client.post('/api/trees', json={'name': 'shared'})).json()['id']
+    await client.post(f'/api/trees/{tree_id}/grants', json={'discord_id': '2', 'role': 'editor'})
+
+    r = await client.get(f'/api/trees/{tree_id}/grants')
+    assert r.status_code == 200
+    grants = r.json()['grants']
+    assert len(grants) == 1
+    assert grants[0]['discord_id'] == '2'
+    assert grants[0]['role'] == 'editor'
+    assert 'display_name' in grants[0]
+
+
+@pytest.mark.unit
+async def test_list_grants_requires_owner(client: AsyncClient):
+    owner_cookie = await link_user(client, '1', 'owner')
+    intruder_cookie = await link_user(client, '2', 'intruder')
+
+    client.cookies.set('attu_session', owner_cookie)
+    tree_id = (await client.post('/api/trees', json={'name': 'private'})).json()['id']
+
+    client.cookies.set('attu_session', intruder_cookie)
+    r = await client.get(f'/api/trees/{tree_id}/grants')
+    assert r.status_code == 403
+
+
+@pytest.mark.unit
 async def test_listed_trees_include_shared(client: AsyncClient):
     owner_cookie = await link_user(client, '1', 'owner')
     editor_cookie = await link_user(client, '2', 'editor')
