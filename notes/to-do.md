@@ -18,7 +18,6 @@ _phase 2 complete; see the completed section below_
 
 _phase 3 complete; see the completed section below_
 
-- ⭕ `medium priority` `low effort` editor cannot clear optional fields (title, occupation, location, birth, death) - `Partial<Person>` plus `exactOptionalPropertyTypes` forbids passing `undefined` through; needs an explicit "clear" sentinel or a refactored `updatePerson` signature
 - ⭕ `low priority` `low effort` person count of relatives-tree layout for ~1800 nodes hasn't been profiled; canvas may need a virtualization pass before phase 6 mobile work
 
 ### phase 4 - persistence + portraits + wiki
@@ -48,6 +47,9 @@ _phase 5 largely complete; see the completed section below_
 - ⭕ `medium priority` `medium effort` zoom-aware label sizing - shrink card padding and grow text size as zoom decreases so the next-level-up card stays readable as long as possible (PersonNode + the `levelFromScale` thresholds in TreeCanvas)
 - ⭕ `medium priority` `medium effort` compact layout tuning - tighten relatives-tree SIZE constants and add a post-layout compaction pass to remove dead space between sibships
 - ⭕ `medium priority` `high effort` hide unrelated branches based on the selected person - needs a "related-to" rule (default: ancestors + descendants + spouses); expose as a View menu toggle so users can flip between full tree and focused view
+- ⭕ `medium priority` `medium effort` selectable lineage trace - clicking an edge (or a person + an "trace" action) highlights a chain through the graph in a unique color so the user can see where a relationship goes; pairs naturally with the "hide unrelated branches" toggle
+- ⭕ `medium priority` `low effort` hover tooltip at far zoom levels - PersonNode at level 4 (initials) and 5 (dot) drops the name; add a native `title` or floating tooltip showing the full name + dates so users can identify cards before zooming in
+- ⭕ `medium priority` `low effort` unified loading-bar / progress indicator - generic UI for long operations (import, autosave flush, server push, layout recompute on big trees); replaces the scattered `reading file…` toast pattern with a top-of-canvas progress strip
 - ⭕ `medium priority` `low effort` minimap + search-by-name popover
 - ⭕ `low priority` `low effort` edge lines should grow thicker / darker as the canvas zooms out so the topology stays readable when individual cards become unreadable (EdgeLayer)
 - ⭕ `low priority` `low effort` cursor correctness audit - the canvas root's `cursor-grab` overrides cards / buttons inside it (should show pointer over PersonNodes), and the cursor occasionally stays in `grabbing` after a pan ends outside the window. fix the grab/grabbing/default/pointer transitions so the OS cursor always matches what's under the pointer

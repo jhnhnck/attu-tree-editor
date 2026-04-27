@@ -1,5 +1,5 @@
 /*
- * FamilyTreeEditor - phase 3 e2e: import a small ged, render nodes, edit one
+ * FamilyTreeEditor - phase 3 e2e: import a small ged, render nodes, focus the inspector
  * licensed under the MIT license; see LICENSE.md for full text
  */
 
@@ -8,12 +8,12 @@ import { expect, test } from "@playwright/test";
 
 const TINY = resolve(process.cwd(), "tests/fixtures/tiny.ged");
 
-test("import a tiny ged file, render person cards, open the editor", async ({ page }) => {
+test("import a tiny ged file, render person cards, focus the inspector", async ({ page }) => {
     await page.goto("/");
 
     await page.locator('[data-testid="import-input"]').setInputFiles(TINY);
 
-    // toast confirms parse + load (auto-dismisses after 10s)
+    // toast confirms parse + load
     await expect(page.getByText(/loaded \d+ people/)).toBeVisible();
 
     // at least one PersonNode button rendered
@@ -21,12 +21,14 @@ test("import a tiny ged file, render person cards, open the editor", async ({ pa
     await expect(cards.first()).toBeVisible();
     expect(await cards.count()).toBeGreaterThanOrEqual(3);
 
-    // double-click a card opens the editor dialog (heading shows the person's name)
-    await cards.first().dblclick();
+    // single-click selects the person; the right-side inspector switches to the
+    // Personal tab with the person's editable fields
+    await cards.first().click();
     await expect(page.getByLabel("given")).toBeVisible();
     await expect(page.getByLabel("surname")).toBeVisible();
 
-    // cancel returns to canvas without crashing
-    await page.getByRole("button", { name: "cancel" }).click();
+    // close inspector via the X button; the canvas remains
+    await page.getByRole("button", { name: "close inspector" }).click();
     await expect(page.getByLabel("given")).not.toBeVisible();
+    await expect(cards.first()).toBeVisible();
 });

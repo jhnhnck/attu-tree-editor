@@ -46,7 +46,10 @@
         linkParent,
         linkSpouse,
         removePerson,
+        unlinkParent,
+        unlinkSpouse,
         updatePerson,
+        type PersonPatch,
     } from "$lib/domain/tree";
     import { createTreeStore } from "$lib/state/tree.svelte";
     import { createSelectionStore } from "$lib/state/selection.svelte";
@@ -72,7 +75,7 @@
     import { SHORTCUTS } from "$lib/shortcuts";
 
     import TreeCanvas from "$lib/components/tree/TreeCanvas.svelte";
-    import PersonEditor from "$lib/components/editor/PersonEditor.svelte";
+    import Inspector from "$lib/components/inspector/Inspector.svelte";
     import Toasts from "$lib/components/ui/Toasts.svelte";
     import ContextMenu, { type ContextMenuItem } from "$lib/components/ui/ContextMenu.svelte";
     import RecentTrees from "$lib/components/shell/RecentTrees.svelte";
@@ -105,6 +108,8 @@
     let showShare = $state(false);
     let showAdmin = $state(false);
     let showHelp = $state(false);
+    let showInspector = $state(true);
+    let inspectorInitialTab = $state<"personal" | "connections" | "details" | "bio">("personal");
 
     // read-only mode: set when loading a tree via /view/<uuid> route
     let readOnly = $state(false);
@@ -241,9 +246,11 @@
         await removeTree(id);
     }
 
-    let editorPerson = $derived<Person | undefined>(
-        selection.editorOpenFor ? treeStore.tree.people[selection.editorOpenFor] : undefined,
-    );
+    type InspectorTab = "personal" | "connections" | "details" | "bio";
+    type ConnectionSlot =
+        | { kind: "parent"; role: "mother" | "father" }
+        | { kind: "partner" }
+        | { kind: "child" };
 
     interface MenuState {
         personId: PersonId;
@@ -251,6 +258,12 @@
         y: number;
     }
     let contextMenu = $state<MenuState | undefined>(undefined);
+
+    function focusPerson(id: PersonId, tab: InspectorTab = "personal"): void {
+        selection.select(id);
+        showInspector = true;
+        inspectorInitialTab = tab;
+    }
 
     function blankPerson(): Omit<Person, "id"> {
         return {
@@ -271,7 +284,7 @@
             return;
         }
         treeStore.set(linked.value);
-        selection.openEditor(newId);
+        focusPerson(newId);
     }
 
     function addPartner(id: PersonId): void {
@@ -283,7 +296,7 @@
             return;
         }
         treeStore.set(linked.value);
-        selection.openEditor(newId);
+        focusPerson(newId);
     }
 
     function addChild(id: PersonId): void {
@@ -305,14 +318,14 @@
             }
         }
         treeStore.set(next);
-        selection.openEditor(newId);
+        focusPerson(newId);
     }
 
     function addUnattached(): void {
         const t = treeStore.tree;
         const { tree, id: newId } = addPerson(t, blankPerson());
         treeStore.set(tree);
-        selection.openEditor(newId);
+        focusPerson(newId);
     }
 
     function deletePerson(id: PersonId): void {
@@ -327,11 +340,115 @@
         if (selection.selectedPersonId === id) selection.select(undefined);
     }
 
+    // ------- Inspector connection callbacks -------
+
+    function setParentLink(childId: PersonId, parentId: PersonId, role: "mother" | "father"): void {
+        const r = linkParent(treeStore.tree, childId, parentId, role);
+        if (!r.ok) {
+            toasts.push(r.error, "error");
+            return;
+        }
+        treeStore.set(r.value);
+    }
+
+    function unsetParentLink(childId: PersonId, role: "mother" | "father"): void {
+        treeStore.update((t) => unlinkParent(t, childId, role));
+    }
+
+    function addPartnerLink(aId: PersonId, bId: PersonId): void {
+        const r = linkSpouse(treeStore.tree, aId, bId);
+        if (!r.ok) {
+            toasts.push(r.error, "error");
+            return;
+        }
+        treeStore.set(r.value);
+    }
+
+    function removePartnerLink(aId: PersonId, bId: PersonId): void {
+        treeStore.update((t) => unlinkSpouse(t, aId, bId));
+    }
+
+    function addChildLink(parentId: PersonId, childId: PersonId): void {
+        const r = linkParent(treeStore.tree, childId, parentId);
+        if (!r.ok) {
+            toasts.push(r.error, "error");
+            return;
+        }
+        treeStore.set(r.value);
+    }
+
+    function removeChildLink(parentId: PersonId, childId: PersonId): void {
+        const child = treeStore.tree.people[childId];
+        if (!child) return;
+        treeStore.update((t) => {
+            if (child.motherId === parentId) return unlinkParent(t, childId, "mother");
+            if (child.fatherId === parentId) return unlinkParent(t, childId, "father");
+            return t;
+        });
+    }
+
+    function createAndLink(forPersonId: PersonId, slot: ConnectionSlot): void {
+        const t = treeStore.tree;
+        const { tree: t1, id: newId } = addPerson(t, blankPerson());
+        let next = t1;
+        if (slot.kind === "parent") {
+            const r = linkParent(next, forPersonId, newId, slot.role);
+            if (r.ok) next = r.value;
+        } else if (slot.kind === "partner") {
+            const r = linkSpouse(next, forPersonId, newId);
+            if (r.ok) next = r.value;
+        } else {
+            // child of forPerson, also stitched to forPerson's solo spouse if any
+            const linked = linkParent(next, newId, forPersonId);
+            if (linked.ok) next = linked.value;
+            const parent = next.people[forPersonId];
+            if (parent && parent.spouseIds.length === 1) {
+                const partnerId = parent.spouseIds[0];
+                if (partnerId && next.people[partnerId]) {
+                    const r2 = linkParent(next, newId, partnerId);
+                    if (r2.ok) next = r2.value;
+                }
+            }
+        }
+        treeStore.set(next);
+        focusPerson(newId);
+    }
+
+    function duplicatePerson(id: PersonId): void {
+        const src = treeStore.tree.people[id];
+        if (!src) return;
+        const copy: Omit<Person, "id"> = {
+            given: src.given,
+            surname: src.surname ? `${src.surname} (copy)` : "(copy)",
+            gender: src.gender,
+            spouseIds: [],
+            display: src.display,
+        };
+        if (src.title !== undefined) copy.title = src.title;
+        if (src.birth !== undefined) copy.birth = src.birth;
+        if (src.death !== undefined) copy.death = src.death;
+        if (src.occupation !== undefined) copy.occupation = src.occupation;
+        if (src.location !== undefined) copy.location = src.location;
+        if (src.wikiTitle !== undefined) copy.wikiTitle = src.wikiTitle;
+        const { tree: next, id: cloneId } = addPerson(treeStore.tree, copy);
+        treeStore.set(next);
+        focusPerson(cloneId);
+    }
+
+    function setRootAction(id: PersonId): void {
+        treeStore.update((t) => ({ ...t, rootId: id }));
+        toasts.push("root updated", "info", 1500);
+    }
+
     function menuItems(personId: PersonId): ContextMenuItem[] {
-        if (readOnly)
-            return [{ label: "edit person", onclick: () => selection.openEditor(personId) }];
+        if (readOnly) return [{ label: "edit person", onclick: () => focusPerson(personId) }];
         return [
-            { label: "edit person", onclick: () => selection.openEditor(personId) },
+            { label: "edit person", onclick: () => focusPerson(personId, "personal") },
+            {
+                label: "edit connections",
+                onclick: () => focusPerson(personId, "connections"),
+            },
+            { label: "set as tree root", onclick: () => setRootAction(personId) },
             { label: "add parent", onclick: () => addParent(personId) },
             { label: "add partner", onclick: () => addPartner(personId) },
             { label: "add child", onclick: () => addChild(personId) },
@@ -411,7 +528,7 @@
         URL.revokeObjectURL(url);
     }
 
-    function onSave(id: string, patch: Partial<Person>): void {
+    function onSave(id: string, patch: PersonPatch): void {
         if (readOnly) return;
         treeStore.update((t) => updatePerson(t, id, patch));
     }
@@ -494,9 +611,9 @@
         "view.zoomOut": () => stub("Zoom out"),
         "view.centerRoot": () => stub("Center on root"),
         "select.clear": () => selection.select(undefined),
-        "select.edit": () => withSelected((id) => selection.openEditor(id)),
+        "select.edit": () => withSelected((id) => focusPerson(id, "personal")),
         "select.delete": () => withSelected((id) => deletePerson(id)),
-        "select.duplicate": () => stub("Duplicate"),
+        "select.duplicate": () => withSelected((id) => duplicatePerson(id)),
         "person.addChild": () => withSelected((id) => addChild(id)),
         "person.addPartner": () => withSelected((id) => addPartner(id)),
         "person.addParent": () => withSelected((id) => addParent(id)),
@@ -504,15 +621,11 @@
         "palette.findPerson": () => stub("Find person"),
         "palette.commands": () => stub("Command palette"),
         "tree.rename": () => startTitleEdit(),
-        "tree.setRoot": () =>
-            withSelected((id) => {
-                treeStore.update((t) => ({ ...t, rootId: id }));
-                toasts.push("root updated", "info", 1500);
-            }),
+        "tree.setRoot": () => withSelected((id) => setRootAction(id)),
         "tree.delete": () => void deleteCurrentTree(),
         "tree.statistics": () => stub("Statistics"),
         "tree.resetLayout": () => stub("Reset layout"),
-        "view.toggleInspector": () => stub("Inspector"),
+        "view.toggleInspector": () => (showInspector = !showInspector),
     };
 
     const bindings: ShortcutBinding[] = SHORTCUTS.flatMap((s) => {
@@ -882,28 +995,46 @@
         </div>
     </header>
 
-    <main class="flex-1 overflow-hidden">
-        <TreeCanvas
-            tree={treeStore.tree}
-            selectedId={selection.selectedPersonId}
-            {portraitUrls}
-            onselect={(id: string) => selection.select(id)}
-            ondeselect={() => selection.select(undefined)}
-            onedit={(id: string) => selection.openEditor(id)}
-            oncontextmenu={(id: string, x: number, y: number) => {
-                contextMenu = { personId: id, x, y };
-            }}
-        />
+    <main class="flex flex-1 overflow-hidden">
+        <div class="flex-1 overflow-hidden">
+            <TreeCanvas
+                tree={treeStore.tree}
+                selectedId={selection.selectedPersonId}
+                {portraitUrls}
+                onselect={(id: string) => selection.select(id)}
+                ondeselect={() => selection.select(undefined)}
+                onedit={(id: string) => focusPerson(id, "personal")}
+                oncontextmenu={(id: string, x: number, y: number) => {
+                    contextMenu = { personId: id, x, y };
+                }}
+            />
+        </div>
+        {#if showInspector}
+            <Inspector
+                tree={treeStore.tree}
+                selectedId={selection.selectedPersonId}
+                treeId={treeStore.tree.id}
+                {portraitUrls}
+                {readOnly}
+                initialTab={inspectorInitialTab}
+                onpatch={onSave}
+                onsetParent={setParentLink}
+                onunsetParent={unsetParentLink}
+                onaddPartner={addPartnerLink}
+                onremovePartner={removePartnerLink}
+                onaddChild={addChildLink}
+                onremoveChild={removeChildLink}
+                oncreateAndLink={createAndLink}
+                onselect={(id: string) => focusPerson(id, "personal")}
+                onduplicate={duplicatePerson}
+                onsetRoot={setRootAction}
+                ondelete={deletePerson}
+                onclose={() => (showInspector = false)}
+                onerror={(msg: string) => toasts.push(msg, "error")}
+            />
+        {/if}
     </main>
 
-    <PersonEditor
-        person={editorPerson}
-        treeId={treeStore.tree.id}
-        {portraitUrls}
-        onsave={onSave}
-        onerror={(msg: string) => toasts.push(msg, "error")}
-        onclose={() => selection.closeEditor()}
-    />
     <Toasts store={toasts} />
     {#if contextMenu}
         <ContextMenu

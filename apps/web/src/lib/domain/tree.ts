@@ -7,6 +7,21 @@ import { generateId, ROOT_ID } from "$lib/domain/ids";
 import type { CoupleRecord, Person, PersonId, Tree } from "$lib/domain/types";
 import { err, ok, type Result } from "$lib/utils/result";
 
+/**
+ * Patch type for `updatePerson`. Required `Person` fields stay set (you can
+ * change them but you can't clear them); optional fields accept `undefined`
+ * as an explicit "clear this field" sentinel that `updatePerson` honors by
+ * deleting the key from the resulting record. closes the long-standing
+ * editor-cannot-clear-optional-fields papercut documented in to-do.md.
+ */
+type RequiredPersonKeys = "id" | "given" | "surname" | "gender" | "spouseIds" | "display";
+type OptionalPersonKeys = Exclude<keyof Person, RequiredPersonKeys>;
+export type PersonPatch = {
+    [K in RequiredPersonKeys]?: Person[K];
+} & {
+    [K in OptionalPersonKeys]?: Person[K] | undefined;
+};
+
 export function createTree(name: string, root: Omit<Person, "id">): Tree {
     const rootPerson: Person = { ...root, id: ROOT_ID };
     return {
@@ -30,11 +45,16 @@ export function addPerson(t: Tree, p: Omit<Person, "id">): { tree: Tree; id: Per
     return { tree, id };
 }
 
-export function updatePerson(t: Tree, id: PersonId, patch: Partial<Person>): Tree {
+export function updatePerson(t: Tree, id: PersonId, patch: PersonPatch): Tree {
     const existing = t.people[id];
     if (!existing) return t;
-    const next: Person = { ...existing, ...patch, id: existing.id };
-    return { ...t, people: { ...t.people, [id]: next } };
+    const next: Record<string, unknown> = { ...existing };
+    for (const [k, v] of Object.entries(patch)) {
+        if (v === undefined) delete next[k];
+        else next[k] = v;
+    }
+    next.id = existing.id;
+    return { ...t, people: { ...t.people, [id]: next as unknown as Person } };
 }
 
 export function removePerson(t: Tree, id: PersonId): Tree {
@@ -58,7 +78,12 @@ function sweepReferences(p: Person, removedId: PersonId): Person {
     return next;
 }
 
-export function linkParent(t: Tree, childId: PersonId, parentId: PersonId): Result<Tree, string> {
+export function linkParent(
+    t: Tree,
+    childId: PersonId,
+    parentId: PersonId,
+    roleOverride?: "mother" | "father",
+): Result<Tree, string> {
     const child = t.people[childId];
     const parent = t.people[parentId];
     if (!child) return err(`unknown child id: ${childId}`);
@@ -67,7 +92,14 @@ export function linkParent(t: Tree, childId: PersonId, parentId: PersonId): Resu
     // self-parent and ancestral cycles are allowed (time travel, recursive
     // lineage, asexual self-reproduction); validate.ts flags them as findings
     // so the editor can surface the loop without blocking the operation
-    const role: "motherId" | "fatherId" = parent.gender === "f" ? "motherId" : "fatherId";
+    const role: "motherId" | "fatherId" =
+        roleOverride === "mother"
+            ? "motherId"
+            : roleOverride === "father"
+              ? "fatherId"
+              : parent.gender === "f"
+                ? "motherId"
+                : "fatherId";
     const next: Person = { ...child, [role]: parentId };
     return ok({ ...t, people: { ...t.people, [childId]: next } });
 }

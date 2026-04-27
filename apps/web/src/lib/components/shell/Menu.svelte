@@ -149,7 +149,7 @@
                         tabindex="-1"
                     >
                         {#if Icon}
-                            <Icon size={14} class="text-fg-muted shrink-0" />
+                            <Icon size={14} strokeWidth={2.25} class="text-fg-muted shrink-0" />
                         {:else}
                             <span class="w-3.5 shrink-0"></span>
                         {/if}
