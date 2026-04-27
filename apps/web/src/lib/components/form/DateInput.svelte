@@ -17,6 +17,7 @@
 
     type Mode = "closed" | "picker" | "manual";
     let mode = $state<Mode>("closed");
+    let alignRight = $state(false);
 
     let textValue = $state("");
     let textError = $state<string | undefined>();
@@ -64,6 +65,11 @@
         editingMonth = false;
         editingYear = false;
         mode = "picker";
+        void tick().then(() => {
+            if (!containerEl) return;
+            const left = containerEl.getBoundingClientRect().left;
+            alignRight = left + 256 > window.innerWidth - 8;
+        });
     }
 
     function closePicker(): void {
@@ -284,7 +290,9 @@
 
     {#if mode === "picker"}
         <div
-            class="bg-canvas-elev border-line absolute top-full left-0 z-40 mt-1 w-[16rem] rounded-md border p-2 shadow-xl"
+            class="bg-canvas-elev border-line absolute top-full z-40 mt-1 w-[16rem] rounded-md border p-2 shadow-xl"
+            class:left-0={!alignRight}
+            class:right-0={alignRight}
             role="dialog"
             aria-label="calendar"
         >

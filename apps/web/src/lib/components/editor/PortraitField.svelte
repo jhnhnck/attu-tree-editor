@@ -3,6 +3,7 @@
     licensed under the MIT license; see LICENSE.md for full text
 -->
 <script lang="ts">
+    import { User } from "@lucide/svelte";
     import { putBlob } from "$lib/persistence/blobs";
     import type { PortraitUrlCache } from "$lib/state/portraitUrls.svelte";
     import CropperDialog from "$lib/components/editor/CropperDialog.svelte";
@@ -44,6 +45,9 @@
     async function onCropped(bytes: Uint8Array, mime: string): Promise<void> {
         try {
             const id = await putBlob({ treeId, personId, mime, bytes });
+            // prime the cache before onchange so the derived re-evaluates
+            // synchronously to the URL rather than waiting for an async DB re-read
+            portraitUrls.prime(id, URL.createObjectURL(new Blob([bytes.slice()], { type: mime })));
             onchange(id);
         } catch (e) {
             onerror?.(e instanceof Error ? e.message : String(e));
@@ -55,31 +59,32 @@
     }
 </script>
 
-<div class="flex items-start gap-3">
-    <div class="bg-canvas border-line aspect-square w-20 shrink-0 overflow-hidden rounded border">
+<div class="flex flex-col gap-2">
+    <div class="bg-canvas border-line aspect-square w-full overflow-hidden rounded border">
         {#if url}
             <img src={url} alt="" class="h-full w-full object-cover" />
         {:else}
-            <span class="text-fg-muted flex h-full w-full items-center justify-center text-[10px]">
-                no portrait
-            </span>
+            <div class="text-fg-muted flex h-full w-full flex-col items-center justify-center gap-2">
+                <User size={40} strokeWidth={1.25} />
+                <span class="text-[10px]">no portrait</span>
+            </div>
         {/if}
     </div>
-    <div class="flex flex-col gap-1.5">
+    <div class="flex gap-1.5">
         <button
             type="button"
             onclick={pickFile}
-            class="text-fg bg-canvas border-line hover:border-accent inline-flex items-center rounded-md border px-3 py-1.5 text-sm"
+            class="text-fg bg-canvas border-line hover:border-accent inline-flex items-center rounded border px-2 py-1 text-xs"
         >
-            {currentBlobId ? "replace..." : "upload..."}
+            {currentBlobId ? "replace" : "upload"}
         </button>
         {#if currentBlobId}
             <button
                 type="button"
                 onclick={onRemove}
-                class="text-fg-muted hover:text-fg text-left text-xs underline-offset-2 hover:underline"
+                class="text-fg-muted bg-canvas border-line hover:border-accent hover:text-fg inline-flex items-center rounded border px-2 py-1 text-xs"
             >
-                remove portrait
+                clear
             </button>
         {/if}
     </div>

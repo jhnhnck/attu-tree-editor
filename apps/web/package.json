@@ -23,7 +23,6 @@
         "dexie": "^4.4.2",
         "fflate": "^0.8.2",
         "read-gedcom": "^0.3.2",
-        "relatives-tree": "^3.2.2",
         "svelte": "^5.0.0"
     },
     "devDependencies": {

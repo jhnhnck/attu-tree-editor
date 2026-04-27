@@ -31,9 +31,6 @@ importers:
       read-gedcom:
         specifier: ^0.3.2
         version: 0.3.2
-      relatives-tree:
-        specifier: ^3.2.2
-        version: 3.2.2
       svelte:
         specifier: ^5.0.0
         version: 5.55.5(@typescript-eslint/types@8.59.0)
@@ -1713,9 +1710,6 @@ packages:
   redent@3.0.0:
     resolution: {integrity: sha512-6tDA8g98We0zd0GvVeMT9arEOnTw9qM03L9cJXaCjrip1OO764RDBLBfrB4cwzNGDj5OA5ioymC9GkizgWJDUg==}
     engines: {node: '>=8'}
-
-  relatives-tree@3.2.2:
-    resolution: {integrity: sha512-8FCyESqICQLytqcEaXtEgeISFsDKjWEccUX+XqjZLLwEhVUU9WksTDAAcTV/+cXx3qDhFehfN9eOAy4VOAmJrg==}
 
   require-from-string@2.0.2:
     resolution: {integrity: sha512-Xf0nWe6RseziFMu+Ap9biiUbmplq6S9/p+7w7YXP/JBHhrUDDUhwa+vANyubuqfZWTveU//DYVGsDG7RKL/vEw==}
@@ -3467,8 +3461,6 @@ snapshots:
     dependencies:
       indent-string: 4.0.0
       strip-indent: 3.0.0
-
-  relatives-tree@3.2.2: {}
 
   require-from-string@2.0.2: {}
 

@@ -18,13 +18,13 @@ _phase 2 complete; see the completed section below_
 
 _phase 3 complete; see the completed section below_
 
-- ⭕ `low priority` `low effort` person count of relatives-tree layout for ~1800 nodes hasn't been profiled; canvas may need a virtualization pass before phase 6 mobile work
+- ⭕ `medium priority` `high effort` virtualisation / tiling for very large trees - at zoom-out with ~1800 nodes the SVG edge layer renders all segments in one `<path>` per role (no per-tick re-render thanks to `vector-effect: non-scaling-stroke`), and 1800 absolutely-positioned PersonNode hosts is the dominant cost. Options: (a) tile the canvas spatially and only mount card hosts whose tile intersects the viewport; (b) at level 4 / 5, render cards as a single `<canvas>` overlay (one draw call) instead of N divs; (c) HTML5 `<canvas>` for edges if the SVG path approach hits its ceiling. Currently usable but laggy on a 1.8K-node tree at low zoom
 
 ### phase 4 - persistence + portraits + wiki
 
 _phase 4 complete; see the completed section below_
 
-- ⭕ `medium priority` `medium effort` portrait cropper polish - the default crop area is tiny, the box doesn't snap to image edges, and the initial zoom defaults to something unhelpfully small; pick sensible defaults and tune `CropperDialog.svelte` so a typical portrait upload needs little or no nudging before save
+- 🔴 `27 April 2026` portrait cropper polish - selection now fills the image on open (`$center('contain')`), bounded to canvas so it snaps to edges
 - ⭕ `low priority` `low effort` cropperjs styles are loaded from `cdn.jsdelivr.net` for bundle slimness; switch to a local import once we have a CSP/offline story
 - ⭕ `low priority` `low effort` wiki title field should autocomplete from the wiki - query `/w/api.php?action=opensearch&search=...` and offer suggestions in the person editor / inspector Details tab
 
@@ -35,8 +35,9 @@ _phase 5 largely complete; see the completed section below_
 - ⭕ `high priority` `high effort` field-level merge on autosave conflict (currently last-write-wins via revision check; needs per-field diff + merge for concurrent edits to different people)
 - ⭕ `high priority` `low effort` web shell follow-up to the auth-model rework: drop the role toggle from `AdminPanel.svelte` and remove the `role` field from the typed admin client. server side already refuses to mutate role through that endpoint, but the UI still shows the toggle. lives in the UI workstream
 - ⭕ `medium priority` `medium effort` doom-bot `/trees link`, `/trees show`, `/trees share` slash commands (separate PR in that repo; see `notes/features/bot-integration.md` for the contract). bot now needs to (a) send the `roles: list[str]` field on link redemption, and (b) inspect char[1] of the user-supplied code to route between dev and prod backends per §3.1b - so bot config carries both `ATTU_TREES_DEV_BASE_URL` and `ATTU_TREES_PROD_BASE_URL`
-- ⭕ `medium priority` `low effort` Caddy config: add `handle_path /trees/*` blocks to prod + dev Caddyfile (`/etc/caddy/Caddyfile.d/attuproject-org.caddyfile`)
-- ⭕ `medium priority` `low effort` parent compose include: add `include:` directive to `docker-compose.dev.yml` and `docker-compose.prod.yml` in the `attu-wiki-dev` root
+- ⭕ `high priority` `low effort` Caddy config: add `handle_path /trees/*` block to `attu-wiki-dev/config/Caddyfile` (mediawiki container caddy, proxies to `attu-tree:8000` on the docker network)
+- ⭕ `high priority` `low effort` parent compose include: add `include:` directive to `docker-compose.dev.yml`, `docker-compose.prod.yml`, and `docker-compose.yml` in the `attu-wiki-dev` root
+- ⭕ `high priority` `no effort` set `ATTU_NETWORK` per env in `attu-wiki-dev/.env` (`attu_dev` on dev server, `attu_prod` on prod)
 - ⭕ `low priority` `low effort` rate-limit `/api/auth/start` and tree-id-keyed routes against enumeration / abuse; deferred from the security audit because impact is low (CORS allowlist already blocks the cross-origin read path) but worth doing before opening the service to the wider public
 - ⭕ `low priority` `low effort` document the deployment-time invariant that `cors_origins` must be an explicit allowlist (never wildcard) when `allow_credentials=True`; add a startup assertion in `main.py` if we want it enforced
 
@@ -46,17 +47,19 @@ _phase 5 largely complete; see the completed section below_
 - ⭕ `high priority` `medium effort` aria roles for tree (`role="tree"`, `treeitem`)
 - ⭕ `high priority` `medium effort` mobile bottom-sheet variant of the editor panel
 - ⭕ `medium priority` `medium effort` zoom-aware label sizing - shrink card padding and grow text size as zoom decreases so the next-level-up card stays readable as long as possible (PersonNode + the `levelFromScale` thresholds in TreeCanvas)
-- ⭕ `medium priority` `medium effort` compact layout tuning - tighten relatives-tree SIZE constants and add a post-layout compaction pass to remove dead space between sibships
+- ⭕ `high priority` `high effort` spouse-duplication in `hvLayout` - in-law spouses (people with their own ancestor branch in the visible set) currently anchor on their own primary-parent forest, ending up far from their partner and stretching couple bonds across the canvas. Plan: render the spouse twice when their bond would otherwise span more than ~N units - once in their "home" location (own ancestor branch) and once as a ghost adjacent to their partner, with a small "appears in N places" icon on each instance and a popover/dropdown to jump between locations. Each ghost is a render-only copy keyed off the same `PersonId`, so selection / editor / inspector still operate on a single person record. Closes the long-bonds-across-the-canvas visual issue without forcing a full re-layout (the spouse's other branches stay where they are)
+- ⭕ `medium priority` `high effort` orthogonal edge routing with obstacle avoidance - even after spouse-duplication, some long bonds + sibling-bus segments may still pass through the empty space above / below other cards. Implement A* over a sparse routing graph (corners of card AABBs + row-gutter alignment lines) so edges bend around any card they would otherwise visually cross. Polish layer; only worthwhile after spouse-duplication lands
 - ⭕ `medium priority` `high effort` hide unrelated branches based on the selected person - needs a "related-to" rule (default: ancestors + descendants + spouses); expose as a View menu toggle so users can flip between full tree and focused view
 - ⭕ `medium priority` `medium effort` selectable lineage trace - clicking an edge (or a person + an "trace" action) highlights a chain through the graph in a unique color so the user can see where a relationship goes; pairs naturally with the "hide unrelated branches" toggle
 - ⭕ `medium priority` `low effort` hover tooltip at far zoom levels - PersonNode at level 4 (initials) and 5 (dot) drops the name; add a native `title` or floating tooltip showing the full name + dates so users can identify cards before zooming in
 - ⭕ `medium priority` `low effort` unified loading-bar / progress indicator - generic UI for long operations (import, autosave flush, server push, layout recompute on big trees); replaces the scattered `reading file…` toast pattern with a top-of-canvas progress strip
 - ⭕ `medium priority` `low effort` command-palette pick should re-focus the canvas on the selected person via `canvasController.focusSelection()` (currently it only opens the inspector; the canvas stays where it was)
 - ⭕ `medium priority` `low effort` minimap + search-by-name popover
-- ⭕ `low priority` `low effort` people-count pill (bottom-left of TreeCanvas) should toggle the Inspector pane when clicked; today it's just a static stat badge
+- 🔴 `27 April 2026` couple metadata controls in the Inspector Connections tab - marriage date, married/ended toggle, primary/secondary toggle (when multiple partners) now inline below each partner row
+- 🔴 `27 April 2026` people-count pill (bottom-left of TreeCanvas) toggles the Inspector pane on click
 - ⭕ `low priority` `low effort` Menu's first item is always visually highlighted on open even when the user opened it with the mouse - only auto-highlight after an explicit keyboard nav (↑/↓ or End/Home), not on mouse open
-- ⭕ `low priority` `low effort` Inspector tab spacing feels off (Personal / Connections / Details / Bio row in `Inspector.svelte`) - tighten or rebalance icon-to-label gap, py-1.5 vs px-1, and the border-b-2 alignment so the row reads cleanly
-- ⭕ `low priority` `low effort` edge lines should grow thicker / darker as the canvas zooms out so the topology stays readable when individual cards become unreadable (EdgeLayer)
+- 🔴 `27 April 2026` Inspector tab row polish - labels lowercased, icons scaled to 11px, `-mb-px` so the active underline cleanly covers the container border
+- ⭕ `low priority` `medium effort` edge lines should grow thicker / darker as the canvas zooms out so the topology stays readable when individual cards become unreadable. Tried inline `stroke-width = basePx / scale` on the bucket paths (Layer 3) but it forced the browser to re-stroke the entire path geometry on every wheel tick and added visible lag; reverted to `vector-effect: non-scaling-stroke`. Right approach: precompute per-zoom-level CSS classes (e.g. `.zoom-far`, `.zoom-mid`) and toggle one class on the host element instead of inline-styling the path
 - ⭕ `low priority` `low effort` cursor correctness audit - the canvas root's `cursor-grab` overrides cards / buttons inside it (should show pointer over PersonNodes), and the cursor occasionally stays in `grabbing` after a pan ends outside the window. fix the grab/grabbing/default/pointer transitions so the OS cursor always matches what's under the pointer
 - ⭕ `future idea` `medium effort` decide and prototype a wiki integration story (mechanism tbd; the original mediawiki-gadget approach is shelved)
 
@@ -181,6 +184,8 @@ _phase 5 largely complete; see the completed section below_
 - 🔴 `26 April 2026` admin cross-tree authority covered by tests: read / edit / delete / share / revoke on trees the admin doesn't own all green via the existing `tree_owner` bypass in `trees/access.py`
 - 🔴 `26 April 2026` HMAC timestamp upper-bound clamp (rejects implausibly large epochs before the skew comparison); session cookie `samesite=strict`; `TreeCreateRequest.blob` + `apply_save` enforce `settings.max_tree_blob_bytes` (default 10 MB) with 413 on overflow
 - 🔴 `26 April 2026` link code reshape + dev/prod routing partition: codes are now `AB-123456` (2 alpha, dash, 6 digits); the second alpha char encodes the environment (dev = X/Z, prod = the other 22 letters) so a single bot deployment can route `/trees link` to the correct backend just by inspecting char[1]. server normalises any input form (case, dash, whitespace). new `settings.environment: Literal['dev', 'prod']` plumbing; bot-integration.md §3.1b documents the partition for the bot team. covered by 3 new tests in `test_auth.py`
+- 🔴 `26 April 2026` editor compose drops the host `ports:` mapping + `FAMILY_TREE_PORT` indirection; routing is now via the wiki's mediawiki-container caddy proxying `/trees/*` to `attu-tree:8000` on the shared docker network. closes the editor-side obligation called out in `notes/features/wiki-integration.md` §2.1
+- 🔴 `26 April 2026` `notes/features/wiki-integration.md` contract doc for the wiki side of the integration: caddy + compose-include plumbing, cookie/cors/csp posture, linking conventions, future template/gadget shape, operational notes
 
 ### ui overhaul (phases A-D)
 
@@ -206,6 +211,22 @@ _phase 5 largely complete; see the completed section below_
 - 🔴 `26 April 2026` Drag-drop file import on the canvas — dragenter / over / leave / drop with depth counter (no flicker), translucent dashed-border overlay, gated to `dataTransfer` files
 - 🔴 `26 April 2026` `ShareDialog` polish — copy view-link button (clipboard + transient confirmation), grants list with revoke; new server endpoint `GET /api/trees/{id}/grants` + `GrantListing` / `GrantListResponse` pydantic models + matching TS types in `@attu/api-client` and a `listGrants` wrapper in `lib/api/client.ts`
 - 🔴 `26 April 2026` 280 unit + component tests passing (49 new across the four phases); `pnpm -F web verify` green; 4 pre-existing a11y warnings unchanged
+
+### post-overhaul polish (round 1)
+
+- 🔴 `26 April 2026` `DateInput.svelte` — calendar popup now flips to right-anchor when the field sits too close to the viewport edge (measured on open); the death-date picker no longer renders off-page when the inspector hosts a tight 2-column dates row
+- 🔴 `26 April 2026` `ZoomWidget.svelte` — slider fill follows the thumb (set `--val` inline from `scaleToSlider(scale)`; the gradient was stuck at the default 50% because no one was ever writing the variable)
+- 🔴 `26 April 2026` `AuthBar.svelte` — `onerror` callback prop replaces the inline `<span class="text-error">`; App.svelte routes "could not start sign-in. is the server running?" through `toasts.push(msg, "error")` instead
+- 🔴 `26 April 2026` Title strip tree-name bumped from `text-sm font-medium` to `text-base font-semibold` (button + edit-input) so the family name reads as the document title rather than a menu label
+- 🔴 `26 April 2026` `ContextMenu.svelte` gained a `{ divider: true }` variant; the per-person right-click menu is now grouped into edit (edit person / edit connections), tree ops (set as root / add parent / add partner / add child), and the destructive delete row, separated by hairline dividers
+
+### inspector + portrait polish (round 2)
+
+- 🔴 `27 April 2026` portrait cropper polish - selection now fills the image on open (`$center('contain')`), bounded to canvas so it snaps to edges
+- 🔴 `27 April 2026` portrait upload fix - `portraitUrls.prime()` pre-populates the URL cache from upload bytes before `onchange` fires, so the image renders immediately without a round-trip
+- 🔴 `27 April 2026` Inspector tab row polish - labels lowercased, icons scaled to 11px, `-mb-px` so the active underline cleanly covers the container border
+- 🔴 `27 April 2026` people-count pill (bottom-left of TreeCanvas) toggles the Inspector pane on click
+- 🔴 `27 April 2026` couple metadata controls in the Inspector Connections tab - marriage date, married/ended toggle, primary/secondary toggle (when multiple partners) now inline below each partner row
 
 ---
 
@@ -236,6 +257,6 @@ when adding a new item, sort it into the appropriate section by topic, or add a 
 ### metadata
 
 ```yaml
-last_updated: 26 April 2026
-total_completed: 93
+last_updated: 27 April 2026
+total_completed: 105
 ```

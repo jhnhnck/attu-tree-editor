@@ -1,13 +1,20 @@
 <!--
-    FamilyTreeEditor - HTML pan/zoom canvas with viewport culling
+    FamilyTreeEditor - HTML pan/zoom canvas with viewport culling.
+    Layout = hvLayout (focus-aware HV tidy tree); edges = routeEdges. Both run
+    over the visible person set; TreeCanvas turns unit coords into pixels and
+    renders cards as absolutely-positioned PersonNode hosts plus an SVG layer
+    for the routed segments.
     licensed under the MIT license; see LICENSE.md for full text
 -->
 <script lang="ts">
     import { onMount, onDestroy, untrack } from "svelte";
-    import { adaptToLayout } from "$lib/layout/relativesTreeAdapter";
+    import { hvLayout, type GhostNode, COMPONENT_GAP } from "$lib/layout/hvLayout";
+    import { routeEdges, type Segment } from "$lib/layout/edgeRouter";
+    import { shortestPath, type Path } from "$lib/layout/graph";
+    import { segmentsForPath } from "$lib/layout/pathHighlight";
     import EdgeLayer from "$lib/components/tree/EdgeLayer.svelte";
     import PersonNode from "$lib/components/tree/PersonNode.svelte";
-    import type { DerivedEdge, PersonNodeLevel } from "$lib/components/tree/edges";
+    import type { RenderedSegment, PersonNodeLevel } from "$lib/components/tree/edges";
     import type { PortraitUrlCache } from "$lib/state/portraitUrls.svelte";
     import type { PersonId, Tree } from "$lib/domain/types";
     import type { CanvasController } from "./canvasController";
@@ -26,6 +33,14 @@
         onscalechange?: ((s: number) => void) | undefined;
         /** notifies the parent when the active tool flips */
         onmodechange?: ((m: "select" | "hand") => void) | undefined;
+        /** path-trace overlay: ids of edge segments to draw highlighted */
+        highlightedSegmentIds?: ReadonlySet<string> | undefined;
+        /** pair of people to trace path between; highlights the path on canvas */
+        traceIds?: readonly [PersonId, PersonId] | undefined;
+        /** path result for display in UI (read-only, derived from traceIds) */
+        tracePath?: Path | undefined;
+        /** clicking the people-count pill calls this to toggle the inspector */
+        ontoggleinspector?: (() => void) | undefined;
     }
 
     let {
@@ -39,27 +54,33 @@
         oncontroller,
         onscalechange,
         onmodechange,
+        highlightedSegmentIds,
+        traceIds,
+        tracePath: _,
+        ontoggleinspector,
     }: Props = $props();
 
-    // pixels per relatives-tree unit. relatives-tree assumes nodes occupy a
-    // 2x2 unit cell; we render the card narrower in height than width so it
-    // looks like a typical family-tree node and tiers get a visible gap.
+    // pixels per unit. hvLayout produces positions where 1 unit = "half a card
+    // width" (a card is PERSON_W = 2 units across). UNIT * cardW / 2 = card
+    // width in px; with UNIT=80 that's 160px which matches the prior visual
+    // tuning without changing the perceived density.
     const UNIT = 80;
-    const CELL_W = 2 * UNIT; // 160 px - matches relatives-tree's cell width
-    const CELL_H = 1.2 * UNIT; // 96 px - shorter cell so tiers don't crowd
-    // we render the actual card smaller than its cell so neighboring people
-    // don't touch; the card sits centered inside the cell with GAP/2 padding
-    const GAP = 14;
-    const NODE_W = CELL_W - GAP; // 146
-    const NODE_H = CELL_H - GAP; // 82
+    /** visible card width in unit coords (matches edgeRouter default) */
+    const CARD_W_U = 2;
+    /** visible card height in unit coords (matches edgeRouter default) */
+    const CARD_H_U = 1.2;
+    const CARD_W = CARD_W_U * UNIT; // 160
+    const CARD_H = CARD_H_U * UNIT; // 96
     const MIN_SCALE = 0.05;
     const MAX_SCALE = 5.0;
     const DRAG_THRESHOLD_PX = 4;
     const SELECT_PAN_MS = 320; // duration of "center on selection" tween
+    const ZOOM_FAR = 0.3; // below → 2× stroke
+    const ZOOM_MID = 0.6; // below → 1.4× stroke
 
-    let layout = $derived(adaptToLayout(tree));
-    let canvasW = $derived(layout.layout.canvas.width * UNIT);
-    let canvasH = $derived(layout.layout.canvas.height * UNIT);
+    let layout = $derived(hvLayout(tree));
+    let canvasW = $derived(layout.canvas.width * UNIT);
+    let canvasH = $derived(layout.canvas.height * UNIT);
 
     let hostEl: HTMLDivElement | undefined = $state();
     let panEl: HTMLDivElement | undefined = $state();
@@ -77,6 +98,11 @@
     // tool mode - "select" is normal click-to-select; "hand" is cosmetic for now
     // (pan works in either mode, cursor changes on the host element).
     let mode = $state<"select" | "hand">("select");
+    let isDragging = $state(false);
+
+    let strokeMultiplier = $derived(
+        scale < ZOOM_FAR ? 2 : scale < ZOOM_MID ? 1.4 : 1,
+    );
 
     // notify parent on scale changes
     $effect(() => {
@@ -160,10 +186,10 @@
         if (rect.width === 0 || rect.height === 0) return;
         cancelPanAnim();
         scale = 1;
-        const rootPos = positionByPersonId.get(tree.rootId);
+        const rootPos = layout.positions.get(tree.rootId);
         if (rootPos) {
-            const cx = rootPos.left * UNIT + CELL_W / 2;
-            const cy = rootPos.top * UNIT + CELL_H / 2;
+            const cx = rootPos.x * UNIT + CARD_W / 2;
+            const cy = rootPos.y * UNIT + CARD_H / 2;
             panX = rect.width / 2 - cx;
             panY = rect.height / 2 - cy;
         } else {
@@ -220,18 +246,21 @@
         panAnimFrame = requestAnimationFrame(step);
     }
 
-    function centerOnPerson(id: PersonId): void {
-        const pos = positionByPersonId.get(id);
-        if (!pos || !hostEl) return;
+    function centerOnPosition(pos: { x: number; y: number }): void {
+        if (!hostEl) return;
         const rect = hostEl.getBoundingClientRect();
         if (rect.width === 0 || rect.height === 0) return;
-        // card center in canvas-local pixels
-        const cx = pos.left * UNIT + CELL_W / 2;
-        const cy = pos.top * UNIT + CELL_H / 2;
-        // pan so that point lands at the screen center
+        const cx = pos.x * UNIT + CARD_W / 2;
+        const cy = pos.y * UNIT + CARD_H / 2;
         const targetX = rect.width / 2 - cx * scale;
         const targetY = rect.height / 2 - cy * scale;
         animatePanTo(targetX, targetY);
+    }
+
+    function centerOnPerson(id: PersonId): void {
+        const pos = layout.positions.get(id);
+        if (!pos) return;
+        centerOnPosition(pos);
     }
 
     // when selection changes externally, glide the canvas to center it
@@ -275,16 +304,16 @@
 
     function fitSelection(): void {
         if (!selectedId || !hostEl) return;
-        const pos = positionByPersonId.get(selectedId);
+        const pos = layout.positions.get(selectedId);
         if (!pos) return;
         const rect = hostEl.getBoundingClientRect();
         const padding = 96;
-        const sx = (rect.width - padding * 2) / CELL_W;
-        const sy = (rect.height - padding * 2) / CELL_H;
+        const sx = (rect.width - padding * 2) / CARD_W;
+        const sy = (rect.height - padding * 2) / CARD_H;
         const target = clamp(Math.min(sx, sy), MIN_SCALE, MAX_SCALE);
         scale = target;
-        const cx = pos.left * UNIT + CELL_W / 2;
-        const cy = pos.top * UNIT + CELL_H / 2;
+        const cx = pos.x * UNIT + CARD_W / 2;
+        const cy = pos.y * UNIT + CARD_H / 2;
         panX = rect.width / 2 - cx * target;
         panY = rect.height / 2 - cy * target;
     }
@@ -313,7 +342,6 @@
     // --- wheel zoom (cursor-anchored) ---
 
     function onWheel(e: WheelEvent): void {
-        if (!hostEl) return;
         e.preventDefault();
         // ctrl+wheel = trackpad pinch in chrome/safari; deltas are larger
         const intensity = e.ctrlKey ? 0.012 : 0.0018;
@@ -322,10 +350,10 @@
         if (next === scale) return;
 
         // anchor at the center of the host viewport (not the cursor) so the
-        // visible center stays put during zoom
-        const rect = hostEl.getBoundingClientRect();
-        const cx = rect.width / 2;
-        const cy = rect.height / 2;
+        // visible center stays put during zoom. hostW/hostH are kept in sync
+        // by the ResizeObserver — reading them avoids a forced synchronous layout.
+        const cx = hostW / 2;
+        const cy = hostH / 2;
         const cuX = (cx - panX) / scale;
         const cuY = (cy - panY) / scale;
         panX = cx - cuX * next;
@@ -370,7 +398,7 @@
         const dy = e.clientY - dragState.startY;
         if (!dragState.moved && Math.hypot(dx, dy) > DRAG_THRESHOLD_PX) {
             dragState.moved = true;
-            if (hostEl) hostEl.style.cursor = "grabbing";
+            isDragging = true;
         }
         if (dragState.moved) {
             panX = dragState.startPanX + dx;
@@ -400,7 +428,7 @@
 
     function cleanupDrag(): void {
         dragState = null;
-        if (hostEl) hostEl.style.cursor = "grab";
+        isDragging = false;
         window.removeEventListener("pointermove", onWindowPointerMove);
         window.removeEventListener("pointerup", onWindowPointerUp);
         window.removeEventListener("pointercancel", onWindowPointerCancel);
@@ -408,14 +436,13 @@
 
     // --- shared types + culling helpers ---
 
-    interface Pos {
-        left: number;
-        top: number;
-    }
     interface VisibleNode {
         id: PersonId;
-        left: number;
-        top: number;
+        x: number;
+        y: number;
+        isGhost?: boolean;
+        nearId?: PersonId;
+        isIsolated?: boolean;
     }
     interface VisibleRect {
         left: number;
@@ -424,217 +451,71 @@
         bottom: number;
     }
 
-    function buildPositionMap(layoutNodes: typeof layout.layout.nodes): Map<PersonId, Pos> {
-        const map = new Map<PersonId, Pos>();
-        for (const n of layoutNodes) {
-            if (!map.has(n.id)) map.set(n.id, { left: n.left, top: n.top });
-        }
-        return map;
-    }
-
-    /**
-     * Standard family-tree connector style (matches FamilyEcho / Geni / Gramps):
-     *
-     *   ┌──┐ ────── ┌──┐     (1) spouse bond: horizontal between inner edges
-     *   │A │        │B │
-     *   └──┘    │   └──┘
-     *           │            (2) drop from bond midpoint
-     *      ─────┴─────       (3) sibling bus above the children
-     *      │    │    │       (4) vertical drops to each child's top
-     *    ┌─┴┐ ┌─┴┐ ┌─┴┐
-     *    │C │ │D │ │E │
-     *    └──┘ └──┘ └──┘
-     *
-     * Single-parent links use a simple L-shape (parent bottom -> midpoint ->
-     * child top). Each segment is its own DerivedEdge so EdgeLayer culling
-     * can drop ones that fall outside the viewport.
-     */
-    function deriveEdges(t: Tree, posMap: ReadonlyMap<PersonId, Pos>): DerivedEdge[] {
-        const out: DerivedEdge[] = [];
-
-        // helpers return the actual card-edge pixel coords (the card sits
-        // inset GAP/2 from each side of its layout cell)
-        function topMidX(pos: Pos): number {
-            return pos.left * UNIT + CELL_W / 2;
-        }
-        function topY(pos: Pos): number {
-            return pos.top * UNIT + GAP / 2;
-        }
-        function bottomY(pos: Pos): number {
-            return pos.top * UNIT + CELL_H - GAP / 2;
-        }
-        function leftX(pos: Pos): number {
-            return pos.left * UNIT + GAP / 2;
-        }
-        function rightX(pos: Pos): number {
-            return pos.left * UNIT + CELL_W - GAP / 2;
-        }
-        function midY(pos: Pos): number {
-            return pos.top * UNIT + CELL_H / 2;
-        }
-
-        // group joint (two-parent) children by their parent pair
-        const jointByCouple = new Map<string, PersonId[]>();
-        for (const child of Object.values(t.people)) {
-            const m = child.motherId;
-            const f = child.fatherId;
-            if (!m || !f) continue;
-            const k = m < f ? `${m}|${f}` : `${f}|${m}`;
-            const arr = jointByCouple.get(k) ?? [];
-            arr.push(child.id);
-            jointByCouple.set(k, arr);
-        }
-
-        const handledChildren = new Set<PersonId>();
-
-        for (const couple of t.couples) {
-            if (couple.leftId === couple.rightId) continue;
-            const aPos = posMap.get(couple.leftId);
-            const bPos = posMap.get(couple.rightId);
-            if (!aPos || !bPos) continue;
-
-            // figure out which card sits geometrically left vs right
-            const [lPos, rPos] = aPos.left * UNIT <= bPos.left * UNIT ? [aPos, bPos] : [bPos, aPos];
-
-            // (1) spouse bond - horizontal at the cards' midline, between
-            // inner edges. when cards are at different Y values we still draw
-            // a single horizontal at the average; rare for a typical layout.
-            const bondY = (midY(lPos) + midY(rPos)) / 2;
-            const bondLeftX = rightX(lPos);
-            const bondRightX = leftX(rPos);
-            out.push({ kind: "spouse", x1: bondLeftX, y1: bondY, x2: bondRightX, y2: bondY });
-
-            const k =
-                couple.leftId < couple.rightId
-                    ? `${couple.leftId}|${couple.rightId}`
-                    : `${couple.rightId}|${couple.leftId}`;
-            const childIds = jointByCouple.get(k) ?? [];
-            const kids: { id: PersonId; pos: Pos }[] = [];
-            for (const cid of childIds) {
-                const cp = posMap.get(cid);
-                if (cp) kids.push({ id: cid, pos: cp });
-            }
-            if (kids.length === 0) continue;
-
-            const bondMidX = (bondLeftX + bondRightX) / 2;
-            const minChildTop = Math.min(...kids.map((c) => topY(c.pos)));
-            const busY = (bondY + minChildTop) / 2;
-
-            // (2) drop from bond midpoint down to the sibling bus
-            out.push({ kind: "parent", x1: bondMidX, y1: bondY, x2: bondMidX, y2: busY });
-
-            // (3) sibling bus across the children (only when 2+ kids;
-            // otherwise the single drop already covers it)
-            if (kids.length > 1) {
-                const xs = kids.map((c) => topMidX(c.pos));
-                const minX = Math.min(...xs, bondMidX);
-                const maxX = Math.max(...xs, bondMidX);
-                if (minX !== maxX) {
-                    out.push({ kind: "parent", x1: minX, y1: busY, x2: maxX, y2: busY });
-                }
-            }
-
-            // (4) drop from bus to each child's top. when two or more children
-            // share the same X (vertical stack), draw one line to the deepest
-            // child rather than N overlapping segments.
-            const deepestJoint = new Map<number, number>(); // x → max topY
-            for (const c of kids) {
-                const x = topMidX(c.pos);
-                const y = topY(c.pos);
-                deepestJoint.set(x, Math.max(deepestJoint.get(x) ?? 0, y));
-                handledChildren.add(c.id);
-            }
-            for (const [x, maxY] of deepestJoint) {
-                out.push({ kind: "parent", x1: x, y1: busY, x2: x, y2: maxY });
-            }
-        }
-
-        // remaining: single-parent links (only one of mother/father set, or
-        // the other parent isn't in the tree).
-        // group siblings under a shared bus so multiple children of the same
-        // parent don't each get their own individual line.
-        const kidsByParent = new Map<PersonId, { pPos: Pos; kids: { pos: Pos }[] }>();
-        for (const person of Object.values(t.people)) {
-            if (handledChildren.has(person.id)) continue;
-            const cPos = posMap.get(person.id);
-            if (!cPos) continue;
-            for (const parentId of [person.motherId, person.fatherId]) {
-                if (!parentId) continue;
-                const pPos = posMap.get(parentId);
-                if (!pPos) continue;
-                const entry = kidsByParent.get(parentId) ?? { pPos, kids: [] };
-                entry.kids.push({ pos: cPos });
-                kidsByParent.set(parentId, entry);
-            }
-        }
-
-        for (const { pPos, kids } of kidsByParent.values()) {
-            const dropX = topMidX(pPos);
-            const py = bottomY(pPos);
-
-            if (kids.length === 1) {
-                const c = kids[0]!;
-                const cx = topMidX(c.pos);
-                const cy = topY(c.pos);
-                const my = (py + cy) / 2;
-                if (dropX !== cx) {
-                    out.push({ kind: "parent", x1: dropX, y1: py, x2: dropX, y2: my });
-                    out.push({ kind: "parent", x1: dropX, y1: my, x2: cx, y2: my });
-                    out.push({ kind: "parent", x1: cx, y1: my, x2: cx, y2: cy });
-                } else {
-                    out.push({ kind: "parent", x1: dropX, y1: py, x2: cx, y2: cy });
-                }
-            } else {
-                // drop → horizontal bus → per-column vertical drops
-                const minChildTop = Math.min(...kids.map((c) => topY(c.pos)));
-                const busY = (py + minChildTop) / 2;
-                out.push({ kind: "parent", x1: dropX, y1: py, x2: dropX, y2: busY });
-
-                const xs = kids.map((c) => topMidX(c.pos));
-                const minX = Math.min(...xs, dropX);
-                const maxX = Math.max(...xs, dropX);
-                if (minX !== maxX) {
-                    out.push({ kind: "parent", x1: minX, y1: busY, x2: maxX, y2: busY });
-                }
-
-                // deduplicate vertical drops for any children sharing the same X
-                const deepest = new Map<number, number>();
-                for (const c of kids) {
-                    const x = topMidX(c.pos);
-                    const y = topY(c.pos);
-                    deepest.set(x, Math.max(deepest.get(x) ?? 0, y));
-                }
-                for (const [x, maxY] of deepest) {
-                    out.push({ kind: "parent", x1: x, y1: busY, x2: x, y2: maxY });
-                }
-            }
-        }
-
-        return out;
-    }
-
-    function cullNodes(posMap: ReadonlyMap<PersonId, Pos>, r: VisibleRect): VisibleNode[] {
+    function cullNodes(
+        positions: ReadonlyMap<PersonId, { x: number; y: number }>,
+        r: VisibleRect,
+        ghosts?: readonly GhostNode[],
+        isolated?: readonly PersonId[],
+    ): VisibleNode[] {
+        const isolatedSet = new Set(isolated);
         const out: VisibleNode[] = [];
-        for (const [id, pos] of posMap) {
-            const x = pos.left * UNIT;
-            const y = pos.top * UNIT;
-            if (x + CELL_W >= r.left && x <= r.right && y + CELL_H >= r.top && y <= r.bottom) {
-                out.push({ id, left: pos.left, top: pos.top });
+        for (const [id, pos] of positions) {
+            // skip ids that vanished from `tree.people` between layout +
+            // render (rare; defensive). this also keeps the {#each} below
+            // free of an inner {#if} so animate:flip applies to the only
+            // direct child of the each block.
+            if (!tree.people[id]) continue;
+            const xPx = pos.x * UNIT;
+            const yPx = pos.y * UNIT;
+            if (
+                xPx + CARD_W >= r.left &&
+                xPx <= r.right &&
+                yPx + CARD_H >= r.top &&
+                yPx <= r.bottom
+            ) {
+                out.push({ id, x: pos.x, y: pos.y, isIsolated: isolatedSet.has(id) });
+            }
+        }
+        // also cull ghost nodes
+        if (ghosts) {
+            for (const g of ghosts) {
+                if (!tree.people[g.ghostOf]) continue;
+                const xPx = g.x * UNIT;
+                const yPx = g.y * UNIT;
+                if (
+                    xPx + CARD_W >= r.left &&
+                    xPx <= r.right &&
+                    yPx + CARD_H >= r.top &&
+                    yPx <= r.bottom
+                ) {
+                    out.push({
+                        id: g.ghostOf,
+                        x: g.x,
+                        y: g.y,
+                        isGhost: true,
+                        nearId: g.nearId,
+                        isIsolated: isolatedSet.has(g.ghostOf),
+                    });
+                }
             }
         }
         return out;
     }
 
-    function cullEdges(edges: readonly DerivedEdge[], r: VisibleRect): DerivedEdge[] {
-        const out: DerivedEdge[] = [];
-        for (const e of edges) {
-            const cl = Math.min(e.x1, e.x2);
-            const cr = Math.max(e.x1, e.x2);
-            const ct = Math.min(e.y1, e.y2);
-            const cb = Math.max(e.y1, e.y2);
-            if (cr >= r.left && cl <= r.right && cb >= r.top && ct <= r.bottom) {
-                out.push(e);
-            }
+    function toRendered(segs: readonly Segment[]): RenderedSegment[] {
+        const out: RenderedSegment[] = new Array<RenderedSegment>(segs.length);
+        for (let i = 0; i < segs.length; i++) {
+            const s = segs[i]!;
+            const base: RenderedSegment = {
+                id: s.id,
+                kind: s.kind,
+                role: s.role,
+                x1: s.x1 * UNIT,
+                y1: s.y1 * UNIT,
+                x2: s.x2 * UNIT,
+                y2: s.y2 * UNIT,
+            };
+            out[i] = s.hops ? { ...base, hops: s.hops.map((h) => h * UNIT) } : base;
         }
         return out;
     }
@@ -643,7 +524,7 @@
         if (hostW === 0 || hostH === 0) {
             return { left: 0, top: 0, right: canvasW, bottom: canvasH };
         }
-        const margin = CELL_W;
+        const margin = CARD_W;
         const left = -panX / scale - margin;
         const top = -panY / scale - margin;
         const right = left + hostW / scale + margin * 2;
@@ -651,10 +532,38 @@
         return { left, top, right, bottom };
     });
 
-    let positionByPersonId = $derived(buildPositionMap(layout.layout.nodes));
-    let derivedEdges = $derived(deriveEdges(tree, positionByPersonId));
-    let visibleNodes = $derived(cullNodes(positionByPersonId, visibleRect));
-    let visibleEdges = $derived(cullEdges(derivedEdges, visibleRect));
+    // build ghost positions map for edge routing (use last ghost per person)
+    let ghostPositionsMap = $derived.by(() => {
+        const m = new Map<PersonId, { x: number; y: number }>();
+        for (const g of layout.ghosts) {
+            m.set(g.ghostOf, { x: g.x, y: g.y });
+        }
+        return m;
+    });
+
+    /**
+     * Edge segments live on a single SVG <path> per role, so we don't cull them
+     * on pan/zoom — culling would change `d` per frame and force the browser to
+     * re-parse the path string. With `d` stable, the parent transform composites
+     * on the GPU and pan/zoom stays smooth at 1k+ edges.
+     */
+    let routedEdges = $derived(
+        toRendered(
+            routeEdges(tree, layout.positions, {
+                cardWidth: CARD_W_U,
+                cardHeight: CARD_H_U,
+                ghostPositions: ghostPositionsMap,
+            }),
+        ),
+    );
+    let visibleNodes = $derived(cullNodes(layout.positions, visibleRect, layout.ghosts, layout.isolated));
+
+    let computedTracePath = $derived(
+        traceIds ? shortestPath(tree, traceIds[0], traceIds[1]) : undefined
+    );
+    let computedHighlightedIds = $derived(
+        computedTracePath ? segmentsForPath(computedTracePath, routedEdges) : highlightedSegmentIds
+    );
 
     function levelFromScale(s: number): PersonNodeLevel {
         if (s >= 0.55) return 0;
@@ -671,7 +580,8 @@
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_no_noninteractive_tabindex -->
 <div
     bind:this={hostEl}
-    class="bg-canvas relative h-full w-full cursor-grab overflow-hidden"
+    class="canvas-host bg-canvas relative h-full w-full overflow-hidden"
+    class:is-dragging={isDragging}
     style:touch-action="none"
     role="application"
     tabindex="0"
@@ -696,44 +606,72 @@
             class="pointer-events-none absolute top-0 left-0"
             aria-hidden="true"
         >
-            <EdgeLayer edges={visibleEdges} />
+            <EdgeLayer
+                edges={routedEdges}
+                highlightedIds={computedHighlightedIds}
+                {strokeMultiplier}
+            />
+            <!-- component dividers between non-singleton components -->
+            {#each layout.components.slice(1) as comp (comp.rootId)}
+                {@const dividerX = (comp.offsetLeft - COMPONENT_GAP / 2) * UNIT}
+                <line
+                    x1={dividerX}
+                    y1="0"
+                    x2={dividerX}
+                    y2={canvasH}
+                    stroke="var(--color-border-muted)"
+                    stroke-width="1"
+                    opacity="0.4"
+                    vector-effect="non-scaling-stroke"
+                />
+            {/each}
         </svg>
 
-        {#each visibleNodes as v (v.id)}
-            {@const person = tree.people[v.id]}
-            {#if person}
-                <div
-                    class="person-node-host absolute"
-                    style:left="{v.left * UNIT + GAP / 2}px"
-                    style:top="{v.top * UNIT + GAP / 2}px"
-                    style:width="{NODE_W}px"
-                    style:height="{NODE_H}px"
-                >
-                    <PersonNode
-                        {person}
-                        level={cardLevel}
-                        {scale}
-                        selected={selectedId === person.id}
-                        portraitUrl={portraitUrls?.get(person.portraitBlobId)}
-                        onselect={(id: string) => onselect?.(id)}
-                        onedit={(id: string) => onedit?.(id)}
-                        oncontextmenu={(id: string, x: number, y: number) =>
-                            oncontextmenu?.(id, x, y)}
-                    />
-                </div>
-            {/if}
+        {#each visibleNodes as v (v.isGhost ? `${v.id}-ghost-${v.nearId}` : v.id)}
+            <div
+                class="person-node-host absolute"
+                class:is-isolated={v.isIsolated}
+                style:left="{v.x * UNIT}px"
+                style:top="{v.y * UNIT}px"
+                style:width="{CARD_W}px"
+                style:height="{CARD_H}px"
+            >
+                <PersonNode
+                    person={tree.people[v.id]!}
+                    level={cardLevel}
+                    {scale}
+                    selected={selectedId === v.id}
+                    portraitUrl={portraitUrls?.get(tree.people[v.id]?.portraitBlobId)}
+                    {...(v.isGhost && { isGhost: true })}
+                    onselect={(id: string) => onselect?.(id)}
+                    onedit={(id: string) => onedit?.(id)}
+                    oncontextmenu={(id: string, x: number, y: number) => oncontextmenu?.(id, x, y)}
+                    {...(v.isGhost && {
+                        onJumpToReal: () => {
+                            const realPos = layout.positions.get(v.id);
+                            if (realPos) centerOnPosition(realPos);
+                        },
+                    })}
+                />
+            </div>
         {/each}
     </div>
 
-    <div class="pointer-events-none absolute left-3 bottom-3 flex items-center gap-2">
-        <span
+    <div class="pointer-events-none absolute bottom-3 left-3 flex items-center gap-2">
+        <button
+            type="button"
             class="text-fg-muted bg-canvas-elev/80 border-line rounded-md border px-2 py-1 font-mono text-[10px]"
+            class:pointer-events-auto={!!ontoggleinspector}
+            class:hover:border-accent={!!ontoggleinspector}
+            class:cursor-pointer={!!ontoggleinspector}
+            class:cursor-default={!ontoggleinspector}
             title={layout.components.length > 1
                 ? `${String(layout.components.length)} clusters` +
                   (layout.isolated.length > 0
                       ? ` + ${String(layout.isolated.length)} isolated`
                       : "")
                 : undefined}
+            onclick={() => ontoggleinspector?.()}
         >
             {String(layout.totalPeople)} people
             {#if layout.components.length > 1 || layout.isolated.length > 0}
@@ -744,16 +682,35 @@
                     clusters</span
                 >
             {/if}
-        </span>
+        </button>
     </div>
 </div>
 
 <style>
+    .canvas-host {
+        cursor: grab;
+    }
+    .canvas-host.is-dragging {
+        cursor: grabbing !important;
+    }
     .canvas-stage {
         transition: opacity 200ms ease-out;
         will-change: transform;
+        contain: layout style;
     }
     .person-node-host {
         contain: layout style paint;
+        /* cards always render above the SVG edge layer regardless of any
+           future stacking-context shenanigans on the parent stage. */
+        z-index: 1;
+        /* opaque canvas-coloured backdrop so edges passing behind a card are
+           obscured rather than visible through PersonNode's translucent
+           gender tint (`bg-sky-700/35` etc.). matches PersonNode's `rounded-md`
+           so the backdrop doesn't leak around the card's rounded corners. */
+        background: var(--color-canvas);
+        border-radius: 0.375rem;
+    }
+    .person-node-host.is-isolated {
+        opacity: 0.55;
     }
 </style>

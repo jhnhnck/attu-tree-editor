@@ -48,7 +48,9 @@
         removePerson,
         unlinkParent,
         unlinkSpouse,
+        updateCouple,
         updatePerson,
+        type CouplePatch,
         type PersonPatch,
     } from "$lib/domain/tree";
     import { createTreeStore } from "$lib/state/tree.svelte";
@@ -93,6 +95,7 @@
     import ZoomWidget from "$lib/components/canvas/ZoomWidget.svelte";
     import SaveStatusPill from "$lib/components/shell/SaveStatusPill.svelte";
     import type { Person, PersonId } from "$lib/domain/types";
+    import { shortestPath } from "$lib/layout/graph";
 
     const PLACEHOLDERS = [
         { given: "Korak", surname: "Nokar", gender: "m" as const },
@@ -117,6 +120,14 @@
     let showHelp = $state(false);
     let showInspector = $state(true);
     let inspectorInitialTab = $state<"personal" | "connections" | "details" | "bio">("personal");
+
+    // path tracing state
+    let traceTargetId = $state<PersonId | undefined>(undefined);
+    let tracePath = $derived(
+        selection.selectedPersonId && traceTargetId
+            ? shortestPath(treeStore.tree, selection.selectedPersonId, traceTargetId)
+            : undefined
+    );
 
     // command palette
     let showPalette = $state(false);
@@ -431,6 +442,10 @@
         });
     }
 
+    function patchCouple(aId: PersonId, bId: PersonId, patch: CouplePatch): void {
+        treeStore.update((t) => updateCouple(t, aId, bId, patch));
+    }
+
     function createAndLink(forPersonId: PersonId, slot: ConnectionSlot): void {
         const t = treeStore.tree;
         const { tree: t1, id: newId } = addPerson(t, blankPerson());
@@ -492,10 +507,12 @@
                 label: "edit connections",
                 onclick: () => focusPerson(personId, "connections"),
             },
+            { divider: true },
             { label: "set as tree root", onclick: () => setRootAction(personId) },
             { label: "add parent", onclick: () => addParent(personId) },
             { label: "add partner", onclick: () => addPartner(personId) },
             { label: "add child", onclick: () => addChild(personId) },
+            { divider: true },
             { label: "delete person", onclick: () => deletePerson(personId) },
         ];
     }
@@ -836,7 +853,7 @@
                 <input
                     bind:this={titleEl}
                     bind:value={titleDraft}
-                    class="bg-canvas border-accent text-fg rounded border px-1.5 py-0.5 text-sm font-medium outline-none"
+                    class="bg-canvas border-accent text-fg rounded border px-1.5 py-0.5 text-base font-semibold outline-none"
                     onblur={commitTitle}
                     onkeydown={onTitleKey}
                     aria-label="tree title"
@@ -844,7 +861,7 @@
             {:else}
                 <button
                     type="button"
-                    class="text-fg hover:bg-canvas truncate rounded px-1.5 py-0.5 text-sm font-medium select-text"
+                    class="text-fg hover:bg-canvas truncate rounded px-1.5 py-0.5 text-base font-semibold select-text"
                     onclick={startTitleEdit}
                     title={readOnly ? treeStore.tree.name : "click to rename"}
                     disabled={readOnly}
@@ -868,7 +885,10 @@
                         onforceSave={() => void forceSave()}
                     />
                 {/if}
-                <AuthBar onSignedIn={() => void authStore.fetch()} />
+                <AuthBar
+                    onSignedIn={() => void authStore.fetch()}
+                    onerror={(msg: string) => toasts.push(msg, "error")}
+                />
             </div>
         </div>
 
@@ -962,6 +982,9 @@
                 }}
                 onscalechange={(s: number) => (canvasScale = s)}
                 onmodechange={(m: "select" | "hand") => (canvasMode = m)}
+                ontoggleinspector={() => (showInspector = !showInspector)}
+                traceIds={selection.selectedPersonId && traceTargetId ? [selection.selectedPersonId, traceTargetId] : undefined}
+                {tracePath}
             />
             {#if canvasController}
                 <ZoomWidget
@@ -990,11 +1013,14 @@
                 onremoveChild={removeChildLink}
                 oncreateAndLink={createAndLink}
                 onselect={(id: string) => focusPerson(id, "personal")}
+                onpatchCouple={patchCouple}
                 onduplicate={duplicatePerson}
                 onsetRoot={setRootAction}
                 ondelete={deletePerson}
                 onclose={() => (showInspector = false)}
                 onerror={(msg: string) => toasts.push(msg, "error")}
+                {traceTargetId}
+                onsetTraceTarget={(id: PersonId | undefined) => (traceTargetId = id)}
             />
         {/if}
 

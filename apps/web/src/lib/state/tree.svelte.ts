@@ -1,11 +1,18 @@
 /*
- * FamilyTreeEditor - $state container for the active Tree with snapshot-based undo/redo
+ * FamilyTreeEditor - $state container for the active Tree with delta-based undo/redo
  * licensed under the MIT license; see LICENSE.md for full text
  */
 
 import type { Tree } from "$lib/domain/types";
+import {
+    applyDiff,
+    diffTrees,
+    invertDiff,
+    isEmptyDiff,
+    type TreeDiff,
+} from "$lib/domain/treeDiff";
 
-const HISTORY_LIMIT = 200;
+const HISTORY_LIMIT = 1000;
 
 export interface TreeStore {
     readonly tree: Tree;
@@ -37,12 +44,12 @@ export interface TreeStore {
 
 export function createTreeStore(initial: Tree): TreeStore {
     let current = $state(initial);
-    let past = $state<Tree[]>([]);
-    let future = $state<Tree[]>([]);
+    let past = $state<TreeDiff[]>([]);
+    let future = $state<TreeDiff[]>([]);
     let dirty = $state(false);
 
-    function pushPast(snapshot: Tree): void {
-        past.push(snapshot);
+    function pushPast(diff: TreeDiff): void {
+        past.push(diff);
         if (past.length > HISTORY_LIMIT) past.shift();
     }
 
@@ -61,7 +68,9 @@ export function createTreeStore(initial: Tree): TreeStore {
         },
         set(next: Tree): void {
             if (next === current) return;
-            pushPast(current);
+            const diff = diffTrees(current, next);
+            if (isEmptyDiff(diff)) return;
+            pushPast(diff);
             future = [];
             current = next;
             dirty = true;
@@ -69,7 +78,9 @@ export function createTreeStore(initial: Tree): TreeStore {
         update(updater): void {
             const next = updater(current);
             if (next === current) return;
-            pushPast(current);
+            const diff = diffTrees(current, next);
+            if (isEmptyDiff(diff)) return;
+            pushPast(diff);
             future = [];
             current = next;
             dirty = true;
@@ -87,17 +98,17 @@ export function createTreeStore(initial: Tree): TreeStore {
             dirty = false;
         },
         undo(): void {
-            const prev = past.pop();
-            if (prev === undefined) return;
-            future.push(current);
-            current = prev;
+            const diff = past.pop();
+            if (diff === undefined) return;
+            future.push(diff);
+            current = applyDiff(current, invertDiff(diff));
             dirty = true;
         },
         redo(): void {
-            const ahead = future.pop();
-            if (ahead === undefined) return;
-            past.push(current);
-            current = ahead;
+            const diff = future.pop();
+            if (diff === undefined) return;
+            past.push(diff);
+            current = applyDiff(current, diff);
             dirty = true;
         },
     };

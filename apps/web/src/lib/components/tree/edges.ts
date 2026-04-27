@@ -1,17 +1,32 @@
 /*
- * FamilyTreeEditor - shared types for tree canvas (edges + node detail levels)
+ * FamilyTreeEditor - shared types for tree canvas (edge segments + node detail levels)
  * licensed under the MIT license; see LICENSE.md for full text
  */
 
-export type EdgeKind = "spouse" | "parent";
+import type { EdgeKind, EdgeRole } from "$lib/layout/edgeRouter";
+import type { PersonId } from "$lib/domain/types";
 
-export interface DerivedEdge {
-    kind: EdgeKind;
-    x1: number;
-    y1: number;
-    x2: number;
-    y2: number;
+/**
+ * A segment ready for rendering in the canvas's local pixel coordinate space.
+ * Produced by TreeCanvas by multiplying `routeEdges` output (in unit coords)
+ * by UNIT. The renderer styles each segment by role; `hops` carries the
+ * y-positions of bridge hops on vertical segments (Layer 3 will draw them
+ * as arc breaks; the current `<line>` renderer ignores them).
+ */
+export interface RenderedSegment {
+    readonly id: string;
+    readonly kind: EdgeKind;
+    readonly role: EdgeRole;
+    readonly x1: number;
+    readonly y1: number;
+    readonly x2: number;
+    readonly y2: number;
+    readonly hops?: readonly number[];
+    /** people represented by this segment (for path highlighting) */
+    readonly persons?: readonly PersonId[];
 }
+
+export type { EdgeKind, EdgeRole };
 
 /**
  * Detail level for PersonNode, set by the canvas based on zoom.

@@ -6,9 +6,9 @@
 #     - path: ./devel/FamilyTreeEditor/docker-compose.yml
 #       project_directory: ./devel/FamilyTreeEditor
 #
-# port assignments (set FAMILY_TREE_PORT to override):
-#   prod: 127.0.0.1:6014:8000   (attuproject.org/trees/)
-#   dev:  127.0.0.1:6024:8000   (dev.attuproject.org/trees/)
+# no ports: block - the wiki's mediawiki-container caddy proxies /trees/*
+# to attu-tree:8000 on the shared docker network. see
+# notes/features/wiki-integration.md §2.
 
 name: family-tree
 
@@ -43,8 +43,6 @@ services:
             driver: journald
         networks:
             - attu
-        ports:
-            - "127.0.0.1:${FAMILY_TREE_PORT:-6024}:8000"
         restart: unless-stopped
         volumes:
             - family-tree-data:/app/data

@@ -9,21 +9,20 @@
     import LinkCodeDialog from "$lib/components/shell/LinkCodeDialog.svelte";
 
     interface Props {
-        onSignedIn?: () => void;
+        onSignedIn?: (() => void) | undefined;
+        onerror?: ((msg: string) => void) | undefined;
     }
 
-    const { onSignedIn }: Props = $props();
+    const { onSignedIn, onerror }: Props = $props();
 
     let linkCode = $state<{ code: string; expiresAt: string } | null>(null);
-    let error = $state<string | null>(null);
 
     async function startSignIn(): Promise<void> {
-        error = null;
         try {
             const r = await authApi.start();
             linkCode = { code: r.code, expiresAt: r.expires_at };
         } catch {
-            error = "could not start sign-in. is the server running?";
+            onerror?.("could not start sign-in. is the server running?");
         }
     }
 
@@ -52,9 +51,6 @@
     <Button type="button" variant="ghost" onclick={startSignIn}>
         {#snippet children()}sign in{/snippet}
     </Button>
-    {#if error}
-        <span class="text-error text-xs">{error}</span>
-    {/if}
 {/if}
 
 {#if linkCode}

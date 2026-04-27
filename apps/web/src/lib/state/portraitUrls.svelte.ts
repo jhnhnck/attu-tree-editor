@@ -15,6 +15,8 @@ export interface PortraitUrlCache {
     get(blobId: string | undefined): string | undefined;
     /** kick off a fetch for a blob id; idempotent and cheap */
     request(blobId: string): void;
+    /** insert an already-resolved object URL so get() returns it immediately */
+    prime(blobId: string, objectUrl: string): void;
     /** revoke the URL for a blob (called when the underlying blob changes) */
     invalidate(blobId: string): void;
     /** revoke all URLs (called on tree swap or store teardown) */
@@ -56,6 +58,11 @@ export function createPortraitUrlCache(): PortraitUrlCache {
         },
         request(blobId: string): void {
             void fetchAndCache(blobId);
+        },
+        prime(blobId: string, objectUrl: string): void {
+            if (!cache.has(blobId)) {
+                cache.set(blobId, { url: objectUrl, revoked: false });
+            }
         },
         invalidate(blobId: string): void {
             const entry = cache.get(blobId);

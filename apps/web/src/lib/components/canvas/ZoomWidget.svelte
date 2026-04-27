@@ -132,6 +132,7 @@
         value={String(Math.round(scaleToSlider(scale) * 1000))}
         oninput={onSliderInput}
         class="zoom-slider h-1 w-32 appearance-none rounded"
+        style:--val="{Math.round(scaleToSlider(scale) * 100)}%"
         aria-label="zoom level"
     />
 

@@ -4,8 +4,11 @@
     licensed under the MIT license; see LICENSE.md for full text
 -->
 <script lang="ts">
-    import { ArrowRightLeft, Eye, Plus, X, UserPlus, Heart, Baby } from "@lucide/svelte";
-    import type { Person, PersonId, Tree } from "$lib/domain/types";
+    import { ArrowRight, ArrowRightLeft, Eye, Plus, X, XCircle, UserPlus, Heart, Baby } from "@lucide/svelte";
+    import type { CoupleRecord, Person, PersonId, Tree } from "$lib/domain/types";
+    import type { CouplePatch } from "$lib/domain/tree";
+    import type { HaracalndeDateData } from "$lib/date/HaracalndeDate";
+    import DateInput from "$lib/components/form/DateInput.svelte";
     import PersonChooser from "./PersonChooser.svelte";
 
     type ParentRole = "mother" | "father";
@@ -22,6 +25,11 @@
         onremoveChild: (parentId: PersonId, childId: PersonId) => void;
         oncreateAndLink: (slot: Slot) => void;
         onselect: (id: PersonId) => void;
+        onpatchCouple: (aId: PersonId, bId: PersonId, patch: CouplePatch) => void;
+        /** currently selected trace target, if any */
+        traceTargetId?: PersonId | undefined;
+        /** callback to set the trace target (path will be drawn on canvas) */
+        onsetTraceTarget?: ((id: PersonId | undefined) => void) | undefined;
     }
 
     let {
@@ -35,9 +43,13 @@
         onremoveChild,
         oncreateAndLink,
         onselect,
+        onpatchCouple,
+        traceTargetId,
+        onsetTraceTarget,
     }: Props = $props();
 
     let chooserSlot = $state<Slot | undefined>();
+    let traceMode = $state(false);
 
     const allPeople = $derived(Object.values(tree.people));
 
@@ -64,6 +76,24 @@
         return op ? `with ${fullName(op)}` : "(alone)";
     }
 
+    function coupleWith(p: Person): CoupleRecord | undefined {
+        return tree.couples.find(
+            (c) =>
+                (c.leftId === person.id && c.rightId === p.id) ||
+                (c.leftId === p.id && c.rightId === person.id),
+        );
+    }
+
+    function toggleCurrent(couple: CoupleRecord, partnerId: PersonId): void {
+        const ended = couple.isCurrent === false;
+        onpatchCouple(person.id, partnerId, { isCurrent: ended ? undefined : false });
+    }
+
+    function togglePrimary(couple: CoupleRecord, partnerId: PersonId): void {
+        const secondary = couple.isPrimary === false;
+        onpatchCouple(person.id, partnerId, { isPrimary: secondary ? undefined : false });
+    }
+
     function chooserExcludes(slot: Slot): PersonId[] {
         // exclude self always, plus the existing fillers for this slot
         const ex: PersonId[] = [person.id];
@@ -72,13 +102,19 @@
         return ex;
     }
 
-    function chooserTitle(slot: Slot): string {
+    function chooserTitle(slot: Slot | "trace"): string {
+        if (slot === "trace") return "trace path to…";
         if (slot.kind === "parent") return slot.role === "mother" ? "set mother" : "set father";
         if (slot.kind === "partner") return "add partner";
         return "add child";
     }
 
     function onpickFromChooser(id: PersonId): void {
+        if (traceMode) {
+            onsetTraceTarget?.(id);
+            traceMode = false;
+            return;
+        }
         const slot = chooserSlot;
         if (!slot) return;
         if (slot.kind === "parent") onsetParent(person.id, id, slot.role);
@@ -213,6 +249,7 @@
             partners ({partners.length})
         </h3>
         {#each partners as p (p.id)}
+            {@const couple = coupleWith(p)}
             <div class={rowCls}>
                 <button
                     type="button"
@@ -231,6 +268,38 @@
                     <X size={14} />
                 </button>
             </div>
+            {#if couple}
+                <div class="mb-1 flex items-center gap-2 px-2 text-[11px]">
+                    <div class="min-w-0 flex-1">
+                        <DateInput
+                            value={couple.marriageDate}
+                            placeholder="marriage date"
+                            onchange={(v: HaracalndeDateData | undefined) =>
+                                onpatchCouple(person.id, p.id, { marriageDate: v })}
+                        />
+                    </div>
+                    <button
+                        type="button"
+                        onclick={() => toggleCurrent(couple, p.id)}
+                        class="border-line text-fg-muted hover:text-fg shrink-0 rounded border px-1.5 py-0.5"
+                        class:text-amber-400={couple.isCurrent === false}
+                        class:border-amber-500={couple.isCurrent === false}
+                    >
+                        {couple.isCurrent === false ? "ended" : "married"}
+                    </button>
+                    {#if partners.length > 1}
+                        <button
+                            type="button"
+                            onclick={() => togglePrimary(couple, p.id)}
+                            class="border-line text-fg-muted hover:text-fg shrink-0 rounded border px-1.5 py-0.5"
+                            class:text-accent={couple.isPrimary !== false}
+                            class:border-accent={couple.isPrimary !== false}
+                        >
+                            {couple.isPrimary !== false ? "primary" : "secondary"}
+                        </button>
+                    {/if}
+                </div>
+            {/if}
         {/each}
         <div class="relative">
             <button
@@ -293,17 +362,47 @@
         </div>
     </section>
 
-    {#if chooserSlot}
+    <!-- trace path -->
+    <section class="space-y-1">
+        <button
+            type="button"
+            class={addBtnCls}
+            onclick={() => (traceMode = true)}
+            title="open person chooser to trace path"
+        >
+            <ArrowRight size={12} />
+            trace path to…
+        </button>
+        {#if traceTargetId}
+            {@const targetName = Object.values(tree.people).find((p) => p.id === traceTargetId)?.given || "?"}
+            <div class="flex items-center gap-1 px-1.5 py-1 text-xs text-fg-muted">
+                <span>tracing to {targetName}</span>
+                <button
+                    type="button"
+                    class={iconBtnCls}
+                    title="clear trace target"
+                    onclick={() => onsetTraceTarget?.(undefined)}
+                >
+                    <XCircle size={12} />
+                </button>
+            </div>
+        {/if}
+    </section>
+
+    {#if chooserSlot || traceMode}
         <!-- positioned absolute relative to the inspector body; renders as an overlay -->
         <div class="fixed inset-0 z-30 pointer-events-none">
             <div class="absolute right-3 top-32 pointer-events-auto">
                 <PersonChooser
                     people={allPeople}
-                    excludeIds={chooserExcludes(chooserSlot)}
-                    title={chooserTitle(chooserSlot)}
+                    excludeIds={traceMode ? [person.id] : chooserExcludes(chooserSlot!)}
+                    title={traceMode ? "trace path to…" : chooserTitle(chooserSlot!)}
                     onpick={onpickFromChooser}
-                    oncreate={oncreateFromChooser}
-                    onclose={() => (chooserSlot = undefined)}
+                    oncreate={traceMode ? () => {} : oncreateFromChooser}
+                    onclose={() => {
+                        chooserSlot = undefined;
+                        traceMode = false;
+                    }}
                 />
             </div>
         </div>

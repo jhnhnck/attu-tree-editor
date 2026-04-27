@@ -5,11 +5,15 @@
 <script lang="ts">
     import { onMount, onDestroy } from "svelte";
 
-    export interface ContextMenuItem {
+    export interface ContextMenuButton {
         label: string;
         onclick: () => void;
         disabled?: boolean;
     }
+    export interface ContextMenuDivider {
+        divider: true;
+    }
+    export type ContextMenuItem = ContextMenuButton | ContextMenuDivider;
 
     interface Props {
         x: number;
@@ -19,6 +23,10 @@
     }
 
     let { x, y, items, onclose }: Props = $props();
+
+    function isDivider(item: ContextMenuItem): item is ContextMenuDivider {
+        return "divider" in item;
+    }
 
     let menuEl: HTMLDivElement | undefined = $state();
 
@@ -54,24 +62,29 @@
 
 <div
     bind:this={menuEl}
-    class="bg-canvas-elev text-fg border-line fixed z-50 min-w-[10rem] rounded-md border py-1 shadow-xl"
+    class="bg-canvas-elev text-fg border-line fixed z-50 min-w-40 rounded-md border py-1 shadow-xl"
     style:left="{position.left}px"
     style:top="{position.top}px"
     role="menu"
 >
     {#each items as item, i (i)}
-        <button
-            type="button"
-            role="menuitem"
-            class="hover:bg-canvas focus:bg-canvas block w-full px-3 py-1.5 text-left text-sm outline-none disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={item.disabled ?? false}
-            onclick={() => {
-                if (item.disabled) return;
-                item.onclick();
-                onclose();
-            }}
-        >
-            {item.label}
-        </button>
+        {#if isDivider(item)}
+            <div class="border-line my-1 border-t" role="separator"></div>
+        {:else}
+            {@const btn = item as ContextMenuButton}
+            <button
+                type="button"
+                role="menuitem"
+                class="hover:bg-canvas focus:bg-canvas block w-full px-3 py-1.5 text-left text-sm outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={btn.disabled ?? false}
+                onclick={() => {
+                    if (btn.disabled) return;
+                    btn.onclick();
+                    onclose();
+                }}
+            >
+                {btn.label}
+            </button>
+        {/if}
     {/each}
 </div>

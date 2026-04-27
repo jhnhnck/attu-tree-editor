@@ -103,12 +103,12 @@ describe("createTreeStore", () => {
 
     it("history is capped: oldest snapshot is dropped past the limit", () => {
         const s = createTreeStore(emptyTree("v0"));
-        for (let i = 1; i <= 250; i += 1) {
+        for (let i = 1; i <= 1050; i += 1) {
             s.set(emptyTree(`v${String(i)}`));
         }
         // walk back as far as possible
         while (s.canUndo) s.undo();
-        // we should have lost at least the first 50 to the cap (250 set, 200 limit)
+        // we should have lost at least the first 50 to the cap (1050 set, 1000 limit)
         expect(s.tree.name).not.toBe("v0");
     });
 });

@@ -45,6 +45,26 @@ export function addPerson(t: Tree, p: Omit<Person, "id">): { tree: Tree; id: Per
     return { tree, id };
 }
 
+export type CouplePatch = {
+    marriageDate?: CoupleRecord["marriageDate"];
+    isPrimary?: CoupleRecord["isPrimary"];
+    isCurrent?: CoupleRecord["isCurrent"];
+};
+
+export function updateCouple(t: Tree, aId: PersonId, bId: PersonId, patch: CouplePatch): Tree {
+    const couples = t.couples.map((c) => {
+        if (!((c.leftId === aId && c.rightId === bId) || (c.leftId === bId && c.rightId === aId)))
+            return c;
+        const next: CoupleRecord = { ...c };
+        for (const [k, v] of Object.entries(patch) as [keyof CouplePatch, unknown][]) {
+            if (v === undefined) delete next[k];
+            else (next[k] as unknown) = v;
+        }
+        return next;
+    });
+    return { ...t, couples };
+}
+
 export function updatePerson(t: Tree, id: PersonId, patch: PersonPatch): Tree {
     const existing = t.people[id];
     if (!existing) return t;

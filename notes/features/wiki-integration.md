@@ -22,30 +22,29 @@ the integration is mostly about **plumbing** at the moment: caddy routing, compo
 
 ## 2. routing - caddy + compose
 
-### 2.1 host caddyfile (`/etc/caddy/Caddyfile.d/attuproject-org.caddyfile`)
+### 2.1 mediawiki container caddyfile (`config/Caddyfile`)
 
-the family-tree compose service binds `127.0.0.1:6014` (prod) and `127.0.0.1:6024` (dev). the existing `attuproject.org` and `dev.attuproject.org` blocks reverse-proxy everything to the wiki container; we need a `handle_path /trees/*` block **before** that catch-all so `/trees/...` traffic peels off to the editor.
+all external traffic already flows through the mediawiki container's caddy (the host-level reverse proxy passes everything to `:6010` / `:6008`). the right place to peel off `/trees/*` is therefore inside `config/Caddyfile`, where it can forward to `attu-tree:8000` on the shared docker network — no host-level caddy change needed.
+
+add a `handle_path /trees/*` block as the **first handler** inside the `:8080` site block:
 
 ```caddyfile
-attuproject.org:6443 {
-    import mozilla-ssl-modern
-    import tls-attu-project
-    import upload-max-100mb
-    import logging
+:8080 {
+	import max-body-100mb
+	import root
+	import logging
 
-    handle_path /trees/* {
-        reverse_proxy 127.0.0.1:6014
-    }
+	handle_path /trees/* {
+		reverse_proxy attu-tree:8000
+	}
 
-    reverse_proxy h2c://127.0.0.1:6010 {
-        import error-pages-no404
-    }
+	; ...rest of mediawiki config unchanged...
 }
 ```
 
-same shape on `dev.attuproject.org:443` with the dev port (`6024`).
+`handle_path` strips the `/trees` prefix before forwarding, so the tree service sees `/` and `/api/` as expected. the service is addressed by docker container name (`attu-tree`) on the shared `attu_dev` / `attu_prod` network — no host port binding is needed.
 
-`handle_path` (not `handle`) is important: it strips the `/trees` prefix before forwarding, because the family-tree container serves the spa at `/` and the api at `/api/`. the spa is built with `VITE_BASE=/trees/` so the html links back correctly even after the prefix strip.
+**editor-side note:** the `ports:` mapping in `FamilyTreeEditor/docker-compose.yml` (`127.0.0.1:${FAMILY_TREE_PORT:-6024}:8000`) is not required for this routing path. the editor team should remove it; all traffic reaches the container via `attu-tree:8000` on the docker network. `FAMILY_TREE_PORT` and the `ports:` key can be dropped from `docker-compose.yml`.
 
 ### 2.2 parent compose include
 
@@ -57,15 +56,13 @@ include:
     project_directory: ./devel/FamilyTreeEditor
 ```
 
-set `ATTU_NETWORK` and `FAMILY_TREE_PORT` per environment in the wiki's `.env`:
+set `ATTU_NETWORK` per environment in the wiki's `.env` (same file, different machine per env):
 
 | Var | Dev | Prod |
 | :--- | :--- | :--- |
 | `ATTU_NETWORK` | `attu_dev` | `attu_prod` |
-| `FAMILY_TREE_PORT` | `6024` | `6014` |
-| `VITE_BASE` | `/trees/` | `/trees/` |
 
-the `attu_dev` / `attu_prod` networks are both declared `attachable: true` in the wiki's compose, so the family-tree service can join them as `external: true`. it does not need the database, redis, or the mediawiki container itself - it only needs the network so future server-side wiki calls (autocomplete proxy, ingestion, etc.) can resolve `mediawiki:8080` directly without leaving the docker network.
+the `attu_dev` / `attu_prod` networks are both declared `attachable: true` in the wiki's compose, so the family-tree service can join them as `external: true`. it does not need the database, redis, or the mediawiki container itself - it only needs the network so the mediawiki caddy can resolve `attu-tree:8000` and so future server-side calls (autocomplete proxy, ingestion, etc.) can reach `mediawiki:8080` without leaving the docker network.
 
 both services already log to `journald`, so no logging plumbing changes.
 
@@ -185,9 +182,10 @@ these are the concrete tasks blocking go-live; mirrored in `notes/to-do.md` phas
 
 | Task | Where | Effort |
 | :--- | :--- | :--- |
-| add `handle_path /trees/*` blocks to host caddyfile (prod + dev) | `/etc/caddy/Caddyfile.d/attuproject-org.caddyfile` | low |
-| add `include:` directive for the family-tree compose | `attu-wiki-dev/docker-compose.{dev,prod}.yml` | low |
-| set `FAMILY_TREE_PORT` + `ATTU_NETWORK` per env | `attu-wiki-dev/.env` | trivial |
+| add `handle_path /trees/*` block | `attu-wiki-dev/config/Caddyfile` | low |
+| add `include:` directive for the family-tree compose | `attu-wiki-dev/docker-compose.{dev,prod}.yml` + `docker-compose.yml` | low |
+| set `ATTU_NETWORK` per env | `attu-wiki-dev/.env` | trivial |
+| remove `ports:` + `FAMILY_TREE_PORT` from editor compose | `FamilyTreeEditor/docker-compose.yml` | trivial |
 | (optional) add `$wgCrossSiteAJAXdomains` for non-`origin=*` autocomplete | `config/LocalSettings.php` | low; only if needed |
 
 deferred / future:
@@ -202,5 +200,5 @@ deferred / future:
 
 ```yaml
 last_updated: 26 April 2026
-status: contract-draft (routing + compose plumbing pending; template/gadget mechanism shelved pending §5 decision)
+status: contract-draft (routing + compose plumbing done; editor-side ports cleanup pending; template/gadget mechanism shelved pending §5 decision)
 ```

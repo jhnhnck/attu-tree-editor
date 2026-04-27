@@ -4,6 +4,7 @@
     licensed under the MIT license; see LICENSE.md for full text
 -->
 <script lang="ts">
+    import { MapPin } from "@lucide/svelte";
     import { HaracalndeDate, type HaracalndeDateData } from "$lib/date/HaracalndeDate";
     import type { Person } from "$lib/domain/types";
     import type { PersonNodeLevel } from "$lib/components/tree/edges";
@@ -15,9 +16,13 @@
         /** canvas scale, used to keep border thickness visually constant */
         scale?: number;
         portraitUrl?: string | undefined;
+        /** whether this is a ghost (duplicate adjacent to spouse) */
+        isGhost?: boolean;
         onselect?: (id: string) => void;
         onedit?: (id: string) => void;
         oncontextmenu?: (id: string, x: number, y: number) => void;
+        /** callback when user clicks the jump-to-real icon on a ghost card */
+        onJumpToReal?: ((id: string) => void) | undefined;
     }
 
     let {
@@ -26,9 +31,11 @@
         level = 0,
         scale = 1,
         portraitUrl,
+        isGhost = false,
         onselect,
         onedit,
         oncontextmenu,
+        onJumpToReal,
     }: Props = $props();
 
     let firstName = $derived(person.given.trim());
@@ -77,7 +84,7 @@
 
 <button
     type="button"
-    class="text-fg group relative flex h-full w-full flex-col items-stretch overflow-hidden px-2 py-1 text-center outline-none transition-colors hover:z-10 focus:outline-none focus-visible:outline-none {genderClass} {level >=
+    class="text-fg group relative flex h-full w-full flex-col items-stretch overflow-hidden px-2 py-1 text-center outline-none hover:z-10 focus:outline-none focus-visible:outline-none {genderClass} {level >=
     5
         ? 'rounded-full'
         : 'rounded-md'} {level === 0 && !portraitUrl ? 'justify-center' : ''}"
@@ -129,6 +136,27 @@
         <span class="m-auto text-6xl leading-none font-bold tracking-tight">{initials}</span>
     {/if}
     <!-- level 5: empty box, no text -->
+
+    {#if isGhost}
+        <div
+            class="absolute top-0 right-0 p-1 text-fg-muted hover:text-fg transition-colors cursor-pointer"
+            role="button"
+            tabindex="0"
+            title="Jump to real card"
+            onclick={(e) => {
+                e.stopPropagation();
+                onJumpToReal?.(person.id);
+            }}
+            onkeydown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                    e.stopPropagation();
+                    onJumpToReal?.(person.id);
+                }
+            }}
+        >
+            <MapPin size={16} />
+        </div>
+    {/if}
 </button>
 
 <style>

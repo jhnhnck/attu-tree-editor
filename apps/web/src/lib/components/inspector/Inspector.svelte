@@ -18,7 +18,7 @@
         X,
     } from "@lucide/svelte";
     import type { Person, PersonId, Tree } from "$lib/domain/types";
-    import type { PersonPatch } from "$lib/domain/tree";
+    import type { CouplePatch, PersonPatch } from "$lib/domain/tree";
     import type { PortraitUrlCache } from "$lib/state/portraitUrls.svelte";
     import PersonalTab from "./PersonalTab.svelte";
     import ConnectionsTab from "./ConnectionsTab.svelte";
@@ -47,11 +47,16 @@
         onremoveChild: (parentId: PersonId, childId: PersonId) => void;
         oncreateAndLink: (forPersonId: PersonId, slot: Slot) => void;
         onselect: (id: PersonId) => void;
+        onpatchCouple: (aId: PersonId, bId: PersonId, patch: CouplePatch) => void;
         onduplicate: (id: PersonId) => void;
         onsetRoot: (id: PersonId) => void;
         ondelete: (id: PersonId) => void;
         onclose: () => void;
         onerror?: (msg: string) => void;
+        /** for path tracing: currently selected trace target, if any */
+        traceTargetId?: PersonId | undefined;
+        /** callback to set the trace target (path will be drawn on canvas) */
+        onsetTraceTarget?: ((id: PersonId | undefined) => void) | undefined;
     }
 
     let {
@@ -70,11 +75,14 @@
         onremoveChild,
         oncreateAndLink,
         onselect,
+        onpatchCouple,
         onduplicate,
         onsetRoot,
         ondelete,
         onclose,
         onerror,
+        traceTargetId,
+        onsetTraceTarget,
     }: Props = $props();
 
     // activeTab is reseeded whenever the parent supplies a new selectedId or
@@ -145,10 +153,10 @@
     }
 
     const tabs: { id: Tab; label: string; icon: typeof User }[] = [
-        { id: "personal", label: "Personal", icon: User },
-        { id: "connections", label: "Connections", icon: Users },
-        { id: "details", label: "Details", icon: FileText },
-        { id: "bio", label: "Bio", icon: BookOpen },
+        { id: "personal", label: "personal", icon: User },
+        { id: "connections", label: "connections", icon: Users },
+        { id: "details", label: "details", icon: FileText },
+        { id: "bio", label: "bio", icon: BookOpen },
     ];
 </script>
 
@@ -238,7 +246,7 @@
         </header>
 
         <div
-            class="border-line bg-canvas-elev flex shrink-0 border-b text-xs"
+            class="border-line bg-canvas-elev flex shrink-0 border-b text-[11px]"
             role="tablist"
             aria-label="inspector tabs"
         >
@@ -249,14 +257,14 @@
                     role="tab"
                     aria-selected={activeTab === t.id}
                     aria-controls="inspector-panel"
-                    class="hover:bg-canvas flex flex-1 items-center justify-center gap-1 border-b-2 px-1 py-1.5"
+                    class="hover:bg-canvas -mb-px flex flex-1 items-center justify-center gap-1 border-b-2 px-1 py-1.5"
                     class:border-accent={activeTab === t.id}
                     class:text-accent={activeTab === t.id}
                     class:border-transparent={activeTab !== t.id}
                     class:text-fg-muted={activeTab !== t.id}
                     onclick={() => void openTab(t.id)}
                 >
-                    <Icon size={12} strokeWidth={2.25} />
+                    <Icon size={11} strokeWidth={2.25} />
                     {t.label}
                 </button>
             {/each}
@@ -283,6 +291,9 @@
                     {onremoveChild}
                     oncreateAndLink={(slot: Slot) => oncreateAndLink(person.id, slot)}
                     {onselect}
+                    {onpatchCouple}
+                    {traceTargetId}
+                    {onsetTraceTarget}
                 />
             {:else if activeTab === "details"}
                 <DetailsTab {person} onpatch={(p: PersonPatch) => onpatch(person.id, p)} />

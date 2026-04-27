@@ -35,7 +35,9 @@
     }
     interface CropperSelectionEl {
         aspectRatio: number;
+        bounded: boolean;
         $toCanvas(opts?: { width?: number; height?: number }): Promise<HTMLCanvasElement>;
+        $center(size?: "cover" | "contain"): CropperSelectionEl;
     }
     interface CropperV2 {
         getCropperImage(): CropperImageEl | null;
@@ -82,10 +84,14 @@
             // wait for the image element inside the cropper to finish loading
             await c.getCropperImage()?.$ready();
 
-            // lock to square (or caller's ratio); user selects the region, we
-            // resize to outputW × outputH on save rather than during selection
+            // lock to square (or caller's ratio), constrain to canvas bounds,
+            // and expand the initial selection to fill the image
             const sel = c.getCropperSelection();
-            if (sel) sel.aspectRatio = outputW / outputH;
+            if (sel) {
+                sel.aspectRatio = outputW / outputH;
+                sel.bounded = true;
+                sel.$center("contain");
+            }
 
             cropper = c;
             cropperReady = true;
@@ -165,7 +171,7 @@
             </button>
         </header>
 
-        <div class="bg-canvas flex min-h-[20rem] items-center justify-center p-3">
+        <div class="bg-canvas flex min-h-80 items-center justify-center p-3">
             {#if imageUrl}
                 <img bind:this={imgEl} src={imageUrl} alt="" class="block max-h-full max-w-full" />
             {:else}
