@@ -48,7 +48,7 @@ test-results/
 .pnpm-store/
 
 ### Claude ###
-.claude/
+.claude/*.local.json
 .playwright-mcp/
 
 ### Notes ###

@@ -1,0 +1,35 @@
+{
+    "attribution": {
+        "commit": "",
+        "pr": ""
+    },
+    "includeCoAuthoredBy": false,
+    "permissions": {
+        "allow": [
+            "WebSearch",
+            "WebFetch(domain:www.familyecho.com)",
+            "Read(//srv/services/attu-wiki-dev/devel/**)",
+            "Bash(pnpm -F web test:unit)",
+            "WebFetch(domain:github.com)",
+            "WebFetch(domain:www.npmjs.com)",
+            "WebFetch(domain:gedcom.io)",
+            "WebFetch(domain:en.wikipedia.org)",
+            "Bash(pnpm verify *)",
+            "Bash(pnpm -F web test:unit --run)",
+            "mcp__filesystem__read_text_file",
+            "Bash(pnpm prettier *)",
+            "Bash(pnpm test:unit)",
+            "Bash(pnpm test:unit --reporter=verbose)",
+            "mcp__filesystem__directory_tree",
+            "mcp__filesystem__list_directory",
+            "Bash(pnpm -F web add @lucide/svelte)",
+            "Bash(pnpm -F web typecheck)",
+            "Bash(pnpm -F web lint)",
+            "Bash(pnpm -F web format)",
+            "Bash(pnpm typecheck *)",
+            "Bash(pnpm lint *)",
+            "Bash(pnpm --filter web exec vitest run)"
+        ],
+        "additionalDirectories": ["/home/jhn/.claude/plans"]
+    }
+}
