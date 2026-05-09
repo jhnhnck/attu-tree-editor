@@ -36,14 +36,19 @@ const LANE_H = GUTTER_H / N_LANES; // 0.2 units per lane
 const HOP_EPSILON = 0.001;
 
 /**
- * Bond horizontal span (gap between card edges) beyond which we emit two
- * short stubs instead of a full line. Prevents wall-to-wall bonds when
- * two partners end up in distant subtree clusters.
+ * Hard ceiling for the bond-span beyond which a bond becomes two stubs.
  * Adjacent DELTA-spaced spouses have a gap of DELTA − PERSON_W = 0.5 u.
  * Couples a few cluster-boundaries apart can be 8–20 u; only stub bonds
  * that are truly wall-to-wall (25+ u ≈ 2000 px at unit scale).
+ *
+ * Used as a ceiling — the effective threshold scales with placed.bbox.width
+ * (`min(MAX_BOND_SPAN_CEILING, bbox.width / 4)`) so a tree wide enough that
+ * 25 u is a small fraction of its span (e.g. a 1000-person mass) still emits
+ * full bonds for moderate-distance couples instead of stubbing every one.
+ * Phase 2's libavoid-routed bond bundles will replace this heuristic
+ * outright.
  */
-const MAX_BOND_SPAN = 25; // units
+const MAX_BOND_SPAN_CEILING = 25; // units
 /** Length of each stub segment (extends from the card edge outward). */
 const STUB_LEN = 0.6; // units
 
@@ -126,6 +131,26 @@ function buildSegments(placed: PlacedGraph, tree: Tree): readonly Segment[] {
     const handled = new Set<PersonId>();
     const lanes = new GutterLanes();
 
+    // Scale the stub-vs-bond threshold to the tree's overall width so it
+    // doesn't fire indiscriminately on dense layouts where 25 u is a small
+    // fraction of the canvas.
+    const maxBondSpan = Math.min(MAX_BOND_SPAN_CEILING, placed.bbox.width / 4);
+
+    // Drop-height invariant: parent-drop and child-drop segments are vertical
+    // descents from a higher rank to a lower one, so y must increase. Negative
+    // drops imply a layering bug upstream (most often single-parent rank
+    // assignment in layer.ts for a cross-rank parent). Phase 0 just wants the
+    // assertion to fire loudly so the regression class can't hide; the root-
+    // cause fix lives in Phase 6.
+    const pushDrop = (s: Segment): void => {
+        if (s.y2 < s.y1 - 1e-6) {
+            console.warn(
+                `[route] negative drop height for ${s.kind} ${s.id}: y1=${String(s.y1)} y2=${String(s.y2)} (${String(s.y2 - s.y1)} u)`,
+            );
+        }
+        out.push(s);
+    };
+
     // Ghost lookup: "personId|nearId" → ghostLayoutNodeId
     const ghostByKey = new Map<string, LayoutNodeId>();
     for (const [nodeId, node] of placed.nodes) {
@@ -187,7 +212,7 @@ function buildSegments(placed: PlacedGraph, tree: Tree): readonly Segment[] {
             const [l, r] = midX(aPos) <= midX(bPos) ? [aPos, bPos] : [bPos, aPos];
             const bondY = (midY(l) + midY(r)) / 2;
             const bondSpan = leftX(r) - rightX(l);
-            const isLongBond = bondSpan > MAX_BOND_SPAN;
+            const isLongBond = bondSpan > maxBondSpan;
 
             if (isLongBond) {
                 // Partners are in distant subtree clusters; draw two short stubs
@@ -235,7 +260,7 @@ function buildSegments(placed: PlacedGraph, tree: Tree): readonly Segment[] {
                 const lane = lanes.alloc(aPos.rank, busMinX, busMaxX);
                 const busY = lanes.laneY(aPos.rank, lane);
 
-                out.push({
+                pushDrop({
                     id: `couple:${bondKey}/drop`,
                     kind: "parent-drop",
                     role: "blood",
@@ -263,7 +288,7 @@ function buildSegments(placed: PlacedGraph, tree: Tree): readonly Segment[] {
                     handled.add(id);
                 }
                 for (const [cx, { y, id }] of deepestByX) {
-                    out.push({
+                    pushDrop({
                         id: `couple:${bondKey}/child:${id}`,
                         kind: "child-drop",
                         role: "blood",
@@ -286,7 +311,7 @@ function buildSegments(placed: PlacedGraph, tree: Tree): readonly Segment[] {
             out.push({ id: `${bondIdBase}/v2`, kind: "bond", role, x1: lx, y1: midYVal,     x2: lx, y2: topY(lower), persons: couplePersons });
             // For the horizontal cross-piece, stub when the partners are far
             // apart so we avoid a wall-to-wall line through unrelated subtrees.
-            if (Math.abs(lx - ux) > MAX_BOND_SPAN) {
+            if (Math.abs(lx - ux) > maxBondSpan) {
                 out.push({ id: `${bondIdBase}/stub-l`, kind: "stub", role, x1: ux, y1: midYVal, x2: ux + STUB_LEN, y2: midYVal, persons: couplePersons });
                 out.push({ id: `${bondIdBase}/stub-r`, kind: "stub", role, x1: lx - STUB_LEN, y1: midYVal, x2: lx, y2: midYVal, persons: couplePersons });
             } else {
@@ -322,13 +347,13 @@ function buildSegments(placed: PlacedGraph, tree: Tree): readonly Segment[] {
             const cx = midX(c.pos);
             const cy = topY(c.pos);
             if (Math.abs(cx - dropX) < 1e-6) {
-                out.push({ id: `single:${parentId}/${c.id}`, kind: "child-drop", role: "blood", x1: dropX, y1: dropFromY, x2: cx, y2: cy, persons: [parentId, c.id] });
+                pushDrop({ id: `single:${parentId}/${c.id}`, kind: "child-drop", role: "blood", x1: dropX, y1: dropFromY, x2: cx, y2: cy, persons: [parentId, c.id] });
             } else {
                 const lane = lanes.alloc(parentPos.rank, Math.min(dropX, cx), Math.max(dropX, cx));
                 const busY = lanes.laneY(parentPos.rank, lane);
-                out.push({ id: `single:${parentId}/${c.id}/v1`, kind: "parent-drop", role: "blood", x1: dropX, y1: dropFromY, x2: dropX, y2: busY, persons: [parentId, c.id] });
+                pushDrop({ id: `single:${parentId}/${c.id}/v1`, kind: "parent-drop", role: "blood", x1: dropX, y1: dropFromY, x2: dropX, y2: busY, persons: [parentId, c.id] });
                 out.push({ id: `single:${parentId}/${c.id}/h`,  kind: "sibling-bus", role: "blood", x1: dropX, y1: busY,      x2: cx,    y2: busY, persons: [parentId, c.id] });
-                out.push({ id: `single:${parentId}/${c.id}/v2`, kind: "child-drop",  role: "blood", x1: cx,    y1: busY,      x2: cx,    y2: cy,   persons: [parentId, c.id] });
+                pushDrop({ id: `single:${parentId}/${c.id}/v2`, kind: "child-drop",  role: "blood", x1: cx,    y1: busY,      x2: cx,    y2: cy,   persons: [parentId, c.id] });
             }
         } else {
             const xs = kids.map((k) => midX(k.pos));
@@ -336,7 +361,7 @@ function buildSegments(placed: PlacedGraph, tree: Tree): readonly Segment[] {
             const busMaxX = Math.max(...xs, dropX);
             const lane = lanes.alloc(parentPos.rank, busMinX, busMaxX);
             const busY = lanes.laneY(parentPos.rank, lane);
-            out.push({ id: `single:${parentId}/drop`, kind: "parent-drop", role: "blood", x1: dropX, y1: dropFromY, x2: dropX, y2: busY, persons: [parentId] });
+            pushDrop({ id: `single:${parentId}/drop`, kind: "parent-drop", role: "blood", x1: dropX, y1: dropFromY, x2: dropX, y2: busY, persons: [parentId] });
             if (busMinX < busMaxX) {
                 out.push({ id: `single:${parentId}/bus`, kind: "sibling-bus", role: "blood", x1: busMinX, y1: busY, x2: busMaxX, y2: busY, persons: [parentId] });
             }
@@ -348,7 +373,7 @@ function buildSegments(placed: PlacedGraph, tree: Tree): readonly Segment[] {
                 if (!cur || cy > cur.y) deepestByX.set(cx, { y: cy, id: k.id });
             }
             for (const [cx, { y, id }] of deepestByX) {
-                out.push({ id: `single:${parentId}/child:${id}`, kind: "child-drop", role: "blood", x1: cx, y1: busY, x2: cx, y2: y, persons: [parentId, id] });
+                pushDrop({ id: `single:${parentId}/child:${id}`, kind: "child-drop", role: "blood", x1: cx, y1: busY, x2: cx, y2: y, persons: [parentId, id] });
             }
         }
     }
