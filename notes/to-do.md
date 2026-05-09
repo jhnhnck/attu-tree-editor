@@ -242,6 +242,7 @@ _phase 5 largely complete; see the completed section below_
 - 🔴 `9 May 2026` `passes/order.ts` `computeInitialOrder.dfs` made iterative - the recursive variant blew the stack on deep straight-line ancestries (genealogy data routinely has 50+ generation chains). Stack-safety regression test exercises a 5,000-generation lineage
 - 🔴 `9 May 2026` `TreeCanvas.svelte` `window.__treeDebug` exposure now snapshots state - replaced the live-`$state` capture with `$state.snapshot()` so devtools mutations through the debug handle can't write back into the editor's source of truth
 - 🔴 `9 May 2026` `passes/layer.ts` `computeRanks` cycle warning - Kahn's BFS used to silently bucket cycle members at rank 0; now emits a `console.warn` and surfaces the cycle node ids via the new optional `LayeredGraph.cycleNodes` field, exposed on `window.__treeDebug.cycleNodes` for inspection
+- 🔴 `9 May 2026` `EdgeLayer.svelte` stub-cap dasharray regression - cap paths used to inherit `.edge-divorced { stroke-dasharray: 6 4 }` from the role bucket and disappear (gap longer than the cap itself). Caps now use a dedicated `.edge-stub-cap` solid class regardless of role
 
 ---
 

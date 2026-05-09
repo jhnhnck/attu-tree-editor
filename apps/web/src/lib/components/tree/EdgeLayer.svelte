@@ -86,8 +86,12 @@
         {#if role === "married" || role === "divorced"}
             {@const caps = stubCapsForGroup(segs)}
             {#if caps}
+                <!-- caps use a dedicated solid class regardless of role:
+                     stubs are tiny markers and inheriting `.edge-divorced`'s
+                     `stroke-dasharray: 6 4` made the dashes longer than the
+                     cap itself, leaving them invisible. -->
                 <path
-                    class={classFor(role)}
+                    class="edge-stub-cap"
                     d={caps}
                     vector-effect="non-scaling-stroke"
                     style:stroke-width="{strokeWidthFor(role)}px"
@@ -114,7 +118,8 @@
     }
     .edge-married,
     .edge-divorced,
-    .edge-divorced-tick {
+    .edge-divorced-tick,
+    .edge-stub-cap {
         stroke: var(--color-fg-muted);
     }
     /* dashed line carries the divorced cue alongside the // tick — the line
