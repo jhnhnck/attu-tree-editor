@@ -6,7 +6,13 @@
 @import "tailwindcss";
 
 /* color tokens matched to attuproject.org's citizen skin
- * (cool dark blue-grey chrome, bright blue accent at hue 220deg) */
+ * (cool dark blue-grey chrome, bright blue accent at hue 220deg)
+ *
+ * dark values live in @theme so tailwind v4 generates the utility classes
+ * (bg-canvas, text-fg, border-line, etc). values are CSS variables on :root
+ * and follow normal cascade, so the data-theme selectors below override at
+ * runtime when the user picks an explicit theme via the settings dialog.
+ */
 @theme {
     --color-canvas: hsl(220 30% 5%); /* #0a0d12 - near-black blue (wiki theme-color) */
     --color-canvas-elev: hsl(220 35% 10%); /* #111721 - lifted surface */
@@ -17,8 +23,12 @@
     --color-accent-strong: hsl(220 100% 75%); /* #80acff - hover/active */
 }
 
+/* prefers-color-scheme switches the palette only when the user has *not*
+ * pinned a theme via the settings dialog. without :not([data-theme]) the
+ * media query would override an explicit data-theme="dark" for users whose
+ * OS is set to light. */
 @media (prefers-color-scheme: light) {
-    @theme {
+    :root:not([data-theme]) {
         --color-canvas: hsl(220 30% 97%); /* #f5f7fa */
         --color-canvas-elev: hsl(220 35% 92%); /* #e4e9f0 */
         --color-fg: hsl(220 12% 18%); /* #282d35 */
@@ -27,6 +37,26 @@
         --color-accent: hsl(220 100% 45%); /* #0057e6 */
         --color-accent-strong: hsl(220 100% 35%); /* #0044b3 */
     }
+}
+
+:root[data-theme="light"] {
+    --color-canvas: hsl(220 30% 97%);
+    --color-canvas-elev: hsl(220 35% 92%);
+    --color-fg: hsl(220 12% 18%);
+    --color-fg-muted: hsl(220 12% 35%);
+    --color-line: hsl(220 25% 78%);
+    --color-accent: hsl(220 100% 45%);
+    --color-accent-strong: hsl(220 100% 35%);
+}
+
+:root[data-theme="dark"] {
+    --color-canvas: hsl(220 30% 5%);
+    --color-canvas-elev: hsl(220 35% 10%);
+    --color-fg: hsl(220 10% 88%);
+    --color-fg-muted: hsl(220 15% 72%);
+    --color-line: hsl(220 25% 22%);
+    --color-accent: hsl(220 100% 65%);
+    --color-accent-strong: hsl(220 100% 75%);
 }
 
 html,

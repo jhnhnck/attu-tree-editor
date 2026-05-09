@@ -39,6 +39,7 @@ function tree(overrides: Partial<Tree> = {}): Tree {
 const portraitUrls: PortraitUrlCache = {
     get: () => undefined,
     request: () => undefined,
+    prime: () => undefined,
     invalidate: () => undefined,
     clear: () => undefined,
 };
@@ -56,6 +57,7 @@ function baseProps() {
         onremoveChild: vi.fn(),
         oncreateAndLink: vi.fn(),
         onselect: vi.fn(),
+        onpatchCouple: vi.fn(),
         onduplicate: vi.fn(),
         onsetRoot: vi.fn(),
         ondelete: vi.fn(),

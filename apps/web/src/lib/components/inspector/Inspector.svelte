@@ -36,6 +36,8 @@
         treeId: string;
         portraitUrls: PortraitUrlCache;
         readOnly?: boolean;
+        /** which side of the canvas to dock against; controls border placement */
+        side?: "left" | "right";
         /** which tab to show on selection change. "connections" jumps via context menu. */
         initialTab?: Tab;
         onpatch: (id: PersonId, patch: PersonPatch) => void;
@@ -65,6 +67,7 @@
         treeId,
         portraitUrls,
         readOnly = false,
+        side = "right",
         initialTab = "personal",
         onpatch,
         onsetParent,
@@ -90,6 +93,14 @@
     let activeTab = $state<Tab>("personal");
     let menuOpen = $state(false);
     let menuEl: HTMLDivElement | undefined = $state();
+
+    // responsive mode: "sheet" on narrow viewports, "side" otherwise
+    const mql = typeof window !== "undefined" && window.matchMedia
+        ? window.matchMedia("(max-width: 600px)")
+        : null;
+    let isSheet = $state(mql?.matches ?? false);
+    // iOS Safari shrinks visualViewport (not layout viewport) when the keyboard appears
+    let sheetMaxH = $state(window.visualViewport?.height ?? window.innerHeight ?? 800);
 
     const person = $derived(selectedId ? tree.people[selectedId] : undefined);
 
@@ -140,11 +151,22 @@
         menuOpen = false;
     }
 
+    function onMqlChange(e: MediaQueryListEvent): void {
+        isSheet = e.matches;
+    }
+    function onViewportResize(): void {
+        sheetMaxH = window.visualViewport?.height ?? window.innerHeight;
+    }
+
     onMount(() => {
         window.addEventListener("pointerdown", onWindowDown, true);
+        mql?.addEventListener("change", onMqlChange);
+        window.visualViewport?.addEventListener("resize", onViewportResize);
     });
     onDestroy(() => {
         window.removeEventListener("pointerdown", onWindowDown, true);
+        mql?.removeEventListener("change", onMqlChange);
+        window.visualViewport?.removeEventListener("resize", onViewportResize);
     });
 
     async function openTab(t: Tab): Promise<void> {
@@ -161,7 +183,18 @@
 </script>
 
 <aside
-    class="bg-canvas-elev border-line text-fg flex h-full w-90 shrink-0 flex-col border-l"
+    class="bg-canvas-elev border-line text-fg flex shrink-0 flex-col"
+    class:h-full={!isSheet}
+    class:w-90={!isSheet}
+    class:border-l={!isSheet && side === "right"}
+    class:border-r={!isSheet && side === "left"}
+    class:absolute={isSheet}
+    class:inset-x-0={isSheet}
+    class:bottom-0={isSheet}
+    class:rounded-t-lg={isSheet}
+    class:border-t={isSheet}
+    class:z-50={isSheet}
+    style={isSheet ? `max-height: ${String(Math.round(sheetMaxH * 0.75))}px` : undefined}
     aria-label="person inspector"
 >
     {#if person}

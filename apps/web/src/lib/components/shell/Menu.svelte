@@ -24,6 +24,8 @@
     let buttonEl: HTMLButtonElement | undefined = $state();
     let menuEl: HTMLDivElement | undefined = $state();
     let activeIdx = $state(-1);
+    // plain var, not reactive — read inside $effect when `open` changes
+    let openedVia: "keyboard" | "mouse" | undefined = undefined;
 
     const enabledItems = $derived(
         items
@@ -33,7 +35,10 @@
 
     function toggle(): void {
         if (open) onclose();
-        else onopen();
+        else {
+            openedVia = "mouse";
+            onopen();
+        }
     }
 
     function selectItem(item: MenuItem): void {
@@ -94,15 +99,19 @@
             onnavigate?.("right");
         } else if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ") {
             e.preventDefault();
-            if (!open) onopen();
+            if (!open) {
+                openedVia = "keyboard";
+                onopen();
+            }
         }
     }
 
     $effect(() => {
         if (open) {
-            void focusFirst();
+            if (openedVia !== "mouse") void focusFirst();
         } else {
             activeIdx = -1;
+            openedVia = undefined;
         }
     });
 </script>
@@ -117,7 +126,7 @@
         aria-expanded={open}
         onclick={toggle}
         onkeydown={onButtonKey}
-        onmouseenter={() => onhover?.()}
+        onmouseenter={() => { openedVia = "mouse"; onhover?.(); }}
     >
         {label}
     </button>

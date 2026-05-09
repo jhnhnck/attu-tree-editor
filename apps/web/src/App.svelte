@@ -56,7 +56,9 @@
     import { createTreeStore } from "$lib/state/tree.svelte";
     import { createSelectionStore } from "$lib/state/selection.svelte";
     import { createToastsStore } from "$lib/state/toasts.svelte";
+    import { createProgressStore } from "$lib/state/progress.svelte";
     import { createPortraitUrlCache } from "$lib/state/portraitUrls.svelte";
+    import { createPreferencesStore } from "$lib/state/preferences.svelte";
     import { makeAutosaver } from "$lib/state/autosave";
     import { authStore } from "$lib/state/auth.svelte";
     import { syncStore } from "$lib/state/sync.svelte";
@@ -77,12 +79,14 @@
     import TreeCanvas from "$lib/components/tree/TreeCanvas.svelte";
     import type { CanvasController } from "$lib/components/tree/canvasController";
     import Inspector from "$lib/components/inspector/Inspector.svelte";
+    import ProgressStrip from "$lib/components/shell/ProgressStrip.svelte";
     import Toasts from "$lib/components/ui/Toasts.svelte";
     import ContextMenu, { type ContextMenuItem } from "$lib/components/ui/ContextMenu.svelte";
     import OpenDialog from "$lib/components/shell/OpenDialog.svelte";
     import AuthBar from "$lib/components/shell/AuthBar.svelte";
     import ShareDialog from "$lib/components/shell/ShareDialog.svelte";
     import AdminPanel from "$lib/components/shell/AdminPanel.svelte";
+    import SettingsDialog from "$lib/components/shell/SettingsDialog.svelte";
     import MenuBar from "$lib/components/shell/MenuBar.svelte";
     import type { MenuConfig, MenuEntry, IconComponent } from "$lib/components/shell/menu";
     import ShortcutsOverlay from "$lib/components/help/ShortcutsOverlay.svelte";
@@ -112,15 +116,16 @@
     const treeStore = createTreeStore(emptyTree());
     const selection = createSelectionStore();
     const toasts = createToastsStore();
+    const progress = createProgressStore();
     const portraitUrls = createPortraitUrlCache();
+    const prefs = createPreferencesStore();
 
     let recents = $state<TreeListing[]>([]);
     let firstLoadComplete = $state(false);
     let showShare = $state(false);
     let showAdmin = $state(false);
     let showHelp = $state(false);
-    let showInspector = $state(true);
-    let inspectorInitialTab = $state<"personal" | "connections" | "details" | "bio">("personal");
+    let showSettings = $state(false);
 
     // debug overlay state
     let debugOpen = $state(false);
@@ -134,6 +139,8 @@
         showOverlapPairs: false,
         exposeTreeDebug: false,
     });
+    let showInspector = $state(true);
+    let inspectorInitialTab = $state<"personal" | "connections" | "details" | "bio">("personal");
 
     // path tracing state
     let traceTargetId = $state<PersonId | undefined>(undefined);
@@ -213,6 +220,10 @@
     });
 
     onMount(async () => {
+        // hydrate user prefs first so theme + inspector side are applied before
+        // any sub-components mount; theme uses prefers-color-scheme until then
+        await prefs.hydrate();
+
         const viewMatch = /\/view\/([^/?#]+)/.exec(window.location.pathname);
         if (viewMatch?.[1]) {
             await loadViewRoute(viewMatch[1]);
@@ -541,7 +552,7 @@
     }
 
     async function importFile(file: File): Promise<void> {
-        const loadingId = toasts.push(`reading ${file.name}…`, "info", 60_000);
+        const handle = progress.start(`reading ${file.name}…`);
         try {
             const r = await importFileFromBytes(file);
             if (!r.ok) {
@@ -553,7 +564,7 @@
         } catch (err) {
             toasts.push(`import error: ${String(err)}`, "error");
         } finally {
-            toasts.dismiss(loadingId);
+            progress.finish(handle);
         }
     }
 
@@ -711,7 +722,7 @@
         appOpen: () => (showOpenDialog = true),
         appImport: () => triggerImport(),
         appExport: () => onExport(),
-        appSettings: () => stub("Settings"),
+        appSettings: () => (showSettings = true),
         appHelp: () => (showHelp = true),
         viewFit: () => withCanvas((c) => c.fit()),
         viewZoom100: () => withCanvas((c) => c.zoom100()),
@@ -872,126 +883,161 @@
 </script>
 
 <div class="bg-canvas text-fg flex h-dvh flex-col">
-    <header class="border-line bg-canvas-elev flex flex-col border-b">
-        <!-- title strip -->
-        <div class="flex items-center gap-3 px-3 py-1">
-            <TreePine size={18} class="text-accent shrink-0" aria-label="family tree editor" />
-            {#if titleEditing}
-                <input
-                    bind:this={titleEl}
-                    bind:value={titleDraft}
-                    class="bg-canvas border-accent text-fg rounded border px-1.5 py-0.5 text-base font-semibold outline-none"
-                    onblur={commitTitle}
-                    onkeydown={onTitleKey}
-                    aria-label="tree title"
-                />
-            {:else}
-                <button
-                    type="button"
-                    class="text-fg hover:bg-canvas truncate rounded px-1.5 py-0.5 text-base font-semibold select-text"
-                    onclick={startTitleEdit}
-                    title={readOnly ? treeStore.tree.name : "click to rename"}
-                    disabled={readOnly}
-                >
-                    {treeStore.tree.name || "untitled"}
-                </button>
-            {/if}
-            {#if readOnly}
-                <span class="text-fg-muted text-xs">(read-only)</span>
-            {/if}
-            <div class="ml-auto flex items-center gap-2">
-                {#if !readOnly}
-                    <SaveStatusPill
-                        {lastSavedAt}
-                        syncMode={syncStore.mode}
-                        {syncedFlashUntil}
-                        {lastError}
-                        onretry={() => void forceSave()}
-                        onconflict={() =>
-                            toasts.push("save conflict — see console for details", "error")}
-                        onforceSave={() => void forceSave()}
-                    />
-                {/if}
-                <AuthBar
-                    onSignedIn={() => void authStore.fetch()}
-                    onerror={(msg: string) => toasts.push(msg, "error")}
-                />
-            </div>
-        </div>
+    <header class="border-line bg-canvas-elev flex h-9 items-center gap-0.5 border-b px-2">
+        <!-- identity -->
+        <TreePine size={16} class="text-accent mr-1 shrink-0" aria-label="family tree editor" />
+        {#if titleEditing}
+            <input
+                bind:this={titleEl}
+                bind:value={titleDraft}
+                class="bg-canvas border-accent text-fg rounded border px-1.5 py-0.5 text-sm font-semibold outline-none"
+                onblur={commitTitle}
+                onkeydown={onTitleKey}
+                aria-label="tree title"
+            />
+        {:else}
+            <button
+                type="button"
+                class="text-fg hover:bg-canvas truncate rounded px-1.5 py-0.5 text-sm font-semibold select-text"
+                onclick={startTitleEdit}
+                title={readOnly ? treeStore.tree.name : "click to rename"}
+                disabled={readOnly}
+            >
+                {treeStore.tree.name || "untitled"}
+            </button>
+        {/if}
+        {#if readOnly}
+            <span class="text-fg-muted text-xs">(read-only)</span>
+        {/if}
 
-        <!-- menu bar + actions -->
-        <div class="border-line flex items-center gap-1 border-t px-2 py-0.5">
-            <MenuBar {menus} />
+        <div class="border-line mx-1.5 h-5 w-px shrink-0 border-l"></div>
 
-            <div class="ml-auto flex items-center gap-0.5">
-                {#if !readOnly}
-                    <button
-                        type="button"
-                        class="text-fg hover:bg-canvas flex h-7 w-7 items-center justify-center rounded disabled:cursor-not-allowed disabled:opacity-40"
-                        title="Undo (Ctrl+Z)"
-                        aria-label="Undo"
-                        disabled={!treeStore.canUndo}
-                        onclick={() => treeStore.undo()}
-                    >
-                        <Undo2 size={16} />
-                    </button>
-                    <button
-                        type="button"
-                        class="text-fg hover:bg-canvas flex h-7 w-7 items-center justify-center rounded disabled:cursor-not-allowed disabled:opacity-40"
-                        title="Redo (Ctrl+Y)"
-                        aria-label="Redo"
-                        disabled={!treeStore.canRedo}
-                        onclick={() => treeStore.redo()}
-                    >
-                        <Redo2 size={16} />
-                    </button>
-                {/if}
+        <!-- menus -->
+        <MenuBar {menus} />
 
-                {#if authStore.user && !readOnly}
-                    <button
-                        type="button"
-                        class="text-fg hover:bg-canvas flex h-7 w-7 items-center justify-center rounded"
-                        title="Share"
-                        aria-label="Share"
-                        onclick={() => (showShare = !showShare)}
-                    >
-                        <Share2 size={16} />
-                    </button>
-                {/if}
+        <div class="border-line mx-1.5 h-5 w-px shrink-0 border-l"></div>
 
-                {#if authStore.user?.role === "admin"}
-                    <button
-                        type="button"
-                        class="text-fg hover:bg-canvas flex h-7 w-7 items-center justify-center rounded"
-                        title="Admin"
-                        aria-label="Admin"
-                        onclick={() => (showAdmin = !showAdmin)}
-                    >
-                        <Shield size={16} />
-                    </button>
-                {/if}
-
+        <!-- tools -->
+        {#if !readOnly}
+            <button
+                type="button"
+                class="flex h-7 w-7 items-center justify-center rounded"
+                class:text-accent={canvasMode === "select"}
+                class:text-fg-muted={canvasMode !== "select"}
+                title="Select tool (V)"
+                aria-label="select tool"
+                aria-pressed={canvasMode === "select"}
+                onclick={() => handlers.viewSelectTool()}
+            >
+                <MousePointer2 size={15} />
+            </button>
+            <button
+                type="button"
+                class="flex h-7 w-7 items-center justify-center rounded"
+                class:text-accent={canvasMode === "hand"}
+                class:text-fg-muted={canvasMode !== "hand"}
+                title="Hand tool (H)"
+                aria-label="hand tool"
+                aria-pressed={canvasMode === "hand"}
+                onclick={() => handlers.viewHandTool()}
+            >
+                <Hand size={15} />
+            </button>
+            <div class="border-line mx-0.5 h-5 w-px shrink-0 border-l"></div>
+            <button
+                type="button"
+                class="text-fg hover:bg-canvas flex h-7 w-7 items-center justify-center rounded disabled:cursor-not-allowed disabled:opacity-40"
+                title="Delete selected (Del)"
+                aria-label="Delete selected"
+                disabled={!selection.selectedPersonId}
+                onclick={() => handlers.selectDelete()}
+            >
+                <Trash2 size={15} />
+            </button>
+            <button
+                type="button"
+                class="text-fg hover:bg-canvas flex h-7 w-7 items-center justify-center rounded disabled:cursor-not-allowed disabled:opacity-40"
+                title="Undo (Ctrl+Z)"
+                aria-label="Undo"
+                disabled={!treeStore.canUndo}
+                onclick={() => treeStore.undo()}
+            >
+                <Undo2 size={15} />
+            </button>
+            <button
+                type="button"
+                class="text-fg hover:bg-canvas flex h-7 w-7 items-center justify-center rounded disabled:cursor-not-allowed disabled:opacity-40"
+                title="Redo (Ctrl+Y)"
+                aria-label="Redo"
+                disabled={!treeStore.canRedo}
+                onclick={() => treeStore.redo()}
+            >
+                <Redo2 size={15} />
+            </button>
+            {#if authStore.user}
                 <button
                     type="button"
                     class="text-fg hover:bg-canvas flex h-7 w-7 items-center justify-center rounded"
-                    title="Keyboard shortcuts (?)"
-                    aria-label="Keyboard shortcuts"
-                    onclick={() => (showHelp = true)}
+                    title="Share"
+                    aria-label="Share"
+                    onclick={() => (showShare = !showShare)}
                 >
-                    <HelpCircle size={16} />
+                    <Share2 size={15} />
                 </button>
-            </div>
+            {/if}
+        {/if}
+        {#if authStore.user?.role === "admin"}
+            <button
+                type="button"
+                class="text-fg hover:bg-canvas flex h-7 w-7 items-center justify-center rounded"
+                title="Admin"
+                aria-label="Admin"
+                onclick={() => (showAdmin = !showAdmin)}
+            >
+                <Shield size={15} />
+            </button>
+        {/if}
+        <button
+            type="button"
+            class="text-fg hover:bg-canvas flex h-7 w-7 items-center justify-center rounded"
+            title="Keyboard shortcuts (?)"
+            aria-label="Keyboard shortcuts"
+            onclick={() => (showHelp = true)}
+        >
+            <HelpCircle size={15} />
+        </button>
+
+        <!-- save + auth -->
+        <div class="ml-auto flex items-center gap-2">
+            {#if !readOnly}
+                <SaveStatusPill
+                    {lastSavedAt}
+                    syncMode={syncStore.mode}
+                    {syncedFlashUntil}
+                    {lastError}
+                    onretry={() => void forceSave()}
+                    onconflict={() =>
+                        toasts.push("save conflict — see console for details", "error")}
+                    onforceSave={() => void forceSave()}
+                />
+            {/if}
+            <AuthBar
+                onSignedIn={() => void authStore.fetch()}
+                onerror={(msg: string) => toasts.push(msg, "error")}
+            />
         </div>
     </header>
 
     <main
-        class="relative flex flex-1 overflow-hidden"
+        class="relative flex flex-1 overflow-clip"
+        class:flex-row-reverse={prefs.inspectorSide === "left"}
         ondragenter={onDragEnter}
         ondragover={onDragOver}
         ondragleave={onDragLeave}
         ondrop={(e) => void onDrop(e)}
     >
-        <div class="relative flex-1 overflow-hidden">
+        <div class="relative flex-1 overflow-clip">
+            <ProgressStrip {progress} />
             <TreeCanvas
                 tree={treeStore.tree}
                 selectedId={selection.selectedPersonId}
@@ -1014,6 +1060,13 @@
                 {tracePath}
                 {debugOptions}
             />
+            {#if canvasController}
+                <ZoomWidget
+                    scale={canvasScale}
+                    onzoom={(n: number) => canvasController?.setScale(n)}
+                    onfit={() => canvasController?.fit()}
+                />
+            {/if}
             {#if debugOpen}
                 <div
                     class="pointer-events-auto absolute top-2 left-1/2 z-40 -translate-x-1/2
@@ -1066,15 +1119,6 @@
                     <div class="mt-1.5 text-[9px] text-fg-muted">window.__treeDebug exposed when toggled above · Ctrl+Shift+D</div>
                 </div>
             {/if}
-            {#if canvasController}
-                <ZoomWidget
-                    scale={canvasScale}
-                    mode={canvasMode}
-                    onzoom={(n: number) => canvasController?.setScale(n)}
-                    onfit={() => canvasController?.fit()}
-                    onmodechange={(m: "select" | "hand") => canvasController?.setMode(m)}
-                />
-            {/if}
         </div>
         {#if showInspector}
             <Inspector
@@ -1083,6 +1127,7 @@
                 treeId={treeStore.tree.id}
                 {portraitUrls}
                 {readOnly}
+                side={prefs.inspectorSide}
                 initialTab={inspectorInitialTab}
                 onpatch={onSave}
                 onsetParent={setParentLink}
@@ -1140,6 +1185,10 @@
         <ShortcutsOverlay onclose={() => (showHelp = false)} />
     {/if}
 
+    {#if showSettings}
+        <SettingsDialog {prefs} onclose={() => (showSettings = false)} />
+    {/if}
+
     {#if showPalette}
         <CommandPalette
             tree={treeStore.tree}
@@ -1169,5 +1218,7 @@
         accept=".txt,.ged,.gedcom,.gdz,.zip"
         onchange={onImport}
         data-testid="import-input"
+        aria-hidden="true"
+        tabindex="-1"
     />
 </div>

@@ -1,5 +1,5 @@
 /*
- * FamilyTreeEditor - ZoomWidget: slider, fit button, mode toggle
+ * FamilyTreeEditor - ZoomWidget: slider, fit button, zoom controls
  * licensed under the MIT license; see LICENSE.md for full text
  */
 
@@ -10,10 +10,8 @@ import ZoomWidget from "$lib/components/canvas/ZoomWidget.svelte";
 function baseProps() {
     return {
         scale: 1.0,
-        mode: "select" as const,
         onzoom: vi.fn(),
         onfit: vi.fn(),
-        onmodechange: vi.fn(),
     };
 }
 
@@ -57,19 +55,5 @@ describe("ZoomWidget", () => {
         const v = last?.[0] ?? 0;
         expect(v).toBeGreaterThanOrEqual(0.09);
         expect(v).toBeLessThanOrEqual(0.11);
-    });
-
-    it("hand toggle button flips select -> hand", async () => {
-        const props = baseProps();
-        render(ZoomWidget, { ...props, mode: "select" });
-        await fireEvent.click(screen.getByLabelText(/switch to hand tool/i));
-        expect(props.onmodechange).toHaveBeenCalledWith("hand");
-    });
-
-    it("hand toggle button flips hand -> select", async () => {
-        const props = baseProps();
-        render(ZoomWidget, { ...props, mode: "hand" });
-        await fireEvent.click(screen.getByLabelText(/switch to select tool/i));
-        expect(props.onmodechange).toHaveBeenCalledWith("select");
     });
 });

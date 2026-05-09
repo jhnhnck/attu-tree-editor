@@ -31,6 +31,7 @@ function callbacks() {
         onremoveChild: vi.fn(),
         oncreateAndLink: vi.fn(),
         onselect: vi.fn(),
+        onpatchCouple: vi.fn(),
     };
 }
 

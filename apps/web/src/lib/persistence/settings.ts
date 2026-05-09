@@ -8,6 +8,8 @@ import { getDb, type FamilyTreeDb } from "$lib/persistence/db";
 export const SETTING_KEYS = {
     lastOpenedTreeId: "lastOpenedTreeId",
     wikiBaseUrl: "wikiBaseUrl",
+    theme: "theme",
+    inspectorSide: "inspectorSide",
 } as const;
 
 export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS];
