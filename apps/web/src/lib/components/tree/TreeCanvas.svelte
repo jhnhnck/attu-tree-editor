@@ -476,12 +476,31 @@
             delete window.__treeDebug;
             return;
         }
-        const capturedLayout = layout;
-        const capturedRaw = rawSegments;
-        const capturedTree = tree;
-        const capturedLayered = layeredGraph;
-        const capturedOrdered = orderedGraph;
-        const capturedPlaced = placedGraph;
+        // Snapshot every live $state reference before exposing on window.
+        // Without this, devtools mutations would write straight back into
+        // the reactive store and corrupt the editor's source of truth.
+        // $state.snapshot() uses structuredClone, which preserves Maps at
+        // runtime — but Svelte's Snapshot<T> type strips Map methods. We
+        // route through `unknown` to recover the declared shape; eslint's
+        // typecheck rule disagrees with svelte-check on whether the cast
+        // is needed, so silence it locally.
+        /* eslint-disable @typescript-eslint/no-unnecessary-type-assertion */
+        const capturedLayout = $state.snapshot(layout) as unknown as HvLayoutResult;
+        const capturedRaw = $state.snapshot(rawSegments) as unknown as readonly Segment[];
+        const capturedTree = $state.snapshot(tree) as unknown as Tree;
+        const capturedLayered =
+            layeredGraph !== undefined
+                ? ($state.snapshot(layeredGraph) as unknown as LayeredGraph)
+                : undefined;
+        const capturedOrdered =
+            orderedGraph !== undefined
+                ? ($state.snapshot(orderedGraph) as unknown as OrderedGraph)
+                : undefined;
+        const capturedPlaced =
+            placedGraph !== undefined
+                ? ($state.snapshot(placedGraph) as unknown as PlacedGraph)
+                : undefined;
+        /* eslint-enable @typescript-eslint/no-unnecessary-type-assertion */
         window.__treeDebug = {
             layout: capturedLayout,
             rawSegments: capturedRaw,
