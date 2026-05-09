@@ -37,16 +37,6 @@
         }
     }
 
-    async function toggleRole(user: AdminUserListing): Promise<void> {
-        const newRole = user.role === "admin" ? "user" : "admin";
-        try {
-            const updated = await adminApi.updateUser(user.id, { role: newRole });
-            users = users.map((u) => (u.id === updated.id ? updated : u));
-        } catch (e) {
-            error = String(e);
-        }
-    }
-
     async function deleteUser(user: AdminUserListing): Promise<void> {
         if (!confirm(`soft-delete ${user.display_name}? their sessions will be revoked.`)) return;
         try {
@@ -110,13 +100,6 @@
                                     </span>
                                 </td>
                                 <td class="py-1.5">
-                                    <button
-                                        type="button"
-                                        class="text-fg-muted hover:text-fg mr-3 cursor-pointer text-xs"
-                                        onclick={() => void toggleRole(user)}
-                                    >
-                                        {user.role === "admin" ? "demote" : "promote"}
-                                    </button>
                                     {#if !user.deleted_at}
                                         <button
                                             type="button"

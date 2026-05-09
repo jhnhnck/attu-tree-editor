@@ -25,7 +25,7 @@ _phase 3 complete; see the completed section below_
 _phase 4 complete; see the completed section below_
 
 - 🔴 `27 April 2026` portrait cropper polish - selection now fills the image on open (`$center('contain')`), bounded to canvas so it snaps to edges
-- ⭕ `low priority` `low effort` cropperjs styles are loaded from `cdn.jsdelivr.net` for bundle slimness; switch to a local import once we have a CSP/offline story
+- ✅ `done` cropperjs CSS/CDN — codebase uses cropperjs v2 which ships styles inside its shadow DOM; no external CSS import needed. No action required.
 - ⭕ `low priority` `low effort` wiki title field should autocomplete from the wiki - query `/w/api.php?action=opensearch&search=...` and offer suggestions in the person editor / inspector Details tab
 
 ### phase 5 - backend + auth + sync
@@ -44,11 +44,15 @@ _phase 5 largely complete; see the completed section below_
 ### phase 6 - polish + a11y + mobile
 
 - ⭕ `high priority` `medium effort` keyboard navigation across nodes (roving tabindex)
+- ⭕ `high priority` `low effort` arrow keys should pan the canvas (up / down / left / right) - currently they do nothing when focus is on the canvas
+- ⭕ `medium priority` `low effort` Inspector date fields are unreachable by keyboard - tabbing into a `DateInput` neither opens the calendar popup nor lets you type into the box; should do one or the other (probably: focus opens an editable text field, with the picker still available via click / down-arrow)
 - ⭕ `high priority` `medium effort` aria roles for tree (`role="tree"`, `treeitem`)
 - ⭕ `high priority` `medium effort` mobile bottom-sheet variant of the editor panel
 - ⭕ `medium priority` `medium effort` zoom-aware label sizing - shrink card padding and grow text size as zoom decreases so the next-level-up card stays readable as long as possible (PersonNode + the `levelFromScale` thresholds in TreeCanvas)
-- ⭕ `high priority` `high effort` spouse-duplication in `hvLayout` - in-law spouses (people with their own ancestor branch in the visible set) currently anchor on their own primary-parent forest, ending up far from their partner and stretching couple bonds across the canvas. Plan: render the spouse twice when their bond would otherwise span more than ~N units - once in their "home" location (own ancestor branch) and once as a ghost adjacent to their partner, with a small "appears in N places" icon on each instance and a popover/dropdown to jump between locations. Each ghost is a render-only copy keyed off the same `PersonId`, so selection / editor / inspector still operate on a single person record. Closes the long-bonds-across-the-canvas visual issue without forcing a full re-layout (the spouse's other branches stay where they are)
-- ⭕ `medium priority` `high effort` orthogonal edge routing with obstacle avoidance - even after spouse-duplication, some long bonds + sibling-bus segments may still pass through the empty space above / below other cards. Implement A* over a sparse routing graph (corners of card AABBs + row-gutter alignment lines) so edges bend around any card they would otherwise visually cross. Polish layer; only worthwhile after spouse-duplication lands
+- ⭕ `high priority` `medium effort` ghost-near adjacency miss for ~5% of ghosts - `passes/place.ts` `closePairs` now correctly registers ghost↔near and ghost-cluster pairs (DELTA=2.5u), eliminating the catastrophic 100u+ stranding. But the gap policy only fires for *adjacent* nodes in `rank[i-1]` vs `rank[i]`; if `passes/order.ts` interleaves a foreign node between a ghost and its near, the gap stays at BRANCH_GAP. On the Akaria DEMO fixture (1802 people, 167 ghosts) this leaves ~8 ghosts at 5-17.5u from their near (worst is a 4-ghost cluster around id `15LJ6`). Fix in `passes/order.ts`: post-pass that pulls each ghost-cluster contiguous to its near in the within-rank ordering, before crossing-min reshuffles
+- ⭕ `high priority` `medium effort` multi-spouse bond passes through intervening ghost card - when a person has 2+ cross-rank spouses and both become ghosts on the same rank, the bond from the original to the *farther* ghost runs horizontally through the *closer* ghost's card. Concrete repro on the DEMO fixture: Kadar Arkaran and Amarkan (rank 3, x=154.76) has Araim Deram ghost at x=157.26 (DELTA-close, primary) and Harmain Perat ghost at x=159.76 (DELTA-close to Araim's ghost). The `bond:COAZS|SQKM4` segment spans x=156.76→159.76 at y=6.6 (mid-card) - that horizontal line crosses Araim's card AABB. Same problem for the parent-drop of the further-spouse family (lands inside the closer ghost's card). Two viable fixes, both in route.ts: (a) route the second-spouse bond as an L-bond (vertical leg + over-the-top horizontal) when an intervening ghost would be crossed; (b) allocate per-couple y-lanes in the inter-rank gutter so concurrent bonds don't stack on the same y. Option (a) is cheaper; option (b) generalises better to the obstacle-avoidance work below
+- ⭕ `high priority` `medium effort` 12% of drops have negative height - `(y2 - y1)` for parent-drop / child-drop should always be ≥ 0 (parent above child). On the DEMO fixture 353/2813 drops are negative (heights -0.1 to -2.3u), and 23 are >2.0u (parent two ranks above child). Top offending bonds: single parents Kobartan Banokan (7), Tratoi Bokok (4), Othataim Skrake (4), Fomakta Arkara (4), Obantar Skrake (4), Drachalur Dar (4), Bok Deram (4); plus the couple Lazaint Oken & Kozakar Oken (4). Likely root: `passes/layer.ts` choosing a parent rank below the child rank when the child has multiple parents on different layers, or `choosePrimary` not handling single-parent rank assignment for cross-rank cases. The 14 tall (>2.0) drops are exclusively `single:` parents - one-parent vertical spans skip ghost insertion. Add an invariant assertion in `route.ts` so this regresses loudly next time
+- ⭕ `medium priority` `high effort` orthogonal edge routing with obstacle avoidance - even after spouse-duplication, some long bonds + sibling-bus segments still pass through other cards. The multi-spouse case above is one concrete instance; the same issue shows up for sibling-bus segments that span past intervening cards above/below the row. Implement A* over a sparse routing graph (corners of card AABBs + row-gutter alignment lines) so edges bend around any card they would otherwise visually cross. Polish layer; the targeted fixes for the multi-spouse and negative-drop bugs above are higher-ROI prerequisites
 - ⭕ `medium priority` `high effort` hide unrelated branches based on the selected person - needs a "related-to" rule (default: ancestors + descendants + spouses); expose as a View menu toggle so users can flip between full tree and focused view
 - ⭕ `medium priority` `medium effort` selectable lineage trace - clicking an edge (or a person + an "trace" action) highlights a chain through the graph in a unique color so the user can see where a relationship goes; pairs naturally with the "hide unrelated branches" toggle
 - ⭕ `medium priority` `low effort` hover tooltip at far zoom levels - PersonNode at level 4 (initials) and 5 (dot) drops the name; add a native `title` or floating tooltip showing the full name + dates so users can identify cards before zooming in
@@ -228,6 +232,11 @@ _phase 5 largely complete; see the completed section below_
 - 🔴 `27 April 2026` people-count pill (bottom-left of TreeCanvas) toggles the Inspector pane on click
 - 🔴 `27 April 2026` couple metadata controls in the Inspector Connections tab - marriage date, married/ended toggle, primary/secondary toggle (when multiple partners) now inline below each partner row
 
+### layout pipeline + ghost rendering
+
+- 🔴 `9 May 2026` spouse-duplication via ghost nodes - cross-rank in-law spouses now render twice (once at "home" in their own ancestor branch, once as a ghost adjacent to their partner). Ghosts are first-class `LayoutNode` entries in `placedGraph` (`kind === "ghost"`, id = `ghost:<ghostOf>|<nearId>`), tracked through the four-pass pipeline (layer / order / place / route). Both the bond endpoints and the parent-drop / bus / child-drop skeleton are anchored to the ghost position so they route locally to the children's row. Each instance shows a small chain-link icon and a popover for jumping between locations. Closes the cross-canvas long-bond visual issue
+- 🔴 `9 May 2026` `closePairs` ghost↔near gap policy in `passes/place.ts` - registers ghost↔near and ghost-cluster pairs with DELTA=2.5u, eliminating the catastrophic stranding pattern (was: 6 ghosts at 144-159u from their near on the Akaria DEMO; now: 0 ghosts >20u, 91% at the healthy ~3u). Residual 5-17.5u cases (~5%) tracked as a follow-up under phase 6
+
 ---
 
 ## meta
@@ -257,6 +266,6 @@ when adding a new item, sort it into the appropriate section by topic, or add a 
 ### metadata
 
 ```yaml
-last_updated: 27 April 2026
-total_completed: 105
+last_updated: 9 May 2026
+total_completed: 107
 ```

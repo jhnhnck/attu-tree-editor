@@ -112,6 +112,5 @@ export interface AdminUserListResponse {
 }
 
 export interface AdminUserUpdateRequest {
-    role?: UserRole;
     display_name?: string;
 }
