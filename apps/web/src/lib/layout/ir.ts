@@ -106,6 +106,13 @@ export interface LayeredGraph {
         readonly b: LayoutNodeId;
         readonly coupleKey: string;
     }[];
+    /**
+     * Person ids implicated in a parent-DAG cycle. Kahn's BFS in computeRanks
+     * cannot rank these (their visible in-degree never reaches zero); they
+     * fall back to rank 0. Surfaced for diagnosis via window.__treeDebug.
+     * Empty / absent when the visible graph is acyclic.
+     */
+    readonly cycleNodes?: readonly LayoutNodeId[];
 }
 
 /** Output of the ordering pass: within-rank ordering added. */
@@ -275,6 +282,7 @@ export interface LayeredGraphWire {
     readonly ranks: LayeredGraph["ranks"];
     readonly parentEdges: LayeredGraph["parentEdges"];
     readonly spouseEdges: LayeredGraph["spouseEdges"];
+    readonly cycleNodes?: readonly LayoutNodeId[];
 }
 /** `OrderedGraph` wire form. */
 export interface OrderedGraphWire extends LayeredGraphWire {
@@ -288,7 +296,15 @@ export interface PlacedGraphWire extends OrderedGraphWire {
 }
 
 export function serializeLayered(g: LayeredGraph): LayeredGraphWire {
-    return { nodes: [...g.nodes], ranks: g.ranks, parentEdges: g.parentEdges, spouseEdges: g.spouseEdges };
+    return {
+        nodes: [...g.nodes],
+        ranks: g.ranks,
+        parentEdges: g.parentEdges,
+        spouseEdges: g.spouseEdges,
+        ...(g.cycleNodes !== undefined && g.cycleNodes.length > 0
+            ? { cycleNodes: g.cycleNodes }
+            : {}),
+    };
 }
 export function serializeOrdered(g: OrderedGraph): OrderedGraphWire {
     return { ...serializeLayered(g), order: [...g.order] };
@@ -298,7 +314,13 @@ export function serializePlaced(g: PlacedGraph): PlacedGraphWire {
 }
 
 export function hydrateLayered(w: LayeredGraphWire): LayeredGraph {
-    return { nodes: new Map(w.nodes), ranks: w.ranks, parentEdges: w.parentEdges, spouseEdges: w.spouseEdges };
+    return {
+        nodes: new Map(w.nodes),
+        ranks: w.ranks,
+        parentEdges: w.parentEdges,
+        spouseEdges: w.spouseEdges,
+        ...(w.cycleNodes !== undefined ? { cycleNodes: w.cycleNodes } : {}),
+    };
 }
 export function hydrateOrdered(w: OrderedGraphWire): OrderedGraph {
     return { ...hydrateLayered(w), order: new Map(w.order) };

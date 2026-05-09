@@ -241,6 +241,7 @@ _phase 5 largely complete; see the completed section below_
 - 🔴 `9 May 2026` redraw-on-save fix - `tree.rev` was never bumped client-side, so the layout worker's cache always hit and topology edits (add/remove person, re-parent, change root) never repainted the canvas. Renamed the field to `editRev` to disambiguate from server `revision`; treeStore mutators (set/update/reset/undo/redo) now bump it; layout worker keys its cache off a content hash of `(people, couples, rootId)` so the regression class can't hide. Regression test in `tests/unit/state/tree.test.ts` plus a Playwright e2e (`redraw-on-edit.spec.ts`) that verifies the canvas badge updates when a person is added via the Insert menu
 - 🔴 `9 May 2026` `passes/order.ts` `computeInitialOrder.dfs` made iterative - the recursive variant blew the stack on deep straight-line ancestries (genealogy data routinely has 50+ generation chains). Stack-safety regression test exercises a 5,000-generation lineage
 - 🔴 `9 May 2026` `TreeCanvas.svelte` `window.__treeDebug` exposure now snapshots state - replaced the live-`$state` capture with `$state.snapshot()` so devtools mutations through the debug handle can't write back into the editor's source of truth
+- 🔴 `9 May 2026` `passes/layer.ts` `computeRanks` cycle warning - Kahn's BFS used to silently bucket cycle members at rank 0; now emits a `console.warn` and surfaces the cycle node ids via the new optional `LayeredGraph.cycleNodes` field, exposed on `window.__treeDebug.cycleNodes` for inspection
 
 ---
 

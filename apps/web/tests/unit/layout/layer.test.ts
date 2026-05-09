@@ -3,7 +3,7 @@
  * licensed under the MIT license; see LICENSE.md for full text
  */
 
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ROOT_ID } from "$lib/domain/ids";
 import { addPerson, createTree, linkParent, linkSpouse } from "$lib/domain/tree";
 import { ghostNodeId } from "$lib/layout/ir";
@@ -470,6 +470,75 @@ describe("layer — spouseEdges", () => {
                 (e.a === ids.b! && e.b === ids.a_grand!),
         );
         expect(edge).toBeDefined();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Cycle detection — Kahn's BFS leaves nodes in a cycle unranked. They used
+// to be silently bucketed at rank 0 with no diagnostic. The pass now warns
+// AND surfaces cycle members on the LayeredGraph for window.__treeDebug.
+// ---------------------------------------------------------------------------
+
+describe("layer — cycle detection", () => {
+    let warnSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+        warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    });
+    afterEach(() => {
+        warnSpy.mockRestore();
+    });
+
+    /**
+     * Build a self-ancestor cycle: a person who is their own grandparent.
+     * a → b → c → a (illegal in a real genealogy but FamilyTreeEditor allows
+     * it for science-fiction / mythological trees, with validate.ts flagging
+     * the loop). Kahn's BFS cannot rank any of these.
+     */
+    function selfAncestorCycle(): Tree {
+        let t = createTree("cycle", blank("a", "u")); // ROOT_ID is "a"
+        const b = addPerson(t, blank("b", "u"));
+        t = b.tree;
+        const c = addPerson(t, blank("c", "u"));
+        t = c.tree;
+        // a → b (a is b's parent)
+        const r1 = linkParent(t, b.id, ROOT_ID);
+        if (!r1.ok) throw new Error(r1.error);
+        // b → c (b is c's parent)
+        const r2 = linkParent(r1.value, c.id, b.id);
+        if (!r2.ok) throw new Error(r2.error);
+        // c → a (c is a's parent — closes the cycle)
+        const r3 = linkParent(r2.value, ROOT_ID, c.id);
+        if (!r3.ok) throw new Error(r3.error);
+        return r3.value;
+    }
+
+    it("emits a console.warn when the parent DAG has a cycle", () => {
+        const tree = selfAncestorCycle();
+        layer(tree, visAll(tree), ROOT_ID);
+        expect(warnSpy).toHaveBeenCalled();
+        const firstArg = warnSpy.mock.calls[0]?.[0];
+        expect(typeof firstArg).toBe("string");
+        expect(firstArg as string).toContain("cycle");
+    });
+
+    it("surfaces cycle member ids on LayeredGraph.cycleNodes", () => {
+        const tree = selfAncestorCycle();
+        const g = layer(tree, visAll(tree), ROOT_ID);
+        const cycleNodes = g.cycleNodes;
+        expect(cycleNodes).toBeDefined();
+        // All three nodes are unrankable in a 3-cycle.
+        expect(cycleNodes?.length).toBe(3);
+        const ids = new Set(cycleNodes ?? []);
+        expect(ids.has(ROOT_ID)).toBe(true);
+    });
+
+    it("acyclic tree leaves cycleNodes absent or empty", () => {
+        const { tree } = lineage();
+        const g = layer(tree, visAll(tree), ROOT_ID);
+        const cycleNodes = g.cycleNodes ?? [];
+        expect(cycleNodes.length).toBe(0);
+        expect(warnSpy).not.toHaveBeenCalled();
     });
 });
 

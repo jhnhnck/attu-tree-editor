@@ -80,7 +80,7 @@ export function layer(
     // a person born ~1800 in component A and ~1800 in component B land at the
     // same rank even when they share no parent-DAG path.
     // -----------------------------------------------------------------------
-    const rankOf = computeRanks(vis, adj);
+    const { ranks: rankOf, cycleNodes } = computeRanks(vis, adj);
 
     // -----------------------------------------------------------------------
     // 2. Precompute joint visible children for each couple.
@@ -269,7 +269,13 @@ export function layer(
         spouseEdges.push({ a: couple.leftId, b: couple.rightId, coupleKey });
     }
 
-    return { nodes, ranks: rankArrays, parentEdges, spouseEdges };
+    return {
+        nodes,
+        ranks: rankArrays,
+        parentEdges,
+        spouseEdges,
+        ...(cycleNodes.length > 0 ? { cycleNodes } : {}),
+    };
 }
 
 // ---------------------------------------------------------------------------
@@ -280,8 +286,15 @@ export function layer(
  * Longest-path BFS over the visible parent DAG (Kahn's algorithm variant).
  * Processes each node exactly once, after all its visible parents have been
  * processed, updating each child's rank to max(parent_rank + 1).
+ *
+ * Returns the rank assignment plus the set of person ids implicated in a
+ * cycle (visible in-degree never reaches zero) so the caller can surface
+ * them for diagnosis instead of silently dumping cycle members at rank 0.
  */
-function computeRanks(vis: ReadonlySet<PersonId>, adj: Adjacency): Map<PersonId, number> {
+function computeRanks(
+    vis: ReadonlySet<PersonId>,
+    adj: Adjacency,
+): { ranks: Map<PersonId, number>; cycleNodes: PersonId[] } {
     const ranks = new Map<PersonId, number>();
 
     // Count visible in-degree for each person (number of visible parents)
@@ -318,12 +331,26 @@ function computeRanks(vis: ReadonlySet<PersonId>, adj: Adjacency): Map<PersonId,
         }
     }
 
-    // Guard: any remaining unranked nodes (from cycles or disconnected islands)
+    // Anything still unranked is part of a cycle (or descended from one).
+    // Surface to the caller and warn — silently dropping these at rank 0
+    // produces visually scrambled trees that are very hard to diagnose.
+    const cycleNodes: PersonId[] = [];
     for (const id of vis) {
-        if (!ranks.has(id)) ranks.set(id, 0);
+        if (!ranks.has(id)) {
+            cycleNodes.push(id);
+            ranks.set(id, 0);
+        }
+    }
+    if (cycleNodes.length > 0) {
+        const sample = cycleNodes.slice(0, 12).join(", ");
+        const more = cycleNodes.length > 12 ? `, ... (${String(cycleNodes.length - 12)} more)` : "";
+
+        console.warn(
+            `[layer] parent-DAG cycle detected — ${String(cycleNodes.length)} node(s) collapsed to rank 0: ${sample}${more}`,
+        );
     }
 
-    return ranks;
+    return { ranks, cycleNodes };
 }
 
 /**

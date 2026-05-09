@@ -16,6 +16,11 @@ interface TreeDebugHandle {
 	orderedGraph?: import("$lib/layout/ir").OrderedGraph;
 	/** PlacedGraph — undefined until the first worker response arrives. */
 	placedGraph?: import("$lib/layout/ir").PlacedGraph;
+	/**
+	 * Person ids implicated in a parent-DAG cycle, populated by the layering
+	 * pass. Empty / absent on acyclic trees.
+	 */
+	cycleNodes?: readonly string[];
 	dumpSegment(id: string): void;
 	findPath(id1: string, id2: string): void;
 }

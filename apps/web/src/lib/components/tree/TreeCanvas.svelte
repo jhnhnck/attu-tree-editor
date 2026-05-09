@@ -501,6 +501,7 @@
                 ? ($state.snapshot(placedGraph) as unknown as PlacedGraph)
                 : undefined;
         /* eslint-enable @typescript-eslint/no-unnecessary-type-assertion */
+        const capturedCycleNodes = capturedLayered?.cycleNodes;
         window.__treeDebug = {
             layout: capturedLayout,
             rawSegments: capturedRaw,
@@ -508,6 +509,9 @@
             ...(capturedLayered !== undefined ? { layeredGraph: capturedLayered } : {}),
             ...(capturedOrdered !== undefined ? { orderedGraph: capturedOrdered } : {}),
             ...(capturedPlaced !== undefined ? { placedGraph: capturedPlaced } : {}),
+            ...(capturedCycleNodes !== undefined && capturedCycleNodes.length > 0
+                ? { cycleNodes: capturedCycleNodes }
+                : {}),
             dumpSegment(id: string): void {
                 const seg = capturedRaw.find((s) => s.id === id || s.id.startsWith(id));
                 if (!seg) {
