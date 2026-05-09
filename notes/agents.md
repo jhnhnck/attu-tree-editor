@@ -9,9 +9,8 @@ client-side typescript spa (svelte 5, vite, tailwind v4) for viewing and editing
 ## 2. Rules
 
 1. do not edit the rules.
-1. do not create commits without being explicitly asked to.
+1. do not use git push or deploy any changes to prod without being explicitly asked to.
 1. do not commit secrets - `data/` is gitignored; secrets live in `data/trees-config.toml` `[secrets]`.
-1. check the current time at the start of each conversation. if it is past 12:30 AM ET, suggest a natural stopping point before continuing any task.
 1. all in-universe dates must use `HaracalndeDate`; never use `Date` in domain code.
 1. round-trip exports must list dropped fields when the target format cannot carry them; do not silently lose data.
 1. do not impose traditional family-structure constraints (gender pairings, monogamy, no cycles, two-parent, "must be human", etc.) - this is a fictional-world editor and the schema is permissive on purpose. validate-as-finding instead of reject-with-error. see Section 8.
@@ -235,8 +234,7 @@ when adding a schema-breaking domain change: bump `CURRENT_SCHEMA_VERSION`, push
 
 ## 10. Reference Notes
 
-**`notes/style/`**
-- [`notes/style/commit_style.md`](style/commit_style.md) - commit message format, types, and tone
+commit conventions, comment style, file headers, the feature-completion checklist, and the pydantic v2 reference card live as skills under `.claude/skills/`; load via the skill name. they are canonical when they diverge from this guide.
 
 **`notes/features/`**
 - [`notes/features/attu-wiki.md`](features/attu-wiki.md) - parent project context (containers, services, architecture)
@@ -290,8 +288,6 @@ FamilyTreeEditor/
 │   ├── .meta.md                     ← documentation system guide
 │   ├── .template.to-do.md
 │   ├── to-do.md
-│   ├── style/
-│   │   └── commit_style.md
 │   ├── features/
 │   │   ├── attu-wiki.md
 │   │   └── doom-bot.md
