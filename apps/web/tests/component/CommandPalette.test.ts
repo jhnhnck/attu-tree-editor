@@ -30,7 +30,7 @@ function tinyTree(): Tree {
         rootId: "AAAAA",
         people: { AAAAA: a, BBBBB: b },
         couples: [],
-        rev: 0,
+        editRev: 0,
         updatedAt: 0,
     };
 }

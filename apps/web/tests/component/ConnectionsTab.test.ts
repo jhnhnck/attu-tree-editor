@@ -44,7 +44,7 @@ describe("ConnectionsTab", () => {
             rootId: "AAAAA",
             people: { AAAAA: subject },
             couples: [],
-            rev: 0,
+            editRev: 0,
             updatedAt: 0,
         };
         render(ConnectionsTab, { tree: t, person: subject, ...callbacks() });
@@ -62,7 +62,7 @@ describe("ConnectionsTab", () => {
             rootId: "AAAAA",
             people: { AAAAA: subject, MMMMM: mother },
             couples: [],
-            rev: 0,
+            editRev: 0,
             updatedAt: 0,
         };
         render(ConnectionsTab, { tree: t, person: subject, ...cb });
@@ -83,7 +83,7 @@ describe("ConnectionsTab", () => {
             rootId: "AAAAA",
             people: { AAAAA: subject, MMMMM: mum },
             couples: [],
-            rev: 0,
+            editRev: 0,
             updatedAt: 0,
         };
         render(ConnectionsTab, { tree: t, person: subject, ...cb });
@@ -106,7 +106,7 @@ describe("ConnectionsTab", () => {
             rootId: "AAAAA",
             people: { AAAAA: subject },
             couples: [],
-            rev: 0,
+            editRev: 0,
             updatedAt: 0,
         };
         render(ConnectionsTab, { tree: t, person: subject, ...cb });
@@ -132,7 +132,7 @@ describe("ConnectionsTab", () => {
             rootId: "AAAAA",
             people: { AAAAA: subject, BBBBB: partner, CCCCC: child },
             couples: [],
-            rev: 0,
+            editRev: 0,
             updatedAt: 0,
         };
         render(ConnectionsTab, { tree: t, person: subject, ...cb });

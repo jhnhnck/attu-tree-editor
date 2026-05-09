@@ -14,7 +14,7 @@ function tree(overrides: Partial<Tree> = {}): Tree {
         rootId: "AAAAA",
         people: {},
         couples: [],
-        rev: 0,
+        editRev: 0,
         updatedAt: 0,
         ...overrides,
     };

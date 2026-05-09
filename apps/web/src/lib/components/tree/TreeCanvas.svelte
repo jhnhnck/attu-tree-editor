@@ -137,10 +137,10 @@
     let canvasW = $derived(layout.canvas.width * UNIT);
     let canvasH = $derived(layout.canvas.height * UNIT);
 
-    // Send the tree to the worker whenever tree.id, tree.rev, or overrides change.
+    // Send the tree to the worker whenever tree.id, tree.editRev, or overrides change.
     $effect(() => {
         void tree.id;
-        void tree.rev;
+        void tree.editRev;
         const overrides = layoutOverrides;
         const seq = ++layoutSeq;
         layoutWorker.postMessage({

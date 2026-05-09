@@ -100,7 +100,7 @@ export function parseFamilyScript(text: string): Result<FsParseResult, string> {
         rootId,
         people,
         couples,
-        rev: 0,
+        editRev: 0,
         updatedAt: Date.now(),
     };
 

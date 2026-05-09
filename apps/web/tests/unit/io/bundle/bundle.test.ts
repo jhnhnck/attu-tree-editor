@@ -37,7 +37,7 @@ function tinyTree(): Tree {
             },
         },
         couples: [],
-        rev: 0,
+        editRev: 0,
         updatedAt: 0,
     };
 }

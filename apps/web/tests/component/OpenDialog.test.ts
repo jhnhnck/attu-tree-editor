@@ -28,7 +28,7 @@ function listing(id: string, name: string, count: number, ageMs: number): TreeLi
     return {
         id,
         name,
-        rev: 1,
+        editRev: 1,
         updatedAt: Date.now() - ageMs,
         personCount: count,
     };
@@ -54,7 +54,7 @@ function tree(id: string, names: string[]): Tree {
         rootId: "P0",
         people,
         couples: [],
-        rev: 1,
+        editRev: 1,
         updatedAt: Date.now(),
     };
 }

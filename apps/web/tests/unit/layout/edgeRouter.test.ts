@@ -167,7 +167,7 @@ describe("edgeRouter — bridge hops on crossings", () => {
                 Y: { ...blank("y", "u"), id: "Y" },
             },
             couples: [],
-            rev: 0,
+            editRev: 0,
             updatedAt: 0,
         };
         // Hand-place positions so M is at (0, 0) with child ROOT at (0, 2)

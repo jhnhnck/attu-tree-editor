@@ -30,7 +30,7 @@ export function createTree(name: string, root: Omit<Person, "id">): Tree {
         rootId: ROOT_ID,
         people: { [ROOT_ID]: rootPerson },
         couples: [],
-        rev: 0,
+        editRev: 0,
         updatedAt: Date.now(),
     };
 }

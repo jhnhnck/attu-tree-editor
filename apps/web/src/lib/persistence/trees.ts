@@ -12,7 +12,7 @@ import { getDb, type FamilyTreeDb, type StoredTree } from "$lib/persistence/db";
 export interface TreeListing {
     id: string;
     name: string;
-    rev: number;
+    editRev: number;
     updatedAt: number;
     personCount: number;
 }
@@ -21,7 +21,7 @@ function toListing(s: StoredTree): TreeListing {
     return {
         id: s.id,
         name: s.name,
-        rev: s.rev,
+        editRev: s.editRev,
         updatedAt: s.updatedAt,
         personCount: s.personCount,
     };
@@ -37,7 +37,7 @@ export async function saveTree(tree: Tree, db: FamilyTreeDb = getDb()): Promise<
     const row: StoredTree = {
         id: plain.id,
         name: plain.name,
-        rev: plain.rev,
+        editRev: plain.editRev,
         schemaVersion: CURRENT_SCHEMA_VERSION,
         updatedAt: Date.now(),
         personCount: Object.keys(plain.people).length,

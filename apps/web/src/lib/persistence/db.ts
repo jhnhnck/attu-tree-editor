@@ -14,7 +14,7 @@ import type { Tree } from "$lib/domain/types";
 export interface StoredTree {
     id: string;
     name: string;
-    rev: number;
+    editRev: number;
     schemaVersion: number;
     updatedAt: number;
     personCount: number;

@@ -12,7 +12,10 @@ export interface TreeDiff {
     rootId?: { before: PersonId; after: PersonId };
     name?: { before: string; after: string };
     updatedAt?: { before: number; after: number };
-    rev?: { before: number; after: number };
+    // editRev is deliberately not tracked: the store bumps it on every applied
+    // mutation, so encoding it in the diff would either double-bump on undo or
+    // produce non-empty diffs for trees that differ only by counter, which
+    // would push spurious entries onto the undo stack.
 }
 
 function coupleKey(c: CoupleRecord): string {
@@ -24,10 +27,10 @@ export function diffTrees(before: Tree, after: Tree): TreeDiff {
 
     const allPersonIds = new Set([...Object.keys(before.people), ...Object.keys(after.people)]);
     for (const id of allPersonIds) {
-        const b = before.people[id as PersonId] ?? null;
-        const a = after.people[id as PersonId] ?? null;
+        const b = before.people[id] ?? null;
+        const a = after.people[id] ?? null;
         if (JSON.stringify(b) !== JSON.stringify(a)) {
-            people[id as PersonId] = { before: b, after: a };
+            people[id] = { before: b, after: a };
         }
     }
 
@@ -54,7 +57,6 @@ export function diffTrees(before: Tree, after: Tree): TreeDiff {
         ...(before.updatedAt !== after.updatedAt
             ? { updatedAt: { before: before.updatedAt, after: after.updatedAt } }
             : {}),
-        ...(before.rev !== after.rev ? { rev: { before: before.rev, after: after.rev } } : {}),
     };
 }
 
@@ -62,9 +64,9 @@ export function applyDiff(tree: Tree, diff: TreeDiff): Tree {
     const people = { ...tree.people };
     for (const [id, { after }] of Object.entries(diff.people)) {
         if (after === null) {
-            delete people[id as PersonId];
+            delete people[id];
         } else {
-            people[id as PersonId] = after;
+            people[id] = after;
         }
     }
 
@@ -93,14 +95,13 @@ export function applyDiff(tree: Tree, diff: TreeDiff): Tree {
         ...(diff.rootId !== undefined ? { rootId: diff.rootId.after } : {}),
         ...(diff.name !== undefined ? { name: diff.name.after } : {}),
         ...(diff.updatedAt !== undefined ? { updatedAt: diff.updatedAt.after } : {}),
-        ...(diff.rev !== undefined ? { rev: diff.rev.after } : {}),
     };
 }
 
 export function invertDiff(diff: TreeDiff): TreeDiff {
     const people: TreeDiff["people"] = {};
     for (const [id, { before, after }] of Object.entries(diff.people)) {
-        people[id as PersonId] = { before: after, after: before };
+        people[id] = { before: after, after: before };
     }
 
     const couples: TreeDiff["couples"] = {};
@@ -118,7 +119,6 @@ export function invertDiff(diff: TreeDiff): TreeDiff {
         ...(diff.updatedAt
             ? { updatedAt: { before: diff.updatedAt.after, after: diff.updatedAt.before } }
             : {}),
-        ...(diff.rev ? { rev: { before: diff.rev.after, after: diff.rev.before } } : {}),
     };
 }
 
@@ -128,7 +128,6 @@ export function isEmptyDiff(diff: TreeDiff): boolean {
         Object.keys(diff.couples).length === 0 &&
         diff.rootId === undefined &&
         diff.name === undefined &&
-        diff.updatedAt === undefined &&
-        diff.rev === undefined
+        diff.updatedAt === undefined
     );
 }

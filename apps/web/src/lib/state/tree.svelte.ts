@@ -72,7 +72,7 @@ export function createTreeStore(initial: Tree): TreeStore {
             if (isEmptyDiff(diff)) return;
             pushPast(diff);
             future = [];
-            current = next;
+            current = { ...next, editRev: current.editRev + 1 };
             dirty = true;
         },
         update(updater): void {
@@ -82,13 +82,13 @@ export function createTreeStore(initial: Tree): TreeStore {
             if (isEmptyDiff(diff)) return;
             pushPast(diff);
             future = [];
-            current = next;
+            current = { ...next, editRev: current.editRev + 1 };
             dirty = true;
         },
         reset(next: Tree): void {
             past = [];
             future = [];
-            current = next;
+            current = { ...next, editRev: current.editRev + 1 };
             dirty = true;
         },
         hydrate(next: Tree): void {
@@ -101,14 +101,16 @@ export function createTreeStore(initial: Tree): TreeStore {
             const diff = past.pop();
             if (diff === undefined) return;
             future.push(diff);
-            current = applyDiff(current, invertDiff(diff));
+            const reverted = applyDiff(current, invertDiff(diff));
+            current = { ...reverted, editRev: current.editRev + 1 };
             dirty = true;
         },
         redo(): void {
             const diff = future.pop();
             if (diff === undefined) return;
             past.push(diff);
-            current = applyDiff(current, diff);
+            const reapplied = applyDiff(current, diff);
+            current = { ...reapplied, editRev: current.editRev + 1 };
             dirty = true;
         },
     };

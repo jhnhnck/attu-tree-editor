@@ -30,7 +30,7 @@ function singleTree(id: string, p: Omit<Person, "id">): Tree {
         rootId: id,
         people: { [id]: { ...p, id } },
         couples: [],
-        rev: 0,
+        editRev: 0,
         updatedAt: 0,
     };
 }

@@ -8,9 +8,11 @@
  * Input  (MessageEvent.data): { seq, tree, rootId, overrides? }
  * Output (postMessage):       { seq, layered, ordered, placed, segments }
  *
- * Memoization: if tree.id, tree.rev, rootId, and overrides hash are all
- * unchanged from the previous run, the cached wire results are reposted
- * immediately without recomputing any pass.
+ * Memoization: cache key is a content hash of the layout-relevant fields
+ * (people, couples, rootId) plus the overrides hash. Hashing content rather
+ * than relying on a counter makes the cache robust to producers that forget
+ * to bump a revision; renames, date edits and portrait changes still hit
+ * (PersonNode reads tree.people directly), and topology edits always miss.
  *
  * The main thread drops responses whose seq < layoutSeq (stale results from
  * previous tree states).
@@ -44,7 +46,7 @@ interface WorkerInput {
 
 interface CacheEntry {
     treeId: string;
-    treeRev: number;
+    contentHash: string;
     rootId: string;
     overridesHash: string;
     layered: LayeredGraphWire;
@@ -65,14 +67,40 @@ function hashOverrides(w: LayoutOverridesWire | undefined): string {
     });
 }
 
+/**
+ * Content hash over the topology fields the layout pipeline actually reads:
+ * person ids + parent links, couple membership + isCurrent (drives the
+ * married/divorced edge role), and root. Excludes per-person presentation
+ * fields (names, dates, portraits) so renames don't bust the cache.
+ */
+function hashTreeContent(tree: Tree): string {
+    const peopleSig: [string, string | undefined, string | undefined][] = [];
+    for (const id of Object.keys(tree.people).sort()) {
+        const p = tree.people[id];
+        if (!p) continue;
+        peopleSig.push([id, p.motherId, p.fatherId]);
+    }
+    const couplesSig = tree.couples
+        .map(
+            (c) =>
+                // isCurrent flips the bond role between married/divorced in
+                // route.ts; missing it from the key would let a divorce edit
+                // hit the cache and keep painting the bond as married.
+                `${c.leftId}|${c.rightId}|${String(c.unionIndex)}|${c.isCurrent === false ? "0" : "1"}`,
+        )
+        .sort();
+    return JSON.stringify({ rootId: tree.rootId, people: peopleSig, couples: couplesSig });
+}
+
 self.onmessage = (e: MessageEvent<WorkerInput>): void => {
     const { seq, tree, rootId, overrides: overridesWire } = e.data;
     const overridesHash = hashOverrides(overridesWire);
+    const contentHash = hashTreeContent(tree);
 
     if (
         cache &&
         cache.treeId === tree.id &&
-        cache.treeRev === tree.rev &&
+        cache.contentHash === contentHash &&
         cache.rootId === rootId &&
         cache.overridesHash === overridesHash
     ) {
@@ -97,7 +125,7 @@ self.onmessage = (e: MessageEvent<WorkerInput>): void => {
     const ordered = serializeOrdered(og);
     const placed = serializePlaced(pg);
 
-    cache = { treeId: tree.id, treeRev: tree.rev, rootId, overridesHash, layered, ordered, placed, segments };
+    cache = { treeId: tree.id, contentHash, rootId, overridesHash, layered, ordered, placed, segments };
 
     self.postMessage({ seq, layered, ordered, placed, segments });
 };

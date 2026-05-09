@@ -55,6 +55,12 @@ export interface Tree {
     rootId: PersonId;
     people: Record<PersonId, Person>;
     couples: CoupleRecord[];
-    rev: number;
+    /**
+     * Local edit counter, monotonically incremented by the tree store on
+     * every user-driven mutation (set / update / reset / undo / redo).
+     * Distinct from the server-side revision tracked by `syncStore.revision`,
+     * which is set only after a successful round-trip with the API.
+     */
+    editRev: number;
     updatedAt: number;
 }

@@ -53,7 +53,7 @@ function tinyTree(): Tree {
             },
         },
         couples: [{ leftId: "AAAAA", rightId: "BBBBB", unionIndex: 0, childIds: ["CCCCC"] }],
-        rev: 0,
+        editRev: 0,
         updatedAt: 0,
     };
 }
@@ -99,7 +99,7 @@ describe("serializeGedcom - synthetic", () => {
                 },
             },
             couples: [{ leftId: "AAAAA", rightId: "BBBBB", unionIndex: 0, childIds: [] }],
-            rev: 0,
+            editRev: 0,
             updatedAt: 0,
         };
         const out = serializeGedcom(tree);
@@ -132,7 +132,7 @@ describe("serializeGedcom - synthetic", () => {
                 },
             },
             couples: [{ leftId: "AAAAA", rightId: "BBBBB", unionIndex: 0, childIds: [] }],
-            rev: 0,
+            editRev: 0,
             updatedAt: 0,
         };
         const out = serializeGedcom(tree);

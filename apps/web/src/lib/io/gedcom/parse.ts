@@ -117,7 +117,7 @@ function buildTree(root: TreeNodeRoot): GedParseResult {
         rootId,
         people,
         couples,
-        rev: 0,
+        editRev: 0,
         updatedAt: Date.now(),
     };
 

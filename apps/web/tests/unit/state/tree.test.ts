@@ -23,7 +23,7 @@ function emptyTree(name: string): Tree {
             },
         },
         couples: [],
-        rev: 0,
+        editRev: 0,
         updatedAt: 0,
     };
 }
@@ -110,5 +110,90 @@ describe("createTreeStore", () => {
         while (s.canUndo) s.undo();
         // we should have lost at least the first 50 to the cap (1050 set, 1000 limit)
         expect(s.tree.name).not.toBe("v0");
+    });
+
+    // -----------------------------------------------------------------------
+    // Redraw-on-save regression: every mutator must bump tree.editRev so the
+    // layout worker's content-hash cache (and any other rev-watching consumer)
+    // sees a fresh value. Before this fix, editRev sat at 0 forever and
+    // topology edits never re-rendered on the canvas.
+    // -----------------------------------------------------------------------
+    describe("editRev bumps on every mutation", () => {
+        it("set() increments editRev", () => {
+            const s = createTreeStore(emptyTree("v0"));
+            const before = s.tree.editRev;
+            s.set(emptyTree("v1"));
+            expect(s.tree.editRev).toBe(before + 1);
+        });
+
+        it("update() increments editRev when the tree changed", () => {
+            const s = createTreeStore(emptyTree("v0"));
+            const before = s.tree.editRev;
+            s.update((t) => ({ ...t, name: "v1" }));
+            expect(s.tree.editRev).toBe(before + 1);
+        });
+
+        it("update() does NOT bump editRev when the updater returns identity", () => {
+            const s = createTreeStore(emptyTree("v0"));
+            const before = s.tree.editRev;
+            s.update((t) => t);
+            expect(s.tree.editRev).toBe(before);
+        });
+
+        it("update() does NOT bump editRev when the tree content is unchanged", () => {
+            // a fresh object with identical content should still short-circuit
+            // via diffTrees / isEmptyDiff so we don't pile spurious bumps.
+            const s = createTreeStore(emptyTree("v0"));
+            const before = s.tree.editRev;
+            s.update((t) => ({ ...t }));
+            expect(s.tree.editRev).toBe(before);
+        });
+
+        it("reset() increments editRev", () => {
+            const s = createTreeStore(emptyTree("v0"));
+            const before = s.tree.editRev;
+            s.reset(emptyTree("loaded"));
+            expect(s.tree.editRev).toBe(before + 1);
+        });
+
+        it("hydrate() preserves the loaded editRev (does not bump)", () => {
+            const s = createTreeStore(emptyTree("v0"));
+            const stored: Tree = { ...emptyTree("disk"), editRev: 42 };
+            s.hydrate(stored);
+            expect(s.tree.editRev).toBe(42);
+        });
+
+        it("undo() increments editRev (forward, not backward)", () => {
+            const s = createTreeStore(emptyTree("v0"));
+            s.set(emptyTree("v1")); // editRev: 0 → 1
+            const beforeUndo = s.tree.editRev;
+            s.undo();
+            expect(s.tree.editRev).toBe(beforeUndo + 1);
+        });
+
+        it("redo() increments editRev (forward, not backward)", () => {
+            const s = createTreeStore(emptyTree("v0"));
+            s.set(emptyTree("v1"));
+            s.undo();
+            const beforeRedo = s.tree.editRev;
+            s.redo();
+            expect(s.tree.editRev).toBe(beforeRedo + 1);
+        });
+
+        it("a sequence of edits monotonically increases editRev", () => {
+            const s = createTreeStore(emptyTree("v0"));
+            const seen: number[] = [s.tree.editRev];
+            s.set(emptyTree("v1"));
+            seen.push(s.tree.editRev);
+            s.update((t) => ({ ...t, name: "v2" }));
+            seen.push(s.tree.editRev);
+            s.undo();
+            seen.push(s.tree.editRev);
+            s.redo();
+            seen.push(s.tree.editRev);
+            for (let i = 1; i < seen.length; i++) {
+                expect(seen[i]).toBeGreaterThan(seen[i - 1]!);
+            }
+        });
     });
 });
