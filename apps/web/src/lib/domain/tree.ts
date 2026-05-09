@@ -255,7 +255,7 @@ export function* siblingsOf(t: Tree, id: PersonId): Iterable<Person> {
     }
 }
 
-function directChildren(t: Tree, id: PersonId): PersonId[] {
+export function directChildren(t: Tree, id: PersonId): PersonId[] {
     const out: PersonId[] = [];
     for (const p of Object.values(t.people)) {
         if (p.motherId === id || p.fatherId === id) out.push(p.id);

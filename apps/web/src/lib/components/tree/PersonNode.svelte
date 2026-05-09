@@ -4,7 +4,7 @@
     licensed under the MIT license; see LICENSE.md for full text
 -->
 <script lang="ts">
-    import { MapPin } from "@lucide/svelte";
+    import { Link2 } from "@lucide/svelte";
     import { HaracalndeDate, type HaracalndeDateData } from "$lib/date/HaracalndeDate";
     import type { Person } from "$lib/domain/types";
     import type { PersonNodeLevel } from "$lib/components/tree/edges";
@@ -13,29 +13,29 @@
         person: Person;
         selected?: boolean;
         level?: PersonNodeLevel;
-        /** canvas scale, used to keep border thickness visually constant */
-        scale?: number;
         portraitUrl?: string | undefined;
         /** whether this is a ghost (duplicate adjacent to spouse) */
         isGhost?: boolean;
-        onselect?: (id: string) => void;
+        /** show the link icon (person appears in >1 location on the canvas) */
+        hasMultipleInstances?: boolean;
+        onselect?: (id: string, opts?: { fromGhost?: boolean }) => void;
         onedit?: (id: string) => void;
         oncontextmenu?: (id: string, x: number, y: number) => void;
-        /** callback when user clicks the jump-to-real icon on a ghost card */
-        onJumpToReal?: ((id: string) => void) | undefined;
+        /** click on the link icon — anchor is the icon's own element */
+        onShowInstances?: ((id: string, anchor: HTMLElement) => void) | undefined;
     }
 
     let {
         person,
         selected = false,
         level = 0,
-        scale = 1,
         portraitUrl,
         isGhost = false,
+        hasMultipleInstances = false,
         onselect,
         onedit,
         oncontextmenu,
-        onJumpToReal,
+        onShowInstances,
     }: Props = $props();
 
     let firstName = $derived(person.given.trim());
@@ -78,24 +78,22 @@
                 : "bg-amber-600/30 border-amber-400/70",
     );
 
-    // keep visual border thickness at ~2px regardless of canvas zoom
-    let borderWidth = $derived(level >= 5 ? "0px" : `${(2 / Math.max(scale, 0.001)).toFixed(2)}px`);
+
 </script>
 
 <button
     type="button"
-    class="text-fg group relative flex h-full w-full flex-col items-stretch overflow-hidden px-2 py-1 text-center outline-none hover:z-10 focus:outline-none focus-visible:outline-none {genderClass} {level >=
-    5
-        ? 'rounded-full'
-        : 'rounded-md'} {level === 0 && !portraitUrl ? 'justify-center' : ''}"
-    style:border-width={borderWidth}
-    style:border-style="solid"
+    role="treeitem"
+    class="text-fg person-card group relative flex h-full w-full cursor-pointer flex-col items-stretch overflow-hidden px-2 py-1 text-center outline-none hover:z-10 focus:outline-none focus-visible:outline-none {genderClass}"
     class:is-faded={person.display === "z0"}
     class:is-selected={selected}
     data-person-id={person.id}
-    aria-pressed={selected}
+    data-level={level}
+    data-portrait={portraitUrl ? "1" : "0"}
+    tabindex={selected ? 0 : -1}
+    aria-selected={selected}
     aria-label={fullName || initials}
-    onclick={() => onselect?.(person.id)}
+    onclick={() => (isGhost ? onselect?.(person.id, { fromGhost: true }) : onselect?.(person.id))}
     ondblclick={() => onedit?.(person.id)}
     oncontextmenu={(e) => {
         if (!oncontextmenu) return;
@@ -103,7 +101,11 @@
         oncontextmenu(person.id, e.clientX, e.clientY);
     }}
 >
-    {#if level <= 0}
+    <!-- all level variants are mounted once; CSS shows the matching one based on
+         the button's data-level attribute. avoids tearing down/re-mounting card
+         contents on each zoom-level threshold (was the top SetNeedStyleFlush
+         source via Svelte's compiled {#if} branch ContentRangeInserted). -->
+    <div class="lvl" data-lvl="0">
         {#if portraitUrl}
             <div class="border-line/40 mb-1 h-10 w-full overflow-hidden rounded border">
                 <img src={portraitUrl} alt="" class="h-full w-full object-cover object-top" />
@@ -115,51 +117,88 @@
         {#if dateRange}
             <span class="mt-0.5 font-mono text-[11px] opacity-80">{dateRange}</span>
         {/if}
-    {:else if level === 1}
+    </div>
+    <div class="lvl" data-lvl="1">
         <span class="m-auto line-clamp-2 text-base leading-tight font-semibold">
             {fullName || "(unnamed)"}
         </span>
         {#if dateRange}
             <span class="mt-0.5 font-mono text-xs opacity-80">{dateRange}</span>
         {/if}
-    {:else if level === 2}
+    </div>
+    <div class="lvl" data-lvl="2">
         <span
             class="m-auto line-clamp-2 px-1 text-center text-2xl leading-tight font-semibold wrap-break-word"
         >
             {fullName || initials}
         </span>
-    {:else if level === 3}
+    </div>
+    <div class="lvl" data-lvl="3">
         <span class="m-auto truncate px-1 text-4xl font-semibold">
             {lastName || firstName || initials}
         </span>
-    {:else if level === 4}
+    </div>
+    <div class="lvl" data-lvl="4">
         <span class="m-auto text-6xl leading-none font-bold tracking-tight">{initials}</span>
-    {/if}
+    </div>
     <!-- level 5: empty box, no text -->
 
-    {#if isGhost}
+    {#if hasMultipleInstances}
         <div
-            class="absolute top-0 right-0 p-1 text-fg-muted hover:text-fg transition-colors cursor-pointer"
+            class="link-icon absolute top-0 right-0 p-1 cursor-pointer"
             role="button"
             tabindex="0"
-            title="Jump to real card"
+            title="jump to another instance"
             onclick={(e) => {
                 e.stopPropagation();
-                onJumpToReal?.(person.id);
+                onShowInstances?.(person.id, e.currentTarget);
             }}
             onkeydown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                     e.stopPropagation();
-                    onJumpToReal?.(person.id);
+                    onShowInstances?.(person.id, e.currentTarget);
                 }
             }}
         >
-            <MapPin size={16} />
+            <Link2 size={16} />
         </div>
     {/if}
 </button>
 
 <style>
+    button {
+        border-width: var(--node-border-width, 2px);
+        border-style: solid;
+        border-radius: 0.375rem;
+    }
+    /* level 5 is a tiny dot - circular */
+    .person-card[data-level="5"] {
+        border-radius: 9999px;
+    }
+    /* level 0 with no portrait centers the name+date vertically;
+       with a portrait, default flex-start lets the portrait sit at the top */
+    .person-card[data-level="0"][data-portrait="0"] {
+        justify-content: center;
+    }
+    /* hide every level variant by default; the matching one is revealed below.
+       `display: contents` keeps the variant's children as direct flex children
+       of the button, preserving the previous layout (m-auto centering etc). */
+    .lvl {
+        display: none;
+    }
+    .person-card[data-level="0"] .lvl[data-lvl="0"],
+    .person-card[data-level="1"] .lvl[data-lvl="1"],
+    .person-card[data-level="2"] .lvl[data-lvl="2"],
+    .person-card[data-level="3"] .lvl[data-lvl="3"],
+    .person-card[data-level="4"] .lvl[data-lvl="4"] {
+        display: contents;
+    }
+    .link-icon {
+        opacity: 0.5;
+    }
+    .link-icon:hover {
+        opacity: 1;
+    }
     .is-faded {
         opacity: 0.45;
     }

@@ -80,7 +80,7 @@ export function applyDiff(tree: Tree, diff: TreeDiff): Tree {
         })
         .filter((c): c is CoupleRecord => c !== null);
 
-    for (const [key, { before, after }] of Object.entries(diff.couples)) {
+    for (const [key, { after }] of Object.entries(diff.couples)) {
         if (!processedKeys.has(key) && after !== null) {
             couples.push(after);
         }

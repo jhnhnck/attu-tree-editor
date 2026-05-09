@@ -94,6 +94,32 @@ export function divorceTicksForGroup(segments: readonly RenderedSegment[]): stri
 }
 
 /**
+ * For a horizontal `stub` segment, returns path data for a small perpendicular
+ * cap at each end — a ⊢/⊣ visual that communicates "this bond continues to a
+ * partner placed elsewhere in the tree." Cap height matches DIVORCE_TICK_HALF
+ * so it is visually consistent with the divorced-bond tick style.
+ */
+export function stubCapPath(seg: RenderedSegment): string {
+    if (seg.kind !== "stub") return "";
+    if (seg.y1 !== seg.y2) return ""; // only horizontal stubs
+    const y = seg.y1;
+    const half = DIVORCE_TICK_HALF;
+    return (
+        `M ${num(seg.x1)} ${num(y - half)} L ${num(seg.x1)} ${num(y + half)}` +
+        ` M ${num(seg.x2)} ${num(y - half)} L ${num(seg.x2)} ${num(y + half)}`
+    );
+}
+
+/** Concatenate stub-cap paths for all stub segments in a group. */
+export function stubCapsForGroup(segments: readonly RenderedSegment[]): string {
+    return segments
+        .filter((s) => s.kind === "stub")
+        .map(stubCapPath)
+        .filter((s) => s.length > 0)
+        .join(" ");
+}
+
+/**
  * Compute an SVG `stroke-width` value (in canvas-coord units, i.e. before the
  * canvas's `scale` transform applies) such that the stroke renders at
  * `targetScreenPx` pixels on screen, with a small bonus on zoom-out so edges

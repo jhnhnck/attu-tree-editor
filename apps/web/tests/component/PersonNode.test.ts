@@ -22,10 +22,21 @@ function person(overrides: Partial<Person> = {}): Person {
     };
 }
 
+// PersonNode mounts every level variant once and toggles visibility via CSS
+// (data-level on the button + display: contents on the matching .lvl).
+// Tests that previously asserted on the button's textContent now scope to the
+// active variant - the level-N wrapper - because the inactive variants are
+// still in the DOM and contribute to textContent.
+function visibleText(btn: HTMLElement): string {
+    const lvl = btn.dataset.level ?? "0";
+    const active = btn.querySelector(`.lvl[data-lvl="${lvl}"]`);
+    return active?.textContent?.replace(/\s+/g, " ").trim() ?? "";
+}
+
 describe("PersonNode", () => {
     it("at level 0, shows full name and date range without a portrait when none is set", () => {
         render(PersonNode, { person: person() });
-        const btn = screen.getByRole("button");
+        const btn = screen.getByRole("treeitem");
         expect(btn).toHaveTextContent("Alpha Bravo");
         expect(btn).toHaveTextContent("1500 - 1570 PC");
         expect(document.querySelector("img")).toBeNull();
@@ -38,14 +49,14 @@ describe("PersonNode", () => {
                 death: { era: "PC", year: 25 },
             }),
         });
-        expect(screen.getByRole("button")).toHaveTextContent("50 TT - 25 PC");
+        expect(screen.getByRole("treeitem")).toHaveTextContent("50 TT - 25 PC");
     });
 
     it("includes the era on a single-sided date", () => {
         const p = person({ birth: { era: "PC", year: 1234 } });
         delete p.death;
         render(PersonNode, { person: p });
-        expect(screen.getByRole("button")).toHaveTextContent("b. 1234 PC");
+        expect(screen.getByRole("treeitem")).toHaveTextContent("b. 1234 PC");
     });
 
     it("at level 0 with a portraitUrl, renders the image", () => {
@@ -56,36 +67,35 @@ describe("PersonNode", () => {
 
     it("at level 1 drops the portrait but keeps name + dates", () => {
         render(PersonNode, { person: person(), level: 1 });
-        const btn = screen.getByRole("button");
+        const btn = screen.getByRole("treeitem");
         expect(btn).toHaveTextContent("Alpha Bravo");
         expect(btn).toHaveTextContent("1500 - 1570 PC");
     });
 
     it("at level 2 shows just the full name", () => {
         render(PersonNode, { person: person(), level: 2 });
-        const btn = screen.getByRole("button");
-        expect(btn).toHaveTextContent("Alpha Bravo");
-        expect(btn).not.toHaveTextContent("1500");
+        const text = visibleText(screen.getByRole("treeitem"));
+        expect(text).toContain("Alpha Bravo");
+        expect(text).not.toContain("1500");
     });
 
     it("at level 3 shows the surname only", () => {
         render(PersonNode, { person: person(), level: 3 });
-        const btn = screen.getByRole("button");
-        expect(btn).toHaveTextContent("Bravo");
-        expect(btn).not.toHaveTextContent("Alpha");
+        const text = visibleText(screen.getByRole("treeitem"));
+        expect(text).toBe("Bravo");
     });
 
     it("at level 4 shows initials only", () => {
         render(PersonNode, { person: person(), level: 4 });
-        const btn = screen.getByRole("button");
-        expect(btn).toHaveTextContent("AB");
-        expect(btn).not.toHaveTextContent("Alpha");
+        const text = visibleText(screen.getByRole("treeitem"));
+        expect(text).toBe("AB");
     });
 
     it("at level 5 the box is empty", () => {
         render(PersonNode, { person: person(), level: 5 });
-        const btn = screen.getByRole("button");
-        expect(btn.textContent?.trim() ?? "").toBe("");
+        const btn = screen.getByRole("treeitem");
+        expect(btn.dataset.level).toBe("5");
+        expect(visibleText(btn)).toBe("");
     });
 
     it("paints male tint blue", () => {
@@ -111,19 +121,19 @@ describe("PersonNode", () => {
     it("dispatches onselect on single click", async () => {
         const onselect = vi.fn();
         render(PersonNode, { person: person(), onselect });
-        await fireEvent.click(screen.getByRole("button"));
+        await fireEvent.click(screen.getByRole("treeitem"));
         expect(onselect).toHaveBeenCalledWith("AAAAA");
     });
 
     it("dispatches onedit on double click", async () => {
         const onedit = vi.fn();
         render(PersonNode, { person: person(), onedit });
-        await fireEvent.dblClick(screen.getByRole("button"));
+        await fireEvent.dblClick(screen.getByRole("treeitem"));
         expect(onedit).toHaveBeenCalledWith("AAAAA");
     });
 
     it("falls back to (unnamed) at level 0 when given+surname are blank", () => {
         render(PersonNode, { person: person({ given: "", surname: "" }) });
-        expect(screen.getByRole("button")).toHaveTextContent("(unnamed)");
+        expect(screen.getByRole("treeitem")).toHaveTextContent("(unnamed)");
     });
 });

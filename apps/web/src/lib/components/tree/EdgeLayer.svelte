@@ -9,7 +9,7 @@
 -->
 <script lang="ts">
     import type { RenderedSegment, EdgeRole } from "$lib/components/tree/edges";
-    import { pathDataForGroup, divorceTicksForGroup } from "$lib/components/tree/edgePath";
+    import { pathDataForGroup, divorceTicksForGroup, stubCapsForGroup } from "$lib/components/tree/edgePath";
 
     interface Props {
         edges: readonly RenderedSegment[];
@@ -80,6 +80,17 @@
                     d={ticks}
                     vector-effect="non-scaling-stroke"
                     style:stroke-width="{strokeWidthFor('divorced')}px"
+                />
+            {/if}
+        {/if}
+        {#if role === "married" || role === "divorced"}
+            {@const caps = stubCapsForGroup(segs)}
+            {#if caps}
+                <path
+                    class={classFor(role)}
+                    d={caps}
+                    vector-effect="non-scaling-stroke"
+                    style:stroke-width="{strokeWidthFor(role)}px"
                 />
             {/if}
         {/if}

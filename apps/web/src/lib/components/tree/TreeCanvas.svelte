@@ -8,13 +8,33 @@
 -->
 <script lang="ts">
     import { onMount, onDestroy, untrack } from "svelte";
-    import { hvLayout, type GhostNode, COMPONENT_GAP } from "$lib/layout/hvLayout";
-    import { routeEdges, type Segment } from "$lib/layout/edgeRouter";
+    import { type GhostNode, COMPONENT_GAP, type HvLayoutResult } from "$lib/layout/hvLayout";
+    import {
+        placedGraphToHvLayout,
+        hydrateLayered,
+        hydrateOrdered,
+        hydratePlaced,
+        serializeOverrides,
+        type LayeredGraph,
+        type OrderedGraph,
+        type PlacedGraph,
+        type LayoutOverrides,
+        type LayeredGraphWire,
+        type OrderedGraphWire,
+        type PlacedGraphWire,
+    } from "$lib/layout/ir";
+    import type { Segment } from "$lib/layout/edgeRouter";
     import { shortestPath, type Path } from "$lib/layout/graph";
     import { segmentsForPath } from "$lib/layout/pathHighlight";
     import EdgeLayer from "$lib/components/tree/EdgeLayer.svelte";
+    import DebugOverlay from "$lib/components/tree/DebugOverlay.svelte";
     import PersonNode from "$lib/components/tree/PersonNode.svelte";
+    import InstancePopover from "$lib/components/tree/InstancePopover.svelte";
+    import BackButton from "$lib/components/canvas/BackButton.svelte";
+    import { buildInstanceEntries, type InstanceEntry } from "$lib/layout/instanceLabels";
+    import { displayName, findNeighbour } from "$lib/layout/kinship";
     import type { RenderedSegment, PersonNodeLevel } from "$lib/components/tree/edges";
+    import type { DebugLayerOptions } from "$lib/components/tree/debugTypes";
     import type { PortraitUrlCache } from "$lib/state/portraitUrls.svelte";
     import type { PersonId, Tree } from "$lib/domain/types";
     import type { CanvasController } from "./canvasController";
@@ -41,6 +61,13 @@
         tracePath?: Path | undefined;
         /** clicking the people-count pill calls this to toggle the inspector */
         ontoggleinspector?: (() => void) | undefined;
+        /** debug overlay options (if undefined, debug overlay is not rendered) */
+        debugOptions?:
+            | {
+                  layers: DebugLayerOptions;
+                  tracePath?: Path | undefined;
+              }
+            | undefined;
     }
 
     let {
@@ -58,6 +85,7 @@
         traceIds,
         tracePath: _,
         ontoggleinspector,
+        debugOptions,
     }: Props = $props();
 
     // pixels per unit. hvLayout produces positions where 1 unit = "half a card
@@ -75,12 +103,73 @@
     const MAX_SCALE = 5.0;
     const DRAG_THRESHOLD_PX = 4;
     const SELECT_PAN_MS = 320; // duration of "center on selection" tween
+    const ZOOM_TAU = 80; // ms time constant for wheel-zoom easing
     const ZOOM_FAR = 0.3; // below → 2× stroke
     const ZOOM_MID = 0.6; // below → 1.4× stroke
 
-    let layout = $derived(hvLayout(tree));
+    // Layout pipeline runs in a Web Worker (all four passes are pure/serializable).
+    const layoutWorker = new Worker(
+        new URL("$lib/layout/layout.worker.ts", import.meta.url),
+        { type: "module" },
+    );
+    let layoutSeq = 0;
+
+    let layeredGraph = $state<LayeredGraph | undefined>(undefined);
+    let orderedGraph = $state<OrderedGraph | undefined>(undefined);
+    let placedGraph = $state<PlacedGraph | undefined>(undefined);
+    let rawSegments = $state<readonly Segment[]>([]);
+    let routedEdges = $state<readonly RenderedSegment[]>([]);
+
+    // Persistent layout overrides (pinned x, swap hints, lane hints).
+    // Currently empty — no drag-to-pin UX yet. Populated by future follow-up.
+    let layoutOverrides = $state<LayoutOverrides>({});
+
+    const EMPTY_LAYOUT: HvLayoutResult = {
+        positions: new Map(),
+        canvas: { width: 0, height: 0 },
+        components: [],
+        isolated: [],
+        ghosts: [],
+        totalPeople: 0,
+        laidOutPeople: 0,
+    };
+    let layout = $derived(placedGraph ? placedGraphToHvLayout(placedGraph) : EMPTY_LAYOUT);
     let canvasW = $derived(layout.canvas.width * UNIT);
     let canvasH = $derived(layout.canvas.height * UNIT);
+
+    // Send the tree to the worker whenever tree.id, tree.rev, or overrides change.
+    $effect(() => {
+        void tree.id;
+        void tree.rev;
+        const overrides = layoutOverrides;
+        const seq = ++layoutSeq;
+        layoutWorker.postMessage({
+            seq,
+            tree: $state.snapshot(tree),
+            rootId: tree.rootId,
+            overrides: serializeOverrides(overrides),
+        });
+    });
+
+    layoutWorker.onmessage = (
+        e: MessageEvent<{
+            seq: number;
+            layered: LayeredGraphWire;
+            ordered: OrderedGraphWire;
+            placed: PlacedGraphWire;
+            segments: readonly Segment[];
+        }>,
+    ): void => {
+        const { seq, layered, ordered, placed, segments: segs } = e.data;
+        if (seq !== layoutSeq) return; // drop stale response
+        layeredGraph = hydrateLayered(layered);
+        orderedGraph = hydrateOrdered(ordered);
+        placedGraph = hydratePlaced(placed);
+        rawSegments = segs;
+        routedEdges = toRendered(segs);
+    };
+
+    onDestroy(() => layoutWorker.terminate());
 
     let hostEl: HTMLDivElement | undefined = $state();
     let panEl: HTMLDivElement | undefined = $state();
@@ -95,14 +184,65 @@
     let firstFitDone = $state(false);
     let lastFitTreeId = "";
 
+    // One-shot: re-center on root after the first worker layout response arrives.
+    // resetView() is called in onMount's rAF, but layout is empty at that point;
+    // this effect fires once the first non-empty layout lands from the worker.
+    let didInitialCenter = false;
+    $effect(() => {
+        const count = layout.positions.size;
+        if (count > 0 && !didInitialCenter && firstFitDone) {
+            didInitialCenter = true;
+            untrack(() => requestAnimationFrame(resetView));
+        }
+    });
+
+    // wheel-zoom smoothing: imperative funcs bypass by calling cancelZoomAnim()
+    let targetScale = 1;
+    let zoomAnimId: number | undefined;
+    let zoomAnchorCx = 0;
+    let zoomAnchorCy = 0;
+    let zoomAnchorUx = 0;
+    let zoomAnchorUy = 0;
+    let zoomPrevTime = 0;
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    // freeze cardLevel + nodeBorderWidth during active wheel-zoom anim. without
+    // this, every eased frame crosses scale thresholds and recomputes the level,
+    // forcing each visible card to re-render. captured at anim start, cleared
+    // when the anim settles or is cancelled.
+    let isZooming = $state(false);
+    let frozenCardLevel = $state<PersonNodeLevel>(0);
+    let frozenBorderWidth = $state<string>("2.00px");
+
     // tool mode - "select" is normal click-to-select; "hand" is cosmetic for now
     // (pan works in either mode, cursor changes on the host element).
     let mode = $state<"select" | "hand">("select");
     let isDragging = $state(false);
 
-    let strokeMultiplier = $derived(
-        scale < ZOOM_FAR ? 2 : scale < ZOOM_MID ? 1.4 : 1,
-    );
+    // per-instance ring: when set, only the matching ghost/primary glows; null
+    // = ring all instances of selectedId (used by external selection sources).
+    let selectedInstanceKey = $state<string | null>(null);
+    // one-shot: skip the auto-pan-on-selection effect for the next select call
+    // (set when clicking a ghost body, or when picking from the popover).
+    let suppressNextSelectionPan = $state(false);
+    // popover state: which person, which icon to anchor to, current location.
+    let instancePopover = $state<{
+        personId: PersonId;
+        anchor: HTMLElement;
+        currentKey: string;
+    } | null>(null);
+    // single-level undo for popover-jump navigation.
+    interface JumpSnapshot {
+        panX: number;
+        panY: number;
+        scale: number;
+        selectedInstanceKey: string | null;
+        fromName: string;
+    }
+    let lastJumpSnapshot = $state<JumpSnapshot | null>(null);
+    let lastTreeRef: Tree | undefined;
+
+    let strokeMultiplier = $derived(scale < ZOOM_FAR ? 2 : scale < ZOOM_MID ? 1.4 : 1);
 
     // notify parent on scale changes
     $effect(() => {
@@ -141,11 +281,15 @@
             resetView();
             firstFitDone = true;
         });
+
+        window.addEventListener("blur", onWindowBlur);
     });
 
     onDestroy(() => {
         resizeObs?.disconnect();
         cancelPanAnim();
+        cancelZoomAnim();
+        window.removeEventListener("blur", onWindowBlur);
     });
 
     // re-fit when a new tree id arrives (typical of an import)
@@ -170,11 +314,13 @@
         if (rect.width === 0 || rect.height === 0) return;
         if (canvasW === 0 || canvasH === 0) return;
         cancelPanAnim();
+        cancelZoomAnim();
         const padding = 64;
         const sx = (rect.width - padding * 2) / canvasW;
         const sy = (rect.height - padding * 2) / canvasH;
         const s = clamp(Math.min(sx, sy), MIN_SCALE, 1.5);
         scale = s;
+        targetScale = s;
         panX = (rect.width - canvasW * s) / 2;
         panY = (rect.height - canvasH * s) / 2;
     }
@@ -185,7 +331,9 @@
         const rect = hostEl.getBoundingClientRect();
         if (rect.width === 0 || rect.height === 0) return;
         cancelPanAnim();
+        cancelZoomAnim();
         scale = 1;
+        targetScale = 1;
         const rootPos = layout.positions.get(tree.rootId);
         if (rootPos) {
             const cx = rootPos.x * UNIT + CARD_W / 2;
@@ -203,9 +351,23 @@
         if (e.target === hostEl || e.target === panEl) ondeselect?.();
     }
 
-    /** Escape key deselects; paired with onclick to satisfy a11y requirements */
+    /** Escape deselects; arrow keys move selection geometrically */
     function onHostKeyDown(e: KeyboardEvent): void {
-        if (e.key === "Escape") ondeselect?.();
+        if (e.key === "Escape") {
+            ondeselect?.();
+            return;
+        }
+        if (!selectedId) return;
+        let dir: "up" | "down" | "left" | "right" | undefined;
+        if (e.key === "ArrowRight") dir = "right";
+        else if (e.key === "ArrowLeft") dir = "left";
+        else if (e.key === "ArrowDown") dir = "down";
+        else if (e.key === "ArrowUp") dir = "up";
+        if (dir) {
+            e.preventDefault();
+            const next = findNeighbour(selectedId, dir, layout.positions);
+            if (next) onselect?.(next);
+        }
     }
 
     function clamp(n: number, lo: number, hi: number): number {
@@ -220,6 +382,14 @@
             cancelAnimationFrame(panAnimFrame);
             panAnimFrame = null;
         }
+    }
+
+    function cancelZoomAnim(): void {
+        if (zoomAnimId !== undefined) {
+            cancelAnimationFrame(zoomAnimId);
+            zoomAnimId = undefined;
+        }
+        isZooming = false;
     }
 
     function easeInOutCubic(t: number): number {
@@ -263,19 +433,106 @@
         centerOnPosition(pos);
     }
 
-    // when selection changes externally, glide the canvas to center it
+    // when selection changes externally, glide the canvas to center it.
+    // also reconciles `selectedInstanceKey` (clears it if it no longer refers
+    // to the new selectedId) and clears the back-jump snapshot on external
+    // selection changes (popover-jump and ghost-body click both set
+    // suppressNextSelectionPan first to opt out).
     $effect(() => {
         const id = selectedId;
         untrack(() => {
+            const wasSuppressed = suppressNextSelectionPan;
+            if (suppressNextSelectionPan) suppressNextSelectionPan = false;
+
+            if (selectedInstanceKey) {
+                const matches =
+                    !!id &&
+                    (selectedInstanceKey === id || selectedInstanceKey.startsWith(`${id}-ghost-`));
+                if (!matches) selectedInstanceKey = null;
+            }
+            if (!wasSuppressed && lastJumpSnapshot) lastJumpSnapshot = null;
+            if (wasSuppressed) return;
             if (id && firstFitDone) centerOnPerson(id);
         });
     });
 
+    // tree-edit clearing for the back-jump snapshot. layout positions can
+    // shift on edit, so the captured pan/zoom no longer points where the
+    // user was looking.
+    $effect(() => {
+        const t = tree;
+        untrack(() => {
+            if (lastTreeRef !== undefined && lastTreeRef !== t && lastJumpSnapshot) {
+                lastJumpSnapshot = null;
+            }
+            lastTreeRef = t;
+        });
+    });
+
+    // --- debug overlay state ---
+
+    $effect(() => {
+        if (!debugOptions?.layers.exposeTreeDebug) {
+            delete window.__treeDebug;
+            return;
+        }
+        const capturedLayout = layout;
+        const capturedRaw = rawSegments;
+        const capturedTree = tree;
+        const capturedLayered = layeredGraph;
+        const capturedOrdered = orderedGraph;
+        const capturedPlaced = placedGraph;
+        window.__treeDebug = {
+            layout: capturedLayout,
+            rawSegments: capturedRaw,
+            positions: capturedLayout.positions,
+            ...(capturedLayered !== undefined ? { layeredGraph: capturedLayered } : {}),
+            ...(capturedOrdered !== undefined ? { orderedGraph: capturedOrdered } : {}),
+            ...(capturedPlaced !== undefined ? { placedGraph: capturedPlaced } : {}),
+            dumpSegment(id: string): void {
+                const seg = capturedRaw.find((s) => s.id === id || s.id.startsWith(id));
+                if (!seg) {
+                    // eslint-disable-next-line no-console
+                    console.log(`[treeDebug] no segment matching "${id}"`);
+                    return;
+                }
+                // eslint-disable-next-line no-console
+                console.log(`[treeDebug] segment ${seg.id}`, seg);
+            },
+            findPath(id1: string, id2: string): void {
+                const result = shortestPath(capturedTree, id1, id2);
+                if (!result) {
+                    // eslint-disable-next-line no-console
+                    console.log(`[treeDebug] no path ${id1} → ${id2}`);
+                    return;
+                }
+                // eslint-disable-next-line no-console
+                console.log(
+                    `[treeDebug] path (${result.ids.length} nodes):`,
+                    result.ids.join(" → "),
+                );
+                // eslint-disable-next-line no-console
+                console.table(result.steps);
+            },
+        };
+        return () => {
+            delete window.__treeDebug;
+        };
+    });
+
     // --- imperative controller exposed to App.svelte ---
 
+    function clearJumpSnapshot(): void {
+        if (lastJumpSnapshot) lastJumpSnapshot = null;
+        if (instancePopover) instancePopover = null;
+    }
+
     function setScale(next: number): void {
+        clearJumpSnapshot();
+        cancelZoomAnim();
         if (!hostEl) {
             scale = clamp(next, MIN_SCALE, MAX_SCALE);
+            targetScale = scale;
             return;
         }
         const rect = hostEl.getBoundingClientRect();
@@ -288,6 +545,7 @@
         panX = cx - cuX * target;
         panY = cy - cuY * target;
         scale = target;
+        targetScale = target;
     }
 
     function zoomBy(factor: number): void {
@@ -307,11 +565,13 @@
         const pos = layout.positions.get(selectedId);
         if (!pos) return;
         const rect = hostEl.getBoundingClientRect();
+        cancelZoomAnim();
         const padding = 96;
         const sx = (rect.width - padding * 2) / CARD_W;
         const sy = (rect.height - padding * 2) / CARD_H;
         const target = clamp(Math.min(sx, sy), MIN_SCALE, MAX_SCALE);
         scale = target;
+        targetScale = target;
         const cx = pos.x * UNIT + CARD_W / 2;
         const cy = pos.y * UNIT + CARD_H / 2;
         panX = rect.width / 2 - cx * target;
@@ -333,40 +593,96 @@
             focusSelection,
             fitSelection,
             centerOnPerson,
+            centerAt: (xU: number, yU: number) => centerOnPosition({ x: xU, y: yU }),
             centerOnRoot,
             getMode: () => mode,
             setMode: (m) => (mode = m),
         });
     });
 
-    // --- wheel zoom (cursor-anchored) ---
+    // --- wheel zoom (cursor-anchored, eased) ---
 
     function onWheel(e: WheelEvent): void {
+        if (pinchActive) return; // ignore stray wheel events during touch pinch
         e.preventDefault();
-        // ctrl+wheel = trackpad pinch in chrome/safari; deltas are larger
-        const intensity = e.ctrlKey ? 0.012 : 0.0018;
-        const factor = Math.exp(-e.deltaY * intensity);
-        const next = clamp(scale * factor, MIN_SCALE, MAX_SCALE);
-        if (next === scale) return;
 
-        // anchor at the center of the host viewport (not the cursor) so the
-        // visible center stays put during zoom. hostW/hostH are kept in sync
-        // by the ResizeObserver — reading them avoids a forced synchronous layout.
-        const cx = hostW / 2;
-        const cy = hostH / 2;
-        const cuX = (cx - panX) / scale;
-        const cuY = (cy - panY) / scale;
-        panX = cx - cuX * next;
-        panY = cy - cuY * next;
-        scale = next;
+        // ctrl+wheel = trackpad pinch gesture in chrome/safari (larger deltas);
+        // sensitivity is lower than mouse wheel to avoid snap-zooming.
+        const intensity = e.ctrlKey ? 0.0045 : 0.0018;
+        const factor = Math.exp(-e.deltaY * intensity);
+        const next = clamp(targetScale * factor, MIN_SCALE, MAX_SCALE);
+        if (next === targetScale) return;
+
+        // anchor the zoom at the cursor position in host space; recomputed on
+        // every wheel event so mid-animation cursor movement is tracked.
+        if (hostEl) {
+            const rect = hostEl.getBoundingClientRect();
+            zoomAnchorCx = e.clientX - rect.left;
+            zoomAnchorCy = e.clientY - rect.top;
+        } else {
+            zoomAnchorCx = hostW / 2;
+            zoomAnchorCy = hostH / 2;
+        }
+        // current canvas-space position of the cursor
+        zoomAnchorUx = (zoomAnchorCx - panX) / scale;
+        zoomAnchorUy = (zoomAnchorCy - panY) / scale;
+
+        // clear the jump snapshot only at the start of a burst, not per-event
+        if (zoomAnimId === undefined) clearJumpSnapshot();
+
+        targetScale = next;
+
+        if (prefersReducedMotion) {
+            // skip lerp for users who prefer reduced motion
+            scale = targetScale;
+            panX = zoomAnchorCx - zoomAnchorUx * scale;
+            panY = zoomAnchorCy - zoomAnchorUy * scale;
+            return;
+        }
+
+        if (zoomAnimId === undefined) {
+            // freeze level/border so eased intermediate scales don't trigger
+            // per-card re-renders; recomputed when anim settles below.
+            const lvl = levelFromScale(scale);
+            frozenCardLevel = lvl;
+            frozenBorderWidth =
+                lvl >= 5 ? "0px" : `${(2 / Math.max(scale, 0.001)).toFixed(2)}px`;
+            isZooming = true;
+            zoomPrevTime = performance.now();
+            zoomAnimId = requestAnimationFrame(onZoomFrame);
+        }
+        // else: existing loop already running; updated targetScale + anchor above
     }
 
-    // --- pan (drag-anywhere, including over cards) ---
-    // we deliberately do NOT use setPointerCapture - that intercepts the
-    // synthesized click/dblclick events and breaks the per-card handlers.
-    // instead we listen on window for move/up so dragging still works when
-    // the cursor leaves the host. clicks fire normally as long as the pointer
-    // didn't move past DRAG_THRESHOLD_PX.
+    function onZoomFrame(now: number): void {
+        const dt = Math.min(now - zoomPrevTime, 100); // cap: prevent snap on tab resume
+        zoomPrevTime = now;
+
+        const alpha = 1 - Math.exp(-dt / ZOOM_TAU);
+        scale = scale + (targetScale - scale) * alpha;
+        panX = zoomAnchorCx - zoomAnchorUx * scale;
+        panY = zoomAnchorCy - zoomAnchorUy * scale;
+
+        if (Math.abs(scale - targetScale) < 1e-4) {
+            scale = targetScale;
+            panX = zoomAnchorCx - zoomAnchorUx * scale;
+            panY = zoomAnchorCy - zoomAnchorUy * scale;
+            zoomAnimId = undefined;
+            isZooming = false;
+        } else {
+            zoomAnimId = requestAnimationFrame(onZoomFrame);
+        }
+    }
+
+    // --- pan + pinch-to-zoom ---
+    // single-pointer pan: window listeners so dragging works outside the host.
+    // two-pointer pinch: setPointerCapture so fingers off-host don't desync.
+    // we do NOT capture single-pointer pan — that would intercept synthesized
+    // click/dblclick events and break per-card handlers.
+
+    const pinchPointers = new Map<number, { x: number; y: number }>();
+    let pinchActive = false;
+    let pinchLastDist = 0;
 
     let dragState: {
         pointerId: number;
@@ -379,6 +695,30 @@
 
     function onPointerDown(e: PointerEvent): void {
         if (e.button !== 0) return;
+
+        pinchPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+        if (pinchPointers.size === 2) {
+            // second finger: cancel any active single-finger drag and start pinch
+            if (dragState) {
+                if (isDragging) {
+                    isDragging = false;
+                    if (hostEl) hostEl.style.cursor = mode === "hand" ? "grab" : "default";
+                }
+                dragState = null;
+                // window listeners remain active for pinch event delivery
+            }
+            pinchActive = true;
+            const pts = [...pinchPointers.values()];
+            pinchLastDist = Math.hypot(pts[1]!.x - pts[0]!.x, pts[1]!.y - pts[0]!.y);
+            for (const id of pinchPointers.keys()) hostEl?.setPointerCapture(id);
+            clearJumpSnapshot();
+            return;
+        }
+
+        if (pinchPointers.size > 2) return; // ignore 3rd+ finger
+
+        // first pointer: start single-finger pan
         dragState = {
             pointerId: e.pointerId,
             startX: e.clientX,
@@ -393,12 +733,40 @@
     }
 
     function onWindowPointerMove(e: PointerEvent): void {
+        if (pinchPointers.has(e.pointerId)) {
+            pinchPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        }
+
+        if (pinchActive && pinchPointers.size === 2) {
+            const pts = [...pinchPointers.values()];
+            const dist = Math.hypot(pts[1]!.x - pts[0]!.x, pts[1]!.y - pts[0]!.y);
+            if (pinchLastDist > 0 && dist > 0 && hostEl) {
+                const factor = dist / pinchLastDist;
+                const centroidCx = (pts[0]!.x + pts[1]!.x) / 2;
+                const centroidCy = (pts[0]!.y + pts[1]!.y) / 2;
+                const rect = hostEl.getBoundingClientRect();
+                const cx = centroidCx - rect.left;
+                const cy = centroidCy - rect.top;
+                const next = clamp(scale * factor, MIN_SCALE, MAX_SCALE);
+                const uX = (cx - panX) / scale;
+                const uY = (cy - panY) / scale;
+                scale = next;
+                targetScale = next; // keep in sync so wheel lerp doesn't drift
+                panX = cx - uX * next;
+                panY = cy - uY * next;
+            }
+            pinchLastDist = dist;
+            return;
+        }
+
         if (!dragState || e.pointerId !== dragState.pointerId) return;
         const dx = e.clientX - dragState.startX;
         const dy = e.clientY - dragState.startY;
         if (!dragState.moved && Math.hypot(dx, dy) > DRAG_THRESHOLD_PX) {
             dragState.moved = true;
             isDragging = true;
+            clearJumpSnapshot();
+            if (hostEl) hostEl.style.cursor = "grabbing";
         }
         if (dragState.moved) {
             panX = dragState.startPanX + dx;
@@ -407,6 +775,29 @@
     }
 
     function onWindowPointerUp(e: PointerEvent): void {
+        pinchPointers.delete(e.pointerId);
+
+        if (pinchActive) {
+            if (pinchPointers.size < 2) {
+                pinchActive = false;
+                if (pinchPointers.size === 1) {
+                    // one finger remains: reseed single-finger pan so no position jump
+                    const entry = [...pinchPointers.entries()][0]!;
+                    dragState = {
+                        pointerId: entry[0],
+                        startX: entry[1].x,
+                        startY: entry[1].y,
+                        startPanX: panX,
+                        startPanY: panY,
+                        moved: false,
+                    };
+                } else {
+                    cleanupDrag();
+                }
+            }
+            return;
+        }
+
         if (!dragState || e.pointerId !== dragState.pointerId) return;
         const moved = dragState.moved;
         cleanupDrag();
@@ -422,16 +813,43 @@
     }
 
     function onWindowPointerCancel(e: PointerEvent): void {
+        pinchPointers.delete(e.pointerId);
+        if (pinchActive) {
+            if (pinchPointers.size < 2) {
+                pinchActive = false;
+                if (pinchPointers.size === 1) {
+                    const entry = [...pinchPointers.entries()][0]!;
+                    dragState = {
+                        pointerId: entry[0],
+                        startX: entry[1].x,
+                        startY: entry[1].y,
+                        startPanX: panX,
+                        startPanY: panY,
+                        moved: false,
+                    };
+                } else {
+                    cleanupDrag();
+                }
+            }
+            return;
+        }
         if (!dragState || e.pointerId !== dragState.pointerId) return;
         cleanupDrag();
     }
 
     function cleanupDrag(): void {
+        pinchPointers.clear();
+        pinchActive = false;
         dragState = null;
         isDragging = false;
         window.removeEventListener("pointermove", onWindowPointerMove);
         window.removeEventListener("pointerup", onWindowPointerUp);
         window.removeEventListener("pointercancel", onWindowPointerCancel);
+        if (hostEl) hostEl.style.cursor = mode === "hand" ? "grab" : "default";
+    }
+
+    function onWindowBlur(): void {
+        if (dragState || pinchActive) cleanupDrag();
     }
 
     // --- shared types + culling helpers ---
@@ -532,37 +950,15 @@
         return { left, top, right, bottom };
     });
 
-    // build ghost positions map for edge routing (use last ghost per person)
-    let ghostPositionsMap = $derived.by(() => {
-        const m = new Map<PersonId, { x: number; y: number }>();
-        for (const g of layout.ghosts) {
-            m.set(g.ghostOf, { x: g.x, y: g.y });
-        }
-        return m;
-    });
-
-    /**
-     * Edge segments live on a single SVG <path> per role, so we don't cull them
-     * on pan/zoom — culling would change `d` per frame and force the browser to
-     * re-parse the path string. With `d` stable, the parent transform composites
-     * on the GPU and pan/zoom stays smooth at 1k+ edges.
-     */
-    let routedEdges = $derived(
-        toRendered(
-            routeEdges(tree, layout.positions, {
-                cardWidth: CARD_W_U,
-                cardHeight: CARD_H_U,
-                ghostPositions: ghostPositionsMap,
-            }),
-        ),
+    let visibleNodes = $derived(
+        cullNodes(layout.positions, visibleRect, layout.ghosts, layout.isolated),
     );
-    let visibleNodes = $derived(cullNodes(layout.positions, visibleRect, layout.ghosts, layout.isolated));
 
     let computedTracePath = $derived(
-        traceIds ? shortestPath(tree, traceIds[0], traceIds[1]) : undefined
+        traceIds ? shortestPath(tree, traceIds[0], traceIds[1]) : undefined,
     );
     let computedHighlightedIds = $derived(
-        computedTracePath ? segmentsForPath(computedTracePath, routedEdges) : highlightedSegmentIds
+        computedTracePath ? segmentsForPath(computedTracePath, routedEdges) : highlightedSegmentIds,
     );
 
     function levelFromScale(s: number): PersonNodeLevel {
@@ -574,16 +970,56 @@
         return 5;
     }
 
-    let cardLevel = $derived(levelFromScale(scale));
+    let cardLevel = $derived(isZooming ? frozenCardLevel : levelFromScale(scale));
+    let nodeBorderWidth = $derived(
+        isZooming
+            ? frozenBorderWidth
+            : cardLevel >= 5
+              ? "0px"
+              : `${(2 / Math.max(scale, 0.001)).toFixed(2)}px`,
+    );
+
+    let duplicatedIds = $derived(new Set(layout.ghosts.map((g) => g.ghostOf)));
+
+    let popoverEntries = $derived.by((): InstanceEntry[] =>
+        instancePopover ? buildInstanceEntries(tree, layout, instancePopover.personId) : [],
+    );
+
+    function handleInstancePick(entry: InstanceEntry): void {
+        const personId = instancePopover?.personId;
+        if (!personId) return;
+        lastJumpSnapshot = {
+            panX,
+            panY,
+            scale,
+            selectedInstanceKey,
+            fromName: displayName(tree, personId),
+        };
+        selectedInstanceKey = entry.instanceKey;
+        suppressNextSelectionPan = true;
+        onselect?.(personId);
+        centerOnPosition({ x: entry.x, y: entry.y });
+        instancePopover = null;
+    }
+
+    function handleBack(): void {
+        if (!lastJumpSnapshot) return;
+        const snap = lastJumpSnapshot;
+        lastJumpSnapshot = null;
+        cancelPanAnim();
+        if (snap.scale !== scale) scale = snap.scale;
+        animatePanTo(snap.panX, snap.panY);
+        selectedInstanceKey = snap.selectedInstanceKey;
+    }
 </script>
 
-<!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_no_noninteractive_tabindex -->
 <div
     bind:this={hostEl}
     class="canvas-host bg-canvas relative h-full w-full overflow-hidden"
     class:is-dragging={isDragging}
+    class:is-zooming={isZooming}
     style:touch-action="none"
-    role="application"
+    role="tree"
     tabindex="0"
     aria-label="family tree canvas"
     onwheel={onWheel}
@@ -599,6 +1035,7 @@
         style:height="{canvasH}px"
         style:transform-origin="0 0"
         style:opacity={firstFitDone ? "1" : "0"}
+        style:--node-border-width={nodeBorderWidth}
     >
         <svg
             width={canvasW}
@@ -625,42 +1062,71 @@
                     vector-effect="non-scaling-stroke"
                 />
             {/each}
+            {#if debugOptions}
+                <DebugOverlay
+                    {layout}
+                    segments={routedEdges}
+                    tracePath={debugOptions.tracePath}
+                    {selectedId}
+                    layers={debugOptions.layers}
+                    unit={UNIT}
+                />
+            {/if}
         </svg>
 
         {#each visibleNodes as v (v.isGhost ? `${v.id}-ghost-${v.nearId}` : v.id)}
+            {@const instanceKey = v.isGhost ? `${v.id}-ghost-${v.nearId}` : v.id}
+            {@const isSelected =
+                selectedInstanceKey !== null
+                    ? instanceKey === selectedInstanceKey
+                    : selectedId === v.id}
             <div
-                class="person-node-host absolute"
+                class="person-node-host absolute top-0 left-0"
                 class:is-isolated={v.isIsolated}
-                style:left="{v.x * UNIT}px"
-                style:top="{v.y * UNIT}px"
+                style:transform="translate({v.x * UNIT}px, {v.y * UNIT}px)"
                 style:width="{CARD_W}px"
                 style:height="{CARD_H}px"
             >
                 <PersonNode
                     person={tree.people[v.id]!}
                     level={cardLevel}
-                    {scale}
-                    selected={selectedId === v.id}
+                    selected={isSelected}
                     portraitUrl={portraitUrls?.get(tree.people[v.id]?.portraitBlobId)}
-                    {...(v.isGhost && { isGhost: true })}
-                    onselect={(id: string) => onselect?.(id)}
+                    {...v.isGhost && { isGhost: true }}
+                    hasMultipleInstances={duplicatedIds.has(v.id)}
+                    onselect={(id: string, opts?: { fromGhost?: boolean }) => {
+                        selectedInstanceKey = instanceKey;
+                        if (opts?.fromGhost) suppressNextSelectionPan = true;
+                        onselect?.(id);
+                    }}
                     onedit={(id: string) => onedit?.(id)}
                     oncontextmenu={(id: string, x: number, y: number) => oncontextmenu?.(id, x, y)}
-                    {...(v.isGhost && {
-                        onJumpToReal: () => {
-                            const realPos = layout.positions.get(v.id);
-                            if (realPos) centerOnPosition(realPos);
-                        },
-                    })}
+                    onShowInstances={(id: string, anchor: HTMLElement) => {
+                        instancePopover = { personId: id, anchor, currentKey: instanceKey };
+                    }}
                 />
             </div>
         {/each}
     </div>
 
+    {#if lastJumpSnapshot}
+        <BackButton fromName={lastJumpSnapshot.fromName} onclick={handleBack} />
+    {/if}
+
+    {#if instancePopover}
+        <InstancePopover
+            anchorEl={instancePopover.anchor}
+            entries={popoverEntries}
+            currentInstanceKey={instancePopover.currentKey}
+            onpick={handleInstancePick}
+            onclose={() => (instancePopover = null)}
+        />
+    {/if}
+
     <div class="pointer-events-none absolute bottom-3 left-3 flex items-center gap-2">
         <button
             type="button"
-            class="text-fg-muted bg-canvas-elev/80 border-line rounded-md border px-2 py-1 font-mono text-[10px]"
+            class="text-fg-muted bg-canvas-elev/80 border-line rounded-md border px-2.5 py-1 font-mono text-xs"
             class:pointer-events-auto={!!ontoggleinspector}
             class:hover:border-accent={!!ontoggleinspector}
             class:cursor-pointer={!!ontoggleinspector}
@@ -688,10 +1154,13 @@
 
 <style>
     .canvas-host {
-        cursor: grab;
+        cursor: default;
     }
-    .canvas-host.is-dragging {
-        cursor: grabbing !important;
+    /* during pan or wheel-zoom the cards aren't a useful hit-target and the
+       hover-driven restyles compete with frame budget for layout/paint. */
+    .canvas-host.is-dragging .canvas-stage,
+    .canvas-host.is-zooming .canvas-stage {
+        pointer-events: none;
     }
     .canvas-stage {
         transition: opacity 200ms ease-out;

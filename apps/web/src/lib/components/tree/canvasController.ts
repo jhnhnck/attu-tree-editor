@@ -16,6 +16,7 @@ export interface CanvasController {
     focusSelection: () => void;
     fitSelection: () => void;
     centerOnPerson: (id: PersonId) => void;
+    centerAt: (xUnits: number, yUnits: number) => void;
     centerOnRoot: () => void;
     getMode: () => "select" | "hand";
     setMode: (next: "select" | "hand") => void;

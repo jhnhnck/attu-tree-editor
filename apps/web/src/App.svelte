@@ -72,6 +72,7 @@
     import { SETTING_KEYS, getSetting, setSetting } from "$lib/persistence/settings";
     import { installShortcuts, type ShortcutBinding } from "$lib/keyboard";
     import { SHORTCUTS } from "$lib/shortcuts";
+    import type { DebugLayerOptions } from "$lib/components/tree/debugTypes";
 
     import TreeCanvas from "$lib/components/tree/TreeCanvas.svelte";
     import type { CanvasController } from "$lib/components/tree/canvasController";
@@ -121,12 +122,30 @@
     let showInspector = $state(true);
     let inspectorInitialTab = $state<"personal" | "connections" | "details" | "bio">("personal");
 
+    // debug overlay state
+    let debugOpen = $state(false);
+    let debugLayers = $state<DebugLayerOptions>({
+        showGrid: false,
+        showNodeBounds: true,
+        showSegmentIds: false,
+        showGhostArrows: true,
+        showComponentBounds: true,
+        showHops: false,
+        showOverlapPairs: false,
+        exposeTreeDebug: false,
+    });
+
     // path tracing state
     let traceTargetId = $state<PersonId | undefined>(undefined);
     let tracePath = $derived(
         selection.selectedPersonId && traceTargetId
             ? shortestPath(treeStore.tree, selection.selectedPersonId, traceTargetId)
             : undefined
+    );
+
+    // debug overlay derived
+    let debugOptions = $derived(
+        debugOpen ? { layers: debugLayers, tracePath } : undefined
     );
 
     // command palette
@@ -774,6 +793,13 @@
         return [main];
     });
 
+    // debug shortcut (not shown in help overlay)
+    bindings.push({
+        combo: "Ctrl+Shift+D",
+        scope: "global" as const,
+        action: () => { debugOpen = !debugOpen; },
+    });
+
     installShortcuts(bindings);
 
     // helper to look up the primary combo for an action so menu items render the same shortcut
@@ -837,6 +863,7 @@
         showPalette = false;
         if (kind === "person") {
             focusPerson(id, "personal");
+            canvasController?.focusSelection();
             return;
         }
         const cmd = commandById(commands, id);
@@ -985,7 +1012,60 @@
                 ontoggleinspector={() => (showInspector = !showInspector)}
                 traceIds={selection.selectedPersonId && traceTargetId ? [selection.selectedPersonId, traceTargetId] : undefined}
                 {tracePath}
+                {debugOptions}
             />
+            {#if debugOpen}
+                <div
+                    class="pointer-events-auto absolute top-2 left-1/2 z-40 -translate-x-1/2
+                           rounded-lg border border-line bg-canvas-elev/95 px-3 py-2
+                           shadow-xl backdrop-blur text-fg text-xs font-mono"
+                    role="dialog"
+                    aria-label="debug overlay controls"
+                >
+                    <div class="mb-1.5 flex items-center justify-between gap-4">
+                        <span class="text-[10px] font-semibold uppercase tracking-wider text-fg-muted">Debug</span>
+                        <button
+                            type="button"
+                            onclick={() => (debugOpen = false)}
+                            aria-label="close"
+                            class="text-fg-muted hover:text-fg flex h-4 w-4 items-center justify-center text-xs"
+                        >×</button>
+                    </div>
+                    <div class="grid grid-cols-2 gap-x-5 gap-y-1">
+                        {#each ([
+                            ["showGrid",            "Unit grid"],
+                            ["showNodeBounds",      "Node bounds"],
+                            ["showSegmentIds",      "Segment IDs"],
+                            ["showGhostArrows",     "Ghost arrows"],
+                            ["showComponentBounds", "Component bounds"],
+                            ["showHops",            "Bridge hops"],
+                            ["showOverlapPairs",    "Overlap pairs"],
+                        ] as const) as [key, label] (key)}
+                            <label class="flex cursor-pointer select-none items-center gap-1.5">
+                                <input
+                                    type="checkbox"
+                                    class="h-3 w-3 accent-accent"
+                                    checked={debugLayers[key]}
+                                    onchange={() => { debugLayers[key] = !debugLayers[key]; }}
+                                />
+                                {label}
+                            </label>
+                        {/each}
+                    </div>
+                    <div class="col-span-2 mt-1 border-t border-line/30 pt-1">
+                        <label class="flex cursor-pointer select-none items-center gap-1.5">
+                            <input
+                                type="checkbox"
+                                class="h-3 w-3 accent-accent"
+                                checked={debugLayers.exposeTreeDebug}
+                                onchange={() => { debugLayers.exposeTreeDebug = !debugLayers.exposeTreeDebug; }}
+                            />
+                            Expose window.__treeDebug
+                        </label>
+                    </div>
+                    <div class="mt-1.5 text-[9px] text-fg-muted">window.__treeDebug exposed when toggled above · Ctrl+Shift+D</div>
+                </div>
+            {/if}
             {#if canvasController}
                 <ZoomWidget
                     scale={canvasScale}
