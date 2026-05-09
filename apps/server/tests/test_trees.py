@@ -238,7 +238,7 @@ async def test_save_revision_increments(client: AsyncClient):
 
 @pytest.mark.unit
 async def test_create_tree_rejects_oversized_blob(client: AsyncClient, monkeypatch):
-    monkeypatch.setattr(settings, 'max_tree_blob_bytes', 256)
+    monkeypatch.setattr(settings.server, 'max_tree_blob_bytes', 256)
     await authed(client, '1')
     big = {'people': {f'p{i}': {'given': 'x' * 50} for i in range(100)}}
     r = await client.post('/api/trees', json={'name': 'big', 'blob': big})
@@ -250,7 +250,7 @@ async def test_save_tree_rejects_oversized_blob(client: AsyncClient, monkeypatch
     await authed(client, '1')
     tree_id = (await client.post('/api/trees', json={'name': 't', 'blob': {}})).json()['id']
 
-    monkeypatch.setattr(settings, 'max_tree_blob_bytes', 256)
+    monkeypatch.setattr(settings.server, 'max_tree_blob_bytes', 256)
     big = {'people': {f'p{i}': {'given': 'x' * 50} for i in range(100)}}
     r = await client.put(
         f'/api/trees/{tree_id}',

@@ -43,10 +43,10 @@ def _serialize_blob(blob: object) -> str:
     can't bloat the trees / tree_revisions tables. raises 413.
     """
     s = json.dumps(blob)
-    if len(s.encode('utf-8')) > settings.max_tree_blob_bytes:
+    if len(s.encode('utf-8')) > settings.server.max_tree_blob_bytes:
         raise HTTPException(
             status_code=413,
-            detail=f'tree blob exceeds maximum size of {settings.max_tree_blob_bytes} bytes',
+            detail=f'tree blob exceeds maximum size of {settings.server.max_tree_blob_bytes} bytes',
         )
     return s
 

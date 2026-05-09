@@ -1,6 +1,5 @@
 """bot-only endpoints, all guarded by HMAC verification."""
 
-import os
 import uuid
 
 import aiosqlite
@@ -20,11 +19,10 @@ from attu_tree.models import (
     TreeListing,
     TreeListResponse,
 )
+from attu_tree.settings import settings
 
 
 router = APIRouter(prefix='/api/bot', tags=['bot'], dependencies=[Depends(verify_bot_hmac)])
-
-_PUBLIC_BASE = os.getenv('ATTU_PUBLIC_BASE_URL', 'https://attuproject.org/trees')
 
 
 @router.post('/auth/link', response_model=BotLinkResponse)
@@ -181,4 +179,4 @@ async def bot_view_link(
     if not has_access:
         raise HTTPException(status_code=403, detail='no_access')
 
-    return BotViewLinkResponse(url=f'{_PUBLIC_BASE}/view/{tree_id}')
+    return BotViewLinkResponse(url=f'{settings.server.public_base_url}/view/{tree_id}')

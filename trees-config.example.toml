@@ -1,0 +1,50 @@
+# trees-config.example.toml
+#
+# all per-deployment configuration for attu-tree, including secrets. on the
+# deployment host, copy this to `data/trees-config.toml`, fill in the secrets,
+# and `chmod 600` the live file.
+#
+# the docker-compose mount `./data:/app/data` makes this readable in the
+# container at /app/data/trees-config.toml. pydantic-settings loads it on
+# startup; missing file falls through to defaults.
+#
+# for dev outside docker, set TREES_CONFIG_PATH=apps/server/trees-config.toml
+# (or any other path) to point at a non-default location.
+
+[app]
+# encoded into link-code char[1] so the discord bot can route to the right
+# backend. dev uses {X, Z}; prod uses the other 22 letters. mismatching this
+# with the bot's expectation will silently break /trees link.
+environment = "dev"
+
+[server]
+# browsers calling /api from these origins are accepted; everything else is
+# rejected by the cors middleware
+cors_origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "https://dev.attuproject.org",
+]
+
+# 100 mb; matches the wiki caddy `max-body-100mb` cap. raise both layers
+# together if you ever need bigger blobs.
+max_tree_blob_bytes = 100_000_000
+
+# absolute base for view-link urls returned by the bot view-link endpoint
+public_base_url = "https://dev.attuproject.org/trees"
+
+# four slashes = absolute path; lives on the bind-mounted /app/data volume
+database_url = "sqlite+aiosqlite:////app/data/attu_tree.db"
+
+[secrets]
+# shared with doom-bot; both sides sign requests with this key
+discord_bot_hmac_secret = "<32+ random bytes; ask the operator>"
+
+# python -c "import secrets; print(secrets.token_hex(32))"
+session_secret = "<32 random bytes>"
+
+[wiki]
+# spa-side wiki link target; injected into index.html as window.__TREES_CONFIG__
+# and read by lib/wiki/linkResolver.ts. swap to https://dev.attuproject.org for
+# dev so portrait clicks don't bounce dev users to prod.
+base_url = "https://dev.attuproject.org"

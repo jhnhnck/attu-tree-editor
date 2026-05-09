@@ -49,7 +49,7 @@ _NON_ALNUM = re.compile(r'[^A-Z0-9]')
 
 
 def _alpha_for_env() -> str:
-    return _ALPHA_DEV if settings.environment == 'dev' else _ALPHA_PROD
+    return _ALPHA_DEV if settings.app.environment == 'dev' else _ALPHA_PROD
 
 
 def _gen_code() -> str:

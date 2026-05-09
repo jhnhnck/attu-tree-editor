@@ -3,14 +3,16 @@
 licensed under the MIT license; see LICENSE.md for full text.
 """
 
+import functools
+import json
 import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel
 
 from attu_tree import __version__
@@ -25,6 +27,23 @@ from attu_tree.settings import settings
 log = logging.getLogger(__name__)
 
 _STATIC_DIR = Path(__file__).parent.parent / 'static'
+_INDEX_PATH = _STATIC_DIR / 'index.html'
+
+
+@functools.cache
+def _templated_index() -> str:
+    """index.html with window.__TREES_CONFIG__ injected; computed once per
+    process. settings are loaded at startup and never mutate, so caching is
+    free; tests that override settings call `_templated_index.cache_clear()`."""
+    raw = _INDEX_PATH.read_text(encoding='utf-8')
+    config = {
+        'wikiBaseUrl': settings.wiki.base_url,
+        'environment': settings.app.environment,
+    }
+    injection = f'<script>window.__TREES_CONFIG__ = {json.dumps(config)};</script>'
+    if '</head>' in raw:
+        return raw.replace('</head>', f'    {injection}\n</head>', 1)
+    return injection + raw
 
 
 @asynccontextmanager
@@ -48,7 +67,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
+    allow_origins=settings.server.cors_origins,
     allow_credentials=True,
     allow_methods=['*'],
     allow_headers=['*'],
@@ -65,6 +84,21 @@ async def health() -> HealthResponse:
     return HealthResponse(status='ok', version=__version__)
 
 
-# serve the spa from the static/ directory if it exists (production build)
-if _STATIC_DIR.exists():
-    app.mount('/', StaticFiles(directory=str(_STATIC_DIR), html=True), name='spa')
+# spa serving: hashed assets straight off disk; everything else (including / and
+# any client-side route) returns the templated index so window.__TREES_CONFIG__
+# is injected before the spa boots
+@app.get('/{full_path:path}', include_in_schema=False, response_model=None)
+async def spa(full_path: str) -> HTMLResponse | FileResponse:
+    if not _STATIC_DIR.exists():
+        # dev mode: server runs without a built spa; let api callers see 404
+        raise HTTPException(status_code=404)
+    if full_path:
+        candidate = _STATIC_DIR / full_path
+        # guard against `..` traversal escaping the static dir
+        try:
+            candidate.resolve().relative_to(_STATIC_DIR.resolve())
+        except ValueError as exc:
+            raise HTTPException(status_code=404) from exc
+        if candidate.is_file():
+            return FileResponse(candidate)
+    return HTMLResponse(content=_templated_index(), headers={'cache-control': 'no-store'})

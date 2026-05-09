@@ -1,14 +1,15 @@
 # compose for the family tree editor
 # single combined image: fastapi serves the spa at / and the api at /api/
+# (caddy on the wiki side strips the public /trees/ prefix before proxying).
 #
 # include from the parent attu-wiki-dev stacks:
 #   include:
 #     - path: ./devel/FamilyTreeEditor/docker-compose.yml
 #       project_directory: ./devel/FamilyTreeEditor
 #
-# no ports: block - the wiki's mediawiki-container caddy proxies /trees/*
-# to attu-tree:8000 on the shared docker network. see
-# notes/features/wiki-integration.md §2.
+# all per-deployment config (including secrets) lives in `./data/trees-config.toml`,
+# which is bind-mounted alongside the sqlite db. no .env is read at runtime.
+# see notes/agents.md §4.
 
 name: family-tree
 
@@ -17,21 +18,13 @@ networks:
         external: true
         name: ${ATTU_NETWORK:-attu_dev}
 
-volumes:
-    family-tree-data: {}
-
 services:
     family-tree:
         build:
             context: .
             dockerfile: Dockerfile
-            args:
-                - VITE_BASE=${VITE_BASE:-/trees/}
         container_name: attu-tree
-        env_file:
-            - .env
         environment:
-            - SESSION_COOKIE_PATH=/trees/
             - PYTHONUNBUFFERED=1
         healthcheck:
             interval: 30s
@@ -45,4 +38,4 @@ services:
             - attu
         restart: unless-stopped
         volumes:
-            - family-tree-data:/app/data
+            - ./data:/app/data

@@ -10,7 +10,7 @@ client-side typescript spa (svelte 5, vite, tailwind v4) for viewing and editing
 
 1. do not edit the rules.
 1. do not create commits without being explicitly asked to.
-1. do not commit secrets - `.env` is gitignored; all credentials live there.
+1. do not commit secrets - `data/` is gitignored; secrets live in `data/trees-config.toml` `[secrets]`.
 1. check the current time at the start of each conversation. if it is past 12:30 AM ET, suggest a natural stopping point before continuing any task.
 1. all in-universe dates must use `HaracalndeDate`; never use `Date` in domain code.
 1. round-trip exports must list dropped fields when the target format cannot carry them; do not silently lose data.
@@ -53,7 +53,7 @@ client-side typescript spa (svelte 5, vite, tailwind v4) for viewing and editing
 | `src/lib/components/shell/` | `RecentTrees.svelte` (top-bar dropdown of recently-saved trees, new/delete actions) |
 | `src/lib/components/form/` | `DateInput.svelte` (parses on blur via `HaracalndeDate.parseNarrative`), `Field.svelte` |
 | `src/lib/components/ui/` | `Button.svelte` and other primitives |
-| `src/lib/wiki/` | `linkResolver.ts` builds `<base>/wiki/<title>` URLs (default base `https://attuproject.org`, override via `VITE_WIKI_BASE_URL`) |
+| `src/lib/wiki/` | `linkResolver.ts` builds `<base>/wiki/<title>` URLs; reads `window.__TREES_CONFIG__?.wikiBaseUrl` (server-injected from `data/trees-config.toml`), falls back to `VITE_WIKI_BASE_URL` for tests, then `https://attuproject.org` |
 
 ### apps/server internals
 
@@ -72,19 +72,31 @@ client-side typescript spa (svelte 5, vite, tailwind v4) for viewing and editing
 
 ## 4. Configuration System
 
+four sources, no `.env` at runtime. each value lives in exactly one tier.
+
+### tier A: `data/trees-config.toml` (bind-mounted)
+
+all per-deployment values: `[app] environment`, `[server] cors_origins / max_tree_blob_bytes / public_base_url / database_url`, `[secrets] discord_bot_hmac_secret / session_secret`, `[wiki] base_url`. file lives at `./data/trees-config.toml` on the host (gitignored), mounted into the container at `/app/data/trees-config.toml`. ship `trees-config.example.toml` for reference; `chmod 600` the live file because `[secrets]` carries credentials.
+
+`apps/server/attu_tree/settings.py` loads via `pydantic-settings`'s `TomlConfigSettingsSource`. nested `BaseModel` sub-fields map to toml tables. dev-outside-docker can override the path via `TREES_CONFIG_PATH=...`. missing file → defaults.
+
+### tier B: `Dockerfile` (baked into image)
+
+deployment invariants: `VITE_BASE=/trees/` (hard-coded in the spa build step), `mkdir -p /app/data && chown app:app /app/data` so the non-root user can write to the bind mount, python runtime envs.
+
+### tier C: `docker-compose.yml` `environment:`
+
+just `PYTHONUNBUFFERED=1`. no secrets, no `env_file:`. session cookie path is fixed to `/trees/` via a class constant in `Settings`, not a knob.
+
+### tier D: parent wiki `.env` via `env_file:` on the include
+
+`ATTU_NETWORK` only (already present at `/srv/services/attu-wiki-dev/.env`). no editor-specific values flow through here.
+
 ### web
 
-- `apps/web/vite.config.ts` - dev port 5173, proxies `/api` to `:8000`
-- `apps/web/tailwind.config.ts` - tailwind v4 lives mostly in `src/app.css` via `@theme`
-- `.env.development` and `.env.production` (gitignored) - `VITE_API_BASE_URL`, `VITE_WIKI_BASE_URL`
+`apps/web/vite.config.ts` keeps `base: process.env["VITE_BASE"] ?? "/"` (vite dev needs `/`; the production build is locked to `/trees/` by the Dockerfile). the spa wiki base url is **runtime-injected**: fastapi templates `<script>window.__TREES_CONFIG__ = {...}</script>` into `index.html` on serve, populated from tier A. `lib/wiki/linkResolver.ts` reads `window.__TREES_CONFIG__?.wikiBaseUrl` first, then `import.meta.env.VITE_WIKI_BASE_URL` (test fallback), then the default. one image works for any environment by swapping the toml.
 
-### server
-
-- `apps/server/pyproject.toml` - dependencies, ruff, basedpyright, pytest config
-- `.env` (gitignored) - `DATABASE_URL`, `DISCORD_BOT_HMAC_SECRET`, `WIKI_BASE_URL`, `SESSION_SECRET`, `CORS_ORIGINS`
-- `pydantic-settings` loads from `.env` at import time via `attu_tree/settings.py` (phase 5)
-
-precedence: env vars > `.env` > defaults in `Settings`.
+precedence: `init_settings` > `TomlConfigSettingsSource` > `env_settings` > `file_secret_settings`. env vars only matter for dev-outside-docker (`TREES_CONFIG_PATH`).
 
 ---
 
@@ -154,12 +166,6 @@ see [`notes/dev/dev_setup.md`](dev/dev_setup.md) for prerequisites and one-time 
 pnpm dev           # web on :5173, proxies /api -> :8000
 pnpm server:dev    # uvicorn --reload on :8000
 pnpm verify        # full ci sweep
-```
-
-for a docker preview of the backend:
-
-```bash
-cd apps/server && docker compose up --build
 ```
 
 ---

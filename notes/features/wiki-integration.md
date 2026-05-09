@@ -105,7 +105,7 @@ flag this when an actual embed lands; don't pre-emptively configure csp.
 
 `Person.wikiTitle` is a free-form string; `wikiUrlFor()` percent-encodes spaces → underscores and prepends the configured base. the inspector "Details" tab shows a "view ↗" anchor when the field is non-empty. no wiki-side action required - if the page exists, the link works; if it doesn't, mediawiki's "create this page" flow handles it gracefully.
 
-the base url is `VITE_WIKI_BASE_URL` on the editor side; default `https://attuproject.org`. dev builds should set `VITE_WIKI_BASE_URL=https://dev.attuproject.org` so portrait clicks don't bounce dev users to prod.
+the base url is **runtime-injected**. the fastapi server templates a `<script>window.__TREES_CONFIG__ = {...}</script>` block into `index.html` on serve, populated from `[wiki].base_url` in `data/trees-config.toml`. one image works for any deployment by swapping the toml; no rebuild required. the linkResolver falls back to `VITE_WIKI_BASE_URL` for tests and to `https://attuproject.org` if neither is set. see `notes/agents.md` §4.
 
 ### 4.2 wiki → editor (today)
 
@@ -155,11 +155,11 @@ option 1 is most likely to win. spec belongs in this file when the work picks up
 
 the family-tree service is **not** automatically loaded by `docker compose up` until the parent compose file gets the `include:` block (see §2.2). until then, run it standalone via `cd devel/FamilyTreeEditor && docker compose up -d` - it joins the wiki's network because of `external: true`, so wiki tools can still talk to `attu-tree:8000` if needed.
 
-`BUILD_TYPE` (the wiki-side dev/prod toggle) does **not** propagate into the family-tree container; the family-tree service uses its own `ENVIRONMENT=dev|prod` env var (see `apps/server/attu_tree/settings.py`). they're independent: you could run a dev wiki against a prod family-tree backend, though you usually wouldn't want to.
+`BUILD_TYPE` (the wiki-side dev/prod toggle) does **not** propagate into the family-tree container; the family-tree service uses its own `[app].environment = "dev"|"prod"` field in `data/trees-config.toml` (see `apps/server/attu_tree/settings.py`). they're independent: you could run a dev wiki against a prod family-tree backend, though you usually wouldn't want to.
 
 ### 6.2 backups
 
-`family-tree-data` is a docker named volume holding `attu_tree.db` (sqlite + WAL). it lives outside `attu-wiki-backup.sql` and outside the wiki's dump cycle. the wiki's `/srv/services/attu-wiki-dev/scripts/` backup scripts do not touch it - the family-tree service ships its own snapshot story (or will; not yet implemented). flag this in any backup doc updates.
+the editor's `./data/` directory (bind-mounted to `/app/data` in the container) holds `attu_tree.db` (sqlite + WAL) plus `trees-config.toml`. it lives outside `attu-wiki-backup.sql` and outside the wiki's dump cycle. the wiki's `/srv/services/attu-wiki-dev/scripts/` backup scripts do not touch it - the family-tree service ships its own snapshot story (or will; not yet implemented). flag this in any backup doc updates.
 
 ### 6.3 logs
 
@@ -192,7 +192,7 @@ deferred / future:
 
 - decide template-vs-gadget-vs-extension for `{{FamilyTree}}` rendering
 - spec a `GET /api/trees/<id>/summary` (or a "publish" flag) once we know the rendering mechanism
-- backup script for `family-tree-data` volume to slot into the existing wiki dump rotation
+- backup script for the editor's `./data/` bind mount to slot into the existing wiki dump rotation
 
 ---
 

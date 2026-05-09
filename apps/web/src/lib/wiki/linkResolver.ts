@@ -34,7 +34,12 @@ export function openWikiPage(title: string | undefined, baseUrl?: string): void 
 }
 
 function envBase(): string {
-    // vite injects import.meta.env; guard for non-vite runtimes (tests)
+    // runtime config injected by the server from data/trees-config.toml
+    // wins over build-time vite env, which only exists for tests
+    if (typeof window !== "undefined") {
+        const runtime = window.__TREES_CONFIG__?.wikiBaseUrl;
+        if (runtime) return runtime;
+    }
     const env = (import.meta as { env?: Record<string, string | undefined> }).env;
     return env?.VITE_WIKI_BASE_URL ?? DEFAULT_BASE;
 }

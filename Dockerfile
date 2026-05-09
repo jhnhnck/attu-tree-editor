@@ -1,4 +1,4 @@
-# combined multi-stage build: spa first, then python server, then runtime
+# combined build: spa first, then python runtime
 # single image / single port; fastapi mounts the spa at /
 
 # ---------------------------------------------------------------------------
@@ -18,19 +18,26 @@ RUN --mount=type=cache,target=/pnpm/store pnpm install --frozen-lockfile
 
 COPY apps/web/ apps/web/
 COPY packages/api-client/ packages/api-client/
-ARG VITE_BASE=/trees/
-RUN VITE_BASE=${VITE_BASE} pnpm -F web build
+# spa is always served under /trees/; the deployment topology is fixed,
+# so this is baked into the image rather than passed as a build arg
+RUN VITE_BASE=/trees/ pnpm -F web build
 
 # ---------------------------------------------------------------------------
-# stage 2: build the python venv
+# stage 2: runtime — uv image is the base; deps installed in place
 # ---------------------------------------------------------------------------
-FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim AS py-builder
+FROM ghcr.io/astral-sh/uv:python3.13-bookworm AS runtime
 
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
-    UV_PYTHON_DOWNLOADS=never
+    UV_PYTHON_DOWNLOADS=never \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+RUN groupadd --system --gid 1000 app \
+    && useradd --system --uid 1000 --gid app --shell /usr/sbin/nologin --create-home app
 
 WORKDIR /app
+
 COPY apps/server/pyproject.toml apps/server/uv.lock* ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-install-project --no-dev || uv sync --no-install-project --no-dev
@@ -39,23 +46,13 @@ COPY apps/server/attu_tree ./attu_tree
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --no-dev
 
-# ---------------------------------------------------------------------------
-# stage 3: runtime
-# ---------------------------------------------------------------------------
-FROM python:3.13-slim-bookworm AS runtime
+COPY --from=web-builder /workspace/apps/web/dist /app/static
 
-RUN groupadd --system --gid 1000 app \
-    && useradd --system --uid 1000 --gid app --shell /usr/sbin/nologin --create-home app
+# bind-mount target for trees-config.toml + sqlite db; the host directory is
+# mounted onto /app/data at runtime and must be writable by the non-root user
+RUN mkdir -p /app/data && chown -R app:app /app
 
-WORKDIR /app
-COPY --from=py-builder --chown=app:app /app/.venv /app/.venv
-COPY --from=py-builder --chown=app:app /app/attu_tree /app/attu_tree
-COPY --from=web-builder --chown=app:app /workspace/apps/web/dist /app/static
-
-ENV PATH=/app/.venv/bin:$PATH \
-    PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1
-
+ENV PATH=/app/.venv/bin:$PATH
 USER app
 EXPOSE 8000
 

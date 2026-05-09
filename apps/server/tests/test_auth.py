@@ -32,7 +32,7 @@ async def test_auth_start_returns_code(client: AsyncClient):
 async def test_auth_start_dev_codes_use_dev_alphabet(client: AsyncClient, monkeypatch):
     """on dev, the second alpha char is in {X, Z} so the bot can route."""
     from attu_tree.settings import settings
-    monkeypatch.setattr(settings, 'environment', 'dev')
+    monkeypatch.setattr(settings.app, 'environment', 'dev')
     # 50 samples is plenty to catch a partition bug
     for _ in range(50):
         r = await client.post('/api/auth/start')
@@ -45,7 +45,7 @@ async def test_auth_start_prod_codes_avoid_dev_alphabet(client: AsyncClient, mon
     """on prod, the second alpha char is never in {X, Z}; that's how the bot
     decides to route to the prod backend rather than dev."""
     from attu_tree.settings import settings
-    monkeypatch.setattr(settings, 'environment', 'prod')
+    monkeypatch.setattr(settings.app, 'environment', 'prod')
     for _ in range(50):
         r = await client.post('/api/auth/start')
         code = r.json()['code']

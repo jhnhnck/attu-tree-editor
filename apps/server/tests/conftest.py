@@ -21,11 +21,11 @@ TEST_HMAC_SECRET = secrets.token_hex(32)
 @pytest.fixture(autouse=True)
 def configure_test_settings(tmp_path, monkeypatch):
     """use an in-memory sqlite db and known secrets for every test."""
-    monkeypatch.setattr(settings, 'database_url', f'sqlite+aiosqlite:///{tmp_path}/test.db')
-    monkeypatch.setattr(settings, 'discord_bot_hmac_secret', TEST_HMAC_SECRET)
-    monkeypatch.setattr(settings, 'session_secret', 'test-session-secret')
+    monkeypatch.setattr(settings.server, 'database_url', f'sqlite+aiosqlite:///{tmp_path}/test.db')
+    monkeypatch.setattr(settings.server, 'cors_origins', ['http://localhost:5173'])
+    monkeypatch.setattr(settings.secrets, 'discord_bot_hmac_secret', TEST_HMAC_SECRET)
+    monkeypatch.setattr(settings.secrets, 'session_secret', 'test-session-secret')
     monkeypatch.setattr(settings, 'session_cookie_path', '/')
-    monkeypatch.setattr(settings, 'cors_origins', ['http://localhost:5173'])
 
 
 @pytest.fixture()

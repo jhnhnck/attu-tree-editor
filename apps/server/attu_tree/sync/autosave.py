@@ -28,7 +28,7 @@ class RevisionConflict(Exception):
 
 
 class BlobTooLarge(Exception):
-    """raised when a save payload exceeds settings.max_tree_blob_bytes."""
+    """raised when a save payload exceeds settings.server.max_tree_blob_bytes."""
 
     def __init__(self, size: int, limit: int) -> None:
         super().__init__(f'blob size {size} exceeds limit {limit}')
@@ -64,8 +64,8 @@ async def apply_save(
     now = _now_iso()
     blob_str = json.dumps(blob)
     encoded_size = len(blob_str.encode('utf-8'))
-    if encoded_size > settings.max_tree_blob_bytes:
-        raise BlobTooLarge(encoded_size, settings.max_tree_blob_bytes)
+    if encoded_size > settings.server.max_tree_blob_bytes:
+        raise BlobTooLarge(encoded_size, settings.server.max_tree_blob_bytes)
     new_name = name if name is not None else row['name']
     new_sv = schema_version if schema_version is not None else row['schema_version']
 

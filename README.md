@@ -62,7 +62,7 @@ FamilyTreeEditor/
 | pnpm | 10 | `npm i -g pnpm` (user prefix; see notes/dev/dev_setup.md) |
 | Python | 3.13 | pyenv or system |
 | uv | 0.11+ | `pip install --user uv` or astral installer |
-| Docker | 24+ | optional, for `apps/server/Dockerfile` |
+| Docker | 24+ | optional, for production image build (root `Dockerfile`) |
 
 ### Install
 

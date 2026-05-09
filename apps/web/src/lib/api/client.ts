@@ -46,8 +46,13 @@ export function onUnauthorized(handler: () => void): void {
     _onUnauthorized = handler;
 }
 
+// vite injects BASE_URL from `base` in vite.config.ts (`/trees/` in prod, `/` in
+// dev). prefixing every request with it keeps cookies (path=/trees/) attached
+// and routes through caddy's /trees/ mount.
+const API_PREFIX = import.meta.env.BASE_URL.replace(/\/$/, "");
+
 async function req<T>(method: string, path: string, body?: unknown): Promise<T> {
-    const res = await fetch(path, {
+    const res = await fetch(API_PREFIX + path, {
         method,
         credentials: "include",
         headers: body !== undefined ? { "content-type": "application/json" } : {},

@@ -28,7 +28,7 @@ _MAX_REASONABLE_TS = 10_000_000_000
 
 def _sign(body: bytes, timestamp: str) -> str:
     payload = f'{timestamp}.'.encode() + body
-    return hmac.new(settings.discord_bot_hmac_secret.encode(), payload, hashlib.sha256).hexdigest()
+    return hmac.new(settings.secrets.discord_bot_hmac_secret.encode(), payload, hashlib.sha256).hexdigest()
 
 
 async def verify_bot_hmac(
@@ -37,7 +37,7 @@ async def verify_bot_hmac(
     x_attu_signature: str = Header(...),
 ) -> None:
     """FastAPI dependency; raises 401 if the HMAC is invalid or stale."""
-    if not settings.discord_bot_hmac_secret:
+    if not settings.secrets.discord_bot_hmac_secret:
         log.warning('discord_bot_hmac_secret not set; rejecting bot request')
         raise HTTPException(status_code=401, detail='bot auth not configured')
 

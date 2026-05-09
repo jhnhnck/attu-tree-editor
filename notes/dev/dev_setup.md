@@ -70,43 +70,38 @@ run web and server in two terminals; the vite proxy handles cors during developm
 
 ---
 
-## docker (server only)
+## docker
 
 ```bash
-cd apps/server
 docker compose up --build
-# http://127.0.0.1:8000/health
+# http://127.0.0.1:8000/health  (or via the wiki caddy at https://dev.attuproject.org/trees/)
 ```
 
-the dockerfile is multi-stage (uv builder + slim runtime) and runs as a non-root user. it mirrors the doom-bot pattern; the same image works in the attu-wiki-dev compose stack via an external network override (added in phase 5).
+the dockerfile is multi-stage (uv builder + slim runtime) and runs as a non-root user. the image bakes `VITE_BASE=/trees/` and serves both the spa and the api from a single container; the wiki's caddy strips `/trees/` before proxying. the same image works in the attu-wiki-dev compose stack via the include directive in [`notes/features/wiki-integration.md`](../features/wiki-integration.md).
 
 ---
 
-## environment variables
+## configuration
 
-phase 0 has no required env vars. phase 5 introduces:
+four sources, no `.env` at runtime. see [`notes/agents.md`](../agents.md) §4 for the full tier breakdown.
 
-```bash
-# apps/server/.env (gitignored)
-DATABASE_URL=sqlite+aiosqlite:///./data/attu_tree.db
-DISCORD_BOT_HMAC_SECRET=<shared with doom-bot>
-SESSION_SECRET=<random 32 bytes>
-WIKI_BASE_URL=https://dev.attuproject.org
-CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
-```
+**deployment hosts** copy [`trees-config.example.toml`](../../trees-config.example.toml) to `data/trees-config.toml`, fill in the secrets, and `chmod 600` the live file. the docker-compose `./data:/app/data` bind mount makes it visible to the container.
+
+**dev outside docker** can either:
 
 ```bash
-# apps/web/.env.development (gitignored)
-VITE_API_BASE_URL=/api
-VITE_WIKI_BASE_URL=https://dev.attuproject.org
+# 1) point pydantic-settings at a local toml
+TREES_CONFIG_PATH=./trees-config.toml pnpm server:dev
 ```
 
-never commit `.env`. ask the user for current secret values when needed.
+or skip the toml entirely; defaults are dev-friendly (sqlite at `/app/data/attu_tree.db` won't exist, so set `database_url` in a local toml, or override via `TREES_CONFIG_PATH`). when running the spa via `pnpm dev`, vite serves at `/` (no `/trees/` prefix); the linkResolver falls back to the build-time `VITE_WIKI_BASE_URL` env var or the default `https://attuproject.org`.
+
+never commit `data/trees-config.toml` — it carries `[secrets]`. ask the operator for live values.
 
 ---
 
 ## metadata
 
 ```yaml
-last_updated: 25 April 2026
+last_updated: 2 May 2026
 ```

@@ -72,7 +72,7 @@ _phase 5 largely complete; see the completed section below_
 - ⭕ `medium priority` `low effort` update `notes/features/keyboard-shortcuts.md` to reflect what actually shipped: drop Mod+N (browser new-window), Mod+Shift+N (browser private-window) and Mod+1 (browser tab-1) from the canonical spec; document the soft-conflict pattern where Mod+S/O/P/D/I/E/0 work via `preventDefault` like Figma/VS Code; add a "browser-safe" rule of thumb for future bindings
 - ⭕ `low priority` `low effort` revisit prettier-plugin-tailwindcss once upstream supports svelte 5
 - ⭕ `future idea` `low effort` add `pnpm verify` to a github actions workflow
-- ⭕ `future idea` `low effort` move server-side env to a tier-2 toml config (e.g. `assets/attu-tree.toml`) instead of the current `.env` + pydantic-settings, matching doom-bot's configuration-tier convention. settings live in `attu_tree/settings.py` today; switch to `tomllib` + a small `Settings` loader, keep env-var overrides for secrets (`DISCORD_BOT_HMAC_SECRET`, `SESSION_SECRET`), update `notes/agents.md` §4 and the bot-integration.md cross-reference once shipped
+- 🔴 `2 May 2026` server-side config moved from `.env` to bind-mounted `data/trees-config.toml` via pydantic-settings `TomlConfigSettingsSource`. four-tier model: toml carries all per-deployment values including `[secrets]`; dockerfile bakes `VITE_BASE=/trees/`; compose has only `PYTHONUNBUFFERED`; parent wiki `.env` keeps `ATTU_NETWORK`. spa wiki base url is runtime-injected via `window.__TREES_CONFIG__`. see `notes/agents.md` §4
 - ⭕ `future idea` `medium effort` real-time multi-user collaboration via websocket
 
 ### schema evolution (gates a schema version bump each)
@@ -150,7 +150,7 @@ _phase 5 largely complete; see the completed section below_
 - 🔴 `26 April 2026` `persistence/{db,trees,blobs,settings}.ts` Dexie schema (trees / blobs / settings); CRUD helpers parameterised on a `FamilyTreeDb` instance for testability; trees stored as JSON-cloned plain objects to side-step Svelte 5 `$state` proxies + structured-clone
 - 🔴 `26 April 2026` `state/autosave.ts` debounced (1s default) sync of `treeStore.tree` into Dexie; flushes in-flight saves on demand; orphan-blob GC after each save; emits `onSaved` / `onError` callbacks for the toast layer
 - 🔴 `26 April 2026` `state/portraitUrls.svelte.ts` `Map<blobId, objectURL>` rune store with on-demand fetch + revoke on tree swap or blob change
-- 🔴 `26 April 2026` `wiki/linkResolver.ts` builds `wikiUrlFor(title, baseUrl?)` with default `https://attuproject.org`; PersonEditor exposes a "view ↗" button when `wikiTitle` is set; configurable via `VITE_WIKI_BASE_URL`
+- 🔴 `26 April 2026` `wiki/linkResolver.ts` builds `wikiUrlFor(title, baseUrl?)` with default `https://attuproject.org`; PersonEditor exposes a "view ↗" button when `wikiTitle` is set; reads runtime `window.__TREES_CONFIG__.wikiBaseUrl` first, then `VITE_WIKI_BASE_URL` (test-only fallback)
 - 🔴 `26 April 2026` `components/editor/CropperDialog.svelte` lazy-imports cropperjs, outputs `image/webp` quality 0.85 at 600×600; CSS pulled from jsdelivr to keep the initial bundle slim
 - 🔴 `26 April 2026` `components/editor/PortraitField.svelte` upload + thumbnail control; saves via `putBlob`, dispatches `portraitBlobId` patches; `TreeCanvas` resolves `portraitBlobId → URL` through the cache so cards show their portrait at zoom level 0
 - 🔴 `26 April 2026` `components/shell/RecentTrees.svelte` top-bar dropdown; new/load/delete actions; updates `lastOpenedTreeId` setting
@@ -170,7 +170,7 @@ _phase 5 largely complete; see the completed section below_
 - 🔴 `26 April 2026` `packages/api-client/src/index.ts` hand-written TypeScript types matching all server pydantic models; `apps/web/src/lib/api/client.ts` typed fetch wrapper with 401/409 handling
 - 🔴 `26 April 2026` `apps/web/src/lib/state/auth.svelte.ts` and `sync.svelte.ts` runes stores; `LinkCodeDialog`, `AuthBar`, `ShareDialog`, `AdminPanel` shell components; `App.svelte` wires auth, sync, conflict toast, read-only view route
 - 🔴 `26 April 2026` 45 server tests (auth, trees, bot, admin, health) green; `pnpm verify` green (45 server + 231 web)
-- 🔴 `26 April 2026` `Dockerfile` (root) 3-stage combined build (SPA + Python venv + runtime); `docker-compose.yml` `family-tree` service with `external: attu_dev` network, `/trees/` cookie path, `family-tree-data` volume; `apps/web/Dockerfile` standalone SPA builder
+- 🔴 `26 April 2026` `Dockerfile` (root) 2-stage combined build (SPA + Python runtime on the uv image); `docker-compose.yml` `family-tree` service with `external: attu_dev` network, `/trees/` cookie path, `family-tree-data` volume
 - 🔴 `26 April 2026` `notes/features/bot-integration.md` full interface contract for doom-bot team (HMAC scheme, all endpoints, slash command shapes, ephemeral message conventions)
 
 ### round 1 hardening (post-audit)

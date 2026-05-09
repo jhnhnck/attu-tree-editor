@@ -1,5 +1,8 @@
 ### Secrets & environment ###
 .env
+# bind-mounted runtime config + sqlite db; trees-config.toml carries [secrets]
+data/
+trees-config.toml
 
 ### Git merge artifacts ###
 *.orig
@@ -46,6 +49,7 @@ test-results/
 
 ### Claude ###
 .claude/
+.playwright-mcp/
 
 ### Notes ###
 notes/plans/
@@ -53,3 +57,6 @@ notes/examples/
 notes/design-issues.md
 
 notes/reports/
+
+### firefox profiling ###
+*profile.json.gz
