@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import { ROOT_ID } from "$lib/domain/ids";
 import { addPerson, createTree, linkParent, linkSpouse } from "$lib/domain/tree";
 import { hvLayout } from "$lib/layout/hvLayout";
-import { routeEdges } from "$lib/layout/edgeRouter";
+import { routeEdges, type Slot } from "$lib/layout/edgeRouter";
 import type { Person, Tree } from "$lib/domain/types";
 
 function blank(name: string, gender: Person["gender"] = "u"): Omit<Person, "id"> {
@@ -96,7 +96,7 @@ describe("edgeRouter — joint children", () => {
         expect(childDrops.length).toBe(2);
     });
 
-    it("does not emit a sibling bus for a single child", () => {
+    it("emits a sibling bus for a single child when in a different column", () => {
         let t = createTree("solo", blank("dad", "m"));
         const mom = addPerson(t, blank("mom", "f"));
         t = mom.tree;
@@ -113,7 +113,10 @@ describe("edgeRouter — joint children", () => {
 
         const layout = hvLayout(t);
         const segs = routeEdges(t, layout.positions);
-        expect(segs.filter((s) => s.kind === "sibling-bus").length).toBe(0);
+        // With the fix, a single child at a different x from bondX gets a bus
+        // that connects the parent-drop to the child-drop
+        const buses = segs.filter((s) => s.kind === "sibling-bus");
+        expect(buses.length).toBeGreaterThanOrEqual(1);
     });
 
     it("dedups child drops when two kids share an x", () => {
@@ -206,6 +209,218 @@ describe("edgeRouter — bridge hops on crossings", () => {
         // for the simple nuclear family there's only one couple, so any hop
         // must be unrelated — here that means zero hops
         expect(hopped.length).toBe(0);
+    });
+});
+
+describe("edgeRouter — cross-row couples (uses ghost positions)", () => {
+    /**
+     * Same fixture shape as hvLayout.test.ts: root → a_kid → a_grand; a_grand
+     * marries b (no parents); they share a child. a_grand lands deep, b at
+     * the top — partners on different rows.
+     */
+    function makeCrossRowCouple(): { tree: Tree; ids: Record<string, string> } {
+        let t = createTree("cross", blank("root", "f"));
+        const a_kid = addPerson(t, blank("a_kid", "u"));
+        t = a_kid.tree;
+        const a_grand = addPerson(t, blank("a_grand", "f"));
+        t = a_grand.tree;
+        const b = addPerson(t, blank("b", "m"));
+        t = b.tree;
+        const child = addPerson(t, blank("child", "u"));
+        t = child.tree;
+        const r1 = linkParent(t, a_kid.id, ROOT_ID);
+        if (!r1.ok) throw new Error(r1.error);
+        const r2 = linkParent(r1.value, a_grand.id, a_kid.id);
+        if (!r2.ok) throw new Error(r2.error);
+        const r3 = linkSpouse(r2.value, a_grand.id, b.id);
+        if (!r3.ok) throw new Error(r3.error);
+        const r4 = linkParent(r3.value, child.id, a_grand.id);
+        if (!r4.ok) throw new Error(r4.error);
+        const r5 = linkParent(r4.value, child.id, b.id);
+        if (!r5.ok) throw new Error(r5.error);
+        return {
+            tree: r5.value,
+            ids: {
+                root: ROOT_ID,
+                a_kid: a_kid.id,
+                a_grand: a_grand.id,
+                b: b.id,
+                child: child.id,
+            },
+        };
+    }
+
+    function ghostMap(
+        layoutGhosts: { ghostOf: string; nearId: string; x: number; y: number }[],
+    ): Map<string, Slot> {
+        const m = new Map<string, Slot>();
+        for (const g of layoutGhosts) m.set(`${g.ghostOf}|${g.nearId}`, { x: g.x, y: g.y });
+        return m;
+    }
+
+    it("emits no negative-height parent-drop or child-drop", () => {
+        const { tree } = makeCrossRowCouple();
+        const layout = hvLayout(tree);
+        const segs = routeEdges(tree, layout.positions, {
+            ghostPositions: ghostMap([...layout.ghosts]),
+        });
+        const bad = segs.filter(
+            (s) =>
+                (s.kind === "parent-drop" || s.kind === "child-drop") && s.y2 < s.y1 - 1e-6,
+        );
+        expect(bad).toEqual([]);
+    });
+
+    it("parent-drop x matches the bond's local x (drop and bond are connected)", () => {
+        const { tree, ids } = makeCrossRowCouple();
+        const layout = hvLayout(tree);
+        const segs = routeEdges(tree, layout.positions, {
+            ghostPositions: ghostMap([...layout.ghosts]),
+        });
+        const drop = segs.find(
+            (s) =>
+                s.kind === "parent-drop" &&
+                s.persons.includes(ids.a_grand!) &&
+                s.persons.includes(ids.b!),
+        );
+        const bond = segs.find(
+            (s) =>
+                s.kind === "bond" &&
+                s.persons.includes(ids.a_grand!) &&
+                s.persons.includes(ids.b!),
+        );
+        expect(drop).toBeDefined();
+        expect(bond).toBeDefined();
+        // bond should be a single horizontal segment (sameRow path) once the
+        // ghost lands on a_grand's row
+        expect(bond!.y1).toBe(bond!.y2);
+        // bond mid-x equals drop x; drop hangs from the bond, not from
+        // somewhere in the middle of the canvas
+        const bondMidX = (bond!.x1 + bond!.x2) / 2;
+        expect(drop!.x1).toBeCloseTo(bondMidX, 6);
+        expect(drop!.x1).toBe(drop!.x2);
+    });
+
+    /**
+     * X marries both Y and Z; Y and Z sit on different rows because they're
+     * different generations in the same lineage. X is the father of one child
+     * with each, so X is non-primary in both couples and gets two ghosts (one
+     * near Y at Y's row, one near Z at Z's row). The ghost-positions map must
+     * be keyed by (ghostOf, nearId) — keyed by ghostOf alone, the second ghost
+     * overwrites the first and the geometry for the (X, Y) couple breaks.
+     */
+    function makeOneFatherTwoSpouses(): { tree: Tree; ids: Record<string, string> } {
+        let t = createTree("multi", blank("T", "f"));
+        const tKid = addPerson(t, blank("tKid", "f"));
+        t = tKid.tree;
+        const Y = addPerson(t, blank("Y", "f"));
+        t = Y.tree;
+        const yKid = addPerson(t, blank("yKid", "f"));
+        t = yKid.tree;
+        const Z = addPerson(t, blank("Z", "f"));
+        t = Z.tree;
+        const X = addPerson(t, blank("X", "m"));
+        t = X.tree;
+        const c1 = addPerson(t, blank("c1", "u"));
+        t = c1.tree;
+        const c2 = addPerson(t, blank("c2", "u"));
+        t = c2.tree;
+        const ok = <V>(r: { ok: true; value: V } | { ok: false; error: string }): V => {
+            if (!r.ok) throw new Error(r.error);
+            return r.value;
+        };
+        t = ok(linkParent(t, tKid.id, ROOT_ID));
+        t = ok(linkParent(t, Y.id, tKid.id));
+        t = ok(linkParent(t, yKid.id, Y.id));
+        t = ok(linkParent(t, Z.id, yKid.id));
+        t = ok(linkSpouse(t, X.id, Y.id));
+        t = ok(linkSpouse(t, X.id, Z.id));
+        t = ok(linkParent(t, c1.id, Y.id));
+        t = ok(linkParent(t, c1.id, X.id));
+        t = ok(linkParent(t, c2.id, Z.id));
+        t = ok(linkParent(t, c2.id, X.id));
+        return {
+            tree: t,
+            ids: {
+                T: ROOT_ID,
+                tKid: tKid.id,
+                Y: Y.id,
+                yKid: yKid.id,
+                Z: Z.id,
+                X: X.id,
+                c1: c1.id,
+                c2: c2.id,
+            },
+        };
+    }
+
+    it("handles a person with two cross-row spouses (two ghosts of the same person)", () => {
+        const { tree, ids } = makeOneFatherTwoSpouses();
+        const layout = hvLayout(tree);
+        // X should have two ghosts, one near Y and one near Z, at different rows
+        const xGhosts = layout.ghosts.filter((g) => g.ghostOf === ids.X);
+        expect(xGhosts.length).toBe(2);
+        const nearIds = xGhosts.map((g) => g.nearId).sort();
+        expect(nearIds).toEqual([ids.Y, ids.Z].sort());
+        const ys = xGhosts.map((g) => g.y);
+        expect(ys[0]).not.toBe(ys[1]);
+
+        const segs = routeEdges(tree, layout.positions, {
+            ghostPositions: ghostMap([...layout.ghosts]),
+        });
+        // both couples must produce non-negative drops
+        const bad = segs.filter(
+            (s) =>
+                (s.kind === "parent-drop" || s.kind === "child-drop") && s.y2 < s.y1 - 1e-6,
+        );
+        expect(bad).toEqual([]);
+
+        // each couple's drop should hang at the row of its primary mother
+        const yPos = layout.positions.get(ids.Y!);
+        const zPos = layout.positions.get(ids.Z!);
+        if (!yPos || !zPos) throw new Error("missing");
+        const dropXY = segs.find(
+            (s) =>
+                s.kind === "parent-drop" &&
+                s.persons.includes(ids.X!) &&
+                s.persons.includes(ids.Y!),
+        );
+        const dropXZ = segs.find(
+            (s) =>
+                s.kind === "parent-drop" &&
+                s.persons.includes(ids.X!) &&
+                s.persons.includes(ids.Z!),
+        );
+        expect(dropXY).toBeDefined();
+        expect(dropXZ).toBeDefined();
+        // drop y1 should be near each primary mother's card mid (sameRow path)
+        expect(dropXY!.y1).toBeGreaterThan(yPos.y);
+        expect(dropXY!.y1).toBeLessThan(yPos.y + 1.5);
+        expect(dropXZ!.y1).toBeGreaterThan(zPos.y);
+        expect(dropXZ!.y1).toBeLessThan(zPos.y + 1.5);
+    });
+
+    it("bus runs at the primary partner's gutter row, not midway across the canvas", () => {
+        const { tree, ids } = makeCrossRowCouple();
+        const layout = hvLayout(tree);
+        const ag = layout.positions.get(ids.a_grand!);
+        const childPos = layout.positions.get(ids.child!);
+        if (!ag || !childPos) throw new Error("missing");
+        const segs = routeEdges(tree, layout.positions, {
+            ghostPositions: ghostMap([...layout.ghosts]),
+        });
+        const bus = segs.find(
+            (s) =>
+                s.kind === "sibling-bus" &&
+                s.persons.includes(ids.a_grand!) &&
+                s.persons.includes(ids.b!),
+        );
+        // a single child + bondX equal to child's x means the bus is degenerate
+        // and may be skipped; only assert when it exists
+        if (bus) {
+            expect(bus.y1).toBeGreaterThan(ag.y);
+            expect(bus.y1).toBeLessThan(childPos.y);
+        }
     });
 });
 

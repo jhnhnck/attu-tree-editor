@@ -239,9 +239,54 @@ export function pathCaption(tree: Tree, path: Path): string {
     return parts.join(" ");
 }
 
-function displayName(tree: Tree, id: PersonId): string {
+export function displayName(tree: Tree, id: PersonId): string {
     const p = tree.people[id];
     if (!p) return id;
     const name = `${p.given} ${p.surname}`.trim();
     return name || id;
+}
+
+/**
+ * Geometric nearest-neighbour: given the current selection's position,
+ * find the closest card that lies in the specified direction.
+ *
+ * Scoring: score = |perpendicular_delta| + |axis_delta| * 0.3
+ * Only cards strictly in the direction half-plane (axis_delta > 0) are
+ * considered. Returns undefined when no card exists in that direction.
+ */
+export function findNeighbour(
+    currentId: PersonId,
+    dir: "up" | "down" | "left" | "right",
+    positions: ReadonlyMap<PersonId, { x: number; y: number }>,
+): PersonId | undefined {
+    const cur = positions.get(currentId);
+    if (!cur) return undefined;
+
+    let best: PersonId | undefined;
+    let bestScore = Infinity;
+
+    for (const [id, pos] of positions) {
+        if (id === currentId) continue;
+        const dx = pos.x - cur.x;
+        const dy = pos.y - cur.y;
+
+        let axis: number;
+        let perp: number;
+        switch (dir) {
+            case "right":  axis = dx;  perp = dy;  break;
+            case "left":   axis = -dx; perp = dy;  break;
+            case "down":   axis = dy;  perp = dx;  break;
+            case "up":     axis = -dy; perp = dx;  break;
+        }
+
+        if (axis <= 0) continue; // wrong direction
+
+        const score = Math.abs(perp) + axis * 0.3;
+        if (score < bestScore) {
+            bestScore = score;
+            best = id;
+        }
+    }
+
+    return best;
 }

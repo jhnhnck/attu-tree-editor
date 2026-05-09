@@ -61,10 +61,12 @@ export interface RouteOptions {
     /** vertical step between generation rows in unit coords. Default 2. */
     rowH?: number;
     /**
-     * optional ghost positions for spouses in long-span couples.
-     * When routing a bond, use ghost position if present for one of the endpoints.
+     * optional ghost positions for spouses in long-span / cross-row couples.
+     * Keyed by `${ghostOf}|${nearId}` — a single person can have multiple
+     * ghosts when they have multiple cross-row spouses (one ghost per spouse,
+     * placed at that spouse's row), so the lookup is couple-specific.
      */
-    ghostPositions?: ReadonlyMap<PersonId, Slot>;
+    ghostPositions?: ReadonlyMap<string, Slot>;
 }
 
 const DEFAULT_CARD_W = 2;
@@ -95,9 +97,13 @@ export function routeEdges(
         const a = positions.get(couple.leftId);
         const b = positions.get(couple.rightId);
         if (!a || !b) continue;
-        // use ghost positions for bond routing if available
-        const aEff = opts.ghostPositions?.get(couple.leftId) ?? a;
-        const bEff = opts.ghostPositions?.get(couple.rightId) ?? b;
+        // use ghost positions for bond routing if available — keyed by
+        // (ghostOf, nearId) since a person can be ghosted multiple times,
+        // once per cross-row spouse
+        const aEff =
+            opts.ghostPositions?.get(`${couple.leftId}|${couple.rightId}`) ?? a;
+        const bEff =
+            opts.ghostPositions?.get(`${couple.rightId}|${couple.leftId}`) ?? b;
         const role: EdgeRole = couple.isCurrent === false ? "divorced" : "married";
 
         const bondPersons: PersonId[] = [couple.leftId, couple.rightId];
@@ -180,16 +186,27 @@ export function routeEdges(
         const a = positions.get(couple.leftId);
         const b = positions.get(couple.rightId);
         if (!a || !b) continue;
+        // mirror the bond block: for cross-row or wide-span couples hvLayout
+        // publishes a ghost of the non-primary partner at the primary
+        // partner's row. Drop/bus geometry must use those same effective
+        // positions or it ends up disconnected from the bond. Lookup is
+        // keyed by (ghostOf, nearId) since a person can have multiple ghosts.
+        const aEff =
+            opts.ghostPositions?.get(`${couple.leftId}|${couple.rightId}`) ?? a;
+        const bEff =
+            opts.ghostPositions?.get(`${couple.rightId}|${couple.leftId}`) ?? b;
         const k = jointKey(couple.leftId, couple.rightId);
         const childIds = jointByCouple.get(k) ?? [];
         if (childIds.length === 0) continue;
 
-        const bondX = sameRow(a, b, rowH)
-            ? (cardRightX(a.x <= b.x ? a : b, cardW) + cardLeftX(a.x <= b.x ? b : a)) / 2
-            : (cardMidX(a, cardW) + cardMidX(b, cardW)) / 2;
-        const bondY = sameRow(a, b, rowH)
-            ? (cardMidY(a, cardH) + cardMidY(b, cardH)) / 2
-            : Math.max(cardBottomY(a, cardH), cardBottomY(b, cardH));
+        const bondX = sameRow(aEff, bEff, rowH)
+            ? (cardRightX(aEff.x <= bEff.x ? aEff : bEff, cardW) +
+                  cardLeftX(aEff.x <= bEff.x ? bEff : aEff)) /
+              2
+            : (cardMidX(aEff, cardW) + cardMidX(bEff, cardW)) / 2;
+        const bondY = sameRow(aEff, bEff, rowH)
+            ? (cardMidY(aEff, cardH) + cardMidY(bEff, cardH)) / 2
+            : Math.max(cardBottomY(aEff, cardH), cardBottomY(bEff, cardH));
 
         const childPositions = childIds
             .map((id) => ({ id, pos: positions.get(id) }))
@@ -198,7 +215,7 @@ export function routeEdges(
 
         // bus Y = midpoint of (parents' row bottom, children's row top); shared
         // across all sibships in this gutter so adjacent buses don't stack
-        const parentsBottomY = Math.max(cardBottomY(a, cardH), cardBottomY(b, cardH));
+        const parentsBottomY = Math.max(cardBottomY(aEff, cardH), cardBottomY(bEff, cardH));
         const minChildTop = Math.min(...childPositions.map((c) => cardTopY(c.pos)));
         const busY = (parentsBottomY + minChildTop) / 2;
 
@@ -220,7 +237,7 @@ export function routeEdges(
         const childCenters = childPositions.map((c) => cardMidX(c.pos, cardW));
         const minBusX = Math.min(...childCenters, bondX);
         const maxBusX = Math.max(...childCenters, bondX);
-        if (childPositions.length > 1 && minBusX !== maxBusX) {
+        if (minBusX !== maxBusX) {
             out.push({
                 id: `couple:${k}/bus`,
                 kind: "sibling-bus",
@@ -381,7 +398,11 @@ export function routeEdges(
     }
 
     // ---------- (4) bridge hops on vertical/horizontal crossings ----------
-    return annotateHops(out);
+    // Drop segments that collapsed to a point (parent.bottom == busY, busY ==
+    // child.top, etc.). They render as nothing but clutter the debug overlay
+    // and waste work in annotateHops.
+    const nonDegenerate = out.filter((s) => s.x1 !== s.x2 || s.y1 !== s.y2);
+    return annotateHops(nonDegenerate);
 }
 
 // ---------- helpers ----------

@@ -176,35 +176,105 @@ export function hvLayout(tree: Tree, opts: HvLayoutOptions = {}): HvLayoutResult
         }
     }
 
-    // ghost placement: for long-span couples, place ghosts adjacent to partners
+    // precompute joint-children y-positions per couple so the ghost loop
+    // can identify the primary parent geometrically (whichever partner sits
+    // one row above the joint children)
+    const jointKey = (m: PersonId, f: PersonId): string => (m < f ? `${m}|${f}` : `${f}|${m}`);
+    const jointChildrenY = new Map<string, number[]>();
+    for (const person of Object.values(tree.people)) {
+        const m = person.motherId;
+        const f = person.fatherId;
+        if (!m || !f) continue;
+        const childPos = positions.get(person.id);
+        if (!childPos) continue;
+        const k = jointKey(m, f);
+        const list = jointChildrenY.get(k);
+        if (list) list.push(childPos.y);
+        else jointChildrenY.set(k, [childPos.y]);
+    }
+
+    // ghost placement: for couples whose two partners landed apart in x or on
+    // different rows, mirror the non-primary partner adjacent to the primary
+    // partner's column at the primary partner's row, so bond/drop/bus can be
+    // routed locally to the children's row instead of crossing the whole canvas
     const ghosts: GhostNode[] = [];
-    const ghostOccupied = new Set<string>(); // tracks occupied ghost slots as "x,y"
+    // per-row x positions of every real card and every ghost placed so far;
+    // used as an interval-overlap check (|dx| < PERSON_W) so a ghost never
+    // lands on top of either kind. a Set<"x,y"> string-key — as before — only
+    // catches exact stacks, missing the half-step offsets that subtree
+    // centering produces.
+    const occupiedByY = new Map<number, number[]>();
+    for (const pos of positions.values()) {
+        const xs = occupiedByY.get(pos.y);
+        if (xs) xs.push(pos.x);
+        else occupiedByY.set(pos.y, [pos.x]);
+    }
+    const overlapsOccupied = (x: number, y: number): boolean => {
+        const xs = occupiedByY.get(y);
+        if (!xs) return false;
+        for (const ox of xs) if (Math.abs(ox - x) < PERSON_W) return true;
+        return false;
+    };
     for (const couple of tree.couples) {
         if (couple.leftId === couple.rightId) continue;
         const aPos = positions.get(couple.leftId);
         const bPos = positions.get(couple.rightId);
         if (!aPos || !bPos) continue;
         const span = Math.abs(aPos.x - bPos.x);
-        if (span <= GHOST_THRESHOLD) continue;
+        const crossRow = Math.abs(aPos.y - bPos.y) >= ROW_H;
+        if (span <= GHOST_THRESHOLD && !crossRow) continue;
 
-        // determine who gets ghosted: the one farther from center gets a ghost
-        const centerX = (aPos.x + bPos.x) / 2;
-        const aFar = aPos.x < centerX;
-        const [ghostPerson, nearPerson, nearPos] = aFar
-            ? [couple.leftId, couple.rightId, bPos]
-            : [couple.rightId, couple.leftId, aPos];
+        // primary = whichever partner is exactly one row above the joint
+        // children; falls back to x-center heuristic for childless couples
+        // (where no children disambiguate which partner anchors the row)
+        const k = jointKey(couple.leftId, couple.rightId);
+        const childYs = jointChildrenY.get(k) ?? [];
+        let primary: "a" | "b" | undefined;
+        for (const cy of childYs) {
+            if (Math.abs(cy - aPos.y - ROW_H) < 0.01) {
+                primary = "a";
+                break;
+            }
+            if (Math.abs(cy - bPos.y - ROW_H) < 0.01) {
+                primary = "b";
+                break;
+            }
+        }
 
-        // place ghost to the right of nearPos
+        let ghostPerson: PersonId;
+        let nearPerson: PersonId;
+        let nearPos: { x: number; y: number };
+        if (primary === "a") {
+            ghostPerson = couple.rightId;
+            nearPerson = couple.leftId;
+            nearPos = aPos;
+        } else if (primary === "b") {
+            ghostPerson = couple.leftId;
+            nearPerson = couple.rightId;
+            nearPos = bPos;
+        } else {
+            const centerX = (aPos.x + bPos.x) / 2;
+            const aFar = aPos.x < centerX;
+            ghostPerson = aFar ? couple.leftId : couple.rightId;
+            nearPerson = aFar ? couple.rightId : couple.leftId;
+            nearPos = aFar ? bPos : aPos;
+        }
+
         let ghostX = nearPos.x + PERSON_W + SIBLING_GAP;
         const ghostY = nearPos.y;
-        let slot = `${ghostX},${ghostY}`;
         let attempts = 0;
-        while (ghostOccupied.has(slot) && attempts < 20) {
+        while (overlapsOccupied(ghostX, ghostY) && attempts < 20) {
             ghostX += PERSON_W + SIBLING_GAP;
-            slot = `${ghostX},${ghostY}`;
             attempts++;
         }
-        ghostOccupied.add(slot);
+        if (attempts >= 20) {
+            console.warn(
+                `hvLayout: ghost placement exhausted for ${ghostPerson} near ${nearPerson} at y=${ghostY}`,
+            );
+        }
+        const xs = occupiedByY.get(ghostY);
+        if (xs) xs.push(ghostX);
+        else occupiedByY.set(ghostY, [ghostX]);
         ghosts.push({ ghostOf: ghostPerson, nearId: nearPerson, x: ghostX, y: ghostY });
     }
 
