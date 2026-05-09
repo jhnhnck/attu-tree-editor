@@ -7,7 +7,7 @@
     import { ExternalLink } from "@lucide/svelte";
     import type { Person } from "$lib/domain/types";
     import type { PersonPatch } from "$lib/domain/tree";
-    import { wikiUrlFor } from "$lib/wiki/linkResolver";
+    import { wikiUrlFor, wikiOpenSearch } from "$lib/wiki/linkResolver";
     import Field from "$lib/components/form/Field.svelte";
 
     interface Props {
@@ -52,6 +52,61 @@
 
     let wikiHref = $derived(wikiUrlFor(wikiTitle));
 
+    // wiki title autocomplete
+    let suggestions = $state<string[]>([]);
+    let showSuggestions = $state(false);
+    let activeSuggIdx = $state(-1);
+    let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+    let abortCtrl: AbortController | undefined;
+
+    function onWikiInput(): void {
+        clearTimeout(debounceTimer);
+        activeSuggIdx = -1;
+        showSuggestions = true;
+        debounceTimer = setTimeout(() => {
+            abortCtrl?.abort();
+            abortCtrl = new AbortController();
+            void wikiOpenSearch(wikiTitle, abortCtrl.signal).then((s) => {
+                suggestions = s;
+            });
+        }, 200);
+    }
+
+    function pickSuggestion(s: string): void {
+        wikiTitle = s;
+        suggestions = [];
+        showSuggestions = false;
+        activeSuggIdx = -1;
+        const next = s.trim();
+        const cur = person.wikiTitle ?? "";
+        if (next !== cur) onpatch({ wikiTitle: next || undefined });
+    }
+
+    function onWikiKeyDown(e: KeyboardEvent): void {
+        if (!showSuggestions || suggestions.length === 0) return;
+        if (e.key === "ArrowDown") {
+            e.preventDefault();
+            activeSuggIdx = Math.min(activeSuggIdx + 1, suggestions.length - 1);
+        } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            activeSuggIdx = Math.max(activeSuggIdx - 1, -1);
+        } else if (e.key === "Enter" && activeSuggIdx >= 0) {
+            e.preventDefault();
+            pickSuggestion(suggestions[activeSuggIdx]!);
+        } else if (e.key === "Escape") {
+            showSuggestions = false;
+            activeSuggIdx = -1;
+        }
+    }
+
+    function onWikiBlur(): void {
+        // delay so a mousedown on a suggestion fires before blur hides the list
+        setTimeout(() => {
+            showSuggestions = false;
+        }, 150);
+        commitWikiTitle();
+    }
+
     const inputCls =
         "bg-canvas border-line text-fg focus:border-accent focus:ring-accent w-full rounded-md border px-2 py-1.5 text-sm focus:ring-1 focus:outline-none";
 </script>
@@ -82,14 +137,42 @@
     <Field label="wiki title" for_="id-wiki" hint="opens this title on the wiki">
         {#snippet children()}
             <div class="flex gap-2">
-                <input
-                    id="id-wiki"
-                    type="text"
-                    bind:value={wikiTitle}
-                    onblur={commitWikiTitle}
-                    placeholder="page title"
-                    class={inputCls}
-                />
+                <div class="relative min-w-0 flex-1">
+                    <input
+                        id="id-wiki"
+                        type="text"
+                        bind:value={wikiTitle}
+                        oninput={onWikiInput}
+                        onblur={onWikiBlur}
+                        onkeydown={onWikiKeyDown}
+                        placeholder="page title"
+                        autocomplete="off"
+                        class={inputCls}
+                    />
+                    {#if showSuggestions && suggestions.length > 0}
+                        <div
+                            class="bg-canvas-elev border-line absolute left-0 top-full z-10 mt-0.5 w-full overflow-hidden rounded-md border shadow-lg"
+                            role="listbox"
+                            aria-label="wiki title suggestions"
+                        >
+                            {#each suggestions as s, i (s)}
+                                <button
+                                    type="button"
+                                    role="option"
+                                    aria-selected={i === activeSuggIdx}
+                                    class="w-full truncate px-3 py-1 text-left text-sm"
+                                    class:bg-canvas={i === activeSuggIdx}
+                                    class:text-accent={i === activeSuggIdx}
+                                    class:text-fg={i !== activeSuggIdx}
+                                    class:hover:bg-canvas={i !== activeSuggIdx}
+                                    onmousedown={(e) => { e.preventDefault(); pickSuggestion(s); }}
+                                >
+                                    {s}
+                                </button>
+                            {/each}
+                        </div>
+                    {/if}
+                </div>
                 {#if wikiHref}
                     <a
                         href={wikiHref}
