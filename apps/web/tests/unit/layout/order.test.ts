@@ -643,4 +643,29 @@ describe("computeInitialOrder", () => {
         expect(init[0]).toHaveLength(3);
         expect(new Set(init[0])).toEqual(new Set(["A", "B", "C"]));
     });
+
+    /**
+     * Genealogy data routinely has 50-generation straight-line ancestries.
+     * The original recursive DFS blew the call stack on these (Node default
+     * is ~10-15k frames; a long chain isn't quite there but the recursive
+     * implementation also adds frames for every spouse / sibling diversion,
+     * pushing it within reach). Building 5,000 generations here is well
+     * past what any real tree would have but proves the iterative DFS is
+     * stack-safe.
+     */
+    it("does not blow the stack on a deep straight-line lineage (5,000 generations)", () => {
+        const N = 5000;
+        const ranks: string[][] = [];
+        const parentEdges: { parent: string; child: string }[] = [];
+        for (let i = 0; i < N; i++) {
+            ranks.push([`g${String(i)}`]);
+            if (i > 0) parentEdges.push({ parent: `g${String(i - 1)}`, child: `g${String(i)}` });
+        }
+        const g = makeGraph(ranks, parentEdges);
+        // Should not throw a RangeError ("Maximum call stack size exceeded").
+        const init = computeInitialOrder(g);
+        expect(init.length).toBe(N);
+        expect(init[0]![0]).toBe("g0");
+        expect(init[N - 1]![0]).toBe(`g${String(N - 1)}`);
+    });
 });

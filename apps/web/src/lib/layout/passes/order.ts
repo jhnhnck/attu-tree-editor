@@ -56,12 +56,28 @@ export function computeInitialOrder(graph: LayeredGraph): LayoutNodeId[][] {
     const result: LayoutNodeId[][] = graph.ranks.map(() => []);
     const visited = new Set<LayoutNodeId>();
 
-    function dfs(id: LayoutNodeId): void {
-        if (visited.has(id)) return;
-        visited.add(id);
-        const rank = graph.nodes.get(id)?.rank;
-        if (rank !== undefined) result[rank]?.push(id);
-        for (const child of childrenOf.get(id) ?? []) dfs(child);
+    // Iterative DFS with an explicit stack. Recursive DFS blows the call
+    // stack on deep straight-line ancestry (genealogy data routinely has
+    // 50+ generation chains, V8 default stack ~10-15k frames).
+    const stack: LayoutNodeId[] = [];
+    function dfs(start: LayoutNodeId): void {
+        if (visited.has(start)) return;
+        stack.push(start);
+        while (stack.length > 0) {
+            const id = stack.pop()!;
+            if (visited.has(id)) continue;
+            visited.add(id);
+            const rank = graph.nodes.get(id)?.rank;
+            if (rank !== undefined) result[rank]?.push(id);
+            const kids = childrenOf.get(id);
+            if (!kids) continue;
+            // Push in reverse so the first child is processed first
+            // (matches the recursive pre-order traversal output).
+            for (let i = kids.length - 1; i >= 0; i--) {
+                const c = kids[i]!;
+                if (!visited.has(c)) stack.push(c);
+            }
+        }
     }
 
     // First pass: roots (nodes with no visible parents) in layer-insertion order.
