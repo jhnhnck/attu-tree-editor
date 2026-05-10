@@ -126,7 +126,10 @@
         aria-expanded={open}
         onclick={toggle}
         onkeydown={onButtonKey}
-        onmouseenter={() => { openedVia = "mouse"; onhover?.(); }}
+        onmouseenter={() => {
+            openedVia = "mouse";
+            onhover?.();
+        }}
     >
         {label}
     </button>

@@ -38,7 +38,13 @@
 
 import { PERSON_W, ROW_H, SIBLING_GAP } from "$lib/layout/hvLayout";
 import { parseGhostNodeId } from "$lib/layout/ir";
-import type { LayoutNode, LayoutNodeId, LayoutOverrides, OrderedGraph, PlacedGraph } from "$lib/layout/ir";
+import type {
+    LayoutNode,
+    LayoutNodeId,
+    LayoutOverrides,
+    OrderedGraph,
+    PlacedGraph,
+} from "$lib/layout/ir";
 import type { PersonId } from "$lib/domain/types";
 
 // ---------------------------------------------------------------------------
@@ -148,7 +154,15 @@ export function place(graph: OrderedGraph, overrides?: LayoutOverrides): PlacedG
     const passes: Map<LayoutNodeId, number>[] = [];
     for (const vDir of ["TB", "BT"] as const) {
         for (const hDir of ["LR", "RL"] as const) {
-            const xi = computePass(ranksOrdered, parentsOf, childrenOf, conflicted, vDir, hDir, rankGaps);
+            const xi = computePass(
+                ranksOrdered,
+                parentsOf,
+                childrenOf,
+                conflicted,
+                vDir,
+                hDir,
+                rankGaps,
+            );
             normalise(xi, ranksOrdered); // shift so leftmost node is at x = 0
             passes.push(xi);
         }
@@ -354,7 +368,10 @@ function markType1Conflicts(
 // ---------------------------------------------------------------------------
 
 /** Shift all x values so the leftmost node in any rank sits at x = 0. */
-function normalise(x: Map<LayoutNodeId, number>, ranksOrdered: readonly (readonly LayoutNodeId[])[]): void {
+function normalise(
+    x: Map<LayoutNodeId, number>,
+    ranksOrdered: readonly (readonly LayoutNodeId[])[],
+): void {
     let min = Infinity;
     for (const rank of ranksOrdered) {
         for (const id of rank) {

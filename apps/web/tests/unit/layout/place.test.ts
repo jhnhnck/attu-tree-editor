@@ -246,8 +246,14 @@ describe("place() — y coordinates", () => {
 describe("place() — non-overlap", () => {
     it("two siblings are at least DELTA apart", () => {
         const og = makeOrdered(
-            [["A", "B"], ["C", "D"]],
-            [{ parent: "A", child: "C" }, { parent: "B", child: "D" }],
+            [
+                ["A", "B"],
+                ["C", "D"],
+            ],
+            [
+                { parent: "A", child: "C" },
+                { parent: "B", child: "D" },
+            ],
         );
         const pg = place(og);
         const xC = pg.x.get("C")!;
@@ -303,7 +309,10 @@ describe("place() — parent alignment", () => {
     it("parent is roughly centered above two children", () => {
         const og = makeOrdered(
             [["P"], ["L", "R"]],
-            [{ parent: "P", child: "L" }, { parent: "P", child: "R" }],
+            [
+                { parent: "P", child: "L" },
+                { parent: "P", child: "R" },
+            ],
         );
         const pg = place(og);
         const xL = pg.x.get("L")!;
@@ -430,7 +439,9 @@ describe("place() — ghost nodes", () => {
                     .filter(([, n]) => n.rank === node.rank && n.kind !== "ghost")
                     .map(([nid]) => pg.x.get(nid)!);
                 if (sameRankX.length > 0) {
-                    const minDist = Math.min(...sameRankX.map((nx) => Math.abs(nx - pg.x.get(id)!)));
+                    const minDist = Math.min(
+                        ...sameRankX.map((nx) => Math.abs(nx - pg.x.get(id)!)),
+                    );
                     expect(minDist).toBeLessThanOrEqual(DELTA * 2 + 1e-9);
                 }
             }
@@ -545,7 +556,9 @@ describe("place() — integration with layer() + order()", () => {
 
         // Within each rank, nodes with lower order values should have lower x
         for (const rankIds of pg.ranks) {
-            const sorted = [...rankIds].sort((a, b) => (og.order.get(a) ?? 0) - (og.order.get(b) ?? 0));
+            const sorted = [...rankIds].sort(
+                (a, b) => (og.order.get(a) ?? 0) - (og.order.get(b) ?? 0),
+            );
             for (let i = 1; i < sorted.length; i++) {
                 const xPrev = pg.x.get(sorted[i - 1]!)!;
                 const xCurr = pg.x.get(sorted[i]!)!;

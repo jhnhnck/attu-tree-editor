@@ -23,9 +23,7 @@ import { expect, test } from "@playwright/test";
 
 const TINY = resolve(process.cwd(), "tests/fixtures/tiny.ged");
 
-test("adding an unattached person updates the canvas badge without a reload", async ({
-    page,
-}) => {
+test("adding an unattached person updates the canvas badge without a reload", async ({ page }) => {
     await page.goto("/");
 
     // Load a known small fixture so we have a deterministic baseline.

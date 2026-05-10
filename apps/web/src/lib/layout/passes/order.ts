@@ -24,7 +24,13 @@
  * licensed under the MIT license; see LICENSE.md for full text
  */
 
-import type { LayoutNode, LayoutNodeId, LayeredGraph, LayoutOverrides, OrderedGraph } from "$lib/layout/ir";
+import type {
+    LayoutNode,
+    LayoutNodeId,
+    LayeredGraph,
+    LayoutOverrides,
+    OrderedGraph,
+} from "$lib/layout/ir";
 
 // ---------------------------------------------------------------------------
 // Tuning constants

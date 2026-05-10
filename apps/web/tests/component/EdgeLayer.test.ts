@@ -62,9 +62,7 @@ describe("EdgeLayer — stub-cap dasharray regression", () => {
             role: "married",
         }));
         const rendered = render(EdgeLayer, { edges: married });
-        const capPaths = paths(rendered).filter((p) =>
-            p.classList.contains("edge-stub-cap"),
-        );
+        const capPaths = paths(rendered).filter((p) => p.classList.contains("edge-stub-cap"));
         expect(capPaths.length).toBe(1);
         // Married has no dasharray, but we still want the dedicated class so
         // future role-level styling can't accidentally regress the bug.
@@ -86,9 +84,7 @@ describe("EdgeLayer — stub-cap dasharray regression", () => {
             },
         ];
         const rendered = render(EdgeLayer, { edges: justBonds });
-        const capPaths = paths(rendered).filter((p) =>
-            p.classList.contains("edge-stub-cap"),
-        );
+        const capPaths = paths(rendered).filter((p) => p.classList.contains("edge-stub-cap"));
         expect(capPaths.length).toBe(0);
     });
 });

@@ -9,11 +9,7 @@
 <script lang="ts">
     import { onMount, onDestroy } from "svelte";
     import { Sun, Moon, Monitor, PanelLeft, PanelRight, X } from "@lucide/svelte";
-    import type {
-        PreferencesStore,
-        Theme,
-        InspectorSide,
-    } from "$lib/state/preferences.svelte";
+    import type { PreferencesStore, Theme, InspectorSide } from "$lib/state/preferences.svelte";
 
     interface Props {
         prefs: PreferencesStore;

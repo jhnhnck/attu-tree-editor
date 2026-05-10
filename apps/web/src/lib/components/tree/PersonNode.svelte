@@ -77,8 +77,6 @@
                 ? "bg-rose-700/35 border-rose-400/70"
                 : "bg-amber-600/30 border-amber-400/70",
     );
-
-
 </script>
 
 <button

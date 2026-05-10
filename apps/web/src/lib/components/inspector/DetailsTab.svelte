@@ -165,7 +165,10 @@
                                     class:text-accent={i === activeSuggIdx}
                                     class:text-fg={i !== activeSuggIdx}
                                     class:hover:bg-canvas={i !== activeSuggIdx}
-                                    onmousedown={(e) => { e.preventDefault(); pickSuggestion(s); }}
+                                    onmousedown={(e) => {
+                                        e.preventDefault();
+                                        pickSuggestion(s);
+                                    }}
                                 >
                                     {s}
                                 </button>

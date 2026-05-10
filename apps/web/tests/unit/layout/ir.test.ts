@@ -260,9 +260,7 @@ describe("hvLayoutToPlacedGraph — edges", () => {
         const pg = hvLayoutToPlacedGraph(result, tree);
 
         const hasSpouse = (a: string, b: string) =>
-            pg.spouseEdges.some(
-                (e) => (e.a === a && e.b === b) || (e.a === b && e.b === a),
-            );
+            pg.spouseEdges.some((e) => (e.a === a && e.b === b) || (e.a === b && e.b === a));
 
         expect(hasSpouse(ids.root!, ids.spouse!)).toBe(true);
     });
@@ -332,9 +330,7 @@ describe("placedGraphToHvLayout — round-trip", () => {
         const origSorted = [...original.ghosts].sort((a, b) =>
             sortKey(a).localeCompare(sortKey(b)),
         );
-        const resSorted = [...restored.ghosts].sort((a, b) =>
-            sortKey(a).localeCompare(sortKey(b)),
-        );
+        const resSorted = [...restored.ghosts].sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
 
         expect(resSorted.length).toBe(origSorted.length);
         for (let i = 0; i < origSorted.length; i++) {

@@ -4,13 +4,7 @@
  */
 
 import type { Tree } from "$lib/domain/types";
-import {
-    applyDiff,
-    diffTrees,
-    invertDiff,
-    isEmptyDiff,
-    type TreeDiff,
-} from "$lib/domain/treeDiff";
+import { applyDiff, diffTrees, invertDiff, isEmptyDiff, type TreeDiff } from "$lib/domain/treeDiff";
 
 const HISTORY_LIMIT = 1000;
 

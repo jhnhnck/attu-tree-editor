@@ -95,9 +95,10 @@
     let menuEl: HTMLDivElement | undefined = $state();
 
     // responsive mode: "sheet" on narrow viewports, "side" otherwise
-    const mql = typeof window !== "undefined" && window.matchMedia
-        ? window.matchMedia("(max-width: 600px)")
-        : null;
+    const mql =
+        typeof window !== "undefined" && window.matchMedia
+            ? window.matchMedia("(max-width: 600px)")
+            : null;
     let isSheet = $state(mql?.matches ?? false);
     // iOS Safari shrinks visualViewport (not layout viewport) when the keyboard appears
     let sheetMaxH = $state(window.visualViewport?.height ?? window.innerHeight ?? 800);

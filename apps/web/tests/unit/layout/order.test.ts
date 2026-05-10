@@ -42,11 +42,7 @@ function makeGraph(
 }
 
 /** Return true if a comes before b in the order map for the given rank. */
-function before(
-    g: ReturnType<typeof order>,
-    a: LayoutNodeId,
-    b: LayoutNodeId,
-): boolean {
+function before(g: ReturnType<typeof order>, a: LayoutNodeId, b: LayoutNodeId): boolean {
     return (g.order.get(a) ?? -1) < (g.order.get(b) ?? -1);
 }
 
@@ -61,7 +57,10 @@ function dist(g: ReturnType<typeof order>, a: LayoutNodeId, b: LayoutNodeId): nu
 
 describe("order — OrderedGraph structure", () => {
     it("every node receives exactly one order value", () => {
-        const g = makeGraph([["A", "B", "C"], ["X", "Y"]]);
+        const g = makeGraph([
+            ["A", "B", "C"],
+            ["X", "Y"],
+        ]);
         const og = order(g);
         expect(og.order.size).toBe(5);
         for (const id of og.nodes.keys()) {
@@ -70,7 +69,10 @@ describe("order — OrderedGraph structure", () => {
     });
 
     it("orders within each rank form a permutation of 0..n-1", () => {
-        const g = makeGraph([["A", "B", "C"], ["X", "Y", "Z"]]);
+        const g = makeGraph([
+            ["A", "B", "C"],
+            ["X", "Y", "Z"],
+        ]);
         const og = order(g);
         for (const rankIds of og.ranks) {
             const positions = [...rankIds].map((id) => og.order.get(id)!).sort((a, b) => a - b);
@@ -111,8 +113,14 @@ describe("order — crossing minimisation", () => {
         // Rank 0: [A, B]; Rank 1: [X, Y] with A→Y and B→X (one crossing)
         // After sweep: Y should come before X (bc of Y = pos(A)=0, bc of X = pos(B)=1)
         const g = makeGraph(
-            [["A", "B"], ["X", "Y"]],
-            [{ parent: "A", child: "Y" }, { parent: "B", child: "X" }],
+            [
+                ["A", "B"],
+                ["X", "Y"],
+            ],
+            [
+                { parent: "A", child: "Y" },
+                { parent: "B", child: "X" },
+            ],
         );
         const og = order(g);
         expect(before(og, "Y", "X")).toBe(true);
@@ -121,8 +129,14 @@ describe("order — crossing minimisation", () => {
     it("zero-crossing graph stays put", () => {
         // A→X, B→Y — already no crossings; order unchanged
         const g = makeGraph(
-            [["A", "B"], ["X", "Y"]],
-            [{ parent: "A", child: "X" }, { parent: "B", child: "Y" }],
+            [
+                ["A", "B"],
+                ["X", "Y"],
+            ],
+            [
+                { parent: "A", child: "X" },
+                { parent: "B", child: "Y" },
+            ],
         );
         const og = order(g);
         expect(before(og, "X", "Y")).toBe(true);
@@ -150,7 +164,10 @@ describe("order — crossing minimisation", () => {
         // A→X, A→Y, B→X, B→Y — every possible arrangement has same crossing count
         // (edges fan out symmetrically): just check orders are valid permutations
         const g = makeGraph(
-            [["A", "B"], ["X", "Y"]],
+            [
+                ["A", "B"],
+                ["X", "Y"],
+            ],
             [
                 { parent: "A", child: "X" },
                 { parent: "A", child: "Y" },
@@ -169,8 +186,14 @@ describe("order — crossing minimisation", () => {
         // Rank 0: [A, B, C]; Rank 1: [X] with A→X and C→X
         // bc(X) = median(0, 2) = 1 → X placed at middle of rank 1
         const g = makeGraph(
-            [["A", "B", "C"], ["X", "Y", "Z"]],
-            [{ parent: "A", child: "X" }, { parent: "C", child: "X" }],
+            [
+                ["A", "B", "C"],
+                ["X", "Y", "Z"],
+            ],
+            [
+                { parent: "A", child: "X" },
+                { parent: "C", child: "X" },
+            ],
         );
         const og = order(g);
         // X should not be first or last in rank 1 if bc=1 (middle of 0..2)
@@ -189,11 +212,10 @@ describe("order — couple adjacency (spouseGroup)", () => {
     it("same-rank couple stays adjacent after ordering", () => {
         // Rank 0: [A, B, C, D]; A and C share spouseGroup
         // No cross-rank edges so median sort won't move them, but repair should.
-        const g = makeGraph(
-            [["A", "B", "C", "D"]],
-            [],
-            { A: { spouseGroup: "AC" }, C: { spouseGroup: "AC" } },
-        );
+        const g = makeGraph([["A", "B", "C", "D"]], [], {
+            A: { spouseGroup: "AC" },
+            C: { spouseGroup: "AC" },
+        });
         const og = order(g);
         expect(dist(og, "A", "C")).toBe(1);
     });
@@ -201,8 +223,14 @@ describe("order — couple adjacency (spouseGroup)", () => {
     it("couple in the middle of a rank remains adjacent after sweep", () => {
         // Rank 0: [P, Q]; Rank 1: [X, A, Y, B] with P→X, Q→B; A and B are spouseGroup
         const g = makeGraph(
-            [["P", "Q"], ["X", "A", "Y", "B"]],
-            [{ parent: "P", child: "X" }, { parent: "Q", child: "B" }],
+            [
+                ["P", "Q"],
+                ["X", "A", "Y", "B"],
+            ],
+            [
+                { parent: "P", child: "X" },
+                { parent: "Q", child: "B" },
+            ],
             { A: { spouseGroup: "AB" }, B: { spouseGroup: "AB" } },
         );
         const og = order(g);
@@ -211,16 +239,12 @@ describe("order — couple adjacency (spouseGroup)", () => {
 
     it("two independent couples in the same rank are each adjacent", () => {
         // [A, X, B, Y] where A+B and X+Y are couples
-        const g = makeGraph(
-            [["A", "X", "B", "Y"]],
-            [],
-            {
-                A: { spouseGroup: "AB" },
-                B: { spouseGroup: "AB" },
-                X: { spouseGroup: "XY" },
-                Y: { spouseGroup: "XY" },
-            },
-        );
+        const g = makeGraph([["A", "X", "B", "Y"]], [], {
+            A: { spouseGroup: "AB" },
+            B: { spouseGroup: "AB" },
+            X: { spouseGroup: "XY" },
+            Y: { spouseGroup: "XY" },
+        });
         const og = order(g);
         expect(dist(og, "A", "B")).toBe(1);
         expect(dist(og, "X", "Y")).toBe(1);
@@ -235,11 +259,17 @@ describe("order — couple adjacency (spouseGroup)", () => {
 
         const nodes = new Map<LayoutNodeId, LayoutNode>();
         nodes.set(nearId, {
-            id: nearId, kind: "person", personId: nearId, rank: 0,
+            id: nearId,
+            kind: "person",
+            personId: nearId,
+            rank: 0,
             spouseGroup: `${nearId}|${bId}`,
         });
         nodes.set(ghostId, {
-            id: ghostId, kind: "ghost", personId: bId, rank: 0,
+            id: ghostId,
+            kind: "ghost",
+            personId: bId,
+            rank: 0,
             spouseGroup: `${nearId}|${bId}`,
         });
         nodes.set("other1", { id: "other1", kind: "person", personId: "other1", rank: 0 });
@@ -264,15 +294,11 @@ describe("order — couple adjacency (spouseGroup)", () => {
 describe("order — sibling block contiguity (siblingBlockId)", () => {
     it("scattered siblings become contiguous", () => {
         // Rank: [X, sib1, Y, sib2, Z, sib3]  sib1/2/3 share same block
-        const g = makeGraph(
-            [["X", "sib1", "Y", "sib2", "Z", "sib3"]],
-            [],
-            {
-                sib1: { siblingBlockId: "S" },
-                sib2: { siblingBlockId: "S" },
-                sib3: { siblingBlockId: "S" },
-            },
-        );
+        const g = makeGraph([["X", "sib1", "Y", "sib2", "Z", "sib3"]], [], {
+            sib1: { siblingBlockId: "S" },
+            sib2: { siblingBlockId: "S" },
+            sib3: { siblingBlockId: "S" },
+        });
         const og = order(g);
         const pos = ["sib1", "sib2", "sib3"].map((id) => og.order.get(id)!).sort((a, b) => a - b);
         // Positions must be consecutive
@@ -281,37 +307,31 @@ describe("order — sibling block contiguity (siblingBlockId)", () => {
     });
 
     it("already-contiguous sibling block is left alone", () => {
-        const g = makeGraph(
-            [["X", "sib1", "sib2", "sib3", "Y"]],
-            [],
-            {
-                sib1: { siblingBlockId: "S" },
-                sib2: { siblingBlockId: "S" },
-                sib3: { siblingBlockId: "S" },
-            },
-        );
+        const g = makeGraph([["X", "sib1", "sib2", "sib3", "Y"]], [], {
+            sib1: { siblingBlockId: "S" },
+            sib2: { siblingBlockId: "S" },
+            sib3: { siblingBlockId: "S" },
+        });
         const og = order(g);
         // Order should be same as input: sib1 < sib2 < sib3 and contiguous
         expect(before(og, "sib1", "sib2")).toBe(true);
         expect(before(og, "sib2", "sib3")).toBe(true);
-        const positions = ["sib1", "sib2", "sib3"].map((id) => og.order.get(id)!).sort((a, b) => a - b);
+        const positions = ["sib1", "sib2", "sib3"]
+            .map((id) => og.order.get(id)!)
+            .sort((a, b) => a - b);
         expect(positions[1]! - positions[0]!).toBe(1);
         expect(positions[2]! - positions[1]!).toBe(1);
     });
 
     it("two separate sibling blocks in one rank are each contiguous", () => {
         // [s1a, s2a, s1b, s2b, s1c]  block S1={s1a,s1b,s1c}, S2={s2a,s2b}
-        const g = makeGraph(
-            [["s1a", "s2a", "s1b", "s2b", "s1c"]],
-            [],
-            {
-                s1a: { siblingBlockId: "S1" },
-                s1b: { siblingBlockId: "S1" },
-                s1c: { siblingBlockId: "S1" },
-                s2a: { siblingBlockId: "S2" },
-                s2b: { siblingBlockId: "S2" },
-            },
-        );
+        const g = makeGraph([["s1a", "s2a", "s1b", "s2b", "s1c"]], [], {
+            s1a: { siblingBlockId: "S1" },
+            s1b: { siblingBlockId: "S1" },
+            s1c: { siblingBlockId: "S1" },
+            s2a: { siblingBlockId: "S2" },
+            s2b: { siblingBlockId: "S2" },
+        });
         const og = order(g);
         const s1 = ["s1a", "s1b", "s1c"].map((id) => og.order.get(id)!).sort((a, b) => a - b);
         expect(s1[1]! - s1[0]!).toBe(1);
@@ -327,7 +347,10 @@ describe("order — sibling block contiguity (siblingBlockId)", () => {
         // Median: sib1/2/3 bc = pos(P)=0, X and Y bc = pos(Q)=1
         // After sort+repair: sib group contiguous, X/Y contiguous
         const g = makeGraph(
-            [["P", "Q"], ["sib1", "X", "sib2", "Y", "sib3"]],
+            [
+                ["P", "Q"],
+                ["sib1", "X", "sib2", "Y", "sib3"],
+            ],
             [
                 { parent: "P", child: "sib1" },
                 { parent: "P", child: "sib2" },
@@ -362,17 +385,13 @@ describe("order — couple adjacency wins over sibling-block contiguity", () => 
         // into orders 1..3 immediately after anchor, displacing spouse.
         // Correct behaviour: spouse ends up at anchor.order ± 1; the
         // sibling block tolerates the spouse splitting it.
-        const g = makeGraph(
-            [["anchor", "sib1", "sib2", "sib3", "spouse"]],
-            [],
-            {
-                anchor: { siblingBlockId: "S", spouseGroup: "C" },
-                sib1: { siblingBlockId: "S" },
-                sib2: { siblingBlockId: "S" },
-                sib3: { siblingBlockId: "S" },
-                spouse: { spouseGroup: "C" },
-            },
-        );
+        const g = makeGraph([["anchor", "sib1", "sib2", "sib3", "spouse"]], [], {
+            anchor: { siblingBlockId: "S", spouseGroup: "C" },
+            sib1: { siblingBlockId: "S" },
+            sib2: { siblingBlockId: "S" },
+            sib3: { siblingBlockId: "S" },
+            spouse: { spouseGroup: "C" },
+        });
         const og = order(g);
         expect(dist(og, "anchor", "spouse")).toBe(1);
     });
@@ -388,11 +407,57 @@ describe("order — couple adjacency wins over sibling-block contiguity", () => 
         // after sibling-repair has compacted the EYPFY sibling block.
         const g: LayeredGraph = {
             nodes: new Map<LayoutNodeId, LayoutNode>([
-                ["EYPFY",   { id: "EYPFY",  kind: "person", personId: "EYPFY",  rank: 4, spouseGroup: "EYPFY|OU6R1", siblingBlockId: "SB" }],
-                ["WBTKP",   { id: "WBTKP",  kind: "person", personId: "WBTKP",  rank: 4, siblingBlockId: "SB" }],
-                ["4M7XA",   { id: "4M7XA",  kind: "person", personId: "4M7XA",  rank: 4, siblingBlockId: "SB" }],
-                ["MVI51",   { id: "MVI51",  kind: "person", personId: "MVI51",  rank: 4, siblingBlockId: "SB" }],
-                [ghostId,   { id: ghostId,  kind: "ghost",  personId: "OU6R1",  rank: 4, spouseGroup: "EYPFY|OU6R1" }],
+                [
+                    "EYPFY",
+                    {
+                        id: "EYPFY",
+                        kind: "person",
+                        personId: "EYPFY",
+                        rank: 4,
+                        spouseGroup: "EYPFY|OU6R1",
+                        siblingBlockId: "SB",
+                    },
+                ],
+                [
+                    "WBTKP",
+                    {
+                        id: "WBTKP",
+                        kind: "person",
+                        personId: "WBTKP",
+                        rank: 4,
+                        siblingBlockId: "SB",
+                    },
+                ],
+                [
+                    "4M7XA",
+                    {
+                        id: "4M7XA",
+                        kind: "person",
+                        personId: "4M7XA",
+                        rank: 4,
+                        siblingBlockId: "SB",
+                    },
+                ],
+                [
+                    "MVI51",
+                    {
+                        id: "MVI51",
+                        kind: "person",
+                        personId: "MVI51",
+                        rank: 4,
+                        siblingBlockId: "SB",
+                    },
+                ],
+                [
+                    ghostId,
+                    {
+                        id: ghostId,
+                        kind: "ghost",
+                        personId: "OU6R1",
+                        rank: 4,
+                        spouseGroup: "EYPFY|OU6R1",
+                    },
+                ],
             ]),
             ranks: [[], [], [], [], ["EYPFY", "WBTKP", "4M7XA", "MVI51", ghostId]],
             parentEdges: [],
@@ -419,7 +484,10 @@ describe("order — swap overrides", () => {
 
     it("swap override on cross-rank nodes has no effect", () => {
         // A is rank 0, X is rank 1 — they're in different ranks, swap is a no-op
-        const g = makeGraph([["A", "B"], ["X", "Y"]]);
+        const g = makeGraph([
+            ["A", "B"],
+            ["X", "Y"],
+        ]);
         const og = order(g, { swap: [["A", "X"]] });
         // Just check that both ranks still have valid permutations
         for (const rankIds of og.ranks) {
@@ -432,8 +500,14 @@ describe("order — swap overrides", () => {
         // A→Y, B→X: algorithm would produce [Y, X] in rank 1 to remove crossing.
         // Swap Y and X back via override: final order should be [X, Y].
         const g = makeGraph(
-            [["A", "B"], ["X", "Y"]],
-            [{ parent: "A", child: "Y" }, { parent: "B", child: "X" }],
+            [
+                ["A", "B"],
+                ["X", "Y"],
+            ],
+            [
+                { parent: "A", child: "Y" },
+                { parent: "B", child: "X" },
+            ],
         );
         const og = order(g, { swap: [["X", "Y"]] });
         expect(before(og, "X", "Y")).toBe(true);
@@ -450,12 +524,36 @@ describe("order — integration with layer() output", () => {
         const { ROOT_ID } = await import("$lib/domain/ids");
         const { layer } = await import("$lib/layout/passes/layer");
 
-        let t = createTree("test", { given: "root", surname: "", gender: "m", spouseIds: [], display: "z1" });
-        const sp = addPerson(t, { given: "sp", surname: "", gender: "f", spouseIds: [], display: "z1" });
+        let t = createTree("test", {
+            given: "root",
+            surname: "",
+            gender: "m",
+            spouseIds: [],
+            display: "z1",
+        });
+        const sp = addPerson(t, {
+            given: "sp",
+            surname: "",
+            gender: "f",
+            spouseIds: [],
+            display: "z1",
+        });
         t = sp.tree;
-        const c1 = addPerson(t, { given: "c1", surname: "", gender: "u", spouseIds: [], display: "z1" });
+        const c1 = addPerson(t, {
+            given: "c1",
+            surname: "",
+            gender: "u",
+            spouseIds: [],
+            display: "z1",
+        });
         t = c1.tree;
-        const c2 = addPerson(t, { given: "c2", surname: "", gender: "u", spouseIds: [], display: "z1" });
+        const c2 = addPerson(t, {
+            given: "c2",
+            surname: "",
+            gender: "u",
+            spouseIds: [],
+            display: "z1",
+        });
         t = c2.tree;
 
         const r1 = linkSpouse(t, ROOT_ID, sp.id);
@@ -483,8 +581,20 @@ describe("order — integration with layer() output", () => {
         const { ROOT_ID } = await import("$lib/domain/ids");
         const { layer } = await import("$lib/layout/passes/layer");
 
-        let t = createTree("sp", { given: "root", surname: "", gender: "m", spouseIds: [], display: "z1" });
-        const sp = addPerson(t, { given: "sp", surname: "", gender: "f", spouseIds: [], display: "z1" });
+        let t = createTree("sp", {
+            given: "root",
+            surname: "",
+            gender: "m",
+            spouseIds: [],
+            display: "z1",
+        });
+        const sp = addPerson(t, {
+            given: "sp",
+            surname: "",
+            gender: "f",
+            spouseIds: [],
+            display: "z1",
+        });
         t = sp.tree;
         const r = linkSpouse(t, ROOT_ID, sp.id);
         if (!r.ok) throw new Error(r.error);
@@ -501,14 +611,44 @@ describe("order — integration with layer() output", () => {
         const { ROOT_ID } = await import("$lib/domain/ids");
         const { layer } = await import("$lib/layout/passes/layer");
 
-        let t = createTree("sib", { given: "root", surname: "", gender: "m", spouseIds: [], display: "z1" });
-        const sp = addPerson(t, { given: "sp", surname: "", gender: "f", spouseIds: [], display: "z1" });
+        let t = createTree("sib", {
+            given: "root",
+            surname: "",
+            gender: "m",
+            spouseIds: [],
+            display: "z1",
+        });
+        const sp = addPerson(t, {
+            given: "sp",
+            surname: "",
+            gender: "f",
+            spouseIds: [],
+            display: "z1",
+        });
         t = sp.tree;
-        const c1 = addPerson(t, { given: "c1", surname: "", gender: "u", spouseIds: [], display: "z1" });
+        const c1 = addPerson(t, {
+            given: "c1",
+            surname: "",
+            gender: "u",
+            spouseIds: [],
+            display: "z1",
+        });
         t = c1.tree;
-        const c2 = addPerson(t, { given: "c2", surname: "", gender: "u", spouseIds: [], display: "z1" });
+        const c2 = addPerson(t, {
+            given: "c2",
+            surname: "",
+            gender: "u",
+            spouseIds: [],
+            display: "z1",
+        });
         t = c2.tree;
-        const c3 = addPerson(t, { given: "c3", surname: "", gender: "u", spouseIds: [], display: "z1" });
+        const c3 = addPerson(t, {
+            given: "c3",
+            surname: "",
+            gender: "u",
+            spouseIds: [],
+            display: "z1",
+        });
         t = c3.tree;
 
         const r1 = linkSpouse(t, ROOT_ID, sp.id);
@@ -530,7 +670,9 @@ describe("order — integration with layer() output", () => {
         const lg = layer(r7.value, vis, ROOT_ID);
         const og = order(lg);
 
-        const positions = [c1.id, c2.id, c3.id].map((id) => og.order.get(id)!).sort((a, b) => a - b);
+        const positions = [c1.id, c2.id, c3.id]
+            .map((id) => og.order.get(id)!)
+            .sort((a, b) => a - b);
         expect(positions[1]! - positions[0]!).toBe(1);
         expect(positions[2]! - positions[1]!).toBe(1);
     });
@@ -543,8 +685,14 @@ describe("order — integration with layer() output", () => {
 describe("order — invariants", () => {
     it("order map contains exactly as many entries as nodes", () => {
         const g = makeGraph(
-            [["A", "B"], ["X", "Y", "Z"]],
-            [{ parent: "A", child: "X" }, { parent: "B", child: "Z" }],
+            [
+                ["A", "B"],
+                ["X", "Y", "Z"],
+            ],
+            [
+                { parent: "A", child: "X" },
+                { parent: "B", child: "Z" },
+            ],
         );
         const og = order(g);
         expect(og.order.size).toBe(og.nodes.size);
@@ -552,8 +700,14 @@ describe("order — invariants", () => {
 
     it("no two nodes in the same rank share an order value", () => {
         const g = makeGraph(
-            [["A", "B", "C"], ["X", "Y"]],
-            [{ parent: "A", child: "X" }, { parent: "C", child: "Y" }],
+            [
+                ["A", "B", "C"],
+                ["X", "Y"],
+            ],
+            [
+                { parent: "A", child: "X" },
+                { parent: "C", child: "Y" },
+            ],
         );
         const og = order(g);
         for (const rankIds of og.ranks) {
@@ -564,7 +718,10 @@ describe("order — invariants", () => {
 
     it("each rank's order values span 0..length-1 exactly", () => {
         const g = makeGraph(
-            [["A", "B", "C", "D"], ["X", "Y"]],
+            [
+                ["A", "B", "C", "D"],
+                ["X", "Y"],
+            ],
             [],
         );
         const og = order(g);
@@ -588,8 +745,15 @@ describe("order — invariants", () => {
 describe("computeInitialOrder", () => {
     it("places all nodes in their correct rank", () => {
         const g = makeGraph(
-            [["A", "B"], ["X", "Y", "Z"]],
-            [{ parent: "A", child: "X" }, { parent: "B", child: "Y" }, { parent: "B", child: "Z" }],
+            [
+                ["A", "B"],
+                ["X", "Y", "Z"],
+            ],
+            [
+                { parent: "A", child: "X" },
+                { parent: "B", child: "Y" },
+                { parent: "B", child: "Z" },
+            ],
         );
         const init = computeInitialOrder(g);
         expect(init[0]).toHaveLength(2);
@@ -602,10 +766,15 @@ describe("computeInitialOrder", () => {
         // Two parents A and B, each with two children (k1,k2 under A; k3,k4 under B).
         // DFS from A should place k1,k2 together; DFS from B should place k3,k4 together.
         const g = makeGraph(
-            [["A", "B"], ["k1", "k2", "k3", "k4"]],
             [
-                { parent: "A", child: "k1" }, { parent: "A", child: "k2" },
-                { parent: "B", child: "k3" }, { parent: "B", child: "k4" },
+                ["A", "B"],
+                ["k1", "k2", "k3", "k4"],
+            ],
+            [
+                { parent: "A", child: "k1" },
+                { parent: "A", child: "k2" },
+                { parent: "B", child: "k3" },
+                { parent: "B", child: "k4" },
             ],
         );
         const init = computeInitialOrder(g);
@@ -626,8 +795,15 @@ describe("computeInitialOrder", () => {
 
     it("covers all nodes in the graph (no node left out)", () => {
         const g = makeGraph(
-            [["R1", "R2"], ["C1", "C2", "C3"]],
-            [{ parent: "R1", child: "C1" }, { parent: "R2", child: "C2" }, { parent: "R2", child: "C3" }],
+            [
+                ["R1", "R2"],
+                ["C1", "C2", "C3"],
+            ],
+            [
+                { parent: "R1", child: "C1" },
+                { parent: "R2", child: "C2" },
+                { parent: "R2", child: "C3" },
+            ],
         );
         const init = computeInitialOrder(g);
         const all = init.flat();

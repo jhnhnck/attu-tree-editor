@@ -265,8 +265,7 @@ describe("edgeRouter — cross-row couples (uses ghost positions)", () => {
             ghostPositions: ghostMap([...layout.ghosts]),
         });
         const bad = segs.filter(
-            (s) =>
-                (s.kind === "parent-drop" || s.kind === "child-drop") && s.y2 < s.y1 - 1e-6,
+            (s) => (s.kind === "parent-drop" || s.kind === "child-drop") && s.y2 < s.y1 - 1e-6,
         );
         expect(bad).toEqual([]);
     });
@@ -285,9 +284,7 @@ describe("edgeRouter — cross-row couples (uses ghost positions)", () => {
         );
         const bond = segs.find(
             (s) =>
-                s.kind === "bond" &&
-                s.persons.includes(ids.a_grand!) &&
-                s.persons.includes(ids.b!),
+                s.kind === "bond" && s.persons.includes(ids.a_grand!) && s.persons.includes(ids.b!),
         );
         expect(drop).toBeDefined();
         expect(bond).toBeDefined();
@@ -370,8 +367,7 @@ describe("edgeRouter — cross-row couples (uses ghost positions)", () => {
         });
         // both couples must produce non-negative drops
         const bad = segs.filter(
-            (s) =>
-                (s.kind === "parent-drop" || s.kind === "child-drop") && s.y2 < s.y1 - 1e-6,
+            (s) => (s.kind === "parent-drop" || s.kind === "child-drop") && s.y2 < s.y1 - 1e-6,
         );
         expect(bad).toEqual([]);
 

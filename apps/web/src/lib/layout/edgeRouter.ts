@@ -100,10 +100,8 @@ export function routeEdges(
         // use ghost positions for bond routing if available — keyed by
         // (ghostOf, nearId) since a person can be ghosted multiple times,
         // once per cross-row spouse
-        const aEff =
-            opts.ghostPositions?.get(`${couple.leftId}|${couple.rightId}`) ?? a;
-        const bEff =
-            opts.ghostPositions?.get(`${couple.rightId}|${couple.leftId}`) ?? b;
+        const aEff = opts.ghostPositions?.get(`${couple.leftId}|${couple.rightId}`) ?? a;
+        const bEff = opts.ghostPositions?.get(`${couple.rightId}|${couple.leftId}`) ?? b;
         const role: EdgeRole = couple.isCurrent === false ? "divorced" : "married";
 
         const bondPersons: PersonId[] = [couple.leftId, couple.rightId];
@@ -191,10 +189,8 @@ export function routeEdges(
         // partner's row. Drop/bus geometry must use those same effective
         // positions or it ends up disconnected from the bond. Lookup is
         // keyed by (ghostOf, nearId) since a person can have multiple ghosts.
-        const aEff =
-            opts.ghostPositions?.get(`${couple.leftId}|${couple.rightId}`) ?? a;
-        const bEff =
-            opts.ghostPositions?.get(`${couple.rightId}|${couple.leftId}`) ?? b;
+        const aEff = opts.ghostPositions?.get(`${couple.leftId}|${couple.rightId}`) ?? a;
+        const bEff = opts.ghostPositions?.get(`${couple.rightId}|${couple.leftId}`) ?? b;
         const k = jointKey(couple.leftId, couple.rightId);
         const childIds = jointByCouple.get(k) ?? [];
         if (childIds.length === 0) continue;

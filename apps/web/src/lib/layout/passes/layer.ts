@@ -358,10 +358,7 @@ function computeRanks(
  * using person.motherId / person.fatherId rather than couple.childIds because
  * linkParent() populates person records but not CoupleRecord.childIds.
  */
-function buildVisChildrenMap(
-    tree: Tree,
-    vis: ReadonlySet<PersonId>,
-): Map<string, PersonId[]> {
+function buildVisChildrenMap(tree: Tree, vis: ReadonlySet<PersonId>): Map<string, PersonId[]> {
     // Index couples by both orderings of their partner ids for O(1) lookup
     const coupleKeyByParents = new Map<string, string>();
     for (const couple of tree.couples) {

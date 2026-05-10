@@ -9,7 +9,11 @@
 -->
 <script lang="ts">
     import type { RenderedSegment, EdgeRole } from "$lib/components/tree/edges";
-    import { pathDataForGroup, divorceTicksForGroup, stubCapsForGroup } from "$lib/components/tree/edgePath";
+    import {
+        pathDataForGroup,
+        divorceTicksForGroup,
+        stubCapsForGroup,
+    } from "$lib/components/tree/edgePath";
 
     interface Props {
         edges: readonly RenderedSegment[];

@@ -64,7 +64,9 @@
         {#if url}
             <img src={url} alt="" class="h-full w-full object-cover" />
         {:else}
-            <div class="text-fg-muted flex h-full w-full flex-col items-center justify-center gap-2">
+            <div
+                class="text-fg-muted flex h-full w-full flex-col items-center justify-center gap-2"
+            >
                 <User size={40} strokeWidth={1.25} />
                 <span class="text-[10px]">no portrait</span>
             </div>

@@ -452,9 +452,7 @@ describe("hvLayout — ghost placement (cross-row partners)", () => {
     it("ghosts the non-primary partner (the one not above the children)", () => {
         const { tree, ids } = makeCrossRowCouple();
         const out = hvLayout(tree);
-        const ghost = out.ghosts.find(
-            (g) => g.ghostOf === ids.a_grand || g.ghostOf === ids.b,
-        );
+        const ghost = out.ghosts.find((g) => g.ghostOf === ids.a_grand || g.ghostOf === ids.b);
         expect(ghost).toBeDefined();
         expect(ghost!.ghostOf).toBe(ids.b);
         expect(ghost!.nearId).toBe(ids.a_grand);

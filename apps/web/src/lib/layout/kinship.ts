@@ -273,10 +273,22 @@ export function findNeighbour(
         let axis: number;
         let perp: number;
         switch (dir) {
-            case "right":  axis = dx;  perp = dy;  break;
-            case "left":   axis = -dx; perp = dy;  break;
-            case "down":   axis = dy;  perp = dx;  break;
-            case "up":     axis = -dy; perp = dx;  break;
+            case "right":
+                axis = dx;
+                perp = dy;
+                break;
+            case "left":
+                axis = -dx;
+                perp = dy;
+                break;
+            case "down":
+                axis = dy;
+                perp = dx;
+                break;
+            case "up":
+                axis = -dy;
+                perp = dx;
+                break;
         }
 
         if (axis <= 0) continue; // wrong direction

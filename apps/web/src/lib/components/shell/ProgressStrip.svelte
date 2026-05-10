@@ -18,7 +18,9 @@
         class="pointer-events-none absolute inset-x-0 top-0 z-20 h-0.5 overflow-hidden bg-line"
         role="progressbar"
         aria-label={progress.label}
-        aria-valuenow={progress.fraction !== undefined ? Math.round(progress.fraction * 100) : undefined}
+        aria-valuenow={progress.fraction !== undefined
+            ? Math.round(progress.fraction * 100)
+            : undefined}
     >
         {#if progress.fraction !== undefined}
             <div

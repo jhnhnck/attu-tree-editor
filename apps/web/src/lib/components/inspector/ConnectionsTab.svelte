@@ -4,7 +4,17 @@
     licensed under the MIT license; see LICENSE.md for full text
 -->
 <script lang="ts">
-    import { ArrowRight, ArrowRightLeft, Eye, Plus, X, XCircle, UserPlus, Heart, Baby } from "@lucide/svelte";
+    import {
+        ArrowRight,
+        ArrowRightLeft,
+        Eye,
+        Plus,
+        X,
+        XCircle,
+        UserPlus,
+        Heart,
+        Baby,
+    } from "@lucide/svelte";
     import type { CoupleRecord, Person, PersonId, Tree } from "$lib/domain/types";
     import type { CouplePatch } from "$lib/domain/tree";
     import type { HaracalndeDateData } from "$lib/date/HaracalndeDate";
@@ -374,7 +384,8 @@
             trace path to…
         </button>
         {#if traceTargetId}
-            {@const targetName = Object.values(tree.people).find((p) => p.id === traceTargetId)?.given || "?"}
+            {@const targetName =
+                Object.values(tree.people).find((p) => p.id === traceTargetId)?.given || "?"}
             <div class="flex items-center gap-1 px-1.5 py-1 text-xs text-fg-muted">
                 <span>tracing to {targetName}</span>
                 <button
