@@ -104,6 +104,58 @@ function rightX(p: Pos): number {
 }
 
 // ---------------------------------------------------------------------------
+// Port-aware drop direction
+// ---------------------------------------------------------------------------
+
+type DropDirection = "down" | "up" | "level";
+
+interface DropPorts {
+    readonly direction: DropDirection;
+    /** y of the parent's exit port (bottom-mid normally; top-mid when going up). */
+    readonly parentExitY: number;
+    /** y of the child's entry port (top-mid normally; bottom-mid when going up). */
+    readonly childEntryY: number;
+    /** Gutter rank — the bus sits below this rank. min(parent, child). */
+    readonly gutterRank: number;
+}
+
+/**
+ * Pedigree DAGs (pedigree-collapse, cycles via remarriage) can land a parent
+ * at a higher rank than their child — `passes/layer.ts`'s longest-path pass
+ * is forced into a single rank when paths through different ancestors
+ * disagree, so the loser gets routed "up". Pick the port-pair that keeps the
+ * resulting drop visually coherent: parent exits the edge of its card that
+ * faces the child, child enters the edge that faces the parent, and the bus
+ * sits in the single-rank gap between them.
+ */
+function pickDropPorts(parentPos: Pos, childPos: Pos): DropPorts {
+    if (parentPos.rank < childPos.rank) {
+        return {
+            direction: "down",
+            parentExitY: botY(parentPos),
+            childEntryY: topY(childPos),
+            gutterRank: parentPos.rank,
+        };
+    }
+    if (parentPos.rank > childPos.rank) {
+        return {
+            direction: "up",
+            parentExitY: topY(parentPos),
+            childEntryY: botY(childPos),
+            gutterRank: childPos.rank,
+        };
+    }
+    // Same-rank parent-child (pedigree-DAG cycle artefact). Bus right
+    // alongside them; ports use mid-Y on both sides.
+    return {
+        direction: "level",
+        parentExitY: midY(parentPos),
+        childEntryY: midY(childPos),
+        gutterRank: parentPos.rank,
+    };
+}
+
+// ---------------------------------------------------------------------------
 // Gutter lane allocator
 // ---------------------------------------------------------------------------
 
@@ -162,20 +214,23 @@ function buildSegments(
     // fraction of the canvas.
     const maxBondSpan = Math.min(MAX_BOND_SPAN_CEILING, placed.bbox.width / 4);
 
-    // Drop-height invariant: parent-drop and child-drop segments are vertical
-    // descents from a higher rank to a lower one, so y must increase. Negative
-    // drops imply a layering bug upstream (most often single-parent rank
-    // assignment in layer.ts for a cross-rank parent). The warning is
-    // accumulated and surfaced via `__treeDebug.warnings[]`; root-cause fix
-    // lives in a later phase.
-    const pushDrop = (s: Segment): void => {
-        if (s.y2 < s.y1 - 1e-6) {
+    // Drop-direction invariant: a parent-drop / child-drop segment is vertical
+    // and must agree with its expected direction (`down` for a parent above
+    // the child, `up` for a parent below — pedigree-DAG case). A mismatch
+    // means port selection upstream picked the wrong card edge; warn and
+    // surface via `__treeDebug.warnings[]`.
+    const pushDrop = (s: Segment, expectedDirection: DropDirection): void => {
+        const dy = s.y2 - s.y1;
+        const wrong =
+            (expectedDirection === "down" && dy < -1e-6) ||
+            (expectedDirection === "up" && dy > 1e-6);
+        if (wrong) {
             warnings.push({
                 kind: "negative-drop",
                 pass: "route",
-                message: `negative drop height for ${s.kind} ${s.id}: ${String(s.y2 - s.y1)} u`,
+                message: `wrong-direction ${s.kind} ${s.id}: expected ${expectedDirection}, got dy=${String(dy)} u`,
                 ids: [s.id],
-                data: { y1: s.y1, y2: s.y2, drop: s.y2 - s.y1 },
+                data: { y1: s.y1, y2: s.y2, drop: dy, expected: expectedDirection },
             });
         }
         out.push(s);
@@ -290,60 +345,108 @@ function buildSegments(
                 .filter((c): c is { id: PersonId; pos: Pos } => c !== null);
 
             if (childPosns.length > 0) {
-                // For long bonds the two partners are far apart; anchor the
-                // parent-drop at the centroid of the children so it lands near
-                // the family rather than floating in empty canvas space.
-                const bondX = isLongBond
-                    ? childPosns.reduce((s, c) => s + midX(c.pos), 0) / childPosns.length
-                    : (rightX(l) + leftX(r)) / 2;
-                const xs = childPosns.map((c) => midX(c.pos));
-                const busMinX = Math.min(...xs, bondX);
-                const busMaxX = Math.max(...xs, bondX);
-                const lane = lanes.alloc(aPos.rank, busMinX, busMaxX);
-                const busY = lanes.laneY(aPos.rank, lane);
+                // Group kids by drop direction relative to the bond. A
+                // pedigree-DAG can land a kid at lower rank than the bond
+                // (the "up" group); in that case the bus belongs above the
+                // parents' row, and the parent-drop exits the bond going up.
+                // Bond's y is between the partners' mid-Y (same rank, equal),
+                // so any kid with rank < bond.rank routes "up" and rank >
+                // bond.rank routes "down".
+                type Group = { dir: DropDirection; kids: typeof childPosns };
+                const downKids = childPosns.filter((c) => c.pos.rank > aPos.rank);
+                const upKids = childPosns.filter((c) => c.pos.rank < aPos.rank);
+                const levelKids = childPosns.filter((c) => c.pos.rank === aPos.rank);
+                const groups: Group[] = [];
+                if (downKids.length) groups.push({ dir: "down", kids: downKids });
+                if (upKids.length) groups.push({ dir: "up", kids: upKids });
+                if (levelKids.length) groups.push({ dir: "level", kids: levelKids });
 
-                pushDrop({
-                    id: `couple:${bondKey}/drop`,
-                    kind: "parent-drop",
-                    role: "blood",
-                    x1: bondX,
-                    y1: bondY,
-                    x2: bondX,
-                    y2: busY,
-                    persons: couplePersons,
-                });
-                if (busMinX < busMaxX) {
-                    out.push({
-                        id: `couple:${bondKey}/bus`,
-                        kind: "sibling-bus",
-                        role: "blood",
-                        x1: busMinX,
-                        y1: busY,
-                        x2: busMaxX,
-                        y2: busY,
-                        persons: couplePersons,
-                    });
-                }
+                for (const group of groups) {
+                    // For long bonds the partners are far apart; anchor the
+                    // parent-drop at the children centroid so it lands near
+                    // the family rather than floating in empty canvas space.
+                    const bondX = isLongBond
+                        ? group.kids.reduce((s, c) => s + midX(c.pos), 0) / group.kids.length
+                        : (rightX(l) + leftX(r)) / 2;
+                    const xs = group.kids.map((c) => midX(c.pos));
+                    const busMinX = Math.min(...xs, bondX);
+                    const busMaxX = Math.max(...xs, bondX);
+                    // gutterRank: down → parents' rank (bus below them);
+                    // up → kid's rank (bus below kid, above parents).
+                    const gutterRank =
+                        group.dir === "down"
+                            ? aPos.rank
+                            : group.dir === "up"
+                              ? group.kids[0]!.pos.rank
+                              : aPos.rank;
+                    const lane = lanes.alloc(gutterRank, busMinX, busMaxX);
+                    const busY = lanes.laneY(gutterRank, lane);
+                    // Bond exit-y: for down, the bond itself is the source
+                    // (drop hangs from it); for up, the parent-drop exits
+                    // the bond upward toward the bus above.
+                    const bondExitY = bondY;
+                    const groupSuffix = group.dir === "down" ? "" : `-${group.dir}`;
 
-                const deepestByX = new Map<number, { y: number; id: PersonId }>();
-                for (const { id, pos } of childPosns) {
-                    const cx = midX(pos);
-                    const cy = topY(pos);
-                    const cur = deepestByX.get(cx);
-                    if (!cur || cy > cur.y) deepestByX.set(cx, { y: cy, id });
-                    handled.add(id);
-                }
-                for (const [cx, { y, id }] of deepestByX) {
-                    pushDrop({
-                        id: `couple:${bondKey}/child:${id}`,
-                        kind: "child-drop",
-                        role: "blood",
-                        x1: cx,
-                        y1: busY,
-                        x2: cx,
-                        y2: y,
-                        persons: [couple.leftId, couple.rightId, id],
-                    });
+                    pushDrop(
+                        {
+                            id: `couple:${bondKey}/drop${groupSuffix}`,
+                            kind: "parent-drop",
+                            role: "blood",
+                            x1: bondX,
+                            y1: bondExitY,
+                            x2: bondX,
+                            y2: busY,
+                            persons: couplePersons,
+                        },
+                        group.dir,
+                    );
+                    if (busMinX < busMaxX) {
+                        out.push({
+                            id: `couple:${bondKey}/bus${groupSuffix}`,
+                            kind: "sibling-bus",
+                            role: "blood",
+                            x1: busMinX,
+                            y1: busY,
+                            x2: busMaxX,
+                            y2: busY,
+                            persons: couplePersons,
+                        });
+                    }
+
+                    const deepestByX = new Map<number, { y: number; id: PersonId }>();
+                    for (const { id, pos } of group.kids) {
+                        const cx = midX(pos);
+                        // child entry-y depends on direction: top for down,
+                        // bot for up, mid for level.
+                        const cy =
+                            group.dir === "down"
+                                ? topY(pos)
+                                : group.dir === "up"
+                                  ? botY(pos)
+                                  : midY(pos);
+                        const cur = deepestByX.get(cx);
+                        const better =
+                            group.dir === "down"
+                                ? cy > (cur?.y ?? -Infinity)
+                                : cy < (cur?.y ?? Infinity);
+                        if (!cur || better) deepestByX.set(cx, { y: cy, id });
+                        handled.add(id);
+                    }
+                    for (const [cx, { y, id }] of deepestByX) {
+                        pushDrop(
+                            {
+                                id: `couple:${bondKey}/child${groupSuffix}:${id}`,
+                                kind: "child-drop",
+                                role: "blood",
+                                x1: cx,
+                                y1: busY,
+                                x2: cx,
+                                y2: y,
+                                persons: [couple.leftId, couple.rightId, id],
+                            },
+                            group.dir,
+                        );
+                    }
                 }
             }
         } else {
@@ -436,103 +539,146 @@ function buildSegments(
 
     for (const [parentId, { parentPos, kids }] of byParent) {
         const dropX = midX(parentPos);
-        const dropFromY = botY(parentPos);
 
-        if (kids.length === 1) {
-            const c = kids[0]!;
-            const cx = midX(c.pos);
-            const cy = topY(c.pos);
-            if (Math.abs(cx - dropX) < 1e-6) {
-                pushDrop({
-                    id: `single:${parentId}/${c.id}`,
-                    kind: "child-drop",
-                    role: "blood",
-                    x1: dropX,
-                    y1: dropFromY,
-                    x2: cx,
-                    y2: cy,
-                    persons: [parentId, c.id],
-                });
+        // Partition kids by direction relative to parent. Same-rank kids
+        // (pedigree-DAG cycle artefact) are rare; bundle them into "level".
+        type GroupKid = { id: PersonId; pos: Pos };
+        const downKids: GroupKid[] = kids.filter((k) => k.pos.rank > parentPos.rank);
+        const upKids: GroupKid[] = kids.filter((k) => k.pos.rank < parentPos.rank);
+        const levelKids: GroupKid[] = kids.filter((k) => k.pos.rank === parentPos.rank);
+
+        const groups: Array<{ dir: DropDirection; kids: GroupKid[] }> = [];
+        if (downKids.length) groups.push({ dir: "down", kids: downKids });
+        if (upKids.length) groups.push({ dir: "up", kids: upKids });
+        if (levelKids.length) groups.push({ dir: "level", kids: levelKids });
+
+        for (const group of groups) {
+            const groupSuffix = group.dir === "down" ? "" : `-${group.dir}`;
+
+            if (group.kids.length === 1) {
+                const c = group.kids[0]!;
+                const ports = pickDropPorts(parentPos, c.pos);
+                const cx = midX(c.pos);
+                if (Math.abs(cx - dropX) < 1e-6 && group.dir !== "level") {
+                    pushDrop(
+                        {
+                            id: `single:${parentId}/${c.id}${groupSuffix}`,
+                            kind: "child-drop",
+                            role: "blood",
+                            x1: dropX,
+                            y1: ports.parentExitY,
+                            x2: cx,
+                            y2: ports.childEntryY,
+                            persons: [parentId, c.id],
+                        },
+                        ports.direction,
+                    );
+                } else {
+                    const lane = lanes.alloc(
+                        ports.gutterRank,
+                        Math.min(dropX, cx),
+                        Math.max(dropX, cx),
+                    );
+                    const busY = lanes.laneY(ports.gutterRank, lane);
+                    pushDrop(
+                        {
+                            id: `single:${parentId}/${c.id}${groupSuffix}/v1`,
+                            kind: "parent-drop",
+                            role: "blood",
+                            x1: dropX,
+                            y1: ports.parentExitY,
+                            x2: dropX,
+                            y2: busY,
+                            persons: [parentId, c.id],
+                        },
+                        ports.direction,
+                    );
+                    out.push({
+                        id: `single:${parentId}/${c.id}${groupSuffix}/h`,
+                        kind: "sibling-bus",
+                        role: "blood",
+                        x1: dropX,
+                        y1: busY,
+                        x2: cx,
+                        y2: busY,
+                        persons: [parentId, c.id],
+                    });
+                    pushDrop(
+                        {
+                            id: `single:${parentId}/${c.id}${groupSuffix}/v2`,
+                            kind: "child-drop",
+                            role: "blood",
+                            x1: cx,
+                            y1: busY,
+                            x2: cx,
+                            y2: ports.childEntryY,
+                            persons: [parentId, c.id],
+                        },
+                        ports.direction,
+                    );
+                }
             } else {
-                const lane = lanes.alloc(parentPos.rank, Math.min(dropX, cx), Math.max(dropX, cx));
-                const busY = lanes.laneY(parentPos.rank, lane);
-                pushDrop({
-                    id: `single:${parentId}/${c.id}/v1`,
-                    kind: "parent-drop",
-                    role: "blood",
-                    x1: dropX,
-                    y1: dropFromY,
-                    x2: dropX,
-                    y2: busY,
-                    persons: [parentId, c.id],
-                });
-                out.push({
-                    id: `single:${parentId}/${c.id}/h`,
-                    kind: "sibling-bus",
-                    role: "blood",
-                    x1: dropX,
-                    y1: busY,
-                    x2: cx,
-                    y2: busY,
-                    persons: [parentId, c.id],
-                });
-                pushDrop({
-                    id: `single:${parentId}/${c.id}/v2`,
-                    kind: "child-drop",
-                    role: "blood",
-                    x1: cx,
-                    y1: busY,
-                    x2: cx,
-                    y2: cy,
-                    persons: [parentId, c.id],
-                });
-            }
-        } else {
-            const xs = kids.map((k) => midX(k.pos));
-            const busMinX = Math.min(...xs, dropX);
-            const busMaxX = Math.max(...xs, dropX);
-            const lane = lanes.alloc(parentPos.rank, busMinX, busMaxX);
-            const busY = lanes.laneY(parentPos.rank, lane);
-            pushDrop({
-                id: `single:${parentId}/drop`,
-                kind: "parent-drop",
-                role: "blood",
-                x1: dropX,
-                y1: dropFromY,
-                x2: dropX,
-                y2: busY,
-                persons: [parentId],
-            });
-            if (busMinX < busMaxX) {
-                out.push({
-                    id: `single:${parentId}/bus`,
-                    kind: "sibling-bus",
-                    role: "blood",
-                    x1: busMinX,
-                    y1: busY,
-                    x2: busMaxX,
-                    y2: busY,
-                    persons: [parentId],
-                });
-            }
-            const deepestByX = new Map<number, { y: number; id: PersonId }>();
-            for (const k of kids) {
-                const cx = midX(k.pos);
-                const cy = topY(k.pos);
-                const cur = deepestByX.get(cx);
-                if (!cur || cy > cur.y) deepestByX.set(cx, { y: cy, id: k.id });
-            }
-            for (const [cx, { y, id }] of deepestByX) {
-                pushDrop({
-                    id: `single:${parentId}/child:${id}`,
-                    kind: "child-drop",
-                    role: "blood",
-                    x1: cx,
-                    y1: busY,
-                    x2: cx,
-                    y2: y,
-                    persons: [parentId, id],
-                });
+                // Multi-kid: all kids in a group share rank-direction; pick
+                // any kid for the gutterRank decision (they all give the
+                // same answer).
+                const sample = pickDropPorts(parentPos, group.kids[0]!.pos);
+                const xs = group.kids.map((k) => midX(k.pos));
+                const busMinX = Math.min(...xs, dropX);
+                const busMaxX = Math.max(...xs, dropX);
+                const lane = lanes.alloc(sample.gutterRank, busMinX, busMaxX);
+                const busY = lanes.laneY(sample.gutterRank, lane);
+                pushDrop(
+                    {
+                        id: `single:${parentId}/drop${groupSuffix}`,
+                        kind: "parent-drop",
+                        role: "blood",
+                        x1: dropX,
+                        y1: sample.parentExitY,
+                        x2: dropX,
+                        y2: busY,
+                        persons: [parentId],
+                    },
+                    sample.direction,
+                );
+                if (busMinX < busMaxX) {
+                    out.push({
+                        id: `single:${parentId}/bus${groupSuffix}`,
+                        kind: "sibling-bus",
+                        role: "blood",
+                        x1: busMinX,
+                        y1: busY,
+                        x2: busMaxX,
+                        y2: busY,
+                        persons: [parentId],
+                    });
+                }
+                const deepestByX = new Map<number, { y: number; id: PersonId }>();
+                for (const k of group.kids) {
+                    const ports = pickDropPorts(parentPos, k.pos);
+                    const cx = midX(k.pos);
+                    const cy = ports.childEntryY;
+                    const cur = deepestByX.get(cx);
+                    const better =
+                        sample.direction === "down"
+                            ? cy > (cur?.y ?? -Infinity)
+                            : cy < (cur?.y ?? Infinity);
+                    if (!cur || better) deepestByX.set(cx, { y: cy, id: k.id });
+                }
+                for (const [cx, { y, id }] of deepestByX) {
+                    pushDrop(
+                        {
+                            id: `single:${parentId}/child${groupSuffix}:${id}`,
+                            kind: "child-drop",
+                            role: "blood",
+                            x1: cx,
+                            y1: busY,
+                            x2: cx,
+                            y2: y,
+                            persons: [parentId, id],
+                        },
+                        sample.direction,
+                    );
+                }
             }
         }
     }

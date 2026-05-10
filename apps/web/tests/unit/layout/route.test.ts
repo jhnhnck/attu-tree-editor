@@ -707,3 +707,79 @@ describe("route() — invariants", () => {
         }
     });
 });
+
+// ---------------------------------------------------------------------------
+// Port-aware drops: pedigree-DAG up-direction case
+// ---------------------------------------------------------------------------
+
+describe("route() — port-aware drops (pedigree-DAG)", () => {
+    /**
+     * Hand-rolled placed graph: a single-parent at rank 2, child at rank 0
+     * (parent is below child by two rows — a pedigree-collapse artefact).
+     * The drop must exit the parent's TOP and enter the child's BOTTOM,
+     * with the bus in the gutter just below the child's row.
+     */
+    function pedigreeCollapseSingleParent(): {
+        placed: PlacedGraph;
+        tree: Tree;
+        ids: { parent: string; child: string };
+    } {
+        let t = createTree("collapse", blank("parent", "f"));
+        const kid = addPerson(t, blank("kid", "u"));
+        t = kid.tree;
+        const ok = <V>(r: { ok: true; value: V } | { ok: false; error: string }): V => {
+            if (!r.ok) throw new Error(r.error);
+            return r.value;
+        };
+        t = ok(linkParent(t, kid.id, ROOT_ID));
+
+        // Manually place: parent at rank 2 (below), child at rank 0 (above).
+        const nodes = new Map<string, LayoutNode>([
+            [ROOT_ID, { id: ROOT_ID, kind: "person", personId: ROOT_ID, rank: 2 }],
+            [kid.id, { id: kid.id, kind: "person", personId: kid.id, rank: 0 }],
+        ]);
+        const placed: PlacedGraph = {
+            nodes,
+            ranks: [[kid.id], [], [ROOT_ID]],
+            parentEdges: [{ parent: ROOT_ID, child: kid.id }],
+            spouseEdges: [],
+            order: new Map([
+                [ROOT_ID, 0],
+                [kid.id, 0],
+            ]),
+            x: new Map([
+                [ROOT_ID, 0],
+                [kid.id, 0],
+            ]),
+            y: new Map([
+                [ROOT_ID, 2 * ROW_H],
+                [kid.id, 0],
+            ]),
+            bbox: { width: PERSON_W, height: 3 * ROW_H },
+        };
+        return { placed, tree: t, ids: { parent: ROOT_ID, child: kid.id } };
+    }
+
+    it("emits no negative-drop warnings for a same-column up-direction drop", () => {
+        const { placed, tree } = pedigreeCollapseSingleParent();
+        const rg = route(placed, tree);
+        expect(rg.warnings).toEqual([]);
+    });
+
+    it("child-drop exits parent's TOP and enters child's BOTTOM when parent is below", () => {
+        const { placed, tree, ids } = pedigreeCollapseSingleParent();
+        const { segments } = route(placed, tree);
+        const cd = segments.find((s) => s.kind === "child-drop" && s.persons.includes(ids.parent));
+        expect(cd).toBeDefined();
+        // parent rank 2 → y = 2*ROW_H. its TOP = 2*ROW_H. its BOTTOM = 2*ROW_H + CARD_H.
+        const parentTop = 2 * ROW_H;
+        // child rank 0 → y = 0. its TOP = 0. its BOTTOM = CARD_H (1.2).
+        const childBot = 1.2;
+        // Drop should start at parent top and end at child bot. Since it's
+        // a single-column same-x case the drop collapses into one segment
+        // going from one to the other.
+        const ys = [cd!.y1, cd!.y2].sort((a, b) => a - b);
+        expect(ys[0]).toBeCloseTo(childBot, 5);
+        expect(ys[1]).toBeCloseTo(parentTop, 5);
+    });
+});
