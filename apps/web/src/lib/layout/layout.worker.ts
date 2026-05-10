@@ -30,6 +30,7 @@ import {
     serializePlaced,
     hydrateOverrides,
     type LayeredGraphWire,
+    type LayoutWarning,
     type OrderedGraphWire,
     type PlacedGraphWire,
     type LayoutOverridesWire,
@@ -53,6 +54,7 @@ interface CacheEntry {
     ordered: OrderedGraphWire;
     placed: PlacedGraphWire;
     segments: readonly Segment[];
+    warnings: readonly LayoutWarning[];
 }
 
 let cache: CacheEntry | null = null;
@@ -110,6 +112,7 @@ self.onmessage = (e: MessageEvent<WorkerInput>): void => {
             ordered: cache.ordered,
             placed: cache.placed,
             segments: cache.segments,
+            warnings: cache.warnings,
         });
         return;
     }
@@ -119,13 +122,23 @@ self.onmessage = (e: MessageEvent<WorkerInput>): void => {
     const lg = layer(tree, visible, rootId, overrides);
     const og = order(lg, overrides);
     const pg = place(og, overrides);
-    const { segments } = route(pg, tree);
+    const { segments, warnings } = route(pg, tree);
 
     const layered = serializeLayered(lg);
     const ordered = serializeOrdered(og);
     const placed = serializePlaced(pg);
 
-    cache = { treeId: tree.id, contentHash, rootId, overridesHash, layered, ordered, placed, segments };
+    cache = {
+        treeId: tree.id,
+        contentHash,
+        rootId,
+        overridesHash,
+        layered,
+        ordered,
+        placed,
+        segments,
+        warnings,
+    };
 
-    self.postMessage({ seq, layered, ordered, placed, segments });
+    self.postMessage({ seq, layered, ordered, placed, segments, warnings });
 };

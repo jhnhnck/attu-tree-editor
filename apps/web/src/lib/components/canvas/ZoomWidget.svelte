@@ -81,7 +81,6 @@
     }
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
     class="zoom-widget pointer-events-auto absolute right-3 bottom-3 z-30 flex items-center gap-2 rounded-full border px-2 py-1 backdrop-blur"
     aria-label="zoom controls"

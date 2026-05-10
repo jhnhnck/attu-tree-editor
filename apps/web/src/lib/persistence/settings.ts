@@ -10,6 +10,8 @@ export const SETTING_KEYS = {
     wikiBaseUrl: "wikiBaseUrl",
     theme: "theme",
     inspectorSide: "inspectorSide",
+    /** Active layout engine: "layered" (default) or "hyperbolic" (Phase 5 stub). */
+    selectedEngine: "selectedEngine",
 } as const;
 
 export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS];

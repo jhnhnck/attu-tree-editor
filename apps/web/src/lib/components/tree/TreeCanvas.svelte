@@ -16,6 +16,7 @@
         hydratePlaced,
         serializeOverrides,
         type LayeredGraph,
+        type LayoutWarning,
         type OrderedGraph,
         type PlacedGraph,
         type LayoutOverrides,
@@ -108,10 +109,9 @@
     const ZOOM_MID = 0.6; // below → 1.4× stroke
 
     // Layout pipeline runs in a Web Worker (all four passes are pure/serializable).
-    const layoutWorker = new Worker(
-        new URL("$lib/layout/layout.worker.ts", import.meta.url),
-        { type: "module" },
-    );
+    const layoutWorker = new Worker(new URL("$lib/layout/layout.worker.ts", import.meta.url), {
+        type: "module",
+    });
     let layoutSeq = 0;
 
     let layeredGraph = $state<LayeredGraph | undefined>(undefined);
@@ -119,6 +119,12 @@
     let placedGraph = $state<PlacedGraph | undefined>(undefined);
     let rawSegments = $state<readonly Segment[]>([]);
     let routedEdges = $state<readonly RenderedSegment[]>([]);
+    /**
+     * Non-fatal warnings emitted by the most recent layout pass. Mirrored
+     * onto `window.__treeDebug.warnings[]` for diagnosis. Replaces the
+     * earlier per-warning `console.warn` calls in `route.ts`.
+     */
+    let layoutWarnings = $state<readonly LayoutWarning[]>([]);
 
     // Persistent layout overrides (pinned x, swap hints, lane hints).
     // Currently empty — no drag-to-pin UX yet. Populated by future follow-up.
@@ -158,15 +164,17 @@
             ordered: OrderedGraphWire;
             placed: PlacedGraphWire;
             segments: readonly Segment[];
+            warnings: readonly LayoutWarning[];
         }>,
     ): void => {
-        const { seq, layered, ordered, placed, segments: segs } = e.data;
+        const { seq, layered, ordered, placed, segments: segs, warnings } = e.data;
         if (seq !== layoutSeq) return; // drop stale response
         layeredGraph = hydrateLayered(layered);
         orderedGraph = hydrateOrdered(ordered);
         placedGraph = hydratePlaced(placed);
         rawSegments = segs;
         routedEdges = toRendered(segs);
+        layoutWarnings = warnings;
     };
 
     onDestroy(() => layoutWorker.terminate());
@@ -500,12 +508,16 @@
             placedGraph !== undefined
                 ? ($state.snapshot(placedGraph) as unknown as PlacedGraph)
                 : undefined;
+        const capturedWarnings = $state.snapshot(
+            layoutWarnings,
+        ) as unknown as readonly LayoutWarning[];
         /* eslint-enable @typescript-eslint/no-unnecessary-type-assertion */
         const capturedCycleNodes = capturedLayered?.cycleNodes;
         window.__treeDebug = {
             layout: capturedLayout,
             rawSegments: capturedRaw,
             positions: capturedLayout.positions,
+            warnings: capturedWarnings,
             ...(capturedLayered !== undefined ? { layeredGraph: capturedLayered } : {}),
             ...(capturedOrdered !== undefined ? { orderedGraph: capturedOrdered } : {}),
             ...(capturedPlaced !== undefined ? { placedGraph: capturedPlaced } : {}),
@@ -668,8 +680,7 @@
             // per-card re-renders; recomputed when anim settles below.
             const lvl = levelFromScale(scale);
             frozenCardLevel = lvl;
-            frozenBorderWidth =
-                lvl >= 5 ? "0px" : `${(2 / Math.max(scale, 0.001)).toFixed(2)}px`;
+            frozenBorderWidth = lvl >= 5 ? "0px" : `${(2 / Math.max(scale, 0.001)).toFixed(2)}px`;
             isZooming = true;
             zoomPrevTime = performance.now();
             zoomAnimId = requestAnimationFrame(onZoomFrame);

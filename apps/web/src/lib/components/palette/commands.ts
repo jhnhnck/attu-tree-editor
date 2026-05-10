@@ -57,6 +57,8 @@ export interface CommandHandlers {
     viewZoomOut: () => void;
     viewCenterRoot: () => void;
     viewToggleInspector: () => void;
+    viewEngineLayered: () => void;
+    viewEngineHyperbolic: () => void;
     selectClear: () => void;
     selectEdit: () => void;
     selectDelete: () => void;
@@ -232,6 +234,21 @@ export function buildCommands(
             dividerBefore: true,
             icon: icons["view.toggleInspector"],
             run: h.viewToggleInspector,
+        },
+        {
+            id: "view.engineLayered",
+            label: "Use layered engine",
+            group: "View",
+            dividerBefore: true,
+            icon: icons["view.engineLayered"],
+            run: h.viewEngineLayered,
+        },
+        {
+            id: "view.engineHyperbolic",
+            label: "Use hyperbolic engine (Phase 5 stub)",
+            group: "View",
+            icon: icons["view.engineHyperbolic"],
+            run: h.viewEngineHyperbolic,
         },
 
         // Insert

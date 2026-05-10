@@ -38,6 +38,8 @@
         Share2,
         Shield,
         TreePine,
+        Layers,
+        CircleDot,
     } from "@lucide/svelte";
 
     import {
@@ -77,7 +79,14 @@
     import type { DebugLayerOptions } from "$lib/components/tree/debugTypes";
 
     import TreeCanvas from "$lib/components/tree/TreeCanvas.svelte";
+    import HyperbolicCanvas from "$lib/components/tree/HyperbolicCanvas.svelte";
     import type { CanvasController } from "$lib/components/tree/canvasController";
+    import {
+        DEFAULT_ENGINE,
+        loadEngineSetting,
+        saveEngineSetting,
+        type EngineKind,
+    } from "$lib/state/engine";
     import Inspector from "$lib/components/inspector/Inspector.svelte";
     import ProgressStrip from "$lib/components/shell/ProgressStrip.svelte";
     import Toasts from "$lib/components/ui/Toasts.svelte";
@@ -147,13 +156,11 @@
     let tracePath = $derived(
         selection.selectedPersonId && traceTargetId
             ? shortestPath(treeStore.tree, selection.selectedPersonId, traceTargetId)
-            : undefined
+            : undefined,
     );
 
     // debug overlay derived
-    let debugOptions = $derived(
-        debugOpen ? { layers: debugLayers, tracePath } : undefined
-    );
+    let debugOptions = $derived(debugOpen ? { layers: debugLayers, tracePath } : undefined);
 
     // command palette
     let showPalette = $state(false);
@@ -170,6 +177,12 @@
     let canvasController = $state<CanvasController | undefined>(undefined);
     let canvasScale = $state(1);
     let canvasMode = $state<"select" | "hand">("select");
+
+    // Active layout engine — Phase 0 walking-skeleton stub. The picker
+    // mounts either TreeCanvas (layered) or HyperbolicCanvas (empty disk,
+    // proband at centre) based on this. Hydrated from settings on mount;
+    // changes persist immediately.
+    let selectedEngine = $state<EngineKind>(DEFAULT_ENGINE);
 
     // save-pill state
     let lastSavedAt = $state<number | undefined>(undefined);
@@ -223,6 +236,14 @@
         // hydrate user prefs first so theme + inspector side are applied before
         // any sub-components mount; theme uses prefers-color-scheme until then
         await prefs.hydrate();
+
+        // engine selection is independent of tree contents; hydrate before the
+        // canvas mounts so the right component renders on first paint.
+        try {
+            selectedEngine = await loadEngineSetting();
+        } catch {
+            selectedEngine = DEFAULT_ENGINE;
+        }
 
         const viewMatch = /\/view\/([^/?#]+)/.exec(window.location.pathname);
         if (viewMatch?.[1]) {
@@ -712,6 +733,20 @@
         fn(canvasController);
     }
 
+    async function switchEngine(kind: EngineKind): Promise<void> {
+        if (selectedEngine === kind) return;
+        selectedEngine = kind;
+        // TreeCanvas owns the controller; unmounting it would leave a stale
+        // reference. Drop it now so menu actions don't silently target a
+        // detached canvas while hyperbolic is active.
+        if (kind === "hyperbolic") canvasController = undefined;
+        try {
+            await saveEngineSetting(kind);
+        } catch (e) {
+            toasts.push(`failed to persist engine: ${String(e)}`, "error", 2500);
+        }
+    }
+
     // map the literal action ids onto handler functions in one place; commands.ts
     // reads from this bag to assemble the registry.
     const handlers = {
@@ -734,6 +769,8 @@
         viewZoomOut: () => withCanvas((c) => c.zoomBy(0.8)),
         viewCenterRoot: () => withCanvas((c) => c.centerOnRoot()),
         viewToggleInspector: () => (showInspector = !showInspector),
+        viewEngineLayered: () => void switchEngine("layered"),
+        viewEngineHyperbolic: () => void switchEngine("hyperbolic"),
         selectClear: () => selection.select(undefined),
         selectEdit: () => withSelected((id) => focusPerson(id, "personal")),
         selectDelete: () => withSelected((id) => deletePerson(id)),
@@ -772,6 +809,8 @@
         "view.handTool": Hand,
         "view.selectTool": MousePointer2,
         "view.toggleInspector": SidebarOpen,
+        "view.engineLayered": Layers,
+        "view.engineHyperbolic": CircleDot,
         "person.addChild": Baby,
         "person.addPartner": Heart,
         "person.addParent": UserPlus,
@@ -808,7 +847,9 @@
     bindings.push({
         combo: "Ctrl+Shift+D",
         scope: "global" as const,
-        action: () => { debugOpen = !debugOpen; },
+        action: () => {
+            debugOpen = !debugOpen;
+        },
     });
 
     installShortcuts(bindings);
@@ -1038,29 +1079,35 @@
     >
         <div class="relative flex-1 overflow-clip">
             <ProgressStrip {progress} />
-            <TreeCanvas
-                tree={treeStore.tree}
-                selectedId={selection.selectedPersonId}
-                {portraitUrls}
-                onselect={(id: string) => selection.select(id)}
-                ondeselect={() => selection.select(undefined)}
-                onedit={(id: string) => focusPerson(id, "personal")}
-                oncontextmenu={(id: string, x: number, y: number) => {
-                    contextMenu = { personId: id, x, y };
-                }}
-                oncontroller={(c: CanvasController) => {
-                    canvasController = c;
-                    canvasScale = c.getScale();
-                    canvasMode = c.getMode();
-                }}
-                onscalechange={(s: number) => (canvasScale = s)}
-                onmodechange={(m: "select" | "hand") => (canvasMode = m)}
-                ontoggleinspector={() => (showInspector = !showInspector)}
-                traceIds={selection.selectedPersonId && traceTargetId ? [selection.selectedPersonId, traceTargetId] : undefined}
-                {tracePath}
-                {debugOptions}
-            />
-            {#if canvasController}
+            {#if selectedEngine === "hyperbolic"}
+                <HyperbolicCanvas tree={treeStore.tree} />
+            {:else}
+                <TreeCanvas
+                    tree={treeStore.tree}
+                    selectedId={selection.selectedPersonId}
+                    {portraitUrls}
+                    onselect={(id: string) => selection.select(id)}
+                    ondeselect={() => selection.select(undefined)}
+                    onedit={(id: string) => focusPerson(id, "personal")}
+                    oncontextmenu={(id: string, x: number, y: number) => {
+                        contextMenu = { personId: id, x, y };
+                    }}
+                    oncontroller={(c: CanvasController) => {
+                        canvasController = c;
+                        canvasScale = c.getScale();
+                        canvasMode = c.getMode();
+                    }}
+                    onscalechange={(s: number) => (canvasScale = s)}
+                    onmodechange={(m: "select" | "hand") => (canvasMode = m)}
+                    ontoggleinspector={() => (showInspector = !showInspector)}
+                    traceIds={selection.selectedPersonId && traceTargetId
+                        ? [selection.selectedPersonId, traceTargetId]
+                        : undefined}
+                    {tracePath}
+                    {debugOptions}
+                />
+            {/if}
+            {#if canvasController && selectedEngine === "layered"}
                 <ZoomWidget
                     scale={canvasScale}
                     onzoom={(n: number) => canvasController?.setScale(n)}
@@ -1076,30 +1123,28 @@
                     aria-label="debug overlay controls"
                 >
                     <div class="mb-1.5 flex items-center justify-between gap-4">
-                        <span class="text-[10px] font-semibold uppercase tracking-wider text-fg-muted">Debug</span>
+                        <span
+                            class="text-[10px] font-semibold uppercase tracking-wider text-fg-muted"
+                            >Debug</span
+                        >
                         <button
                             type="button"
                             onclick={() => (debugOpen = false)}
                             aria-label="close"
                             class="text-fg-muted hover:text-fg flex h-4 w-4 items-center justify-center text-xs"
-                        >×</button>
+                            >×</button
+                        >
                     </div>
                     <div class="grid grid-cols-2 gap-x-5 gap-y-1">
-                        {#each ([
-                            ["showGrid",            "Unit grid"],
-                            ["showNodeBounds",      "Node bounds"],
-                            ["showSegmentIds",      "Segment IDs"],
-                            ["showGhostArrows",     "Ghost arrows"],
-                            ["showComponentBounds", "Component bounds"],
-                            ["showHops",            "Bridge hops"],
-                            ["showOverlapPairs",    "Overlap pairs"],
-                        ] as const) as [key, label] (key)}
+                        {#each [["showGrid", "Unit grid"], ["showNodeBounds", "Node bounds"], ["showSegmentIds", "Segment IDs"], ["showGhostArrows", "Ghost arrows"], ["showComponentBounds", "Component bounds"], ["showHops", "Bridge hops"], ["showOverlapPairs", "Overlap pairs"]] as const as [key, label] (key)}
                             <label class="flex cursor-pointer select-none items-center gap-1.5">
                                 <input
                                     type="checkbox"
                                     class="h-3 w-3 accent-accent"
                                     checked={debugLayers[key]}
-                                    onchange={() => { debugLayers[key] = !debugLayers[key]; }}
+                                    onchange={() => {
+                                        debugLayers[key] = !debugLayers[key];
+                                    }}
                                 />
                                 {label}
                             </label>
@@ -1111,12 +1156,16 @@
                                 type="checkbox"
                                 class="h-3 w-3 accent-accent"
                                 checked={debugLayers.exposeTreeDebug}
-                                onchange={() => { debugLayers.exposeTreeDebug = !debugLayers.exposeTreeDebug; }}
+                                onchange={() => {
+                                    debugLayers.exposeTreeDebug = !debugLayers.exposeTreeDebug;
+                                }}
                             />
                             Expose window.__treeDebug
                         </label>
                     </div>
-                    <div class="mt-1.5 text-[9px] text-fg-muted">window.__treeDebug exposed when toggled above · Ctrl+Shift+D</div>
+                    <div class="mt-1.5 text-[9px] text-fg-muted">
+                        window.__treeDebug exposed when toggled above · Ctrl+Shift+D
+                    </div>
                 </div>
             {/if}
         </div>

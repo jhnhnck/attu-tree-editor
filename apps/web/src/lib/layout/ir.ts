@@ -40,9 +40,7 @@ export function ghostNodeId(ghostOf: PersonId, nearId: PersonId): LayoutNodeId {
 }
 
 /** Parse a ghost LayoutNodeId back to its constituent PersonIds, or null for real nodes. */
-export function parseGhostNodeId(
-    id: LayoutNodeId,
-): { ghostOf: PersonId; nearId: PersonId } | null {
+export function parseGhostNodeId(id: LayoutNodeId): { ghostOf: PersonId; nearId: PersonId } | null {
     if (!id.startsWith("ghost:")) return null;
     const rest = id.slice(6);
     const sep = rest.indexOf("|");
@@ -131,10 +129,31 @@ export interface PlacedGraph extends OrderedGraph {
     readonly bbox: { readonly width: number; readonly height: number };
 }
 
-/** Output of the routing pass: edge segments added. */
+/**
+ * A non-fatal anomaly captured during a layout pass. The pipeline keeps
+ * running and emits a partial result; the warning surfaces on
+ * `window.__treeDebug.warnings[]` for diagnosis.
+ *
+ * `kind` is a small closed vocabulary so consumers can filter without parsing
+ * messages. New kinds can be added without breaking older readers (unknown
+ * kinds simply aren't filtered on).
+ */
+export interface LayoutWarning {
+    readonly kind: "negative-drop" | "rank-cycle" | "route-budget" | "other";
+    readonly pass: "layer" | "order" | "place" | "route";
+    readonly message: string;
+    /** ids most directly implicated; usually one. Optional. */
+    readonly ids?: readonly LayoutNodeId[];
+    /** free-form numeric context (e.g. y1, y2, drop, span). Optional. */
+    readonly data?: Readonly<Record<string, number | string>>;
+}
+
+/** Output of the routing pass: edge segments + non-fatal warnings. */
 export interface RoutedGraph {
     readonly placed: PlacedGraph;
     readonly segments: readonly Segment[];
+    /** Non-fatal anomalies from the routing pass. Empty on a clean run. */
+    readonly warnings: readonly LayoutWarning[];
 }
 
 // ---------------------------------------------------------------------------

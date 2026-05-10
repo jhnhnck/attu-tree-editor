@@ -65,22 +65,35 @@ function oneFatherTwoWives(): { tree: Tree; ids: Record<string, string> } {
         if (!r.ok) throw new Error(r.error);
         return r.value;
     };
-    const B = addPerson(t, blank("B", "f")); t = B.tree;
-    const C = addPerson(t, blank("C", "f")); t = C.tree;
-    const k1 = addPerson(t, blank("k1", "u")); t = k1.tree;
-    const k2 = addPerson(t, blank("k2", "u")); t = k2.tree;
-    const k3 = addPerson(t, blank("k3", "u")); t = k3.tree;
-    const k4 = addPerson(t, blank("k4", "u")); t = k4.tree;
+    const B = addPerson(t, blank("B", "f"));
+    t = B.tree;
+    const C = addPerson(t, blank("C", "f"));
+    t = C.tree;
+    const k1 = addPerson(t, blank("k1", "u"));
+    t = k1.tree;
+    const k2 = addPerson(t, blank("k2", "u"));
+    t = k2.tree;
+    const k3 = addPerson(t, blank("k3", "u"));
+    t = k3.tree;
+    const k4 = addPerson(t, blank("k4", "u"));
+    t = k4.tree;
 
     t = ok(linkSpouse(t, ROOT_ID, B.id));
     t = ok(linkSpouse(t, ROOT_ID, C.id));
     // k1 and k2 are children of A+B
-    t = ok(linkParent(t, k1.id, ROOT_ID)); t = ok(linkParent(t, k1.id, B.id));
-    t = ok(linkParent(t, k2.id, ROOT_ID)); t = ok(linkParent(t, k2.id, B.id));
+    t = ok(linkParent(t, k1.id, ROOT_ID));
+    t = ok(linkParent(t, k1.id, B.id));
+    t = ok(linkParent(t, k2.id, ROOT_ID));
+    t = ok(linkParent(t, k2.id, B.id));
     // k3 and k4 are children of A+C
-    t = ok(linkParent(t, k3.id, ROOT_ID)); t = ok(linkParent(t, k3.id, C.id));
-    t = ok(linkParent(t, k4.id, ROOT_ID)); t = ok(linkParent(t, k4.id, C.id));
-    return { tree: t, ids: { A: ROOT_ID, B: B.id, C: C.id, k1: k1.id, k2: k2.id, k3: k3.id, k4: k4.id } };
+    t = ok(linkParent(t, k3.id, ROOT_ID));
+    t = ok(linkParent(t, k3.id, C.id));
+    t = ok(linkParent(t, k4.id, ROOT_ID));
+    t = ok(linkParent(t, k4.id, C.id));
+    return {
+        tree: t,
+        ids: { A: ROOT_ID, B: B.id, C: C.id, k1: k1.id, k2: k2.id, k3: k3.id, k4: k4.id },
+    };
 }
 
 /** Cross-rank couple: root → a_kid → a_grand; a_grand marries b (unrelated), joint child. */
@@ -90,16 +103,23 @@ function crossRankCouple(): { tree: Tree; ids: Record<string, string> } {
         if (!r.ok) throw new Error(r.error);
         return r.value;
     };
-    const aKid = addPerson(t, blank("aKid", "u")); t = aKid.tree;
-    const aGrand = addPerson(t, blank("aGrand", "f")); t = aGrand.tree;
-    const b = addPerson(t, blank("b", "m")); t = b.tree;
-    const child = addPerson(t, blank("child", "u")); t = child.tree;
+    const aKid = addPerson(t, blank("aKid", "u"));
+    t = aKid.tree;
+    const aGrand = addPerson(t, blank("aGrand", "f"));
+    t = aGrand.tree;
+    const b = addPerson(t, blank("b", "m"));
+    t = b.tree;
+    const child = addPerson(t, blank("child", "u"));
+    t = child.tree;
     t = ok(linkParent(t, aKid.id, ROOT_ID));
     t = ok(linkParent(t, aGrand.id, aKid.id));
     t = ok(linkSpouse(t, aGrand.id, b.id));
     t = ok(linkParent(t, child.id, aGrand.id));
     t = ok(linkParent(t, child.id, b.id));
-    return { tree: t, ids: { root: ROOT_ID, aKid: aKid.id, aGrand: aGrand.id, b: b.id, child: child.id } };
+    return {
+        tree: t,
+        ids: { root: ROOT_ID, aKid: aKid.id, aGrand: aGrand.id, b: b.id, child: child.id },
+    };
 }
 
 // ---------------------------------------------------------------------------
@@ -112,6 +132,13 @@ describe("route() — output structure", () => {
         const rg = pipeline(tree);
         expect(rg.placed).toBeDefined();
         expect(Array.isArray(rg.segments)).toBe(true);
+    });
+
+    it("returns a warnings array (empty on a clean nuclear-family run)", () => {
+        const { tree } = nuclear();
+        const rg = pipeline(tree);
+        expect(Array.isArray(rg.warnings)).toBe(true);
+        expect(rg.warnings).toEqual([]);
     });
 
     it("emits no duplicate segment IDs", () => {
@@ -233,7 +260,12 @@ describe("route() — joint children", () => {
             newX.set(ids.b!, xA);
             const modPg = { ...pg, x: newX };
             const { segments } = route(modPg, tree);
-            const childDrops = segments.filter((s) => s.kind === "child-drop" && s.persons.includes(ids.a!) && s.persons.includes(ids.b!));
+            const childDrops = segments.filter(
+                (s) =>
+                    s.kind === "child-drop" &&
+                    s.persons.includes(ids.a!) &&
+                    s.persons.includes(ids.b!),
+            );
             // Two children at same x → 1 deduped child-drop
             // The dedup picks one id but positions should be merged
             expect(segments.filter((s) => s.kind === "child-drop").length).toBeLessThanOrEqual(1);
@@ -279,7 +311,7 @@ describe("route() — gutter lane allocation", () => {
         const { tree } = oneFatherTwoWives();
         const { segments } = pipeline(tree);
         const buses = segments.filter((s) => s.kind === "sibling-bus");
-        const gutterTop = 1.2;   // rank 0 card bottom
+        const gutterTop = 1.2; // rank 0 card bottom
         const gutterBot = ROW_H; // rank 1 card top
         for (const bus of buses) {
             expect(bus.y1).toBeGreaterThanOrEqual(gutterTop - 1e-6);
@@ -315,10 +347,14 @@ describe("route() — cross-rank couples", () => {
         const { tree, ids } = crossRankCouple();
         const { segments } = pipeline(tree);
         const bond = segments.find(
-            (s) => s.kind === "bond" && s.persons.includes(ids.aGrand!) && s.persons.includes(ids.b!),
+            (s) =>
+                s.kind === "bond" && s.persons.includes(ids.aGrand!) && s.persons.includes(ids.b!),
         );
         const drop = segments.find(
-            (s) => s.kind === "parent-drop" && s.persons.includes(ids.aGrand!) && s.persons.includes(ids.b!),
+            (s) =>
+                s.kind === "parent-drop" &&
+                s.persons.includes(ids.aGrand!) &&
+                s.persons.includes(ids.b!),
         );
         expect(bond).toBeDefined();
         expect(drop).toBeDefined();
@@ -336,7 +372,8 @@ describe("route() — cross-rank couples", () => {
 describe("route() — single-parent drops", () => {
     it("emits a child-drop for a single parent with one child (same column)", () => {
         let t = createTree("sp", blank("mom", "f"));
-        const kid = addPerson(t, blank("kid", "u")); t = kid.tree;
+        const kid = addPerson(t, blank("kid", "u"));
+        t = kid.tree;
         const r = linkParent(t, kid.id, ROOT_ID);
         if (!r.ok) throw new Error(r.error);
         t = r.value;
@@ -351,8 +388,10 @@ describe("route() — single-parent drops", () => {
             if (!r.ok) throw new Error(r.error);
             return r.value;
         };
-        const k1 = addPerson(t, blank("k1", "u")); t = k1.tree;
-        const k2 = addPerson(t, blank("k2", "u")); t = k2.tree;
+        const k1 = addPerson(t, blank("k1", "u"));
+        t = k1.tree;
+        const k2 = addPerson(t, blank("k2", "u"));
+        t = k2.tree;
         t = ok(linkParent(t, k1.id, ROOT_ID));
         t = ok(linkParent(t, k2.id, ROOT_ID));
         // Two children under one parent → bus + 2 drops
@@ -432,10 +471,26 @@ describe("route() — bridge hops", () => {
  * arbitrary x positions, plus a Tree with one couple record, so we can drive
  * route() with precise geometry without running the full pipeline.
  */
-function farApartCouple(leftX: number, rightX: number, isCurrent = true): { placed: PlacedGraph; tree: Tree } {
+function farApartCouple(
+    leftX: number,
+    rightX: number,
+    isCurrent = true,
+): { placed: PlacedGraph; tree: Tree } {
     // Build the Tree first so we have real PersonIds
-    let t = createTree("stub-test", { given: "Left", surname: "", gender: "m" as const, spouseIds: [], display: "z1" });
-    const rightP = addPerson(t, { given: "Right", surname: "", gender: "f" as const, spouseIds: [], display: "z1" });
+    let t = createTree("stub-test", {
+        given: "Left",
+        surname: "",
+        gender: "m" as const,
+        spouseIds: [],
+        display: "z1",
+    });
+    const rightP = addPerson(t, {
+        given: "Right",
+        surname: "",
+        gender: "f" as const,
+        spouseIds: [],
+        display: "z1",
+    });
     t = rightP.tree;
     const ok = <V>(r: { ok: true; value: V } | { ok: false; error: string }): V => {
         if (!r.ok) throw new Error(r.error);
@@ -450,7 +505,7 @@ function farApartCouple(leftX: number, rightX: number, isCurrent = true): { plac
     const rightId = rightP.id;
 
     const nodes = new Map<string, LayoutNode>([
-        [leftId,  { id: leftId,  kind: "person", personId: leftId,  rank: 0 }],
+        [leftId, { id: leftId, kind: "person", personId: leftId, rank: 0 }],
         [rightId, { id: rightId, kind: "person", personId: rightId, rank: 0 }],
     ]);
 
@@ -459,9 +514,18 @@ function farApartCouple(leftX: number, rightX: number, isCurrent = true): { plac
         ranks: [[leftId, rightId]],
         parentEdges: [],
         spouseEdges: [],
-        order: new Map([[leftId, 0], [rightId, 1]]),
-        x: new Map([[leftId, leftX], [rightId, rightX]]),
-        y: new Map([[leftId, 0], [rightId, 0]]),
+        order: new Map([
+            [leftId, 0],
+            [rightId, 1],
+        ]),
+        x: new Map([
+            [leftId, leftX],
+            [rightId, rightX],
+        ]),
+        y: new Map([
+            [leftId, 0],
+            [rightId, 0],
+        ]),
         bbox: { width: rightX + PERSON_W, height: ROW_H },
     };
 
@@ -473,7 +537,9 @@ describe("route() — long-bond stubs", () => {
         const { placed, tree } = farApartCouple(0, 50); // 50 units gap, well over MAX_BOND_SPAN=25
         const { segments } = route(placed, tree);
         const stubs = segments.filter((s) => s.kind === "stub");
-        const longBonds = segments.filter((s) => s.kind === "bond" && s.y1 === s.y2 && Math.abs(s.x2 - s.x1) > 25);
+        const longBonds = segments.filter(
+            (s) => s.kind === "bond" && s.y1 === s.y2 && Math.abs(s.x2 - s.x1) > 25,
+        );
         expect(stubs.length).toBe(2);
         expect(longBonds.length).toBe(0);
     });
@@ -508,36 +574,85 @@ describe("route() — long-bond stubs", () => {
 
     it("long bond with joint children routes parent-drop near children centroid (not mid-canvas)", () => {
         // Left at 0, right at 50, two children near x=0
-        let t = createTree("stub-kids", { given: "Left", surname: "", gender: "m" as const, spouseIds: [], display: "z1" });
+        let t = createTree("stub-kids", {
+            given: "Left",
+            surname: "",
+            gender: "m" as const,
+            spouseIds: [],
+            display: "z1",
+        });
         const ok = <V>(r: { ok: true; value: V } | { ok: false; error: string }): V => {
             if (!r.ok) throw new Error(r.error);
             return r.value;
         };
-        const rp = addPerson(t, { given: "Right", surname: "", gender: "f" as const, spouseIds: [], display: "z1" }); t = rp.tree;
-        const k1 = addPerson(t, { given: "k1", surname: "", gender: "u" as const, spouseIds: [], display: "z1" }); t = k1.tree;
-        const k2 = addPerson(t, { given: "k2", surname: "", gender: "u" as const, spouseIds: [], display: "z1" }); t = k2.tree;
+        const rp = addPerson(t, {
+            given: "Right",
+            surname: "",
+            gender: "f" as const,
+            spouseIds: [],
+            display: "z1",
+        });
+        t = rp.tree;
+        const k1 = addPerson(t, {
+            given: "k1",
+            surname: "",
+            gender: "u" as const,
+            spouseIds: [],
+            display: "z1",
+        });
+        t = k1.tree;
+        const k2 = addPerson(t, {
+            given: "k2",
+            surname: "",
+            gender: "u" as const,
+            spouseIds: [],
+            display: "z1",
+        });
+        t = k2.tree;
         t = ok(linkSpouse(t, ROOT_ID, rp.id));
-        t = ok(linkParent(t, k1.id, ROOT_ID)); t = ok(linkParent(t, k1.id, rp.id));
-        t = ok(linkParent(t, k2.id, ROOT_ID)); t = ok(linkParent(t, k2.id, rp.id));
+        t = ok(linkParent(t, k1.id, ROOT_ID));
+        t = ok(linkParent(t, k1.id, rp.id));
+        t = ok(linkParent(t, k2.id, ROOT_ID));
+        t = ok(linkParent(t, k2.id, rp.id));
 
         const nodes = new Map<string, LayoutNode>([
             [ROOT_ID, { id: ROOT_ID, kind: "person", personId: ROOT_ID, rank: 0 }],
-            [rp.id,   { id: rp.id,   kind: "person", personId: rp.id,   rank: 0 }],
-            [k1.id,   { id: k1.id,   kind: "person", personId: k1.id,   rank: 1 }],
-            [k2.id,   { id: k2.id,   kind: "person", personId: k2.id,   rank: 1 }],
+            [rp.id, { id: rp.id, kind: "person", personId: rp.id, rank: 0 }],
+            [k1.id, { id: k1.id, kind: "person", personId: k1.id, rank: 1 }],
+            [k2.id, { id: k2.id, kind: "person", personId: k2.id, rank: 1 }],
         ]);
         // Left at 0, right at 50 (far apart). Children near x=0 (near left partner).
         const placed: PlacedGraph = {
             nodes,
-            ranks: [[ROOT_ID, rp.id], [k1.id, k2.id]],
+            ranks: [
+                [ROOT_ID, rp.id],
+                [k1.id, k2.id],
+            ],
             parentEdges: [
-                { parent: ROOT_ID, child: k1.id }, { parent: rp.id, child: k1.id },
-                { parent: ROOT_ID, child: k2.id }, { parent: rp.id, child: k2.id },
+                { parent: ROOT_ID, child: k1.id },
+                { parent: rp.id, child: k1.id },
+                { parent: ROOT_ID, child: k2.id },
+                { parent: rp.id, child: k2.id },
             ],
             spouseEdges: [],
-            order: new Map([[ROOT_ID, 0], [rp.id, 1], [k1.id, 0], [k2.id, 1]]),
-            x: new Map([[ROOT_ID, 0], [rp.id, 50], [k1.id, 0], [k2.id, 2.5]]),
-            y: new Map([[ROOT_ID, 0], [rp.id, 0], [k1.id, ROW_H], [k2.id, ROW_H]]),
+            order: new Map([
+                [ROOT_ID, 0],
+                [rp.id, 1],
+                [k1.id, 0],
+                [k2.id, 1],
+            ]),
+            x: new Map([
+                [ROOT_ID, 0],
+                [rp.id, 50],
+                [k1.id, 0],
+                [k2.id, 2.5],
+            ]),
+            y: new Map([
+                [ROOT_ID, 0],
+                [rp.id, 0],
+                [k1.id, ROW_H],
+                [k2.id, ROW_H],
+            ]),
             bbox: { width: 52, height: 2 * ROW_H },
         };
 
