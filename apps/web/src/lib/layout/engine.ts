@@ -1,17 +1,19 @@
 /*
- * FamilyTreeEditor - LayoutEngine + EdgeRouter boundary types.
+ * FamilyTreeEditor - LayoutEngine boundary types.
  *
- * Phase 0 walking-skeleton scaffold. The interfaces here are the seam every
- * later phase plugs into:
+ * Phase 0 walking-skeleton scaffold; revised after Phase 1 libavoid halt.
+ * The interfaces here are the seam every later phase plugs into:
  *   - LayeredEngine    (engines/layered-hv)        wraps the existing pipeline
  *   - StubHyperbolicEngine (engines/hyperbolic-lr) returns z=0 placeholders
- *   - StubLibavoidRouter (routers/libavoid)        returns straight-line polylines
  *   - stubDoiPass       (lib/layout/doi.ts)        pass-through
  *
  * The worker does not dispatch on these yet (Phase 3) and the renderer does
- * not consume `LayoutResult` directly yet (Phase 3). Engines and routers
- * declared here exist so future phases replace bodies, not introduce new
- * layers.
+ * not consume `LayoutResult` directly yet (Phase 3). Engines declared here
+ * exist so future phases replace bodies, not introduce new layers.
+ *
+ * `LogicalEdge` + `EdgeRouter` remain as types only — no implementation
+ * after Phase 1 dropped libavoid. Phase 3 may delete them if Phase 4's
+ * in-place `passes/route.ts` improvements stay self-contained.
  *
  * licensed under the MIT license; see LICENSE.md for full text
  */
@@ -93,10 +95,10 @@ export interface LayoutEdge {
 }
 
 /**
- * The "who connects to whom and why" view that engines emit and routers
- * consume. Logical edges are space-agnostic — `LayeredEngine` and
- * `StubHyperbolicEngine` both produce them. Routers (Phase 4 libavoid)
- * turn them into geometric routes against `LayoutResult.obstacles`.
+ * The "who connects to whom and why" view. Originally designed as input
+ * to a libavoid-style router (Phase 1, halted); kept as a vestigial type
+ * in case Phase 4's in-place router needs it for AABB-aware bus routing.
+ * No current consumer.
  */
 export interface LogicalEdge {
     readonly id: string;
@@ -114,9 +116,10 @@ export interface LogicalEdge {
 // ---------------------------------------------------------------------------
 
 /**
- * Card AABB in layout space. Engines populate `obstacles`; libavoid routes
- * around them. Hyperbolic engine returns an empty array (geodesic arcs avoid
- * cards by construction of the radial wedge layout).
+ * Card AABB in layout space. Engines populate `obstacles`; Phase 4's
+ * AABB-aware bus routing inside `passes/route.ts` consumes them.
+ * Hyperbolic engine returns an empty array (geodesic arcs avoid cards
+ * by construction of the radial wedge layout).
  */
 export interface LayoutObstacle {
     readonly id: LayoutNodeId;
@@ -161,9 +164,10 @@ export interface LayoutEngine {
 }
 
 /**
- * Edge router contract. Engines emit positions + obstacles + a logical edge
- * list; routers emit geometric routes. Phase 4 swaps `StubLibavoidRouter`
- * for the real libavoid bridge here without touching this interface.
+ * Edge router contract. Vestigial after Phase 1's libavoid halt — no
+ * current implementer. Phase 4's in-place `passes/route.ts` improvements
+ * keep routing inside the layered engine. Kept as a type definition in
+ * case a future narrow-router pass needs the seam.
  */
 export interface EdgeRouter {
     readonly id: string;

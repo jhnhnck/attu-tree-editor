@@ -144,9 +144,10 @@ function roleToStyle(s: Segment): EdgeStyle {
 }
 
 /**
- * Extract the logical edges (parent / spouse / joint-child) from a placed
- * graph. Phase 4's libavoid bridge consumes this; Phase 0 emits it through
- * the engine for future use.
+ * Extract the logical edges (parent / spouse / joint-child) from a
+ * placed graph. Vestigial after Phase 1's libavoid halt — no current
+ * consumer. Phase 4 may revive this if AABB-aware bus routing in
+ * `passes/route.ts` needs a logical-edge view.
  */
 export function logicalEdgesFor(pg: PlacedGraph): readonly LogicalEdge[] {
     const out: LogicalEdge[] = [];
