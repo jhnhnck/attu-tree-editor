@@ -31,6 +31,7 @@
         "tests/**/*.ts",
         "vite.config.ts",
         "vitest.config.ts",
+        "vitest.spike.config.ts",
         "playwright.config.ts"
     ],
     "exclude": ["node_modules", "dist"]
