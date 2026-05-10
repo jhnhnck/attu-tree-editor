@@ -18,7 +18,7 @@
  * licensed under the MIT license; see LICENSE.md for full text
  */
 
-import { PERSON_W, ROW_H } from "$lib/layout/hvLayout";
+import { PERSON_W, ROW_H } from "$lib/layout/constants";
 import type { LayoutNodeId, LayoutWarning, PlacedGraph, RoutedGraph } from "$lib/layout/ir";
 import { parseGhostNodeId } from "$lib/layout/ir";
 import type { EdgeRole, Segment } from "$lib/layout/edgeRouter";

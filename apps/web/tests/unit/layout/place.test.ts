@@ -6,7 +6,7 @@
 import { describe, expect, it } from "vitest";
 import { ROOT_ID } from "$lib/domain/ids";
 import { addPerson, createTree, linkParent, linkSpouse } from "$lib/domain/tree";
-import { PERSON_W, ROW_H, SIBLING_GAP } from "$lib/layout/hvLayout";
+import { PERSON_W, ROW_H, SIBLING_GAP } from "$lib/layout/constants";
 import type { LayeredGraph, LayoutNode, LayoutNodeId, OrderedGraph } from "$lib/layout/ir";
 import { layer } from "$lib/layout/passes/layer";
 import { order } from "$lib/layout/passes/order";

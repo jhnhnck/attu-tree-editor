@@ -8,7 +8,8 @@
 -->
 <script lang="ts">
     import { onMount, onDestroy, untrack } from "svelte";
-    import { type GhostNode, COMPONENT_GAP, type HvLayoutResult } from "$lib/layout/hvLayout";
+    import { COMPONENT_GAP } from "$lib/layout/constants";
+    import { type GhostNode, type HvLayoutResult } from "$lib/layout/hvLayout";
     import {
         placedGraphToHvLayout,
         hydrateLayered,
@@ -144,6 +145,9 @@
     let canvasH = $derived(layout.canvas.height * UNIT);
 
     // Send the tree to the worker whenever tree.id, tree.editRev, or overrides change.
+    // The engineId is hard-coded to "layered" here: TreeCanvas is the layered-engine
+    // canvas; the hyperbolic engine has its own component and short-circuits the
+    // worker entirely (Phase 5 will revisit).
     $effect(() => {
         void tree.id;
         void tree.editRev;
@@ -153,6 +157,7 @@
             seq,
             tree: $state.snapshot(tree),
             rootId: tree.rootId,
+            engineId: "layered",
             overrides: serializeOverrides(overrides),
         });
     });
@@ -160,6 +165,7 @@
     layoutWorker.onmessage = (
         e: MessageEvent<{
             seq: number;
+            engineId: "layered" | "hyperbolic";
             layered: LayeredGraphWire;
             ordered: OrderedGraphWire;
             placed: PlacedGraphWire;

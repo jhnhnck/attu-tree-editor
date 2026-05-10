@@ -17,7 +17,7 @@ import { layer } from "$lib/layout/passes/layer";
 import { order } from "$lib/layout/passes/order";
 import { place } from "$lib/layout/passes/place";
 import { route } from "$lib/layout/passes/route";
-import { PERSON_W } from "$lib/layout/hvLayout";
+import { PERSON_W } from "$lib/layout/constants";
 import type {
     LayeredGraph,
     LayoutNodeId,

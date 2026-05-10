@@ -36,7 +36,7 @@
  * licensed under the MIT license; see LICENSE.md for full text
  */
 
-import { PERSON_W, ROW_H, SIBLING_GAP } from "$lib/layout/hvLayout";
+import { PERSON_W, ROW_H, SIBLING_GAP } from "$lib/layout/constants";
 import { parseGhostNodeId } from "$lib/layout/ir";
 import type {
     LayoutNode,

@@ -17,9 +17,8 @@
  * licensed under the MIT license; see LICENSE.md for full text
  */
 
-import type { PersonId, Tree } from "$lib/domain/types";
+import type { PersonId } from "$lib/domain/types";
 import type { HvLayoutResult, GhostNode } from "$lib/layout/hvLayout";
-import { ROW_H } from "$lib/layout/hvLayout";
 import type { Segment } from "$lib/layout/edgeRouter";
 
 // ---------------------------------------------------------------------------
@@ -174,91 +173,15 @@ export interface LayoutOverrides {
 }
 
 // ---------------------------------------------------------------------------
-// Adapters — bridge between hvLayout and the new IR during migration
+// `placedGraphToHvLayout` adapter — bridges PlacedGraph to the legacy
+// HvLayoutResult shape that `TreeCanvas.svelte` still consumes. Phase 4
+// inlines this into TreeCanvas; this file then drops the import of
+// `HvLayoutResult` / `GhostNode` entirely.
+//
+// `hvLayoutToPlacedGraph` (the reverse adapter for migrating off the old
+// `hvLayout()` function) was deleted in Phase 3: the old function is
+// gone, so there's nothing left to migrate.
 // ---------------------------------------------------------------------------
-
-/**
- * Convert an `HvLayoutResult` (from the current hvLayout pipeline) into a
- * `PlacedGraph` so that downstream passes and the renderer can be ported
- * incrementally against the IR without a flag day.
- *
- * Edge data is derived from the domain `tree`; ghost nodes are promoted to
- * first-class LayoutNodes. The ordering within each rank is derived from the
- * x positions produced by hvLayout (left-to-right).
- */
-export function hvLayoutToPlacedGraph(result: HvLayoutResult, tree: Tree): PlacedGraph {
-    const nodes = new Map<LayoutNodeId, LayoutNode>();
-    const x = new Map<LayoutNodeId, number>();
-    const y = new Map<LayoutNodeId, number>();
-
-    // Real person nodes
-    for (const [id, pos] of result.positions) {
-        const rank = Math.round(pos.y / ROW_H);
-        nodes.set(id, { id, kind: "person", personId: id, rank });
-        x.set(id, pos.x);
-        y.set(id, pos.y);
-    }
-
-    // Ghost nodes — first-class participants in the IR
-    for (const ghost of result.ghosts) {
-        const nodeId = ghostNodeId(ghost.ghostOf, ghost.nearId);
-        const rank = Math.round(ghost.y / ROW_H);
-        nodes.set(nodeId, { id: nodeId, kind: "ghost", personId: ghost.ghostOf, rank });
-        x.set(nodeId, ghost.x);
-        y.set(nodeId, ghost.y);
-    }
-
-    // Build ranks arrays: group node ids by rank, then sort within rank by x
-    const rankBuckets = new Map<number, LayoutNodeId[]>();
-    for (const [nodeId, node] of nodes) {
-        const bucket = rankBuckets.get(node.rank);
-        if (bucket) bucket.push(nodeId);
-        else rankBuckets.set(node.rank, [nodeId]);
-    }
-    const maxRank = rankBuckets.size > 0 ? Math.max(...rankBuckets.keys()) : -1;
-    const rankArrays: (readonly LayoutNodeId[])[] = [];
-    for (let r = 0; r <= maxRank; r++) {
-        rankArrays.push(rankBuckets.get(r) ?? []);
-    }
-
-    // Build ordering within each rank from x positions (left-to-right)
-    const order = new Map<LayoutNodeId, number>();
-    for (const rankIds of rankArrays) {
-        const sorted = [...rankIds].sort((a, b) => (x.get(a) ?? 0) - (x.get(b) ?? 0));
-        sorted.forEach((id, i) => order.set(id, i));
-    }
-
-    // Parent edges: follow motherId/fatherId links visible in positions
-    const parentEdges: {
-        parent: LayoutNodeId;
-        child: LayoutNodeId;
-        coupleKey?: string;
-    }[] = [];
-    for (const person of Object.values(tree.people)) {
-        if (!result.positions.has(person.id)) continue;
-        if (person.motherId && result.positions.has(person.motherId)) {
-            parentEdges.push({ parent: person.motherId, child: person.id });
-        }
-        if (person.fatherId && result.positions.has(person.fatherId)) {
-            parentEdges.push({ parent: person.fatherId, child: person.id });
-        }
-    }
-
-    // Spouse edges: from CoupleRecord, both members visible
-    const spouseEdges: { a: LayoutNodeId; b: LayoutNodeId; coupleKey: string }[] = [];
-    for (const couple of tree.couples) {
-        if (couple.leftId === couple.rightId) continue;
-        if (result.positions.has(couple.leftId) && result.positions.has(couple.rightId)) {
-            spouseEdges.push({
-                a: couple.leftId,
-                b: couple.rightId,
-                coupleKey: `${couple.leftId}|${couple.rightId}`,
-            });
-        }
-    }
-
-    return { nodes, ranks: rankArrays, parentEdges, spouseEdges, order, x, y, bbox: result.canvas };
-}
 
 // ---------------------------------------------------------------------------
 // Wire representations — Maps converted to [K, V][] for structured-clone transfer

@@ -12,7 +12,7 @@ import { place } from "$lib/layout/passes/place";
 import { route } from "$lib/layout/passes/route";
 import type { Person, Tree } from "$lib/domain/types";
 import type { LayoutNode, PlacedGraph, RoutedGraph } from "$lib/layout/ir";
-import { ROW_H, PERSON_W } from "$lib/layout/hvLayout";
+import { ROW_H, PERSON_W } from "$lib/layout/constants";
 
 // ---------------------------------------------------------------------------
 // Helpers
