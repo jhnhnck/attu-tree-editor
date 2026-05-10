@@ -9,6 +9,34 @@ import type { TreeNode, TreeNodeRoot } from "read-gedcom";
 import { HaracalndeDate } from "$lib/date/HaracalndeDate";
 import { generateId } from "$lib/domain/ids";
 import type { CoupleRecord, Person, PersonId, Tree } from "$lib/domain/types";
+
+const ID_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+
+// FNV-1a 32-bit; produces a stable 5-char [A-Z0-9] id for the same xref input
+// across runs. Used to fix the "different rootId per parse" bug — the previous
+// `generateId(taken)` path drew from crypto, so identical GEDCOM bytes mapped
+// to different person ids each parse (and so the rootId, derived from the
+// first INDI, looked unstable to callers comparing parses).
+function idFromXref(xref: string, taken: ReadonlySet<string>): PersonId {
+    let salt = "";
+    for (let attempt = 0; attempt < 1024; attempt += 1) {
+        let h = 0x811c9dc5;
+        const input = xref + salt;
+        for (let i = 0; i < input.length; i += 1) {
+            h ^= input.charCodeAt(i);
+            h = Math.imul(h, 0x01000193);
+        }
+        let bits = h >>> 0;
+        let id = "";
+        for (let i = 0; i < 5; i += 1) {
+            id += ID_ALPHABET[bits % ID_ALPHABET.length] ?? "A";
+            bits = Math.floor(bits / ID_ALPHABET.length);
+        }
+        if (!taken.has(id)) return id;
+        salt = `:${String(attempt + 1)}`;
+    }
+    return generateId(taken);
+}
 import { validate, type Finding } from "$lib/domain/validate";
 import { err, ok, type Result } from "$lib/utils/result";
 
@@ -91,7 +119,7 @@ function buildTree(root: TreeNodeRoot): GedParseResult {
 
     for (const indi of indiNodes) {
         if (indi.pointer === null) continue;
-        const personId = generateId(taken);
+        const personId = idFromXref(indi.pointer, taken);
         taken.add(personId);
         idByXref.set(indi.pointer, personId);
         xrefByPersonId[personId] = indi.pointer;
