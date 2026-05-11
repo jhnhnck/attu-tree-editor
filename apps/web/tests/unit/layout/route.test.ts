@@ -783,3 +783,93 @@ describe("route() — port-aware drops (pedigree-DAG)", () => {
         expect(ys[1]).toBeCloseTo(parentTop, 5);
     });
 });
+
+// ---------------------------------------------------------------------------
+// Obstacle avoidance: bond detours around an intervening unrelated card
+// ---------------------------------------------------------------------------
+
+describe("route() — AABB detour around unrelated cards", () => {
+    /**
+     * Repro of the Kadar Arkaran multi-spouse bug: three same-rank cards
+     * with the middle one unrelated to the bond between the outer two.
+     * The bond used to draw straight through the middle card; now it
+     * should detour above (or below).
+     */
+    function threeCardsMiddleBlocking(): {
+        placed: PlacedGraph;
+        tree: Tree;
+        ids: { left: string; mid: string; right: string };
+    } {
+        let t = createTree("kadar", blank("L", "m"));
+        const mid = addPerson(t, blank("M", "f"));
+        t = mid.tree;
+        const right = addPerson(t, blank("R", "f"));
+        t = right.tree;
+        const ok = <V>(r: { ok: true; value: V } | { ok: false; error: string }): V => {
+            if (!r.ok) throw new Error(r.error);
+            return r.value;
+        };
+        // L is married to R only (not to mid); place mid between them.
+        t = ok(linkSpouse(t, ROOT_ID, right.id));
+
+        const nodes = new Map<string, LayoutNode>([
+            [ROOT_ID, { id: ROOT_ID, kind: "person", personId: ROOT_ID, rank: 0 }],
+            [mid.id, { id: mid.id, kind: "person", personId: mid.id, rank: 0 }],
+            [right.id, { id: right.id, kind: "person", personId: right.id, rank: 0 }],
+        ]);
+        const placed: PlacedGraph = {
+            nodes,
+            ranks: [[ROOT_ID, mid.id, right.id]],
+            parentEdges: [],
+            spouseEdges: [],
+            order: new Map([
+                [ROOT_ID, 0],
+                [mid.id, 1],
+                [right.id, 2],
+            ]),
+            // Spacing: L at 0, M at 4, R at 8. PERSON_W = 2; the bond
+            // L→R at y=0.6 runs through M's AABB [4, 6] × [0, 1.2].
+            x: new Map([
+                [ROOT_ID, 0],
+                [mid.id, 4],
+                [right.id, 8],
+            ]),
+            y: new Map([
+                [ROOT_ID, 0],
+                [mid.id, 0],
+                [right.id, 0],
+            ]),
+            bbox: { width: 10, height: ROW_H },
+        };
+        return { placed, tree: t, ids: { left: ROOT_ID, mid: mid.id, right: right.id } };
+    }
+
+    it("emits no horizontal that crosses the middle card's AABB", () => {
+        const { placed, tree, ids } = threeCardsMiddleBlocking();
+        const { segments } = route(placed, tree);
+        // mid card occupies x∈[4,6], y∈[0,1.2]. Any horizontal at y∈(0,1.2)
+        // whose x-extent overlaps (4,6) is a violation.
+        for (const s of segments) {
+            if (s.y1 !== s.y2) continue;
+            if (s.y1 <= 0 + 1e-6 || s.y1 >= 1.2 - 1e-6) continue;
+            const sMin = Math.min(s.x1, s.x2);
+            const sMax = Math.max(s.x1, s.x2);
+            const crosses = sMax > 4 + 1e-6 && sMin < 6 - 1e-6;
+            // Skip segments that own the middle card.
+            const ownsMid = s.persons.includes(ids.mid);
+            if (ownsMid) continue;
+            expect(crosses, `segment ${s.id} crosses mid card's AABB`).toBe(false);
+        }
+    });
+
+    it("the detour segments share the bond's bundleId", () => {
+        const { placed, tree, ids } = threeCardsMiddleBlocking();
+        const { segments } = route(placed, tree);
+        const bondSegs = segments.filter(
+            (s) => s.persons.includes(ids.left) && s.persons.includes(ids.right),
+        );
+        // Detour adds h1/v1/h2/v2 pieces; all should share the bond's bundleId.
+        const bundleIds = new Set(bondSegs.map((s) => s.bundleId));
+        expect(bundleIds.size).toBe(1);
+    });
+});

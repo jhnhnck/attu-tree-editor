@@ -1214,12 +1214,6 @@
         /* cards always render above the SVG edge layer regardless of any
            future stacking-context shenanigans on the parent stage. */
         z-index: 1;
-        /* opaque canvas-coloured backdrop so edges passing behind a card are
-           obscured rather than visible through PersonNode's translucent
-           gender tint (`bg-sky-700/35` etc.). matches PersonNode's `rounded-md`
-           so the backdrop doesn't leak around the card's rounded corners. */
-        background: var(--color-canvas);
-        border-radius: 0.375rem;
     }
     .person-node-host.is-isolated {
         opacity: 0.55;

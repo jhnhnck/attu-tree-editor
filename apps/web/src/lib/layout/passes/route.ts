@@ -692,10 +692,160 @@ function buildSegments(
         const i = id.indexOf("/");
         return i === -1 ? id : id.slice(0, i);
     };
-    const bundled: Segment[] = out
-        .filter((s) => s.x1 !== s.x2 || s.y1 !== s.y2)
-        .map((s) => ({ ...s, bundleId: bundleIdOf(s.id) }));
+    const detoured = detourAroundCards(
+        out.filter((s) => s.x1 !== s.x2 || s.y1 !== s.y2),
+        placed,
+    );
+    const bundled: Segment[] = detoured.map((s) => ({ ...s, bundleId: bundleIdOf(s.id) }));
     return annotateHops(bundled);
+}
+
+// ---------------------------------------------------------------------------
+// Obstacle avoidance: detour horizontal segments around unrelated card AABBs
+// ---------------------------------------------------------------------------
+
+/** Vertical clearance between a detour leg and the card it bypasses. */
+const DETOUR_CLEAR = 0.15; // units
+/** Horizontal pad either side of the obstacle's AABB. */
+const DETOUR_PAD = 0.1; // units
+
+/**
+ * Horizontals (bonds, sibling-buses, stub legs) emitted by `buildSegments` are
+ * straight x1→x2 chords with no awareness of card AABBs in between. On dense
+ * rows that often produces a bond passing visually through a third party — the
+ * Kadar Arkaran DEMO bug, where Kadar↔Harmain crosses Araim's intervening
+ * ghost card. This pass detours each horizontal around any unrelated card it
+ * crosses by punching a small rectangular bump (clear → over the top → back
+ * down) above the obstacle.
+ *
+ * Verticals are not detoured: drops run at card-mid-x (their own card's
+ * column), so they live inside their card's AABB by construction.
+ */
+function detourAroundCards(
+    drafts: readonly Omit<Segment, "bundleId">[],
+    placed: PlacedGraph,
+): Omit<Segment, "bundleId">[] {
+    // Snapshot card AABBs. For ghosts, the AABB is the same shape; the
+    // owner-personId comes from the ghost's `personId` field.
+    interface Obstacle {
+        readonly x1: number;
+        readonly y1: number;
+        readonly x2: number;
+        readonly y2: number;
+        readonly ownerId: PersonId;
+    }
+    const obstacles: Obstacle[] = [];
+    for (const [nodeId, node] of placed.nodes) {
+        const x = placed.x.get(nodeId);
+        const y = placed.y.get(nodeId);
+        if (x === undefined || y === undefined) continue;
+        obstacles.push({
+            x1: x,
+            y1: y,
+            x2: x + PERSON_W,
+            y2: y + CARD_H,
+            ownerId: node.personId,
+        });
+    }
+
+    const out: Omit<Segment, "bundleId">[] = [];
+    for (const seg of drafts) {
+        const isHoriz = seg.y1 === seg.y2 && seg.x1 !== seg.x2;
+        if (!isHoriz) {
+            out.push(seg);
+            continue;
+        }
+        // Vertical drops are not detoured (see header).
+        if (seg.kind !== "bond" && seg.kind !== "sibling-bus" && seg.kind !== "stub") {
+            out.push(seg);
+            continue;
+        }
+        const segMinX = Math.min(seg.x1, seg.x2);
+        const segMaxX = Math.max(seg.x1, seg.x2);
+        const y = seg.y1;
+        const owners = new Set<PersonId>(seg.persons);
+        // Collect crossing obstacles: AABB crosses y, x-overlap, owner not in segment's persons.
+        const crossings = obstacles
+            .filter((o) => owners.size === 0 || !owners.has(o.ownerId))
+            .filter((o) => y > o.y1 + 1e-6 && y < o.y2 - 1e-6)
+            .filter((o) => o.x2 > segMinX + 1e-6 && o.x1 < segMaxX - 1e-6)
+            .sort((a, b) => a.x1 - b.x1);
+        if (crossings.length === 0) {
+            out.push(seg);
+            continue;
+        }
+        // Detour rectangle goes upward from y — into the gutter above the
+        // obstacle's row. The detour-y sits just above the card top by
+        // DETOUR_CLEAR. (Going downward also works; "up" is the convention
+        // — keeps the detour inside the inter-row gutter band.)
+        const detourY = crossings[0]!.y1 - DETOUR_CLEAR;
+        const goingRight = seg.x2 > seg.x1;
+        // Walk the segment from x1 → x2, emitting straight horizontals
+        // interrupted by a detour rectangle for each obstacle.
+        let cursorX = seg.x1;
+        for (let i = 0; i < crossings.length; i += 1) {
+            const o = crossings[i]!;
+            // Pad the obstacle x-range by DETOUR_PAD on each side. Clamp to
+            // the segment's own range so we never extend past x2.
+            const leftEdge = goingRight
+                ? Math.max(segMinX, o.x1 - DETOUR_PAD)
+                : Math.min(segMaxX, o.x2 + DETOUR_PAD);
+            const rightEdge = goingRight
+                ? Math.min(segMaxX, o.x2 + DETOUR_PAD)
+                : Math.max(segMinX, o.x1 - DETOUR_PAD);
+            // Approach horizontal up to the obstacle's leading edge.
+            if (Math.abs(cursorX - leftEdge) > 1e-6) {
+                out.push({
+                    ...seg,
+                    id: `${seg.id}/d${String(i)}/h1`,
+                    x1: cursorX,
+                    y1: y,
+                    x2: leftEdge,
+                    y2: y,
+                });
+            }
+            // Vertical leg up to detourY.
+            out.push({
+                ...seg,
+                id: `${seg.id}/d${String(i)}/v1`,
+                x1: leftEdge,
+                y1: y,
+                x2: leftEdge,
+                y2: detourY,
+            });
+            // Detour horizontal over the obstacle.
+            out.push({
+                ...seg,
+                id: `${seg.id}/d${String(i)}/h2`,
+                x1: leftEdge,
+                y1: detourY,
+                x2: rightEdge,
+                y2: detourY,
+            });
+            // Vertical leg back down to y.
+            out.push({
+                ...seg,
+                id: `${seg.id}/d${String(i)}/v2`,
+                x1: rightEdge,
+                y1: detourY,
+                x2: rightEdge,
+                y2: y,
+            });
+            cursorX = rightEdge;
+        }
+        // Tail of the original segment to seg.x2.
+        if (Math.abs(cursorX - seg.x2) > 1e-6) {
+            out.push({
+                ...seg,
+                id: `${seg.id}/d-tail`,
+                x1: cursorX,
+                y1: y,
+                x2: seg.x2,
+                y2: y,
+            });
+        }
+    }
+    return out;
 }
 
 // ---------------------------------------------------------------------------
