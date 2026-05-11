@@ -326,7 +326,14 @@ class GutterLanes {
     }
 
     laneY(gutterRank: number, lane: number): number {
-        return gutterRank * ROW_H + CARD_H + (lane + 0.5) * LANE_H;
+        // Clamp lane-y to within the gutter band. Without this the allocator
+        // happily emits lanes ≥ N_LANES when many buses overlap, which
+        // pushes the bus y into the next row's card AABB and produces
+        // negative-direction drops by ≈0.1 u. Clamping keeps the bus inside
+        // [CARD_H, ROW_H − 0.05]; visually a few buses stack at the bottom
+        // of the gutter, which is preferable to crossing a card.
+        const offset = Math.min((lane + 0.5) * LANE_H, GUTTER_H - 0.05);
+        return gutterRank * ROW_H + CARD_H + offset;
     }
 }
 
@@ -908,25 +915,17 @@ function detourAroundCards(
             out.push(seg);
             continue;
         }
-        // Detour rectangle goes upward from y — into the gutter above the
-        // obstacle's row. The detour-y sits just above the card top by
-        // DETOUR_CLEAR. (Going downward also works; "up" is the convention
-        // — keeps the detour inside the inter-row gutter band.)
+        // Walk the segment LEFT to RIGHT regardless of (x1,x2) order — the
+        // emitted detour rectangle represents the same line either way; the
+        // renderer is direction-agnostic. Doing the walk in canonical L→R
+        // order lets us iterate obstacles in the same order without
+        // crossing previously-visited obstacles on the approach leg.
         const detourY = crossings[0]!.y1 - DETOUR_CLEAR;
-        const goingRight = seg.x2 > seg.x1;
-        // Walk the segment from x1 → x2, emitting straight horizontals
-        // interrupted by a detour rectangle for each obstacle.
-        let cursorX = seg.x1;
+        let cursorX = segMinX;
         for (let i = 0; i < crossings.length; i += 1) {
             const o = crossings[i]!;
-            // Pad the obstacle x-range by DETOUR_PAD on each side. Clamp to
-            // the segment's own range so we never extend past x2.
-            const leftEdge = goingRight
-                ? Math.max(segMinX, o.x1 - DETOUR_PAD)
-                : Math.min(segMaxX, o.x2 + DETOUR_PAD);
-            const rightEdge = goingRight
-                ? Math.min(segMaxX, o.x2 + DETOUR_PAD)
-                : Math.max(segMinX, o.x1 - DETOUR_PAD);
+            const leftEdge = Math.max(segMinX, o.x1 - DETOUR_PAD);
+            const rightEdge = Math.min(segMaxX, o.x2 + DETOUR_PAD);
             // Approach horizontal up to the obstacle's leading edge.
             if (Math.abs(cursorX - leftEdge) > 1e-6) {
                 out.push({
@@ -967,14 +966,14 @@ function detourAroundCards(
             });
             cursorX = rightEdge;
         }
-        // Tail of the original segment to seg.x2.
-        if (Math.abs(cursorX - seg.x2) > 1e-6) {
+        // Tail of the original segment up to segMaxX.
+        if (Math.abs(cursorX - segMaxX) > 1e-6) {
             out.push({
                 ...seg,
                 id: `${seg.id}/d-tail`,
                 x1: cursorX,
                 y1: y,
-                x2: seg.x2,
+                x2: segMaxX,
                 y2: y,
             });
         }
