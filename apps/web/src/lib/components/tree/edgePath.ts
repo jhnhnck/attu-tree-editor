@@ -27,6 +27,16 @@ export const DIVORCE_TICK_GAP = 5;
  * else is a straight `M…L`.
  */
 export function pathFor(seg: RenderedSegment, hopRadius: number = HOP_RADIUS): string {
+    // HEB-bundled long bonds: bow toward the LCA's column via a quadratic.
+    // Pulled toward the control by 50% to keep the curve readable rather
+    // than a tight loop.
+    if (seg.bundleControl) {
+        const cx =
+            seg.x1 * 0.5 + seg.x2 * 0.5 + (seg.bundleControl.x - (seg.x1 + seg.x2) / 2) * 0.5;
+        const cy =
+            seg.y1 * 0.5 + seg.y2 * 0.5 + (seg.bundleControl.y - (seg.y1 + seg.y2) / 2) * 0.5;
+        return `M ${num(seg.x1)} ${num(seg.y1)} Q ${num(cx)} ${num(cy)} ${num(seg.x2)} ${num(seg.y2)}`;
+    }
     const isVertical = seg.x1 === seg.x2 && seg.y1 !== seg.y2;
     if (!isVertical || !seg.hops || seg.hops.length === 0) {
         return `M ${num(seg.x1)} ${num(seg.y1)} L ${num(seg.x2)} ${num(seg.y2)}`;

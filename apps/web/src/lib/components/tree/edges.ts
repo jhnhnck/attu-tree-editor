@@ -26,6 +26,8 @@ export interface RenderedSegment {
     readonly hops?: readonly number[];
     /** people represented by this segment (for path highlighting) */
     readonly persons?: readonly PersonId[];
+    /** Holten-2006 hierarchical-edge-bundling control point (pixel coords). */
+    readonly bundleControl?: { readonly x: number; readonly y: number };
 }
 
 export type { EdgeKind, EdgeRole };

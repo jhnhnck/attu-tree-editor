@@ -974,6 +974,14 @@
                 x2: s.x2 * UNIT,
                 y2: s.y2 * UNIT,
                 ...(s.persons ? { persons: s.persons } : {}),
+                ...(s.bundleControl
+                    ? {
+                          bundleControl: {
+                              x: s.bundleControl.x * UNIT,
+                              y: s.bundleControl.y * UNIT,
+                          },
+                      }
+                    : {}),
             };
             out[i] = s.hops ? { ...base, hops: s.hops.map((h) => h * UNIT) } : base;
         }

@@ -873,3 +873,90 @@ describe("route() — AABB detour around unrelated cards", () => {
         expect(bundleIds.size).toBe(1);
     });
 });
+
+// ---------------------------------------------------------------------------
+// Phase 4.4 — Holten-style HEB on long bonds
+// ---------------------------------------------------------------------------
+
+describe("route() — HEB bundling on long cross-lineage bonds", () => {
+    /**
+     * Long bond between two cousins (siblings here, for a tiny fixture):
+     * P is the proband at rank 0; L and R are both P's children at rank 1,
+     * and the long bond is between them. The LCA of L and R in the
+     * proband-rooted BFS tree is P, so the bond gets a bundleControl
+     * pointing at P's column.
+     */
+    function longBondWithSharedAncestor(): {
+        placed: PlacedGraph;
+        tree: Tree;
+        ids: { p: string; l: string; r: string };
+    } {
+        let t = createTree("heb", blank("P", "m"));
+        const lP = addPerson(t, blank("L", "u"));
+        t = lP.tree;
+        const rP = addPerson(t, blank("R", "u"));
+        t = rP.tree;
+        const ok = <V>(r: { ok: true; value: V } | { ok: false; error: string }): V => {
+            if (!r.ok) throw new Error(r.error);
+            return r.value;
+        };
+        t = ok(linkParent(t, lP.id, ROOT_ID));
+        t = ok(linkParent(t, rP.id, ROOT_ID));
+        t = ok(linkSpouse(t, lP.id, rP.id));
+        const nodes = new Map<string, LayoutNode>([
+            [ROOT_ID, { id: ROOT_ID, kind: "person", personId: ROOT_ID, rank: 0 }],
+            [lP.id, { id: lP.id, kind: "person", personId: lP.id, rank: 1 }],
+            [rP.id, { id: rP.id, kind: "person", personId: rP.id, rank: 1 }],
+        ]);
+        // L at x=0, R at x=20; bond spans rightX(L)=2 → leftX(R)=20, gap=18 u.
+        // 18 > BUNDLE_THRESHOLD (16) so HEB kicks in.
+        const placed: PlacedGraph = {
+            nodes,
+            ranks: [[ROOT_ID], [lP.id, rP.id]],
+            parentEdges: [
+                { parent: ROOT_ID, child: lP.id },
+                { parent: ROOT_ID, child: rP.id },
+            ],
+            spouseEdges: [],
+            order: new Map([
+                [ROOT_ID, 0],
+                [lP.id, 0],
+                [rP.id, 1],
+            ]),
+            x: new Map([
+                [ROOT_ID, 10],
+                [lP.id, 0],
+                [rP.id, 20],
+            ]),
+            y: new Map([
+                [ROOT_ID, 0],
+                [lP.id, ROW_H],
+                [rP.id, ROW_H],
+            ]),
+            bbox: { width: 200, height: 2 * ROW_H },
+        };
+        return { placed, tree: t, ids: { p: ROOT_ID, l: lP.id, r: rP.id } };
+    }
+
+    it("tags a long same-rank bond with a bundleControl pointing at the LCA's column", () => {
+        const { placed, tree, ids } = longBondWithSharedAncestor();
+        const { segments } = route(placed, tree);
+        const bond = segments.find(
+            (s) => s.kind === "bond" && s.persons.includes(ids.l) && s.persons.includes(ids.r),
+        );
+        expect(bond).toBeDefined();
+        expect(bond!.bundleControl).toBeDefined();
+        // LCA is P at x=10; control x should be at P's mid-x (10 + 1).
+        expect(bond!.bundleControl!.x).toBeCloseTo(10 + PERSON_W / 2, 5);
+    });
+
+    it("does not bundle short bonds", () => {
+        const { tree } = nuclear();
+        const { segments } = pipeline(tree);
+        const bonds = segments.filter((s) => s.kind === "bond");
+        expect(bonds.length).toBeGreaterThanOrEqual(1);
+        for (const b of bonds) {
+            expect(b.bundleControl).toBeUndefined();
+        }
+    });
+});

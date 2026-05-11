@@ -54,4 +54,12 @@ export interface Segment {
      * For bonds: [leftId, rightId]. For drops: [parentId, childId].
      */
     readonly persons: readonly PersonId[];
+    /**
+     * Hierarchical-edge-bundling control point (Holten 2006). Set on long
+     * cross-lineage bonds; the renderer emits a quadratic Bezier from
+     * (x1,y1) through this control to (x2,y2) instead of a straight line,
+     * so the bond bows toward the proband-LCA's column and visually
+     * follows the inclusion hierarchy.
+     */
+    readonly bundleControl?: { readonly x: number; readonly y: number };
 }

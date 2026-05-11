@@ -65,7 +65,141 @@ const STUB_LEN = 0.6; // units
 export function route(placed: PlacedGraph, tree: Tree): RoutedGraph {
     const warnings: LayoutWarning[] = [];
     const segments = buildSegments(placed, tree, warnings);
-    return { placed, segments, warnings };
+    const bundled = bundleLongBonds(segments, placed, tree);
+    return { placed, segments: bundled, warnings };
+}
+
+// ---------------------------------------------------------------------------
+// Phase 4.4 — Holten-style cross-lineage edge bundling
+// ---------------------------------------------------------------------------
+
+/**
+ * Beyond this routed-x extent (in units) a same-rank bond reads as visually
+ * "long" and benefits from Holten 2006 hierarchical bundling: bend the bond
+ * toward the LCA of its endpoints in the proband-rooted BFS tree, so the
+ * connection follows the inclusion hierarchy instead of cutting across the
+ * canvas.
+ */
+const BUNDLE_THRESHOLD = 8 * ROW_H;
+
+interface LcaIndex {
+    readonly depth: ReadonlyMap<PersonId, number>;
+    readonly parent: ReadonlyMap<PersonId, PersonId | undefined>;
+}
+
+function buildLcaIndex(tree: Tree, rootId: PersonId): LcaIndex {
+    const depth = new Map<PersonId, number>();
+    const parent = new Map<PersonId, PersonId | undefined>();
+    if (!tree.people[rootId]) return { depth, parent };
+    depth.set(rootId, 0);
+    parent.set(rootId, undefined);
+    // BFS through bidirectional consanguinity edges (mother/father → child
+    // and back) so we have a single spanning tree rooted at the proband.
+    const childrenOf = new Map<PersonId, PersonId[]>();
+    for (const p of Object.values(tree.people)) {
+        for (const parentId of [p.motherId, p.fatherId]) {
+            if (!parentId) continue;
+            const arr = childrenOf.get(parentId);
+            if (arr) arr.push(p.id);
+            else childrenOf.set(parentId, [p.id]);
+        }
+    }
+    const queue: PersonId[] = [rootId];
+    while (queue.length) {
+        const id = queue.shift()!;
+        const d = depth.get(id) ?? 0;
+        const person = tree.people[id];
+        if (!person) continue;
+        const neighbours: PersonId[] = [];
+        if (person.motherId) neighbours.push(person.motherId);
+        if (person.fatherId) neighbours.push(person.fatherId);
+        const kids = childrenOf.get(id);
+        if (kids) neighbours.push(...kids);
+        for (const n of neighbours) {
+            if (depth.has(n)) continue;
+            depth.set(n, d + 1);
+            parent.set(n, id);
+            queue.push(n);
+        }
+    }
+    return { depth, parent };
+}
+
+function lca(idx: LcaIndex, a: PersonId, b: PersonId): PersonId | undefined {
+    let da = idx.depth.get(a);
+    let db = idx.depth.get(b);
+    if (da === undefined || db === undefined) return undefined;
+    let ca: PersonId | undefined = a;
+    let cb: PersonId | undefined = b;
+    while (da > db) {
+        ca = idx.parent.get(ca!);
+        if (!ca) return undefined;
+        da -= 1;
+    }
+    while (db > da) {
+        cb = idx.parent.get(cb!);
+        if (!cb) return undefined;
+        db -= 1;
+    }
+    while (ca && cb && ca !== cb) {
+        ca = idx.parent.get(ca);
+        cb = idx.parent.get(cb);
+    }
+    return ca && cb && ca === cb ? ca : undefined;
+}
+
+/**
+ * Holten 2006 bundling, restricted to long horizontal bonds. Each candidate
+ * bond stays as a single Segment but gains a quadratic-Bezier control point;
+ * the renderer interprets `bundleControl` as a `Q` command.
+ *
+ * The control point lives at (lca.x + PERSON_W/2, lca.y + CARD_H/2) — the
+ * midpoint of the LCA's card. With the Bezier endpoints on the partners'
+ * inner edges, the curve bows toward the LCA's column, visually grouping
+ * bonds whose endpoints share a recent common ancestor with the proband.
+ */
+function bundleLongBonds(
+    segments: readonly Segment[],
+    placed: PlacedGraph,
+    tree: Tree,
+): readonly Segment[] {
+    if (!tree.people[tree.rootId]) return segments;
+    let idx: LcaIndex | null = null; // build lazily; many trees have no long bonds.
+    const out: Segment[] = [];
+    for (const seg of segments) {
+        if (!isLongBond(seg)) {
+            out.push(seg);
+            continue;
+        }
+        const [a, b] = seg.persons;
+        if (!a || !b) {
+            out.push(seg);
+            continue;
+        }
+        idx ??= buildLcaIndex(tree, tree.rootId);
+        const anc = lca(idx, a, b);
+        if (!anc) {
+            out.push(seg);
+            continue;
+        }
+        const ax = placed.x.get(anc);
+        const ay = placed.y.get(anc);
+        if (ax === undefined || ay === undefined) {
+            out.push(seg);
+            continue;
+        }
+        out.push({
+            ...seg,
+            bundleControl: { x: ax + PERSON_W / 2, y: ay + CARD_H / 2 },
+        });
+    }
+    return out;
+}
+
+function isLongBond(seg: Segment): boolean {
+    if (seg.kind !== "bond") return false;
+    if (seg.y1 !== seg.y2) return false; // L-bond verticals already curve geometrically
+    return Math.abs(seg.x2 - seg.x1) >= BUNDLE_THRESHOLD;
 }
 
 // ---------------------------------------------------------------------------
