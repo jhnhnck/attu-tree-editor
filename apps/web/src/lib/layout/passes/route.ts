@@ -22,6 +22,7 @@ import { PERSON_W, ROW_H } from "$lib/layout/constants";
 import type { LayoutNodeId, LayoutWarning, PlacedGraph, RoutedGraph } from "$lib/layout/ir";
 import { parseGhostNodeId } from "$lib/layout/ir";
 import type { EdgeRole, Segment } from "$lib/layout/edgeRouter";
+import { buildLcaIndex, lca, type LcaIndex } from "$lib/layout/probandTree";
 import type { PersonId, Tree } from "$lib/domain/types";
 
 // ---------------------------------------------------------------------------
@@ -81,72 +82,6 @@ export function route(placed: PlacedGraph, tree: Tree): RoutedGraph {
  * canvas.
  */
 const BUNDLE_THRESHOLD = 8 * ROW_H;
-
-interface LcaIndex {
-    readonly depth: ReadonlyMap<PersonId, number>;
-    readonly parent: ReadonlyMap<PersonId, PersonId | undefined>;
-}
-
-function buildLcaIndex(tree: Tree, rootId: PersonId): LcaIndex {
-    const depth = new Map<PersonId, number>();
-    const parent = new Map<PersonId, PersonId | undefined>();
-    if (!tree.people[rootId]) return { depth, parent };
-    depth.set(rootId, 0);
-    parent.set(rootId, undefined);
-    // BFS through bidirectional consanguinity edges (mother/father → child
-    // and back) so we have a single spanning tree rooted at the proband.
-    const childrenOf = new Map<PersonId, PersonId[]>();
-    for (const p of Object.values(tree.people)) {
-        for (const parentId of [p.motherId, p.fatherId]) {
-            if (!parentId) continue;
-            const arr = childrenOf.get(parentId);
-            if (arr) arr.push(p.id);
-            else childrenOf.set(parentId, [p.id]);
-        }
-    }
-    const queue: PersonId[] = [rootId];
-    while (queue.length) {
-        const id = queue.shift()!;
-        const d = depth.get(id) ?? 0;
-        const person = tree.people[id];
-        if (!person) continue;
-        const neighbours: PersonId[] = [];
-        if (person.motherId) neighbours.push(person.motherId);
-        if (person.fatherId) neighbours.push(person.fatherId);
-        const kids = childrenOf.get(id);
-        if (kids) neighbours.push(...kids);
-        for (const n of neighbours) {
-            if (depth.has(n)) continue;
-            depth.set(n, d + 1);
-            parent.set(n, id);
-            queue.push(n);
-        }
-    }
-    return { depth, parent };
-}
-
-function lca(idx: LcaIndex, a: PersonId, b: PersonId): PersonId | undefined {
-    let da = idx.depth.get(a);
-    let db = idx.depth.get(b);
-    if (da === undefined || db === undefined) return undefined;
-    let ca: PersonId | undefined = a;
-    let cb: PersonId | undefined = b;
-    while (da > db) {
-        ca = idx.parent.get(ca);
-        if (!ca) return undefined;
-        da -= 1;
-    }
-    while (db > da) {
-        cb = idx.parent.get(cb);
-        if (!cb) return undefined;
-        db -= 1;
-    }
-    while (ca && cb && ca !== cb) {
-        ca = idx.parent.get(ca);
-        cb = idx.parent.get(cb);
-    }
-    return ca && cb && ca === cb ? ca : undefined;
-}
 
 /**
  * Holten 2006 bundling, restricted to long horizontal bonds. Each candidate
