@@ -8,7 +8,7 @@
 import type { PersonId, Tree } from "$lib/domain/types";
 import { directChildren } from "$lib/domain/tree";
 import { displayName } from "$lib/layout/kinship";
-import type { HvLayoutResult } from "$lib/layout/hvLayout";
+import type { HvLayoutResult } from "$lib/components/tree/canvasLayout";
 
 export interface InstanceEntry {
     /** stable identity matching TreeCanvas's per-instance render key */

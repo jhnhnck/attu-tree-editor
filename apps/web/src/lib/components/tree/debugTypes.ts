@@ -3,7 +3,7 @@
  * licensed under the MIT license; see LICENSE.md for full text
  */
 
-import type { HvLayoutResult } from "$lib/layout/hvLayout";
+import type { HvLayoutResult } from "$lib/components/tree/canvasLayout";
 import type { RenderedSegment } from "$lib/components/tree/edges";
 import type { Path } from "$lib/layout/graph";
 import type { PersonId } from "$lib/domain/types";

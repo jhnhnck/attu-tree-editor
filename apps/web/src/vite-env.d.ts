@@ -7,7 +7,7 @@
 /// <reference types="vite/client" />
 
 interface TreeDebugHandle {
-    layout: import("$lib/layout/hvLayout").HvLayoutResult;
+    layout: import("$lib/components/tree/canvasLayout").HvLayoutResult;
     rawSegments: readonly import("$lib/layout/edgeRouter").Segment[];
     positions: ReadonlyMap<string, { x: number; y: number }>;
     /** LayeredGraph — undefined until the first worker response arrives. */

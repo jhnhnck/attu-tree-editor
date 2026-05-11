@@ -10,15 +10,10 @@
  *     → place()    → PlacedGraph    (coordinate assignment; Brandes–Köpf)
  *     → route()    → RoutedGraph    (gutter-channel obstacle-avoiding edge routing)
  *
- * For the incremental migration, two adapter functions allow the existing
- * hvLayout output to be round-tripped through PlacedGraph so downstream
- * code can be ported pass-by-pass without a flag day.
- *
  * licensed under the MIT license; see LICENSE.md for full text
  */
 
 import type { PersonId } from "$lib/domain/types";
-import type { HvLayoutResult, GhostNode } from "$lib/layout/hvLayout";
 import type { Segment } from "$lib/layout/edgeRouter";
 
 // ---------------------------------------------------------------------------
@@ -173,17 +168,6 @@ export interface LayoutOverrides {
 }
 
 // ---------------------------------------------------------------------------
-// `placedGraphToHvLayout` adapter — bridges PlacedGraph to the legacy
-// HvLayoutResult shape that `TreeCanvas.svelte` still consumes. Phase 4
-// inlines this into TreeCanvas; this file then drops the import of
-// `HvLayoutResult` / `GhostNode` entirely.
-//
-// `hvLayoutToPlacedGraph` (the reverse adapter for migrating off the old
-// `hvLayout()` function) was deleted in Phase 3: the old function is
-// gone, so there's nothing left to migrate.
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
 // Wire representations — Maps converted to [K, V][] for structured-clone transfer
 // ---------------------------------------------------------------------------
 
@@ -269,57 +253,4 @@ export function hydrateOrdered(w: OrderedGraphWire): OrderedGraph {
 }
 export function hydratePlaced(w: PlacedGraphWire): PlacedGraph {
     return { ...hydrateOrdered(w), x: new Map(w.x), y: new Map(w.y), bbox: w.bbox };
-}
-
-/**
- * Convert a `PlacedGraph` back into an `HvLayoutResult` shape for use by
- * existing rendering code during the migration.
- *
- * The `components` field is returned as an empty array — it is internal
- * hvLayout metadata that the new pipeline will compute directly. All other
- * fields are derived from the PlacedGraph's node/position data.
- */
-export function placedGraphToHvLayout(pg: PlacedGraph): HvLayoutResult {
-    const positions = new Map<PersonId, { x: number; y: number }>();
-    const ghosts: GhostNode[] = [];
-
-    for (const [nodeId, node] of pg.nodes) {
-        const nx = pg.x.get(nodeId) ?? 0;
-        const ny = pg.y.get(nodeId) ?? 0;
-        if (node.kind === "person") {
-            positions.set(node.personId, { x: nx, y: ny });
-        } else {
-            const parsed = parseGhostNodeId(nodeId);
-            if (parsed) {
-                ghosts.push({ ghostOf: parsed.ghostOf, nearId: parsed.nearId, x: nx, y: ny });
-            }
-        }
-    }
-
-    // Isolated = real nodes with no recorded edges (components of size 1)
-    const hasEdge = new Set<LayoutNodeId>();
-    for (const e of pg.parentEdges) {
-        hasEdge.add(e.parent);
-        hasEdge.add(e.child);
-    }
-    for (const e of pg.spouseEdges) {
-        hasEdge.add(e.a);
-        hasEdge.add(e.b);
-    }
-    const isolated: PersonId[] = [];
-    for (const [nodeId, node] of pg.nodes) {
-        if (node.kind === "person" && !hasEdge.has(nodeId)) isolated.push(node.personId);
-    }
-
-    const personCount = [...pg.nodes.values()].filter((n) => n.kind === "person").length;
-
-    return {
-        positions,
-        canvas: pg.bbox,
-        components: [],
-        isolated,
-        ghosts,
-        totalPeople: personCount,
-        laidOutPeople: positions.size,
-    };
 }

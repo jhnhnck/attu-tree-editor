@@ -37,7 +37,7 @@ mounts `HyperbolicCanvas` for hyperbolic positions.
 | `LayoutWarning` (non-fatal anomalies from any pass) | `lib/layout/ir.ts` |
 | Layout-space constants (PERSON_W, ROW_H, …) | `lib/layout/constants.ts` |
 | Segment / EdgeKind / EdgeRole types | `lib/layout/edgeRouter.ts` (types-only) |
-| Vestigial legacy types (HvLayoutResult, GhostNode) | `lib/layout/hvLayout.ts` |
+| Renderer-side HvLayoutResult + `placedGraphToHvLayout` adapter | `lib/components/tree/canvasLayout.ts` |
 | `LayeredEngine` adapter | `lib/layout/engines/layered-hv/index.ts` |
 | `StubHyperbolicEngine` | `lib/layout/engines/hyperbolic-lr/index.ts` |
 | `LayoutEngine` / `LayoutResult` types | `lib/layout/engine.ts` |
@@ -210,14 +210,10 @@ runtime with "Worker scope: document is not defined" if you break it.
 
 ## What's vestigial / going away
 
-- `hvLayout.ts` — types-only after Phase 3. Phase 4 inlines
-  `HvLayoutResult` + `GhostNode` into TreeCanvas; this file deletes.
-- `placedGraphToHvLayout` in `ir.ts` — the last adapter between the
-  new IR and the old `HvLayoutResult` shape. Phase 4 inlines it.
 - `edgeRouter.ts` — types-only since Phase 3 (the old `routeEdges()`
-  function deleted). Phase 4 may merge the types into `ir.ts`.
+  function deleted). May merge the types into `ir.ts` later.
 - `LogicalEdge` + `EdgeRouter` interfaces in `engine.ts` — no
-  implementer after Phase 1. Phase 4 may delete.
+  implementer after Phase 1. May delete in a future cleanup.
 
 ## What's stable
 

@@ -9,9 +9,12 @@
 <script lang="ts">
     import { onMount, onDestroy, untrack } from "svelte";
     import { COMPONENT_GAP } from "$lib/layout/constants";
-    import { type GhostNode, type HvLayoutResult } from "$lib/layout/hvLayout";
     import {
+        type GhostNode,
+        type HvLayoutResult,
         placedGraphToHvLayout,
+    } from "$lib/components/tree/canvasLayout";
+    import {
         hydrateLayered,
         hydrateOrdered,
         hydratePlaced,
