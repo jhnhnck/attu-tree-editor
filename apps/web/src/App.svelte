@@ -1080,7 +1080,12 @@
         <div class="relative flex-1 overflow-clip">
             <ProgressStrip {progress} />
             {#if selectedEngine === "hyperbolic"}
-                <HyperbolicCanvas tree={treeStore.tree} />
+                <HyperbolicCanvas
+                    tree={treeStore.tree}
+                    selectedId={selection.selectedPersonId}
+                    onselect={(id: string) => selection.select(id)}
+                    ondeselect={() => selection.select(undefined)}
+                />
             {:else}
                 <TreeCanvas
                     tree={treeStore.tree}
