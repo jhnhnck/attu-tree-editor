@@ -72,9 +72,7 @@
 
     // Run the layout once per (tree, focus). Cheap relative to a re-paint
     // so we don't bother memoising further.
-    let layoutOut = $derived(
-        layoutHourglass(tree, tree.rootId, new Set(Object.keys(tree.people))),
-    );
+    let layoutOut = $derived(layoutHourglass(tree, tree.rootId, new Set(Object.keys(tree.people))));
 
     // View transform: a single Möbius that maps layout coords → viewed coords.
     // Identity at startup; drag-pan composes additional translations into it.
