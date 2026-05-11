@@ -316,6 +316,7 @@
         {#each projected as item (item.id)}
             {@const person = lookupPerson(item.id)}
             {#if person && !item.clustered}
+                <!-- svelte-ignore a11y_no_static_element_interactions -->
                 <div
                     class="hyp-person absolute -translate-x-1/2 -translate-y-1/2"
                     style="left: {item.cx}px; top: {item.cy}px; transform: translate(-50%, -50%) scale({item.scale}); transform-origin: center; pointer-events: {item.scale >
