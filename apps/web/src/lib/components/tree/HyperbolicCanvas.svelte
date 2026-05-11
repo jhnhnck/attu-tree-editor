@@ -88,11 +88,18 @@
         return dragLive ? dragLive(stage1) : stage1;
     }
 
+    /** Approximate PersonNode width in CSS pixels at level 0. */
+    const BASE_CARD_PX = 120;
+    /** Below this on-screen size the card collapses to a dot glyph (Phase 5.5 DOI MVP). */
+    const CLUSTER_THRESHOLD_PX = 12;
+
     interface Projected {
         readonly id: PersonId;
         readonly cx: number;
         readonly cy: number;
         readonly scale: number;
+        /** When true, render a dot glyph instead of a full PersonNode card. */
+        readonly clustered: boolean;
     }
 
     let projected = $derived.by((): Projected[] => {
@@ -107,7 +114,9 @@
             const cy = diskCy + z.im * diskRadius;
             // Fisheye: cards near the disk boundary shrink toward zero.
             const scale = Math.max(0.05, 1 - r * r);
-            out.push({ id, cx, cy, scale });
+            const onScreenPx = BASE_CARD_PX * scale;
+            const clustered = onScreenPx < CLUSTER_THRESHOLD_PX;
+            out.push({ id, cx, cy, scale, clustered });
         }
         return out;
     });
@@ -306,7 +315,7 @@
 
         {#each projected as item (item.id)}
             {@const person = lookupPerson(item.id)}
-            {#if person}
+            {#if person && !item.clustered}
                 <div
                     class="hyp-person absolute -translate-x-1/2 -translate-y-1/2"
                     style="left: {item.cx}px; top: {item.cy}px; transform: translate(-50%, -50%) scale({item.scale}); transform-origin: center; pointer-events: {item.scale >
@@ -324,6 +333,25 @@
                 </div>
             {/if}
         {/each}
+
+        <!-- DOI cluster glyphs: tiny dots for cards too small to read.
+             Drawn as a single SVG layer so 1000+ dots stay cheap. Phase 6
+             will aggregate clusters and stack a count badge on each glyph. -->
+        <svg
+            class="pointer-events-none absolute inset-0"
+            width={hostW}
+            height={hostH}
+            viewBox="0 0 {hostW} {hostH}"
+            aria-hidden="true"
+        >
+            <g class="hyp-glyphs" fill="var(--color-fg-muted)">
+                {#each projected as item (item.id)}
+                    {#if item.clustered}
+                        <circle cx={item.cx} cy={item.cy} r="1.5" />
+                    {/if}
+                {/each}
+            </g>
+        </svg>
 
         <div
             class="text-fg-muted pointer-events-none absolute bottom-3 left-3 rounded bg-canvas-elev/80 px-2 py-1 text-xs backdrop-blur"
