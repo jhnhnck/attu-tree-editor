@@ -20,8 +20,23 @@ export type EdgeKind = "bond" | "parent-drop" | "sibling-bus" | "child-drop" | "
 export type EdgeRole = "blood" | "adopted" | "half" | "married" | "divorced";
 
 export interface Segment {
-    /** stable id; useful for path-trace highlighting */
+    /** stable id; unique per segment. */
     readonly id: string;
+    /**
+     * Group key that links this segment to siblings emitted by the same
+     * topology event — a couple-family fan, a single-parent fan, or a bond
+     * cluster. The renderer emits one `<path>` per (bundleId, role) and
+     * path-trace highlighting matches the user mental model when keyed on
+     * bundleId rather than segment id.
+     *
+     * Shapes:
+     *   - `bond:<sortedIds>:<unionIndex>` — bond segment + its L-bond legs
+     *     + long-bond stub caps share this bundle.
+     *   - `couple:<sortedIds>:<unionIndex>` — joint-child drop, bus, and
+     *     child-drops emitted for the couple.
+     *   - `single:<parentId>` — single-parent drop fan to all kids.
+     */
+    readonly bundleId: string;
     readonly kind: EdgeKind;
     readonly role: EdgeRole;
     readonly x1: number;

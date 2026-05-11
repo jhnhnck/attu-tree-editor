@@ -19,6 +19,7 @@ function divorcedStubPair(): RenderedSegment[] {
     return [
         {
             id: "bond:A|B:0/stub-l",
+            bundleId: "bond:A|B:0",
             kind: "stub",
             role: "divorced",
             x1: 0,
@@ -28,6 +29,7 @@ function divorcedStubPair(): RenderedSegment[] {
         },
         {
             id: "bond:A|B:0/stub-r",
+            bundleId: "bond:A|B:0",
             kind: "stub",
             role: "divorced",
             x1: 940,
@@ -75,6 +77,7 @@ describe("EdgeLayer — stub-cap dasharray regression", () => {
         const justBonds: RenderedSegment[] = [
             {
                 id: "bond:C|D:0",
+                bundleId: "bond:C|D:0",
                 kind: "bond",
                 role: "married",
                 x1: 0,

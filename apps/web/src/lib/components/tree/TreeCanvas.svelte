@@ -27,7 +27,7 @@
     } from "$lib/layout/ir";
     import type { Segment } from "$lib/layout/edgeRouter";
     import { shortestPath, type Path } from "$lib/layout/graph";
-    import { segmentsForPath } from "$lib/layout/pathHighlight";
+    import { bundlesForPath } from "$lib/layout/pathHighlight";
     import EdgeLayer from "$lib/components/tree/EdgeLayer.svelte";
     import DebugOverlay from "$lib/components/tree/DebugOverlay.svelte";
     import PersonNode from "$lib/components/tree/PersonNode.svelte";
@@ -55,8 +55,8 @@
         onscalechange?: ((s: number) => void) | undefined;
         /** notifies the parent when the active tool flips */
         onmodechange?: ((m: "select" | "hand") => void) | undefined;
-        /** path-trace overlay: ids of edge segments to draw highlighted */
-        highlightedSegmentIds?: ReadonlySet<string> | undefined;
+        /** path-trace overlay: ids of edge bundles to draw highlighted */
+        highlightedBundleIds?: ReadonlySet<string> | undefined;
         /** pair of people to trace path between; highlights the path on canvas */
         traceIds?: readonly [PersonId, PersonId] | undefined;
         /** path result for display in UI (read-only, derived from traceIds) */
@@ -83,7 +83,7 @@
         oncontroller,
         onscalechange,
         onmodechange,
-        highlightedSegmentIds,
+        highlightedBundleIds,
         traceIds,
         tracePath: _,
         ontoggleinspector,
@@ -966,12 +966,14 @@
             const s = segs[i]!;
             const base: RenderedSegment = {
                 id: s.id,
+                bundleId: s.bundleId,
                 kind: s.kind,
                 role: s.role,
                 x1: s.x1 * UNIT,
                 y1: s.y1 * UNIT,
                 x2: s.x2 * UNIT,
                 y2: s.y2 * UNIT,
+                ...(s.persons ? { persons: s.persons } : {}),
             };
             out[i] = s.hops ? { ...base, hops: s.hops.map((h) => h * UNIT) } : base;
         }
@@ -997,8 +999,8 @@
     let computedTracePath = $derived(
         traceIds ? shortestPath(tree, traceIds[0], traceIds[1]) : undefined,
     );
-    let computedHighlightedIds = $derived(
-        computedTracePath ? segmentsForPath(computedTracePath, routedEdges) : highlightedSegmentIds,
+    let computedHighlightedBundles = $derived(
+        computedTracePath ? bundlesForPath(computedTracePath, routedEdges) : highlightedBundleIds,
     );
 
     function levelFromScale(s: number): PersonNodeLevel {
@@ -1085,7 +1087,7 @@
         >
             <EdgeLayer
                 edges={routedEdges}
-                highlightedIds={computedHighlightedIds}
+                highlightedBundles={computedHighlightedBundles}
                 {strokeMultiplier}
             />
             <!-- component dividers between non-singleton components -->

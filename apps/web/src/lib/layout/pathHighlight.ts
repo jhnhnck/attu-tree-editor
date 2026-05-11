@@ -7,10 +7,13 @@ import type { Path } from "$lib/layout/graph";
 import type { RenderedSegment } from "$lib/components/tree/edges";
 
 /**
- * Given a path from shortestPath(), find all segments that carry relationships in the path.
- * Returns segment IDs whose persons list contains consecutive path members.
+ * Given a path from shortestPath(), find the bundle ids whose persons list
+ * contains consecutive path members. EdgeLayer renders one `<path>` per
+ * bundle; highlighting at the bundle level lights up the entire connector
+ * (bond + drops + bus + child-drops) for a relationship, which matches the
+ * user mental model better than picking the single segment a path crosses.
  */
-export function segmentsForPath(
+export function bundlesForPath(
     path: Path,
     segments: readonly RenderedSegment[],
 ): ReadonlySet<string> {
@@ -22,7 +25,7 @@ export function segmentsForPath(
         pairs.add(key);
     }
 
-    const segmentIds = new Set<string>();
+    const bundleIds = new Set<string>();
     for (const seg of segments) {
         if (!seg.persons || seg.persons.length < 2) continue;
         for (let i = 0; i < seg.persons.length - 1; i++) {
@@ -30,10 +33,13 @@ export function segmentsForPath(
             const q = seg.persons[i + 1]!;
             const key = p < q ? `${p}|${q}` : `${q}|${p}`;
             if (pairs.has(key)) {
-                segmentIds.add(seg.id);
+                bundleIds.add(seg.bundleId);
                 break;
             }
         }
     }
-    return segmentIds;
+    return bundleIds;
 }
+
+/** @deprecated kept for back-compat during the Phase 4.2 rollout; prefer `bundlesForPath`. */
+export const segmentsForPath = bundlesForPath;

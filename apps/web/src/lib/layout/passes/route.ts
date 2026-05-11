@@ -205,7 +205,12 @@ function buildSegments(
     tree: Tree,
     warnings: LayoutWarning[],
 ): readonly Segment[] {
-    const out: Segment[] = [];
+    // Drafts hold every Segment field except `bundleId`; we derive that
+    // once at the end from each id's prefix (everything up to the first
+    // `/`). Keeps the many emission sites short and the bundle key in
+    // lockstep with the id naming convention.
+    type SegmentDraft = Omit<Segment, "bundleId">;
+    const out: SegmentDraft[] = [];
     const handled = new Set<PersonId>();
     const lanes = new GutterLanes();
 
@@ -219,7 +224,7 @@ function buildSegments(
     // the child, `up` for a parent below — pedigree-DAG case). A mismatch
     // means port selection upstream picked the wrong card edge; warn and
     // surface via `__treeDebug.warnings[]`.
-    const pushDrop = (s: Segment, expectedDirection: DropDirection): void => {
+    const pushDrop = (s: SegmentDraft, expectedDirection: DropDirection): void => {
         const dy = s.y2 - s.y1;
         const wrong =
             (expectedDirection === "down" && dy < -1e-6) ||
@@ -683,7 +688,14 @@ function buildSegments(
         }
     }
 
-    return annotateHops(out.filter((s) => s.x1 !== s.x2 || s.y1 !== s.y2));
+    const bundleIdOf = (id: string): string => {
+        const i = id.indexOf("/");
+        return i === -1 ? id : id.slice(0, i);
+    };
+    const bundled: Segment[] = out
+        .filter((s) => s.x1 !== s.x2 || s.y1 !== s.y2)
+        .map((s) => ({ ...s, bundleId: bundleIdOf(s.id) }));
+    return annotateHops(bundled);
 }
 
 // ---------------------------------------------------------------------------

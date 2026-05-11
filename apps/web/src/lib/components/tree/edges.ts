@@ -15,6 +15,8 @@ import type { PersonId } from "$lib/domain/types";
  */
 export interface RenderedSegment {
     readonly id: string;
+    /** group key for one-`<path>`-per-bundle rendering and path-trace highlight */
+    readonly bundleId: string;
     readonly kind: EdgeKind;
     readonly role: EdgeRole;
     readonly x1: number;

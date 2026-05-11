@@ -17,6 +17,7 @@ import type { RenderedSegment } from "$lib/components/tree/edges";
 function seg(over: Partial<RenderedSegment>): RenderedSegment {
     return {
         id: "s",
+        bundleId: "s",
         kind: "parent-drop",
         role: "blood",
         x1: 0,
