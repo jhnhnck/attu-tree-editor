@@ -26,6 +26,7 @@
 <script lang="ts">
     import { displayName } from "$lib/layout/kinship";
     import PersonNode from "$lib/components/tree/PersonNode.svelte";
+    import { pathForGeodesic } from "$lib/components/tree/edgePath";
     import type { PersonId, Tree } from "$lib/domain/types";
     import { layoutHourglass } from "$lib/layout/engines/hyperbolic-lr/layout";
     import {
@@ -111,14 +112,12 @@
         return out;
     });
 
-    // Edges projected to disk-pixel chords. Phase 5.4 swaps in geodesic
-    // arcs via `pathForGeodesic`.
+    // Edges projected to disk-space geodesic arcs. Möbius transforms map
+    // geodesics to geodesics, so we recompute the arc in viewed space rather
+    // than transforming a path.
     interface ProjectedEdge {
         readonly id: string;
-        readonly x1: number;
-        readonly y1: number;
-        readonly x2: number;
-        readonly y2: number;
+        readonly d: string;
         readonly style: LayoutEdge["style"];
     }
     let projectedEdges = $derived.by((): ProjectedEdge[] => {
@@ -134,10 +133,7 @@
             if (abs(f) > RHO_MAX || abs(t) > RHO_MAX) continue;
             out.push({
                 id: edge.id,
-                x1: diskCx + f.re * diskRadius,
-                y1: diskCy + f.im * diskRadius,
-                x2: diskCx + t.re * diskRadius,
-                y2: diskCy + t.im * diskRadius,
+                d: pathForGeodesic(f, t, diskCx, diskCy, diskRadius),
                 style: edge.style,
             });
         }
@@ -299,11 +295,8 @@
             />
             <g class="hyp-edges" stroke="var(--color-fg-muted)" stroke-width="1" fill="none">
                 {#each projectedEdges as e (e.id)}
-                    <line
-                        x1={e.x1}
-                        y1={e.y1}
-                        x2={e.x2}
-                        y2={e.y2}
+                    <path
+                        d={e.d}
                         class:edge-married={e.style === "married"}
                         class:edge-divorced={e.style === "divorced"}
                     />

@@ -10,6 +10,7 @@
  */
 
 import type { RenderedSegment } from "$lib/components/tree/edges";
+import { geodesic, type Complex } from "$lib/layout/hyperbolic/poincare";
 
 /** radius of the bridge-hop arc on a vertical that crosses an unrelated horizontal */
 export const HOP_RADIUS = 4;
@@ -144,6 +145,50 @@ export function zoomAwareStroke(basePx: number, scale: number, zoomOutBoost: num
     const safeScale = Math.max(scale, 0.001);
     const targetPx = basePx + zoomOutBoost * Math.max(0, 1 - safeScale);
     return targetPx / safeScale;
+}
+
+// ---------------------------------------------------------------------------
+// Hyperbolic geodesic rendering
+// ---------------------------------------------------------------------------
+
+/**
+ * SVG path-d for a Poincaré-disk geodesic between two disk-coord points,
+ * projected to host-pixel space via (diskCx + z.re · diskRadius, diskCy +
+ * z.im · diskRadius).
+ *
+ * For points collinear with the origin the geodesic is a diameter — emit
+ * a straight `M…L`. Otherwise the geodesic is a circular arc orthogonal
+ * to the unit circle; its centre lies outside the disk (|C|² = 1 + r²)
+ * and the arc that stays inside the disk is always the SHORTER of the
+ * two possible arcs (large-arc-flag = 0). The sweep flag picks the
+ * direction that produces the inside-disk arc; we derive it from the
+ * cross product of (z1 − C) × (z2 − C) in SVG screen coords (y points
+ * down here, matching the projection).
+ */
+export function pathForGeodesic(
+    z1: Complex,
+    z2: Complex,
+    diskCx: number,
+    diskCy: number,
+    diskRadius: number,
+): string {
+    const g = geodesic(z1, z2);
+    const p1 = { x: diskCx + z1.re * diskRadius, y: diskCy + z1.im * diskRadius };
+    const p2 = { x: diskCx + z2.re * diskRadius, y: diskCy + z2.im * diskRadius };
+    if (g.kind === "diameter") {
+        return `M ${num(p1.x)} ${num(p1.y)} L ${num(p2.x)} ${num(p2.y)}`;
+    }
+    const rPx = g.radius * diskRadius;
+    const v1x = z1.re - g.center.re;
+    const v1y = z1.im - g.center.im;
+    const v2x = z2.re - g.center.re;
+    const v2y = z2.im - g.center.im;
+    // In screen coords (y down): a positive cross product means the swept
+    // angle from v1 to v2 is clockwise (the short way). SVG sweep-flag = 1
+    // draws the arc clockwise from start to end, which matches.
+    const cross = v1x * v2y - v1y * v2x;
+    const sweep = cross > 0 ? 1 : 0;
+    return `M ${num(p1.x)} ${num(p1.y)} A ${num(rPx)} ${num(rPx)} 0 0 ${String(sweep)} ${num(p2.x)} ${num(p2.y)}`;
 }
 
 /** Trim trailing zeros so SVG path data stays compact; not load-bearing. */

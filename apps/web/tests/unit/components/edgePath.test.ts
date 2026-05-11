@@ -9,6 +9,7 @@ import {
     divorceTickPath,
     pathDataForGroup,
     divorceTicksForGroup,
+    pathForGeodesic,
     zoomAwareStroke,
     HOP_RADIUS,
 } from "$lib/components/tree/edgePath";
@@ -125,5 +126,33 @@ describe("zoomAwareStroke", () => {
     it("clamps scale at a tiny floor so we don't divide by zero", () => {
         const v = zoomAwareStroke(1, 0);
         expect(Number.isFinite(v)).toBe(true);
+    });
+});
+
+describe("pathForGeodesic", () => {
+    it("emits a straight L for collinear-with-origin points", () => {
+        const d = pathForGeodesic({ re: 0.3, im: 0 }, { re: -0.3, im: 0 }, 100, 100, 100);
+        // Expect "M ... L ..." form, no A command.
+        expect(d).toContain("L");
+        expect(d).not.toContain("A");
+    });
+
+    it("emits an A arc for non-collinear points", () => {
+        const d = pathForGeodesic({ re: 0.5, im: 0 }, { re: 0, im: 0.5 }, 100, 100, 100);
+        // Expect "M ... A rx ry 0 0 sweep tx ty" — large-arc-flag is always 0.
+        expect(d).toMatch(/^M .* A [\d.]+ [\d.]+ 0 0 [01] .* .*$/);
+    });
+
+    it("arc endpoints land on the projected disk-coord pixels", () => {
+        const cx = 200;
+        const cy = 150;
+        const r = 100;
+        const z1 = { re: 0.5, im: 0 };
+        const z2 = { re: 0, im: 0.5 };
+        const d = pathForGeodesic(z1, z2, cx, cy, r);
+        // Start point should be (cx + 0.5*r, cy + 0*r) = (250, 150)
+        // End point should be (cx + 0*r, cy + 0.5*r) = (200, 200)
+        expect(d).toMatch(/^M 250 150 /);
+        expect(d).toMatch(/ 200 200$/);
     });
 });
