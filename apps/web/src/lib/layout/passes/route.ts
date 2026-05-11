@@ -132,12 +132,12 @@ function lca(idx: LcaIndex, a: PersonId, b: PersonId): PersonId | undefined {
     let ca: PersonId | undefined = a;
     let cb: PersonId | undefined = b;
     while (da > db) {
-        ca = idx.parent.get(ca!);
+        ca = idx.parent.get(ca);
         if (!ca) return undefined;
         da -= 1;
     }
     while (db > da) {
-        cb = idx.parent.get(cb!);
+        cb = idx.parent.get(cb);
         if (!cb) return undefined;
         db -= 1;
     }

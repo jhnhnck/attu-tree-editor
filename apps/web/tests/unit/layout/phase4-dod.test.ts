@@ -117,7 +117,7 @@ describe("Phase 4 DoD — Akarians DEMO", () => {
         const { tree, result } = cachedFixture;
         // Find Kadar by name.
         const kadarEntry = Object.entries(tree.people).find(
-            ([_, p]) => p.given === "Kadar" && p.surname === "Arkaran",
+            ([, p]) => p.given === "Kadar" && p.surname === "Arkaran",
         );
         if (!kadarEntry) {
             // Fixture-specific; if the fixture changed, skip rather than
