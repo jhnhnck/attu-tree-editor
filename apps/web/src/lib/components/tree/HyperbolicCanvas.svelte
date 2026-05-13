@@ -302,6 +302,9 @@
     // ---------- recenter on a person ------------------------------------
 
     function recenterOn(personId: PersonId): void {
+        // If the user is mid-drag, recentering would fight the live pan
+        // overlay. Skip silently — the drag is the authoritative gesture.
+        if (dragAnchor !== undefined) return;
         const pos = layoutOut.positions.get(personId);
         if (!pos || pos.space !== "hyperbolic") return;
         // After: viewBase(pos.z) === 0 → viewBase is the translate(pos.z) Möbius.
