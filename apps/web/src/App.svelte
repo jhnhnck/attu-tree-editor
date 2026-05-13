@@ -1117,7 +1117,6 @@
                     traceIds={selection.selectedPersonId && traceTargetId
                         ? [selection.selectedPersonId, traceTargetId]
                         : undefined}
-                    {tracePath}
                     {debugOptions}
                 />
             {/if}

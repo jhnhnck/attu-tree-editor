@@ -62,8 +62,6 @@
         highlightedBundleIds?: ReadonlySet<string> | undefined;
         /** pair of people to trace path between; highlights the path on canvas */
         traceIds?: readonly [PersonId, PersonId] | undefined;
-        /** path result for display in UI (read-only, derived from traceIds) */
-        tracePath?: Path | undefined;
         /** clicking the people-count pill calls this to toggle the inspector */
         ontoggleinspector?: (() => void) | undefined;
         /** debug overlay options (if undefined, debug overlay is not rendered) */
@@ -88,7 +86,6 @@
         onmodechange,
         highlightedBundleIds,
         traceIds,
-        tracePath: _,
         ontoggleinspector,
         debugOptions,
     }: Props = $props();
