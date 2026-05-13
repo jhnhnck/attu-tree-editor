@@ -41,6 +41,12 @@
         RHO_MAX,
     } from "$lib/layout/hyperbolic/poincare";
     import type { LayoutEdge } from "$lib/layout/engine";
+    import {
+        computeDoiScores,
+        aggregateClusters,
+        type DoiScore,
+        type ClusterGlyph,
+    } from "$lib/layout/doi";
 
     interface Props {
         tree: Tree;
@@ -90,16 +96,26 @@
 
     /** Approximate PersonNode width in CSS pixels at level 0. */
     const BASE_CARD_PX = 120;
-    /** Below this on-screen size the card collapses to a dot glyph (Phase 5.5 DOI MVP). */
+    /** Below this on-screen size the card collapses to a cluster glyph. */
     const CLUSTER_THRESHOLD_PX = 12;
+
+    // DOI scores per (tree, focus, selection). Cheap; recomputed on selection
+    // change. Selection enters via the `anchors` set so the focused person
+    // and their direct neighbourhood stay readable.
+    let doiAnchors = $derived.by((): Set<PersonId> => {
+        const s = new Set<PersonId>();
+        if (selectedId) s.add(selectedId);
+        return s;
+    });
+    let doiScores = $derived(computeDoiScores({ tree, focus: tree.rootId, anchors: doiAnchors }));
 
     interface Projected {
         readonly id: PersonId;
         readonly cx: number;
         readonly cy: number;
         readonly scale: number;
-        /** When true, render a dot glyph instead of a full PersonNode card. */
-        readonly clustered: boolean;
+        /** True iff the card is too small to read on screen. */
+        readonly belowThreshold: boolean;
     }
 
     let projected = $derived.by((): Projected[] => {
@@ -115,8 +131,59 @@
             // Fisheye: cards near the disk boundary shrink toward zero.
             const scale = Math.max(0.05, 1 - r * r);
             const onScreenPx = BASE_CARD_PX * scale;
-            const clustered = onScreenPx < CLUSTER_THRESHOLD_PX;
-            out.push({ id, cx, cy, scale, clustered });
+            const belowThreshold = onScreenPx < CLUSTER_THRESHOLD_PX;
+            out.push({ id, cx, cy, scale, belowThreshold });
+        }
+        return out;
+    });
+
+    /** Quick lookup for projected entries by personId. */
+    let projectedById = $derived.by((): ReadonlyMap<PersonId, Projected> => {
+        const m = new Map<PersonId, Projected>();
+        for (const p of projected) m.set(p.id, p);
+        return m;
+    });
+
+    /**
+     * Contiguous-subtree clusters. Recomputed when `projected` (i.e. zoom or
+     * pan) changes. The aggregator walks the proband-rooted spanning tree;
+     * anchors (selectedId) and any card whose belowThreshold is false block
+     * the collapse, so high-DOI persons and their ancestors stay readable.
+     */
+    let clusters = $derived.by((): readonly ClusterGlyph[] => {
+        return aggregateClusters(
+            tree,
+            tree.rootId,
+            (id) => projectedById.get(id)?.belowThreshold ?? false,
+            doiAnchors,
+        );
+    });
+
+    /** personId → cluster.id; used to suppress per-person dot glyphs inside clusters. */
+    let clusterOf = $derived.by((): ReadonlyMap<PersonId, string> => {
+        const m = new Map<PersonId, string>();
+        for (const c of clusters) for (const mid of c.members) m.set(mid, c.id);
+        return m;
+    });
+
+    interface ProjectedCluster {
+        readonly id: string;
+        readonly cx: number;
+        readonly cy: number;
+        readonly count: number;
+    }
+
+    /**
+     * Project each cluster glyph to its rep's screen position. The rep is
+     * the subtree root — well-defined; positioning at the highest-DOI
+     * member would oscillate as scores shift.
+     */
+    let projectedClusters = $derived.by((): readonly ProjectedCluster[] => {
+        const out: ProjectedCluster[] = [];
+        for (const c of clusters) {
+            const rep = projectedById.get(c.rep);
+            if (!rep) continue;
+            out.push({ id: c.id, cx: rep.cx, cy: rep.cy, count: c.count });
         }
         return out;
     });
@@ -268,11 +335,52 @@
         recenterOn(id);
     }
 
+    function onClusterClick(c: ProjectedCluster): void {
+        // A single click on a cluster glyph recenters the viewport on the
+        // subtree's representative. The fisheye then grows the rep + its
+        // surroundings past the readability threshold, which deflates the
+        // cluster on the next frame.
+        const cluster = clusters.find((cc) => cc.id === c.id);
+        if (!cluster) return;
+        recenterOn(cluster.rep);
+    }
+
     function lookupPerson(id: PersonId) {
         return tree.people[id];
     }
 
     let probandName = $derived(displayName(tree, tree.rootId) || tree.name || "(no proband)");
+
+    // ---------- debug surface -------------------------------------------
+
+    // Expose a thin DOI introspection handle on `window.__treeDebug` while
+    // the hyperbolic canvas is mounted. Closes the Phase 6 DoD bullet
+    // "DOI score visible in `__treeDebug` for any selected node."
+    type DebugHandle = NonNullable<Window["__treeDebug"]>;
+    $effect(() => {
+        if (typeof window === "undefined") return;
+        const scoresSnapshot = new Map(doiScores);
+        const clustersSnapshot = clusters.slice();
+        const prev = window.__treeDebug;
+        const base: DebugHandle = prev ?? {
+            rawSegments: [],
+            positions: new Map(),
+            warnings: [],
+            dumpSegment: () => undefined,
+            findPath: () => undefined,
+        };
+        window.__treeDebug = {
+            ...base,
+            doi(id: string): DoiScore | undefined {
+                return scoresSnapshot.get(id);
+            },
+            clusters: clustersSnapshot,
+        };
+        return () => {
+            if (prev) window.__treeDebug = prev;
+            else delete window.__treeDebug;
+        };
+    });
 </script>
 
 <div
@@ -315,7 +423,7 @@
 
         {#each projected as item (item.id)}
             {@const person = lookupPerson(item.id)}
-            {#if person && !item.clustered}
+            {#if person && !item.belowThreshold && !clusterOf.has(item.id)}
                 <!-- svelte-ignore a11y_no_static_element_interactions -->
                 <div
                     class="hyp-person absolute -translate-x-1/2 -translate-y-1/2"
@@ -335,9 +443,11 @@
             {/if}
         {/each}
 
-        <!-- DOI cluster glyphs: tiny dots for cards too small to read.
-             Drawn as a single SVG layer so 1000+ dots stay cheap. Phase 6
-             will aggregate clusters and stack a count badge on each glyph. -->
+        <!-- DOI cluster glyphs. One circle per contiguous low-DOI subtree;
+             a `+N` count badge appears next to clusters with more than one
+             member. A single-member cluster (or a stray low-DOI card not
+             rolled into one) renders as a bare dot. Click recenters on the
+             cluster's representative so the user can zoom into it. -->
         <svg
             class="pointer-events-none absolute inset-0"
             width={hostW}
@@ -345,11 +455,28 @@
             viewBox="0 0 {hostW} {hostH}"
             aria-hidden="true"
         >
-            <g class="hyp-glyphs" fill="var(--color-fg-muted)">
-                {#each projected as item (item.id)}
-                    {#if item.clustered}
-                        <circle cx={item.cx} cy={item.cy} r="1.5" />
-                    {/if}
+            <g class="hyp-glyphs">
+                {#each projectedClusters as c (c.id)}
+                    <g
+                        class="hyp-cluster pointer-events-auto"
+                        transform="translate({c.cx} {c.cy})"
+                        onclick={() => onClusterClick(c)}
+                        onkeydown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") onClusterClick(c);
+                        }}
+                        role="button"
+                        tabindex="-1"
+                        aria-label={c.count > 1
+                            ? `cluster of ${c.count} people, click to centre`
+                            : "person, click to centre"}
+                    >
+                        <circle r={c.count > 1 ? 3 : 1.5} />
+                        {#if c.count > 1}
+                            <text class="hyp-cluster-count" x="6" y="3" font-size="9"
+                                >+{c.count}</text
+                            >
+                        {/if}
+                    </g>
                 {/each}
             </g>
         </svg>
@@ -374,10 +501,20 @@
     .hyp-person {
         will-change: transform;
     }
-    .edge-married {
-        /* solid */
-    }
     .edge-divorced {
         stroke-dasharray: 6 4;
+    }
+    .hyp-cluster {
+        cursor: pointer;
+        fill: var(--color-fg-muted);
+    }
+    .hyp-cluster:hover circle {
+        fill: var(--color-fg);
+    }
+    .hyp-cluster-count {
+        font-family: ui-sans-serif, system-ui, sans-serif;
+        pointer-events: none;
+        user-select: none;
+        fill: var(--color-fg-muted);
     }
 </style>

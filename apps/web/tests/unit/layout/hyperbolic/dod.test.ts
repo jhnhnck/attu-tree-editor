@@ -21,6 +21,7 @@ import { describe, expect, it } from "vitest";
 import { parseGedcom } from "$lib/io/gedcom/parse";
 import { layoutHourglass } from "$lib/layout/engines/hyperbolic-lr/layout";
 import { abs, RHO_MAX } from "$lib/layout/hyperbolic/poincare";
+import { aggregateClusters, computeDoiScores } from "$lib/layout/doi";
 
 const FIXTURE = resolve(process.cwd(), "tests/fixtures/Akarians.ged");
 
@@ -87,5 +88,66 @@ describe("Phase 5 DoD — hyperbolic on Akarians", () => {
             if (!pos || pos.space !== "hyperbolic") continue;
             expect(pos.z.im).toBeGreaterThan(0);
         }
+    });
+});
+
+describe("Phase 6 DoD — DOI scoring + cluster aggregation on Akarians", () => {
+    const scores = computeDoiScores({
+        tree: cached.tree,
+        focus: cached.tree.rootId,
+    });
+
+    it("scores every reachable person", () => {
+        // Every placed person should have a DOI score. The placed-set is a
+        // tight superset (excludes only unreachable isolates).
+        for (const id of cached.out.positions.keys()) {
+            expect(scores.has(id)).toBe(true);
+        }
+    });
+
+    it("proband has distance 0 and a finite score", () => {
+        const s = scores.get(cached.tree.rootId);
+        expect(s).toBeDefined();
+        expect(s!.distance).toBe(0);
+        expect(Number.isFinite(s!.score)).toBe(true);
+    });
+
+    it("aggregates deep low-DOI subtrees into a single cluster glyph", () => {
+        // Threshold defined here in test-space (not the renderer's pixel
+        // calculation): mark every person past depth 5 as below-threshold.
+        // Akarians has a deep ancestor spine — expect at least one
+        // multi-member cluster to emerge.
+        const deepCutoff = (id: string) => (scores.get(id)?.distance ?? 0) > 5;
+        const clusters = aggregateClusters(cached.tree, cached.tree.rootId, deepCutoff);
+        expect(clusters.length).toBeGreaterThan(0);
+        const maxCount = clusters.reduce((a, c) => Math.max(a, c.count), 0);
+        expect(maxCount).toBeGreaterThan(1); // at least one collapsed subtree
+        // Every clustered member must be below the cutoff.
+        for (const c of clusters) {
+            for (const m of c.members) expect(deepCutoff(m)).toBe(true);
+        }
+    });
+
+    it("anchors prevent collapse of their ancestor chain", () => {
+        const probandPerson = cached.tree.people[cached.tree.rootId];
+        if (!probandPerson) return;
+        // Pick a deep ancestor (motherId.motherId.motherId) as the anchor
+        // and verify it stays out of any cluster.
+        const m1 = probandPerson.motherId;
+        if (!m1) return;
+        const m2 = cached.tree.people[m1]?.motherId;
+        if (!m2) return;
+        const m3 = cached.tree.people[m2]?.motherId;
+        if (!m3) return;
+        const anchors = new Set([m3]);
+        const clusters = aggregateClusters(
+            cached.tree,
+            cached.tree.rootId,
+            () => true, // everything else collapsable
+            anchors,
+        );
+        const clustered = new Set<string>();
+        for (const c of clusters) for (const m of c.members) clustered.add(m);
+        expect(clustered.has(m3)).toBe(false);
     });
 });

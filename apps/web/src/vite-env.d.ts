@@ -7,7 +7,11 @@
 /// <reference types="vite/client" />
 
 interface TreeDebugHandle {
-    layout: import("$lib/components/tree/canvasLayout").HvLayoutResult;
+    /**
+     * Layered-engine layout result. Undefined while the hyperbolic engine
+     * is active (which mounts its own debug surface on the same handle).
+     */
+    layout?: import("$lib/components/tree/canvasLayout").HvLayoutResult;
     rawSegments: readonly import("$lib/layout/edgeRouter").Segment[];
     positions: ReadonlyMap<string, { x: number; y: number }>;
     /** LayeredGraph — undefined until the first worker response arrives. */
@@ -30,6 +34,13 @@ interface TreeDebugHandle {
     warnings: readonly import("$lib/layout/ir").LayoutWarning[];
     dumpSegment(id: string): void;
     findPath(id1: string, id2: string): void;
+    /**
+     * DOI scoring lookup — set while the hyperbolic canvas is mounted.
+     * Returns `undefined` for persons outside the proband's component.
+     */
+    doi?(id: string): import("$lib/layout/doi").DoiScore | undefined;
+    /** Current DOI clusters; only meaningful while the hyperbolic canvas is mounted. */
+    clusters?: readonly import("$lib/layout/doi").ClusterGlyph[];
 }
 
 /** runtime config injected into index.html by the fastapi server, sourced
