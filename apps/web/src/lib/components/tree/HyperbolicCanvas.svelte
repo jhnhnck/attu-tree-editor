@@ -48,14 +48,18 @@
         type ClusterGlyph,
     } from "$lib/layout/doi";
 
+    import type { CanvasController } from "./canvasController";
+    import { onMount } from "svelte";
+
     interface Props {
         tree: Tree;
         selectedId?: string | undefined;
         onselect?: ((id: string) => void) | undefined;
         ondeselect?: (() => void) | undefined;
+        oncontroller?: ((c: CanvasController) => void) | undefined;
     }
 
-    let { tree, selectedId, onselect, ondeselect }: Props = $props();
+    let { tree, selectedId, onselect, ondeselect, oncontroller }: Props = $props();
 
     let hostEl: HTMLDivElement | undefined = $state();
     let hostW = $state(0);
@@ -325,6 +329,40 @@
     function easeInOutCubic(t: number): number {
         return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
     }
+
+    /** Reset the view back to the identity Möbius (proband at disk centre). */
+    function resetView(): void {
+        viewBase = IDENTITY;
+        dragLive = undefined;
+    }
+
+    // ---------- imperative controller -----------------------------------
+
+    // The hyperbolic engine doesn't have a Euclidean zoom; the fisheye is
+    // implicit in the projection. We surface a "centre-on-X" controller so
+    // App.svelte's menu actions (centre on selection, centre on root) work
+    // identically across engines, and report a fixed scale of 1 to keep the
+    // shared scale state from going stale on engine switch.
+    onMount(() => {
+        oncontroller?.({
+            getScale: () => 1,
+            setScale: () => undefined,
+            zoomBy: () => undefined,
+            fit: resetView,
+            zoom100: resetView,
+            focusSelection: () => {
+                if (selectedId) recenterOn(selectedId);
+            },
+            fitSelection: () => {
+                if (selectedId) recenterOn(selectedId);
+            },
+            centerOnPerson: (id: PersonId) => recenterOn(id),
+            centerAt: () => undefined,
+            centerOnRoot: () => recenterOn(tree.rootId),
+            getMode: () => "select",
+            setMode: () => undefined,
+        });
+    });
 
     function onCardSelect(id: string): void {
         if (id === selectedId) ondeselect?.();

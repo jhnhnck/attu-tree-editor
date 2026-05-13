@@ -736,10 +736,10 @@
     async function switchEngine(kind: EngineKind): Promise<void> {
         if (selectedEngine === kind) return;
         selectedEngine = kind;
-        // TreeCanvas owns the controller; unmounting it would leave a stale
-        // reference. Drop it now so menu actions don't silently target a
-        // detached canvas while hyperbolic is active.
-        if (kind === "hyperbolic") canvasController = undefined;
+        // Both canvases now expose their own controller via `oncontroller`.
+        // Drop the previous reference; the newly-mounted canvas re-publishes
+        // on its `onMount` so menu actions retarget without delay.
+        canvasController = undefined;
         try {
             await saveEngineSetting(kind);
         } catch (e) {
@@ -827,6 +827,8 @@
         buildCommands(handlers, icons, {
             canUndo: () => treeStore.canUndo,
             canRedo: () => treeStore.canRedo,
+            engineLayeredActive: () => selectedEngine === "layered",
+            engineHyperbolicActive: () => selectedEngine === "hyperbolic",
         }),
     );
 
@@ -872,6 +874,7 @@
             if (c.danger) item.danger = true;
             const enabled = c.enabled ? c.enabled() : true;
             if (!enabled) item.disabled = true;
+            if (c.checked?.()) item.checked = true;
             item.onclick = () => c.run();
             entries.push(item);
         }
@@ -885,6 +888,7 @@
         onclick?: () => void;
         disabled?: boolean;
         danger?: boolean;
+        checked?: boolean;
     }
 
     const fileMenu = $derived<MenuConfig>(menuFromGroup("File", "File"));
@@ -1085,6 +1089,11 @@
                     selectedId={selection.selectedPersonId}
                     onselect={(id: string) => selection.select(id)}
                     ondeselect={() => selection.select(undefined)}
+                    oncontroller={(c: CanvasController) => {
+                        canvasController = c;
+                        canvasScale = c.getScale();
+                        canvasMode = c.getMode();
+                    }}
                 />
             {:else}
                 <TreeCanvas
@@ -1200,6 +1209,7 @@
                 onerror={(msg: string) => toasts.push(msg, "error")}
                 {traceTargetId}
                 onsetTraceTarget={(id: PersonId | undefined) => (traceTargetId = id)}
+                onfocus={() => withCanvas((c) => c.focusSelection())}
             />
         {/if}
 

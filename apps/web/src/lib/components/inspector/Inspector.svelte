@@ -10,6 +10,7 @@
         ChevronRight,
         Copy,
         Crown,
+        Crosshair,
         FileText,
         MoreHorizontal,
         Trash2,
@@ -59,6 +60,8 @@
         traceTargetId?: PersonId | undefined;
         /** callback to set the trace target (path will be drawn on canvas) */
         onsetTraceTarget?: ((id: PersonId | undefined) => void) | undefined;
+        /** centre the canvas on the currently-selected person (no-op when undefined). */
+        onfocus?: (() => void) | undefined;
     }
 
     let {
@@ -86,6 +89,7 @@
         onerror,
         traceTargetId,
         onsetTraceTarget,
+        onfocus,
     }: Props = $props();
 
     // activeTab is reseeded whenever the parent supplies a new selectedId or
@@ -205,6 +209,17 @@
                     <h2 class="text-fg truncate text-sm font-semibold">{fullName(person)}</h2>
                     <p class="text-fg-muted truncate font-mono text-[10px]">id {person.id}</p>
                 </div>
+                {#if onfocus}
+                    <button
+                        type="button"
+                        class="text-fg-muted hover:bg-canvas hover:text-fg flex h-6 w-6 items-center justify-center rounded"
+                        aria-label="centre on selection"
+                        title="centre on selection"
+                        onclick={() => onfocus?.()}
+                    >
+                        <Crosshair size={14} />
+                    </button>
+                {/if}
                 {#if !readOnly}
                     <div bind:this={menuEl} class="relative">
                         <button
