@@ -29,10 +29,3 @@ export class HyperbolicEngine implements LayoutEngine {
         };
     }
 }
-
-/**
- * Legacy alias retained for one cycle so the worker dispatch table (which
- * referenced `StubHyperbolicEngine`) keeps importing without breakage
- * during the Phase-5 rollout. Delete when the worker imports `HyperbolicEngine`.
- */
-export { HyperbolicEngine as StubHyperbolicEngine };

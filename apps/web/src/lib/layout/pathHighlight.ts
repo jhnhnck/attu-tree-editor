@@ -40,6 +40,3 @@ export function bundlesForPath(
     }
     return bundleIds;
 }
-
-/** @deprecated kept for back-compat during the Phase 4.2 rollout; prefer `bundlesForPath`. */
-export const segmentsForPath = bundlesForPath;
