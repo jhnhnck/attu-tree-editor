@@ -4,8 +4,8 @@
  * Phase 0 walking-skeleton scaffold; revised after Phase 1 libavoid halt.
  * The interfaces here are the seam every later phase plugs into:
  *   - LayeredEngine    (engines/layered-hv)        wraps the existing pipeline
- *   - StubHyperbolicEngine (engines/hyperbolic-lr) returns z=0 placeholders
- *   - stubDoiPass       (lib/layout/doi.ts)        pass-through
+ *   - HyperbolicEngine (engines/hyperbolic-lr)     Lamping-Rao hourglass
+ *   - computeDoiScores (lib/layout/doi.ts)         DOI scoring + clusters
  *
  * The worker does not dispatch on these yet (Phase 3) and the renderer does
  * not consume `LayoutResult` directly yet (Phase 3). Engines declared here
