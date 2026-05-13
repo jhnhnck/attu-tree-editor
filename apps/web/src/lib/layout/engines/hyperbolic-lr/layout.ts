@@ -85,7 +85,10 @@ export function layoutHourglass(
     options: HourglassLayoutOptions = {},
 ): HourglassLayoutResult {
     const stepDistance = options.stepDistance ?? 0.7;
-    const spouseAngle = options.spouseAngle ?? 0.12;
+    // Default widened from 0.12 → 0.35 in Phase 8.1 — at the proband's
+    // depth (z=0) the spouse was overlapping the partner card; ~20° gives
+    // visible separation at the full fisheye scale.
+    const spouseAngle = options.spouseAngle ?? 0.35;
 
     const positions = new Map<LayoutNodeId, LayoutPosition>();
     const nodes = new Map<LayoutNodeId, LayoutNode>();
@@ -111,11 +114,16 @@ export function layoutHourglass(
     const ancestorSizes = subtreeSizes(ancestorSpine.children);
     const descendantSizes = subtreeSizes(descendantSpine.children);
 
+    // Genealogy convention: ancestors visually UP, descendants DOWN. In the
+    // disk-coord → screen projection (cy + z.im · diskRadius), positive im
+    // is screen-down, so ancestors get the negative-im wedge and descendants
+    // the positive-im wedge. Phase 8.1 swap; before the swap the chain
+    // visibly extended down/right which read backwards for a family tree.
     layoutSpine(
         ancestorSpine.children,
         proband,
         ZERO,
-        Math.PI / 2,
+        -Math.PI / 2,
         Math.PI,
         0,
         ancestorSizes,
@@ -128,7 +136,7 @@ export function layoutHourglass(
         descendantSpine.children,
         proband,
         ZERO,
-        -Math.PI / 2,
+        Math.PI / 2,
         Math.PI,
         0,
         descendantSizes,
@@ -367,9 +375,18 @@ function weaveLaterals(
             if (kids.length === 0) continue;
             const parentZ = pos.z;
             const gen = (nodes.get(id)?.rank ?? 0) + 1;
+            // For an off-spine parent at z≠0, fan their children outward
+            // along their existing radial direction. For the proband itself
+            // (z=0) the radial is undefined; siblings of the proband (who
+            // hit this branch only when neither parent is on the spine —
+            // rare) take the descendant half by convention.
             const direction =
-                parentZ.re === 0 && parentZ.im === 0 ? 0 : Math.atan2(parentZ.im, parentZ.re);
-            const wedge = Math.PI / 6; // 30° sub-wedge for off-spine kids
+                parentZ.re === 0 && parentZ.im === 0
+                    ? Math.PI / 2
+                    : Math.atan2(parentZ.im, parentZ.re);
+            // Widened 30° → 60° in Phase 8.1: aunts/uncles + cousins were
+            // crowding into a narrow fan that overlapped at the centre.
+            const wedge = Math.PI / 3;
             let leftEdge = direction - wedge / 2;
             for (const k of kids) {
                 seen.add(k);

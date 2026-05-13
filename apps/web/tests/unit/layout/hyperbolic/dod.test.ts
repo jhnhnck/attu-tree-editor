@@ -78,15 +78,16 @@ describe("Phase 5 DoD — hyperbolic on Akarians", () => {
     });
 
     it("ancestor + descendant subtrees go to opposite halves of the disk", () => {
-        // Spot check: the proband's parents (if placed) should be in the
-        // upper half (im > 0).
+        // Phase 8.1: ancestors go to the screen-UP half (im < 0 in
+        // disk-coords) to match the standard genealogy convention. The
+        // proband's parents, if placed, should land in that half.
         const probandPerson = cached.tree.people[cached.tree.rootId];
         if (!probandPerson) return;
         for (const parentId of [probandPerson.motherId, probandPerson.fatherId]) {
             if (!parentId) continue;
             const pos = cached.out.positions.get(parentId);
             if (!pos || pos.space !== "hyperbolic") continue;
-            expect(pos.z.im).toBeGreaterThan(0);
+            expect(pos.z.im).toBeLessThan(0);
         }
     });
 });

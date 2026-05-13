@@ -68,21 +68,23 @@ describe("layoutHourglass — structural invariants", () => {
         }
     });
 
-    it("ancestors land in the upper half-disk (im > 0)", () => {
+    it("ancestors land in the screen-up half (im < 0)", () => {
+        // Phase 8.1: ancestors are on the negative-im wedge (screen up).
         const { tree, ids } = tinyFamily();
         const out = layoutHourglass(tree, ids.p, visibleAll(tree));
         // F is on the ancestor spine; M is F's spouse, woven into the same half.
         const fPos = out.positions.get(ids.f);
         if (!fPos || fPos.space !== "hyperbolic") throw new Error("F missing");
-        expect(fPos.z.im).toBeGreaterThan(0);
+        expect(fPos.z.im).toBeLessThan(0);
     });
 
-    it("descendants land in the lower half-disk (im < 0)", () => {
+    it("descendants land in the screen-down half (im > 0)", () => {
+        // Phase 8.1: descendants are on the positive-im wedge (screen down).
         const { tree, ids } = tinyFamily();
         const out = layoutHourglass(tree, ids.p, visibleAll(tree));
         const kPos = out.positions.get(ids.k);
         if (!kPos || kPos.space !== "hyperbolic") throw new Error("K missing");
-        expect(kPos.z.im).toBeLessThan(0);
+        expect(kPos.z.im).toBeGreaterThan(0);
     });
 
     it("a direct-line person's spouse is placed near them, not at z=0", () => {
