@@ -20,6 +20,12 @@ export interface MenuItem {
     onclick?: (() => void) | undefined;
     disabled?: boolean | undefined;
     danger?: boolean | undefined;
+    /**
+     * When true, render a trailing checkmark — used for radio-style choices
+     * (e.g. "active layout engine") so the user can see which option is
+     * currently selected without opening the menu twice.
+     */
+    checked?: boolean | undefined;
 }
 
 export type MenuEntry = MenuItem | "divider";

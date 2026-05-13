@@ -30,6 +30,12 @@ export interface Command {
     dividerBefore?: boolean | undefined;
     /** danger styling in menus */
     danger?: boolean | undefined;
+    /**
+     * For radio-style choices (e.g. active engine) — when true, the menu
+     * renders a trailing check. Evaluated on every menu render so it tracks
+     * the live state without a re-build.
+     */
+    checked?: (() => boolean) | undefined;
     run: () => void;
 }
 
@@ -79,6 +85,10 @@ export interface CommandHandlers {
 export interface CommandEnabledFlags {
     canUndo?: () => boolean;
     canRedo?: () => boolean;
+    /** True when the layered engine is the active layout. */
+    engineLayeredActive?: () => boolean;
+    /** True when the hyperbolic engine is the active layout. */
+    engineHyperbolicActive?: () => boolean;
 }
 
 export function buildCommands(
@@ -241,13 +251,15 @@ export function buildCommands(
             group: "View",
             dividerBefore: true,
             icon: icons["view.engineLayered"],
+            checked: enabled.engineLayeredActive,
             run: h.viewEngineLayered,
         },
         {
             id: "view.engineHyperbolic",
-            label: "Use hyperbolic engine (Phase 5 stub)",
+            label: "Use hyperbolic engine",
             group: "View",
             icon: icons["view.engineHyperbolic"],
+            checked: enabled.engineHyperbolicActive,
             run: h.viewEngineHyperbolic,
         },
 

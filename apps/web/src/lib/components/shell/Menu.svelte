@@ -4,6 +4,7 @@
 -->
 <script lang="ts">
     import { tick } from "svelte";
+    import { Check } from "@lucide/svelte";
     import { formatCombo } from "$lib/keyboard";
     import type { IconComponent, MenuEntry, MenuItem } from "./menu";
 
@@ -166,6 +167,9 @@
                             <span class="w-3.5 shrink-0"></span>
                         {/if}
                         <span class="flex-1">{item.label}</span>
+                        {#if item.checked}
+                            <Check size={12} strokeWidth={2.5} class="text-accent shrink-0" />
+                        {/if}
                         {#if sc}
                             <span class="text-fg-muted ml-3 font-mono text-[11px] tracking-tight">
                                 {formatCombo(sc)}
