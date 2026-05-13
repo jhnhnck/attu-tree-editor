@@ -423,7 +423,7 @@
 
         {#each projected as item (item.id)}
             {@const person = lookupPerson(item.id)}
-            {#if person && !item.belowThreshold && !clusterOf.has(item.id)}
+            {#if person && !clusterOf.has(item.id)}
                 <!-- svelte-ignore a11y_no_static_element_interactions -->
                 <div
                     class="hyp-person absolute -translate-x-1/2 -translate-y-1/2"
