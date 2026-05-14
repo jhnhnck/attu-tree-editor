@@ -15,20 +15,66 @@
         Heart,
         Baby,
     } from "@lucide/svelte";
-    import type { CoupleRecord, Person, PersonId, Tree } from "$lib/domain/types";
+    import type {
+        CoupleRecord,
+        ParentPedi,
+        ParentRef,
+        ParentRole,
+        Person,
+        PersonId,
+        Tree,
+    } from "$lib/domain/types";
     import { getParents, type CouplePatch } from "$lib/domain/tree";
+
+    const ROLE_OPTIONS: readonly ParentRole[] = [
+        "mother",
+        "father",
+        "parent",
+        "progenitor",
+        "donor",
+        "surrogate",
+        "social",
+    ];
+    const PEDI_OPTIONS: readonly ParentPedi[] = [
+        "birth",
+        "adopted",
+        "foster",
+        "sealed",
+        "chosen",
+        "magical",
+        "cloned",
+        "hatched",
+        "summoned",
+        "manufactured",
+    ];
     import type { HaracalndeDateData } from "$lib/date/HaracalndeDate";
     import DateInput from "$lib/components/form/DateInput.svelte";
     import PersonChooser from "./PersonChooser.svelte";
 
-    type ParentRole = "mother" | "father";
-    type Slot = { kind: "parent"; role: ParentRole } | { kind: "partner" } | { kind: "child" };
+    type LegacyParentRole = "mother" | "father";
+    type Slot =
+        | { kind: "parent"; role: LegacyParentRole }
+        | { kind: "parent-extra" }
+        | { kind: "partner" }
+        | { kind: "child" };
 
     interface Props {
         tree: Tree;
         person: Person;
-        onsetParent: (childId: PersonId, parentId: PersonId, role: ParentRole) => void;
-        onunsetParent: (childId: PersonId, role: ParentRole) => void;
+        onsetParent: (childId: PersonId, parentId: PersonId, role: LegacyParentRole) => void;
+        onunsetParent: (childId: PersonId, role: LegacyParentRole) => void;
+        /** add a parent with arbitrary role + pedi (Phase 2b.3 N-parent). */
+        onaddParentRef?: ((childId: PersonId, ref: ParentRef) => void) | undefined;
+        /** remove a parent entry by personId (any role). */
+        onunsetParentById?: ((childId: PersonId, parentId: PersonId) => void) | undefined;
+        /** mutate the role / pedi of an existing parent entry. */
+        onupdateParentRef?:
+            | ((
+                  childId: PersonId,
+                  parentId: PersonId,
+                  patch: { role?: ParentRole; pedi?: ParentPedi },
+              ) => void)
+            | undefined;
         onaddPartner: (aId: PersonId, bId: PersonId) => void;
         onremovePartner: (aId: PersonId, bId: PersonId) => void;
         onaddChild: (parentId: PersonId, childId: PersonId) => void;
@@ -47,6 +93,9 @@
         person,
         onsetParent,
         onunsetParent,
+        onaddParentRef,
+        onunsetParentById,
+        onupdateParentRef,
         onaddPartner,
         onremovePartner,
         onaddChild,
@@ -63,8 +112,12 @@
 
     const allPeople = $derived(Object.values(tree.people));
 
-    const motherRef = $derived(getParents(person).find((r) => r.role === "mother"));
-    const fatherRef = $derived(getParents(person).find((r) => r.role === "father"));
+    const parentRefs = $derived(getParents(person));
+    const extraParentRefs = $derived(
+        parentRefs.filter((r) => r.role !== "mother" && r.role !== "father"),
+    );
+    const motherRef = $derived(parentRefs.find((r) => r.role === "mother"));
+    const fatherRef = $derived(parentRefs.find((r) => r.role === "father"));
     const mother = $derived(motherRef ? tree.people[motherRef.personId] : undefined);
     const father = $derived(fatherRef ? tree.people[fatherRef.personId] : undefined);
     const partners = $derived(
@@ -118,6 +171,7 @@
     function chooserTitle(slot: Slot | "trace"): string {
         if (slot === "trace") return "trace path to…";
         if (slot.kind === "parent") return slot.role === "mother" ? "set mother" : "set father";
+        if (slot.kind === "parent-extra") return "add parent";
         if (slot.kind === "partner") return "add partner";
         return "add child";
     }
@@ -131,6 +185,8 @@
         const slot = chooserSlot;
         if (!slot) return;
         if (slot.kind === "parent") onsetParent(person.id, id, slot.role);
+        else if (slot.kind === "parent-extra")
+            onaddParentRef?.(person.id, { personId: id, role: "parent", pedi: "birth" });
         else if (slot.kind === "partner") onaddPartner(person.id, id);
         else onaddChild(person.id, id);
         chooserSlot = undefined;
@@ -253,6 +309,74 @@
                 </div>
             {/if}
         </div>
+
+        <!-- extra parents (Phase 2b.3: N-parent UI) -->
+        {#each extraParentRefs as ref (ref.personId)}
+            {@const p = tree.people[ref.personId]}
+            {#if p}
+                <div class={rowCls} data-extra-parent-row>
+                    <span class="text-fg-muted w-12 shrink-0 text-xs">parent</span>
+                    <button
+                        type="button"
+                        class="flex-1 truncate text-left hover:underline"
+                        onclick={() => onselect(p.id)}
+                    >
+                        {fullName(p)}
+                    </button>
+                    <select
+                        class="border-line bg-canvas text-fg-muted hover:text-fg shrink-0 rounded border px-1 py-0.5 text-[11px]"
+                        title="role"
+                        aria-label="role for {fullName(p)}"
+                        value={ref.role ?? "parent"}
+                        onchange={(e: Event & { currentTarget: HTMLSelectElement }) =>
+                            onupdateParentRef?.(person.id, ref.personId, {
+                                role: e.currentTarget.value as ParentRole,
+                            })}
+                    >
+                        {#each ROLE_OPTIONS as opt (opt)}
+                            <option value={opt}>{opt}</option>
+                        {/each}
+                    </select>
+                    <select
+                        class="border-line bg-canvas text-fg-muted hover:text-fg shrink-0 rounded border px-1 py-0.5 text-[11px]"
+                        title="pedigree"
+                        aria-label="pedigree for {fullName(p)}"
+                        value={ref.pedi ?? "birth"}
+                        onchange={(e: Event & { currentTarget: HTMLSelectElement }) =>
+                            onupdateParentRef?.(person.id, ref.personId, {
+                                pedi: e.currentTarget.value as ParentPedi,
+                            })}
+                    >
+                        {#each PEDI_OPTIONS as opt (opt)}
+                            <option value={opt}>{opt}</option>
+                        {/each}
+                    </select>
+                    <button
+                        type="button"
+                        class={iconBtnCls}
+                        title="unlink parent"
+                        aria-label="unlink parent {fullName(p)}"
+                        onclick={() => onunsetParentById?.(person.id, ref.personId)}
+                    >
+                        <X size={14} />
+                    </button>
+                </div>
+            {/if}
+        {/each}
+
+        {#if onaddParentRef}
+            <div class="relative">
+                <button
+                    type="button"
+                    class={addBtnCls}
+                    onclick={() => (chooserSlot = { kind: "parent-extra" })}
+                    aria-label="add parent"
+                >
+                    <Plus size={12} />
+                    add parent
+                </button>
+            </div>
+        {/if}
     </section>
 
     <!-- partners -->

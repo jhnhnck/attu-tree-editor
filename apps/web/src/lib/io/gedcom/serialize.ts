@@ -45,17 +45,31 @@ export function serializeGedcom(tree: Tree, opts: GedSerializeOptions = {}): str
         (a, b) => xrefSortKey(a[1]) - xrefSortKey(b[1]),
     );
 
+    // FAM records: derive first so we can emit FAMC links from each INDI
+    // back to its matching FAM (needed for the PEDI standard-tag fallback).
+    const families = deriveFamilies(tree, xrefByPerson);
+    const famXrefByGroupKey = new Map<string, string>();
+    for (let i = 0; i < families.length; i += 1) {
+        const fam = families[i]!;
+        famXrefByGroupKey.set(famGroupKey(fam.husbIds, fam.wifeIds), `@F${String(i + 1)}@`);
+    }
+    const famXrefByChildId = buildFamByChildId(tree, famXrefByGroupKey);
+
     const portraitMediaPath = opts.portraitMediaPathById ?? {};
     for (const [pid] of xrefSorted) {
         const person = tree.people[pid];
         const xref = xrefByPerson.get(pid);
         if (!person || !xref) continue;
-        appendIndi(lines, person, xref, xrefByPerson, portraitMediaPath[pid]);
+        appendIndi(
+            lines,
+            person,
+            xref,
+            xrefByPerson,
+            portraitMediaPath[pid],
+            famXrefByChildId.get(pid),
+        );
     }
 
-    // FAM records: derived from EVERY (mother, father) pairing observed on children
-    // plus any explicit CoupleRecord (which contributes spouse links and metadata)
-    const families = deriveFamilies(tree, xrefByPerson);
     let famCounter = 1;
     for (const fam of families) {
         appendFam(lines, fam, xrefByPerson, famCounter);
@@ -120,14 +134,43 @@ interface DerivedFamily {
     couple?: CoupleRecord;
 }
 
+/** Canonical group key shared by deriveFamilies + the FAMC lookup pass. */
+function famGroupKey(husbIds: readonly PersonId[], wifeIds: readonly PersonId[]): string {
+    return `${[...husbIds].sort().join(",")}|${[...wifeIds].sort().join(",")}`;
+}
+
+/**
+ * Map each child personId to the FAM xref it belongs in (for INDI-side
+ * FAMC + PEDI emit). Mirrors deriveFamilies' role/gender lookup so the
+ * same child lands in the same FAM in both passes.
+ */
+function buildFamByChildId(
+    tree: Tree,
+    famXrefByKey: ReadonlyMap<string, string>,
+): Map<PersonId, string> {
+    const out = new Map<PersonId, string>();
+    for (const person of Object.values(tree.people)) {
+        const refs = getParents(person);
+        if (refs.length === 0) continue;
+        const husbIds: PersonId[] = [];
+        const wifeIds: PersonId[] = [];
+        for (const ref of refs) {
+            const parent = tree.people[ref.personId];
+            if (ref.role === "mother") wifeIds.push(ref.personId);
+            else if (ref.role === "father") husbIds.push(ref.personId);
+            else if (parent?.gender === "f") wifeIds.push(ref.personId);
+            else husbIds.push(ref.personId);
+        }
+        const x = famXrefByKey.get(famGroupKey(husbIds, wifeIds));
+        if (x) out.set(person.id, x);
+    }
+    return out;
+}
+
 function deriveFamilies(tree: Tree, xrefByPerson: Map<PersonId, string>): DerivedFamily[] {
     const groups = new Map<string, DerivedFamily>();
 
-    // single canonical key shape so a couple with children (added in the
-    // children pass) and the same couple as an explicit CoupleRecord (added in
-    // the couples pass) coalesce into one FAM
-    const groupKey = (husbIds: PersonId[], wifeIds: PersonId[]): string =>
-        `${[...husbIds].sort().join(",")}|${[...wifeIds].sort().join(",")}`;
+    const groupKey = famGroupKey;
 
     // group children by parent set - each ParentRef maps to a HUSB or WIFE
     // slot using role hint, falling back to the parent's gender. Multi-parent
@@ -237,6 +280,7 @@ function appendIndi(
     xref: string,
     xrefByPerson: Map<PersonId, string>,
     portraitMediaPath: string | undefined,
+    famXref: string | undefined,
 ): void {
     lines.push(`0 ${xref} INDI`);
 
@@ -274,10 +318,53 @@ function appendIndi(
         lines.push(`2 FILE ${portraitMediaPath}`);
     }
 
-    // FAMS / FAMC links omitted intentionally: read-gedcom does not require them
-    // (they're a redundancy; HUSB/WIFE/CHIL on the FAM side carries the same info)
-    // and including them would require we know which FAM xref each person belongs to.
-    void xrefByPerson;
+    // FAMC + PEDI fallback (Phase 2b.3 standard-tag fallback). One FAMC
+    // pointing at the FAM grouping this child's parent set; PEDI emits the
+    // strongest non-birth pedigree found across the parent refs so other
+    // GEDCOM tools see "adopted" / "foster" / "sealing" rather than
+    // collapsing to the default "birth". Non-standard pedi values
+    // (chosen / magical / cloned / hatched / summoned / manufactured)
+    // omit the PEDI tag (no standard mapping); the _TREES_PARENT_REF
+    // extension below carries the full fidelity.
+    const refs = getParents(person);
+    if (famXref !== undefined && refs.length > 0) {
+        lines.push(`1 FAMC ${famXref}`);
+        const standardPedi = pickStandardPedi(refs);
+        if (standardPedi !== undefined) lines.push(`2 PEDI ${standardPedi}`);
+    }
+
+    // _TREES_PARENT_REF extension (Phase 2b.3 full fidelity). One entry
+    // per ParentRef with role + pedi. Registered via HEAD.SCHMA from the
+    // Phase 0 namespace; tools that don't know the extension strip these
+    // lines and fall back to the FAMC + PEDI emit above.
+    for (const ref of refs) {
+        const px = xrefByPerson.get(ref.personId);
+        if (px === undefined) continue;
+        lines.push(`1 _TREES_PARENT_REF ${px}`);
+        if (ref.role !== undefined) lines.push(`2 _ROLE ${ref.role}`);
+        if (ref.pedi !== undefined) lines.push(`2 _PEDI ${ref.pedi}`);
+    }
+}
+
+/**
+ * Map relationship-vocabulary ParentPedi values to the standard GEDCOM
+ * PEDI vocabulary (birth / adopted / foster / sealing). Returns
+ * undefined when every ref is `birth` (the GEDCOM default — omit the
+ * tag) OR when no ref's pedi maps to a standard value. Non-standard
+ * pedi values are preserved only through the _TREES_PARENT_REF
+ * extension; this function deliberately drops them from the standard
+ * fallback so a strict GEDCOM 5.5.1 parser sees a clean file.
+ */
+function pickStandardPedi(refs: readonly { pedi?: string }[]): string | undefined {
+    // Prefer adopted > foster > sealing > (birth omits).
+    const ranked = ["adopted", "foster", "sealing"] as const;
+    const seen = new Set<string>();
+    for (const r of refs) {
+        if (r.pedi === "sealed") seen.add("sealing");
+        else if (r.pedi === "adopted" || r.pedi === "foster") seen.add(r.pedi);
+    }
+    for (const v of ranked) if (seen.has(v)) return v;
+    return undefined;
 }
 
 function appendFam(

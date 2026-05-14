@@ -195,6 +195,60 @@ describe("serializeGedcom - synthetic", () => {
         const indiB = out.split("0 @I2@ INDI")[1]?.split("0 @")[0] ?? "";
         expect(indiB).not.toContain("OBJE");
     });
+
+    it("emits _TREES_PARENT_REF and FAMC+PEDI fallback for an adopted parent", () => {
+        const base = tinyTree();
+        const kid = base.people.CCCCC;
+        if (!kid) throw new Error("fixture missing CCCCC");
+        kid.parentIds = [
+            { personId: "AAAAA", role: "father", pedi: "adopted" },
+            { personId: "BBBBB", role: "mother", pedi: "birth" },
+        ];
+        const out = serializeGedcom(base);
+        const indiKid = out.split("0 @I3@ INDI")[1]?.split("0 @")[0] ?? "";
+        // standard fallback: FAMC + strongest non-birth PEDI (adopted wins)
+        expect(indiKid).toContain("1 FAMC @F1@");
+        expect(indiKid).toContain("2 PEDI adopted");
+        // full-fidelity extension: one entry per ref with role + pedi
+        expect(indiKid).toContain("1 _TREES_PARENT_REF @I1@\r\n2 _ROLE father\r\n2 _PEDI adopted");
+        expect(indiKid).toContain("1 _TREES_PARENT_REF @I2@\r\n2 _ROLE mother\r\n2 _PEDI birth");
+    });
+
+    it("emits _TREES_PARENT_REF for non-standard pedi without polluting standard PEDI", () => {
+        const base = tinyTree();
+        const kid = base.people.CCCCC;
+        if (!kid) throw new Error("fixture missing CCCCC");
+        kid.parentIds = [{ personId: "AAAAA", role: "donor", pedi: "magical" }];
+        base.couples = [];
+        const out = serializeGedcom(base);
+        const indiKid = out.split("0 @I3@ INDI")[1]?.split("0 @")[0] ?? "";
+        // no standard mapping for magical → PEDI tag is omitted
+        expect(indiKid).not.toContain("2 PEDI");
+        // extension carries the full data
+        expect(indiKid).toContain("1 _TREES_PARENT_REF @I1@\r\n2 _ROLE donor\r\n2 _PEDI magical");
+    });
+
+    it("round-trips role + pedi through serialize → parse → serialize", () => {
+        // build a tree with mixed pedi values; emit, parse, emit again,
+        // check the second emit still contains the full extension data.
+        const base = tinyTree();
+        const kid = base.people.CCCCC;
+        if (!kid) throw new Error("fixture missing CCCCC");
+        kid.parentIds = [
+            { personId: "AAAAA", role: "father", pedi: "adopted" },
+            { personId: "BBBBB", role: "donor", pedi: "magical" },
+        ];
+        const out1 = serializeGedcom(base);
+        const r2 = unwrap(parseGedcom(out1));
+        const kid2 = Object.values(r2.tree.people).find((p) => p.given === "Kid");
+        if (!kid2) throw new Error("re-parsed Kid missing");
+        const parents = kid2.parentIds ?? [];
+        expect(parents).toHaveLength(2);
+        const fatherRef = parents.find((r) => r.role === "father");
+        const donorRef = parents.find((r) => r.role === "donor");
+        expect(fatherRef?.pedi).toBe("adopted");
+        expect(donorRef?.pedi).toBe("magical");
+    });
 });
 
 describe("serializeGedcom - golden snapshot", () => {

@@ -8,7 +8,15 @@ import type { TreeNode, TreeNodeRoot } from "read-gedcom";
 
 import { HaracalndeDate } from "$lib/date/HaracalndeDate";
 import { generateId } from "$lib/domain/ids";
-import type { CoupleRecord, ParentRef, Person, PersonId, Tree } from "$lib/domain/types";
+import type {
+    CoupleRecord,
+    ParentPedi,
+    ParentRef,
+    ParentRole,
+    Person,
+    PersonId,
+    Tree,
+} from "$lib/domain/types";
 
 const ID_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
@@ -116,6 +124,11 @@ function buildTree(root: TreeNodeRoot): GedParseResult {
     const xrefByPersonId: Record<PersonId, string> = {};
     const people: Record<PersonId, Person> = {};
     const taken = new Set<string>();
+    // raw _TREES_PARENT_REF data collected during pass 1; resolved after pass 2
+    const pendingParentRefs = new Map<
+        PersonId,
+        Array<{ xref: string; role?: string; pedi?: string }>
+    >();
 
     for (const indi of indiNodes) {
         if (indi.pointer === null) continue;
@@ -123,7 +136,7 @@ function buildTree(root: TreeNodeRoot): GedParseResult {
         taken.add(personId);
         idByXref.set(indi.pointer, personId);
         xrefByPersonId[personId] = indi.pointer;
-        people[personId] = buildPerson(personId, indi, findings);
+        people[personId] = buildPerson(personId, indi, findings, pendingParentRefs);
     }
 
     // Pass 2: families. Resolve HUSB/WIFE/CHIL xrefs and stitch into the persons.
@@ -133,6 +146,36 @@ function buildTree(root: TreeNodeRoot): GedParseResult {
     const couples: CoupleRecord[] = [];
     for (const fam of famNodes) {
         couples.push(...applyFam(fam, idByXref, people, findings));
+    }
+
+    // Pass 2b: resolve _TREES_PARENT_REF extensions. Override the role/pedi
+    // written by FAM stitching with the full-fidelity data from the extension.
+    for (const [personId, rawRefs] of pendingParentRefs) {
+        const person = people[personId];
+        if (!person) continue;
+        for (const raw of rawRefs) {
+            const parentId = idByXref.get(raw.xref);
+            if (!parentId) continue;
+            const role = raw.role as ParentRole | undefined;
+            const pedi = raw.pedi as ParentPedi | undefined;
+            const existing = person.parentIds ?? [];
+            const idx = existing.findIndex((r) => r.personId === parentId);
+            if (idx >= 0) {
+                // update role/pedi in-place; extension wins over FAM default
+                const updated = [...existing];
+                updated[idx] = {
+                    personId: parentId,
+                    ...(role !== undefined ? { role } : {}),
+                    ...(pedi !== undefined ? { pedi } : {}),
+                };
+                person.parentIds = updated;
+            } else {
+                const ref: ParentRef = { personId: parentId };
+                if (role !== undefined) ref.role = role;
+                if (pedi !== undefined) ref.pedi = pedi;
+                person.parentIds = [...existing, ref];
+            }
+        }
     }
 
     // pick a root: first INDI (xref @I1@ in FE exports is the file's "owner")
@@ -156,7 +199,12 @@ function buildTree(root: TreeNodeRoot): GedParseResult {
     return { tree, head, findings, xrefByPersonId };
 }
 
-function buildPerson(id: PersonId, indi: TreeNode, findings: Finding[]): Person {
+function buildPerson(
+    id: PersonId,
+    indi: TreeNode,
+    findings: Finding[],
+    pendingParentRefs: Map<PersonId, Array<{ xref: string; role?: string; pedi?: string }>>,
+): Person {
     const person: Person = {
         id,
         given: "",
@@ -189,6 +237,20 @@ function buildPerson(id: PersonId, indi: TreeNode, findings: Finding[]): Person 
             case "FAMS":
                 // resolved in pass 2
                 break;
+            case "_TREES_PARENT_REF": {
+                const xref = sub.value;
+                if (xref) {
+                    const raw: { xref: string; role?: string; pedi?: string } = { xref };
+                    for (const grand of sub.children) {
+                        if (grand.tag === "_ROLE" && grand.value) raw.role = grand.value;
+                        if (grand.tag === "_PEDI" && grand.value) raw.pedi = grand.value;
+                    }
+                    const list = pendingParentRefs.get(id) ?? [];
+                    list.push(raw);
+                    pendingParentRefs.set(id, list);
+                }
+                break;
+            }
             case "OBJE":
                 // portraits round-trip via the bundle reader, which pulls
                 // bytes from media/<personId>.<ext>. the OBJE block in the
@@ -339,8 +401,8 @@ function applyFam(
     // stitch parent links on every child via parentIds[]. The first HUSB
     // becomes the father slot and the first WIFE becomes the mother slot for
     // canonical role labelling; additional HUSB/WIFE entries (same-sex
-    // co-parents) get role 'parent'. Phase 2b.3 will wire `_TREES_PARENT_REF`
-    // import to capture richer role/pedi fidelity.
+    // co-parents) get role 'parent'. Any `_TREES_PARENT_REF` extension on the
+    // child overrides these defaults during pass 2b.
     const primaryHusb = husbIds[0];
     const primaryWife = wifeIds[0];
     for (const cid of childIds) {
@@ -360,8 +422,10 @@ function applyFam(
         };
         if (primaryHusb) pushRef({ personId: primaryHusb, role: "father", pedi: "birth" });
         if (primaryWife) pushRef({ personId: primaryWife, role: "mother", pedi: "birth" });
-        for (const hid of husbIds.slice(1)) pushRef({ personId: hid, role: "parent", pedi: "birth" });
-        for (const wid of wifeIds.slice(1)) pushRef({ personId: wid, role: "parent", pedi: "birth" });
+        for (const hid of husbIds.slice(1))
+            pushRef({ personId: hid, role: "parent", pedi: "birth" });
+        for (const wid of wifeIds.slice(1))
+            pushRef({ personId: wid, role: "parent", pedi: "birth" });
         if (additions.length > 0) child.parentIds = [...existing, ...additions];
     }
 

@@ -288,6 +288,85 @@ describe("parseGedcom - synthetic", () => {
         expect(p?.birth).toBeUndefined();
         expect(r.findings.find((f) => f.kind === "bad-date")).toBeUndefined();
     });
+
+    it("_TREES_PARENT_REF overrides FAM-derived role/pedi", () => {
+        // adopted parent: FAM emits HUSB+CHIL with default birth pedi; the
+        // extension carries role=father pedi=adopted and must win.
+        const text = [
+            "0 HEAD",
+            "1 GEDC",
+            "2 VERS 5.5.1",
+            "0 @I1@ INDI",
+            "1 NAME Adoptive /Dad/",
+            "1 SEX M",
+            "0 @I2@ INDI",
+            "1 NAME Kid /X/",
+            "1 SEX F",
+            "1 FAMC @F1@",
+            "2 PEDI adopted",
+            "1 _TREES_PARENT_REF @I1@",
+            "2 _ROLE father",
+            "2 _PEDI adopted",
+            "0 @F1@ FAM",
+            "1 HUSB @I1@",
+            "1 CHIL @I2@",
+            "0 TRLR",
+        ].join("\r\n");
+        const r = unwrap(parseGedcom(text));
+        const kid = Object.values(r.tree.people).find((p) => p.given === "Kid");
+        if (!kid) throw new Error("missing Kid");
+        const parents = getParents(kid);
+        expect(parents).toHaveLength(1);
+        expect(parents[0]?.role).toBe("father");
+        expect(parents[0]?.pedi).toBe("adopted");
+    });
+
+    it("_TREES_PARENT_REF preserves non-standard role and pedi values", () => {
+        // donor / magical: no GEDCOM standard equivalent. FAM is omitted
+        // entirely so the extension is the only source; the parse must
+        // append the ref.
+        const text = [
+            "0 HEAD",
+            "1 GEDC",
+            "2 VERS 5.5.1",
+            "0 @I1@ INDI",
+            "1 NAME Donor /Mage/",
+            "1 SEX U",
+            "0 @I2@ INDI",
+            "1 NAME Kid /X/",
+            "1 SEX F",
+            "1 _TREES_PARENT_REF @I1@",
+            "2 _ROLE donor",
+            "2 _PEDI magical",
+            "0 TRLR",
+        ].join("\r\n");
+        const r = unwrap(parseGedcom(text));
+        const kid = Object.values(r.tree.people).find((p) => p.given === "Kid");
+        if (!kid) throw new Error("missing Kid");
+        const parents = getParents(kid);
+        expect(parents).toHaveLength(1);
+        expect(parents[0]?.role).toBe("donor");
+        expect(parents[0]?.pedi).toBe("magical");
+    });
+
+    it("_TREES_PARENT_REF with unknown parent xref drops cleanly", () => {
+        const text = [
+            "0 HEAD",
+            "1 GEDC",
+            "2 VERS 5.5.1",
+            "0 @I1@ INDI",
+            "1 NAME Kid /X/",
+            "1 SEX F",
+            "1 _TREES_PARENT_REF @I999@",
+            "2 _ROLE donor",
+            "2 _PEDI magical",
+            "0 TRLR",
+        ].join("\r\n");
+        const r = unwrap(parseGedcom(text));
+        const kid = Object.values(r.tree.people).find((p) => p.given === "Kid");
+        if (!kid) throw new Error("missing Kid");
+        expect(getParents(kid)).toEqual([]);
+    });
 });
 
 describe("parseGedcom - example file", () => {

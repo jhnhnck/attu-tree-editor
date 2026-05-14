@@ -12,11 +12,14 @@ import {
     descendantsOf,
     getParents,
     linkParent,
+    linkParentRef,
     linkSpouse,
     removePerson,
     siblingsOf,
     unlinkParent,
+    unlinkParentByPersonId,
     unlinkSpouse,
+    updateParentRef,
     updatePerson,
 } from "$lib/domain/tree";
 import type { Person, Tree } from "$lib/domain/types";
@@ -294,9 +297,7 @@ describe("linkParent / unlinkParent (parentIds writes)", () => {
         if (!linked.ok) throw new Error(linked.error);
         const child = linked.value.people[kid];
         if (!child) throw new Error("missing child");
-        expect(child.parentIds).toEqual([
-            { personId: addMom.id, role: "mother", pedi: "birth" },
-        ]);
+        expect(child.parentIds).toEqual([{ personId: addMom.id, role: "mother", pedi: "birth" }]);
     });
 
     it("unlinkParent drops the matching entry from parentIds", () => {
@@ -312,5 +313,86 @@ describe("linkParent / unlinkParent (parentIds writes)", () => {
         if (!child) throw new Error("missing child");
         // parentIds either absent or empty after stripping the sole entry
         expect(child.parentIds ?? []).toEqual([]);
+    });
+});
+
+describe("linkParentRef / unlinkParentByPersonId / updateParentRef (Phase 2b.3 N-parent ops)", () => {
+    it("linkParentRef appends an explicit ParentRef with arbitrary role + pedi", () => {
+        let t = createTree("x", { ...bareRoot(), given: "Kid" });
+        const kid = ROOT_ID;
+        const addExtra = addPerson(t, bareChild("Magic", "u"));
+        t = addExtra.tree;
+        const r = linkParentRef(t, kid, {
+            personId: addExtra.id,
+            role: "donor",
+            pedi: "magical",
+        });
+        if (!r.ok) throw new Error(r.error);
+        const child = r.value.people[kid];
+        if (!child) throw new Error("missing kid");
+        expect(child.parentIds).toEqual([
+            { personId: addExtra.id, role: "donor", pedi: "magical" },
+        ]);
+    });
+
+    it("linkParentRef errs when the same personId is already linked", () => {
+        let t = createTree("x", { ...bareRoot(), given: "Kid" });
+        const kid = ROOT_ID;
+        const addP = addPerson(t, bareChild("P", "u"));
+        t = addP.tree;
+        const first = linkParentRef(t, kid, {
+            personId: addP.id,
+            role: "parent",
+            pedi: "birth",
+        });
+        if (!first.ok) throw new Error(first.error);
+        t = first.value;
+        const second = linkParentRef(t, kid, {
+            personId: addP.id,
+            role: "donor",
+            pedi: "adopted",
+        });
+        expect(second.ok).toBe(false);
+    });
+
+    it("unlinkParentByPersonId removes the ref regardless of role", () => {
+        let t = createTree("x", { ...bareRoot(), given: "Kid" });
+        const kid = ROOT_ID;
+        const addExtra = addPerson(t, bareChild("Donor", "u"));
+        t = addExtra.tree;
+        const linked = linkParentRef(t, kid, {
+            personId: addExtra.id,
+            role: "donor",
+            pedi: "magical",
+        });
+        if (!linked.ok) throw new Error(linked.error);
+        t = linked.value;
+        const stripped = unlinkParentByPersonId(t, kid, addExtra.id);
+        const child = stripped.people[kid];
+        if (!child) throw new Error("missing kid");
+        expect(child.parentIds ?? []).toEqual([]);
+    });
+
+    it("updateParentRef mutates role/pedi without touching personId", () => {
+        let t = createTree("x", { ...bareRoot(), given: "Kid" });
+        const kid = ROOT_ID;
+        const addExtra = addPerson(t, bareChild("Adoptive", "u"));
+        t = addExtra.tree;
+        const linked = linkParentRef(t, kid, {
+            personId: addExtra.id,
+            role: "parent",
+            pedi: "birth",
+        });
+        if (!linked.ok) throw new Error(linked.error);
+        t = linked.value;
+        const updated = updateParentRef(t, kid, addExtra.id, {
+            role: "social",
+            pedi: "adopted",
+        });
+        const child = updated.people[kid];
+        if (!child) throw new Error("missing kid");
+        expect(child.parentIds).toEqual([
+            { personId: addExtra.id, role: "social", pedi: "adopted" },
+        ]);
     });
 });

@@ -18,7 +18,14 @@
         Users,
         X,
     } from "@lucide/svelte";
-    import type { Person, PersonId, Tree } from "$lib/domain/types";
+    import type {
+        ParentPedi,
+        ParentRef,
+        ParentRole,
+        Person,
+        PersonId,
+        Tree,
+    } from "$lib/domain/types";
     import type { CouplePatch, PersonPatch } from "$lib/domain/tree";
     import type { PortraitUrlCache } from "$lib/state/portraitUrls.svelte";
     import PersonalTab from "./PersonalTab.svelte";
@@ -27,6 +34,7 @@
 
     type Slot =
         | { kind: "parent"; role: "mother" | "father" }
+        | { kind: "parent-extra" }
         | { kind: "partner" }
         | { kind: "child" };
     type Tab = "personal" | "connections" | "details" | "bio";
@@ -44,6 +52,13 @@
         onpatch: (id: PersonId, patch: PersonPatch) => void;
         onsetParent: (childId: PersonId, parentId: PersonId, role: "mother" | "father") => void;
         onunsetParent: (childId: PersonId, role: "mother" | "father") => void;
+        onaddParentRef?: (childId: PersonId, ref: ParentRef) => void;
+        onunsetParentById?: (childId: PersonId, parentId: PersonId) => void;
+        onupdateParentRef?: (
+            childId: PersonId,
+            parentId: PersonId,
+            patch: { role?: ParentRole; pedi?: ParentPedi },
+        ) => void;
         onaddPartner: (aId: PersonId, bId: PersonId) => void;
         onremovePartner: (aId: PersonId, bId: PersonId) => void;
         onaddChild: (parentId: PersonId, childId: PersonId) => void;
@@ -75,6 +90,9 @@
         onpatch,
         onsetParent,
         onunsetParent,
+        onaddParentRef,
+        onunsetParentById,
+        onupdateParentRef,
         onaddPartner,
         onremovePartner,
         onaddChild,
@@ -334,6 +352,9 @@
                     {person}
                     {onsetParent}
                     {onunsetParent}
+                    {onaddParentRef}
+                    {onunsetParentById}
+                    {onupdateParentRef}
                     {onaddPartner}
                     {onremovePartner}
                     {onaddChild}

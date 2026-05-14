@@ -534,10 +534,7 @@
         treeStore.update((t) => unlinkParent(t, childId, role));
     }
 
-    function addParentRefLink(
-        childId: PersonId,
-        ref: import("$lib/domain/types").ParentRef,
-    ): void {
+    function addParentRefLink(childId: PersonId, ref: import("$lib/domain/types").ParentRef): void {
         const r = linkParentRef(treeStore.tree, childId, ref);
         if (!r.ok) {
             toasts.push(r.error, "error");

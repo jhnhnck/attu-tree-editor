@@ -4,7 +4,15 @@
  */
 
 import { generateId, ROOT_ID } from "$lib/domain/ids";
-import type { CoupleRecord, ParentRef, Person, PersonId, Tree } from "$lib/domain/types";
+import type {
+    CoupleRecord,
+    ParentPedi,
+    ParentRef,
+    ParentRole,
+    Person,
+    PersonId,
+    Tree,
+} from "$lib/domain/types";
 import { err, ok, type Result } from "$lib/utils/result";
 
 /**
@@ -150,6 +158,70 @@ export function unlinkParent(t: Tree, childId: PersonId, role: "mother" | "fathe
     if (filtered.length === 0) delete next.parentIds;
     else next.parentIds = filtered;
     return { ...t, people: { ...t.people, [childId]: next } };
+}
+
+/**
+ * Append a parent ref with explicit role + pedi. Use this for the
+ * N-parent inspector affordance where the user picks a non-mother/
+ * father role or a non-birth pedi. The legacy `linkParent` stays
+ * around for callers that only know the two-slot world (drag-drop,
+ * GEDCOM HUSB/WIFE stitch). Returns err if `personId` is already
+ * present in the child's parentIds — callers should call
+ * `updateParentRef` to change an existing entry's role / pedi.
+ */
+export function linkParentRef(t: Tree, childId: PersonId, ref: ParentRef): Result<Tree, string> {
+    const child = t.people[childId];
+    if (!child) return err(`unknown child id: ${childId}`);
+    if (!t.people[ref.personId]) return err(`unknown parent id: ${ref.personId}`);
+    const existing = getParents(child);
+    if (existing.some((r) => r.personId === ref.personId)) {
+        return err(`parent ${ref.personId} already linked to ${childId}`);
+    }
+    const next: Person = { ...child, parentIds: [...existing, { ...ref }] };
+    return ok({ ...t, people: { ...t.people, [childId]: next } });
+}
+
+/**
+ * Drop the parent ref pointing at `parentId` from `childId`'s
+ * parentIds[]. No-op if not present. Distinct from `unlinkParent`
+ * which removes by role.
+ */
+export function unlinkParentByPersonId(t: Tree, childId: PersonId, parentId: PersonId): Tree {
+    const child = t.people[childId];
+    if (!child) return t;
+    const next: Person = { ...child };
+    const existing = getParents(child);
+    const filtered = existing.filter((r) => r.personId !== parentId);
+    if (filtered.length === existing.length) return t;
+    if (filtered.length === 0) delete next.parentIds;
+    else next.parentIds = filtered;
+    return { ...t, people: { ...t.people, [childId]: next } };
+}
+
+/**
+ * Mutate an existing parent ref's role and/or pedi (identity stays
+ * `personId`). Returns the tree unchanged if no matching entry.
+ */
+export function updateParentRef(
+    t: Tree,
+    childId: PersonId,
+    parentId: PersonId,
+    patch: { role?: ParentRole | undefined; pedi?: ParentPedi | undefined },
+): Tree {
+    const child = t.people[childId];
+    if (!child) return t;
+    const existing = getParents(child);
+    if (!existing.some((r) => r.personId === parentId)) return t;
+    const updated = existing.map((r) => {
+        if (r.personId !== parentId) return r;
+        const merged: ParentRef = { personId: r.personId };
+        const role = patch.role !== undefined ? patch.role : r.role;
+        const pedi = patch.pedi !== undefined ? patch.pedi : r.pedi;
+        if (role !== undefined) merged.role = role;
+        if (pedi !== undefined) merged.pedi = pedi;
+        return merged;
+    });
+    return { ...t, people: { ...t.people, [childId]: { ...child, parentIds: updated } } };
 }
 
 export function linkSpouse(
