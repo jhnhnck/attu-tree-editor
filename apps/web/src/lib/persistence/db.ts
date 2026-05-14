@@ -5,17 +5,22 @@
 
 import Dexie, { type EntityTable } from "dexie";
 import type { Tree } from "$lib/domain/types";
+import type { SchemaVersion } from "$lib/domain/schema";
 
 /**
  * Stored tree row. The `tree` field carries the full domain Tree value;
  * the rest of the columns are denormalized for cheap recents-list queries
  * (so we don't have to deserialize every blob just to render the dropdown).
+ *
+ * `schemaVersion` accepts both legacy integer stamps (rows written before
+ * the semver upgrade) and modern semver strings; on write we always store
+ * the semver form.
  */
 export interface StoredTree {
     id: string;
     name: string;
     editRev: number;
-    schemaVersion: number;
+    schemaVersion: SchemaVersion | number;
     updatedAt: number;
     personCount: number;
     tree: Tree;

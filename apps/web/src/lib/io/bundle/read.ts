@@ -44,7 +44,14 @@ export function readBundle(buffer: ArrayBuffer | Uint8Array): Result<BundleReadR
         findings.push({
             kind: "dropped-subtag",
             from: "manifest",
-            tag: `migrated:v${String(m.from)}->v${String(m.to)}: ${m.description}`,
+            tag: `migrated:${m.from}->${m.to}: ${m.description}`,
+        });
+    }
+    if (migrated.value.forwardCompatWarning) {
+        findings.push({
+            kind: "dropped-subtag",
+            from: "manifest",
+            tag: `forward-compat: ${migrated.value.forwardCompatWarning}`,
         });
     }
 
@@ -77,12 +84,12 @@ function readManifest(entries: Record<string, Uint8Array>): BundleManifest | und
     if (!bytes) return undefined;
     try {
         const parsed: unknown = JSON.parse(strFromU8(bytes));
-        if (
-            parsed &&
-            typeof parsed === "object" &&
-            typeof (parsed as { schemaVersion?: unknown }).schemaVersion === "number"
-        ) {
-            return parsed as BundleManifest;
+        if (parsed && typeof parsed === "object") {
+            const sv: unknown = (parsed as { schemaVersion?: unknown }).schemaVersion;
+            // Accept both legacy integer stamps and modern semver strings.
+            if (typeof sv === "number" || typeof sv === "string") {
+                return parsed as BundleManifest;
+            }
         }
     } catch {
         // ignore: manifest is best-effort

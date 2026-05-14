@@ -22,6 +22,7 @@
         "server:test": "cd apps/server && .venv/bin/pytest",
         "server:lint": "cd apps/server && .venv/bin/ruff check . && .venv/bin/basedpyright",
         "gen:api": "pnpm -F @attu/api-client gen",
-        "verify": "pnpm typecheck && pnpm lint && pnpm test:unit && pnpm build && pnpm server:setup && pnpm server:lint && pnpm server:test"
+        "lint:no-hyperbolic-imports": "node -e \"const{execSync}=require('child_process');try{const o=execSync('grep -rEn \\\"from .*engines/hyperbolic-lr\\\" apps/web/src/lib/layout/engines/family-view/ 2>/dev/null',{encoding:'utf8'}).trim();if(o){console.error('relationship-vocabulary main wave forbids importing from engines/hyperbolic-lr (Wave 2 deferral):\\n'+o);process.exit(1)}}catch(e){if(e.status&&e.status!==1){throw e}}\"",
+        "verify": "pnpm typecheck && pnpm lint && pnpm lint:no-hyperbolic-imports && pnpm test:unit && pnpm build && pnpm server:setup && pnpm server:lint && pnpm server:test"
     }
 }

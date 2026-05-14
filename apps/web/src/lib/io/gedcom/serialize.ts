@@ -235,9 +235,12 @@ function appendIndi(
     if (person.surname.length > 0) lines.push(`2 SURN ${person.surname}`);
     if (person.title !== undefined) lines.push(`2 NPFX ${person.title}`);
 
-    // SEX
+    // SEX (GEDCOM 7 vocabulary: M/F/X/U; today's 3-enum maps to M/F/U.
+    // Proper SEX X for non-binary identity lands with the gender struct in
+    // relationship-vocabulary Phase 5.)
     if (person.gender === "m") lines.push("1 SEX M");
     else if (person.gender === "f") lines.push("1 SEX F");
+    else lines.push("1 SEX U");
 
     // BIRT / DEAT
     if (person.birth) {

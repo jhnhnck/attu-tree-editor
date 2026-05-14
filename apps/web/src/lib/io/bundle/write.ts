@@ -4,7 +4,7 @@
  */
 
 import { strToU8, zipSync, type Zippable } from "fflate";
-import { CURRENT_SCHEMA_VERSION } from "$lib/domain/schema";
+import { CURRENT_SCHEMA_VERSION, type SchemaVersion } from "$lib/domain/schema";
 import type { PersonId, Tree } from "$lib/domain/types";
 import type { GedHead } from "$lib/io/gedcom/parse";
 import { serializeGedcom } from "$lib/io/gedcom/serialize";
@@ -17,7 +17,12 @@ export interface PortraitBlob {
 }
 
 export interface BundleManifest {
-    schemaVersion: number;
+    /**
+     * Accepts both legacy integer stamps (older bundles written before the
+     * semver upgrade) and modern semver strings ("MAJOR.MINOR.PATCH"). New
+     * bundles always write the semver form.
+     */
+    schemaVersion: SchemaVersion | number;
     createdBy: string;
     createdAt: string;
 }
