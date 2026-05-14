@@ -12,7 +12,7 @@ _features, polish, deployment plumbing, and "could be nicer" work. defects with 
 - ⭕ `medium priority` `high effort` orthogonal edge routing with obstacle avoidance - even after spouse-duplication, some long bonds + sibling-bus segments still pass through other cards. The multi-spouse and negative-drop defects in [bugs.md](bugs.md) are concrete instances; the same issue shows up for sibling-bus segments that span past intervening cards above/below the row. Implement A* over a sparse routing graph (corners of card AABBs + row-gutter alignment lines) so edges bend around any card they would otherwise visually cross. Polish layer; the targeted bug fixes are higher-ROI prerequisites 🎯 *planned in [family-view.md](plans/family-view.md), [relationship-vocabulary.md](plans/relationship-vocabulary.md)*
 - ⭕ `medium priority` `high effort` hide unrelated branches based on the selected person - needs a "related-to" rule (default: ancestors + descendants + spouses); expose as a View menu toggle so users can flip between full tree and focused view 🎯 *planned in [family-view.md](plans/family-view.md)*
 - ⭕ `medium priority` `medium effort` zoom-aware label sizing - shrink card padding and grow text size as zoom decreases so the next-level-up card stays readable as long as possible (PersonNode + the `levelFromScale` thresholds in TreeCanvas) 🎯 *planned in [family-view.md](plans/family-view.md)*
-- ⭕ `medium priority` `medium effort` selectable lineage trace - clicking an edge (or a person + an "trace" action) highlights a chain through the graph in a unique color so the user can see where a relationship goes; pairs naturally with the "hide unrelated branches" toggle 🎯 *planned in [family-view.md](plans/family-view.md)*
+- ⭕ `medium priority` `medium effort` selectable lineage trace - clicking an edge (or a person + an "trace" action) highlights a chain through the graph in a unique color so the user can see where a relationship goes; pairs naturally with the "hide unrelated branches" toggle. **Partially addressed by [family-view.md](plans/family-view.md) Phase 3**: selection→focus path highlight ships in wave 1 (on by default, toggleable via View > Overlays > Path highlight). True any-to-any "trace" action remains open. 🎯 *planned in [family-view.md](plans/family-view.md)*
 - ⭕ `medium priority` `low effort` hover tooltip at far zoom levels - PersonNode at level 4 (initials) and 5 (dot) drops the name; add a native `title` or floating tooltip showing the full name + dates so users can identify cards before zooming in
 - ⭕ `medium priority` `low effort` minimap + search-by-name popover
 - ⭕ `medium priority` `low effort` PersonNode portrait area is too short - the portrait crop reads as a thin band rather than a face; either grow the portrait slot vertically or rebalance card padding so the face has proportional height to the name/dates block 🎯 *planned in [family-view.md](plans/family-view.md)*
@@ -51,14 +51,13 @@ _features, polish, deployment plumbing, and "could be nicer" work. defects with 
 
 🎯 *all items below planned in [relationship-vocabulary.md](plans/relationship-vocabulary.md).*
 
-- 🟢 `claimed` replace `motherId` / `fatherId` with `parentIds: ParentRef[]` (each entry carries optional `role` and `pedi`); supports asexual / multi-parent / non-binary single parents; ships with a v1 -> v2 migration in `domain/schema.ts`. **Closed by relationship-vocabulary Phase 2a (data + migration) + Phase 2b.2 (caller migration + legacy field removal).**
 - ⭕ `future idea` `medium effort` add generic `relationships: { kind: 'transformed-from' | 'alias-of' | 'sworn-bond' | 'master-apprentice' | ...; targetId; notes? }[]` for transmutation, alias, adoption-not-yet-mapped, and other fictional bonds; ships with a v2 -> v3 migration
 - ⭕ `future idea` `low effort` add `birthOrder?: number` on `Person` for twin / triplet / cohort ordering inside a sibship (currently lost — sibship is derived from shared parents only); ships with a v3 -> v4 migration
 - ⭕ `future idea` `low effort` add optional `name?: string` to `CoupleRecord` so families can be referenced by a chosen surname / household name (currently no way to rename families); ships with a v? -> v? migration and an Inspector Connections-tab UI to set it
 
 ### tooling + docs
 
-- ⭕ `medium priority` `medium effort` debug toolbox overhaul - the Ctrl+Shift+D panel currently floats top-center with bare checkboxes (`App.svelte:1130-1182`, drives `DebugOverlay.svelte`). Wanted:
+- ⭕ `medium priority` `medium effort` debug toolbox overhaul - **partially closed by commits `916078f` (sectioned debug toolbox + per-pass timings + 5 new overlays) and `d3243c4` (unified bottom-left bar; stats pill + debug pill in one flex row).** anchor + discovery pill + sectioned layout + layout-timing readout + 5 new overlays shipped. Residual sub-bullets below remain open; re-audit and prune as the implementation lands. the Ctrl+Shift+D panel currently floats top-center with bare checkboxes (`App.svelte:1130-1182`, drives `DebugOverlay.svelte`). Wanted:
   - **anchor**: move panel to bottom-left, stacked directly above the people-count stats pill (currently bottom-left at `App.svelte` people-count pill); panel grows upward from there
   - **discovery pill**: first time Ctrl+Shift+D is pressed in a session/profile, latch a `debug.discovered` flag in `persistence/settings.ts`; show a small bug-icon pill (lucide `bug`) immediately to the right of the stats pill that toggles the panel on click. Panel has a "hide debug pill" option that clears the flag and removes the pill again (panel stays reachable via the shortcut)
   - **toggle switches** instead of checkboxes; reuse the toggle component used in the Inspector Connections tab (married / primary toggles) for visual consistency
@@ -88,7 +87,9 @@ _features, polish, deployment plumbing, and "could be nicer" work. defects with 
 
 ## completed
 
-_no entries; cleared on 14 May 2026._
+### schema evolution
+
+- 🔴 `14 May 2026` replaced `motherId` / `fatherId` with `parentIds: ParentRef[]` (each entry carries optional `role` and `pedi`); supports asexual / multi-parent / non-binary single parents; shipped with the v1 -> v2 migration in `domain/schema.ts`. Closed by [relationship-vocabulary.md](plans/relationship-vocabulary.md) Phase 2a (data + migration) + Phase 2b.2 (caller migration + legacy field removal); inspector + GEDCOM round-trip lands in Phase 2b.3 (commit `c6845dc`).
 
 ---
 
@@ -124,5 +125,5 @@ defects with observable wrong behavior (a wrong line on the canvas, a focused fi
 
 ```yaml
 last_updated: 14 May 2026
-total_completed: 0
+total_completed: 1
 ```
