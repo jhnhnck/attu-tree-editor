@@ -41,12 +41,27 @@ import type {
 const CARD_H = 1.2;
 
 /**
+ * Per-pass wall-clock timings (ms). Emitted alongside each layout result
+ * so the debug toolbox can surface where the time goes on big trees.
+ * `performance.now()` overhead is sub-microsecond — negligible against
+ * Akarians-scale pass times measured in tens to hundreds of ms.
+ */
+export interface LayeredEngineTimings {
+    readonly layer: number;
+    readonly order: number;
+    readonly place: number;
+    readonly route: number;
+    readonly total: number;
+}
+
+/**
  * `LayoutResult` augmented with the legacy four-tuple the worker still
  * posts to the renderer. Phase 3 deletes this branch and the renderer
  * consumes `LayoutResult` directly.
  */
 export interface LayeredEngineResult extends LayoutResult {
     readonly space: "euclidean";
+    readonly timings: LayeredEngineTimings;
     readonly legacy: {
         readonly layered: LayeredGraph;
         readonly ordered: OrderedGraph;
@@ -60,10 +75,15 @@ export class LayeredEngine implements LayoutEngine {
     readonly id = "layered";
 
     layout(input: LayoutInput): LayeredEngineResult {
+        const t0 = performance.now();
         const lg = layer(input.tree, input.visible, input.focus, input.overrides);
+        const t1 = performance.now();
         const og = order(lg, input.overrides, input.tree);
+        const t2 = performance.now();
         const pg = place(og, input.overrides);
+        const t3 = performance.now();
         const { segments, warnings } = route(pg, input.tree);
+        const t4 = performance.now();
 
         return {
             engineId: this.id,
@@ -73,6 +93,13 @@ export class LayeredEngine implements LayoutEngine {
             bbox: pg.bbox,
             nodes: pg.nodes,
             obstacles: extractObstacles(pg),
+            timings: {
+                layer: t1 - t0,
+                order: t2 - t1,
+                place: t3 - t2,
+                route: t4 - t3,
+                total: t4 - t0,
+            },
             legacy: { layered: lg, ordered: og, placed: pg, segments, warnings },
         };
     }

@@ -5,7 +5,18 @@
 <script lang="ts">
     import type { DebugOverlayProps } from "./debugTypes";
 
-    let { layout, segments, tracePath, selectedId, layers, unit }: DebugOverlayProps = $props();
+    let {
+        layout,
+        segments,
+        tracePath,
+        selectedId,
+        layers,
+        unit,
+        layeredGraph,
+        placedGraph,
+        tree,
+        lastEditedId,
+    }: DebugOverlayProps = $props();
 
     const CARD_W_U = 2;
     const CARD_H_U = 1.2;
@@ -29,6 +40,101 @@
                 unit,
         })),
     );
+
+    // Phase 3 — cycle nodes: render a red ring on every person id flagged
+    // by layer.ts as a cycle member (rank assignment fell back to 0 and
+    // surfaced the ids via LayeredGraph.cycleNodes).
+    let cycleIds = $derived(layeredGraph?.cycleNodes ?? []);
+
+    // Phase 3 — bond/centroid delta: per couple, plot the bond midpoint
+    // and a caret pointing to the children centroid. When the two differ,
+    // the couple-drop emerges off-center (visual signal of the same-rank
+    // bond geometry).
+    let centroidDeltas = $derived.by(() => {
+        if (!tree || !placedGraph)
+            return [] as {
+                id: string;
+                bondX: number;
+                bondY: number;
+                centroidX: number;
+            }[];
+        const out: { id: string; bondX: number; bondY: number; centroidX: number }[] = [];
+        for (const couple of tree.couples) {
+            if (couple.leftId === couple.rightId) continue;
+            const lp = placedGraph.x.get(couple.leftId);
+            const rp = placedGraph.x.get(couple.rightId);
+            const ly = placedGraph.y.get(couple.leftId);
+            const ry = placedGraph.y.get(couple.rightId);
+            if (lp === undefined || rp === undefined || ly === undefined || ry === undefined)
+                continue;
+            // Only consider same-rank short bonds (the bug-17 + bond-shape case).
+            if (ly !== ry) continue;
+            const bondMidX = (lp + rp) / 2 + CARD_W_U / 2;
+            const bondY = ly + CARD_H_U / 2;
+            // Children centroid via tree.people.{motherId,fatherId}
+            const kids: number[] = [];
+            for (const p of Object.values(tree.people)) {
+                const a = p.motherId;
+                const b = p.fatherId;
+                const matches =
+                    (a === couple.leftId && b === couple.rightId) ||
+                    (a === couple.rightId && b === couple.leftId);
+                if (!matches) continue;
+                const cx = placedGraph.x.get(p.id);
+                if (cx !== undefined) kids.push(cx + CARD_W_U / 2);
+            }
+            if (kids.length === 0) continue;
+            const centroidX = kids.reduce((s, x) => s + x, 0) / kids.length;
+            out.push({
+                id: `${couple.leftId}|${couple.rightId}|${String(couple.unionIndex)}`,
+                bondX: bondMidX,
+                bondY,
+                centroidX,
+            });
+        }
+        return out;
+    });
+
+    // Phase 3 — orphan badge: people with no in-graph parents, no spouse,
+    // and no children. Data-hygiene flag for stray imports.
+    let orphanIds = $derived.by(() => {
+        if (!tree) return [] as string[];
+        const childCount = new Map<string, number>();
+        for (const p of Object.values(tree.people)) {
+            if (p.motherId) childCount.set(p.motherId, (childCount.get(p.motherId) ?? 0) + 1);
+            if (p.fatherId) childCount.set(p.fatherId, (childCount.get(p.fatherId) ?? 0) + 1);
+        }
+        const out: string[] = [];
+        for (const p of Object.values(tree.people)) {
+            const hasParent = (p.motherId ?? p.fatherId) !== undefined;
+            const hasSpouse = p.spouseIds.length > 0;
+            const hasChild = (childCount.get(p.id) ?? 0) > 0;
+            if (!hasParent && !hasSpouse && !hasChild) out.push(p.id);
+        }
+        return out;
+    });
+
+    // Phase 3 — rank gutter labels: emit a "rank N" tag at the left edge
+    // of each rank row. Derived from placedGraph.ranks length + ROW_H.
+    let rankLabels = $derived.by(() => {
+        if (!placedGraph) return [] as { rank: number; y: number }[];
+        return placedGraph.ranks.map((_, rank) => ({
+            rank,
+            y: rank * 2 + CARD_H_U / 2, // ROW_H=2
+        }));
+    });
+
+    // Phase 3 — last-edit halo: 1s yellow ring around the most recently
+    // mutated card. `lastEditedId` is bumped by App.svelte on every
+    // edit; we render unconditionally while the toggle is on (the
+    // 1-second fadeout is purely a CSS animation).
+    let lastEditPos = $derived.by(() => {
+        if (!lastEditedId || !placedGraph) return null;
+        const x = placedGraph.x.get(lastEditedId);
+        const y = placedGraph.y.get(lastEditedId);
+        if (x === undefined || y === undefined) return null;
+        return { x: x + CARD_W_U / 2, y: y + CARD_H_U / 2, id: lastEditedId };
+    });
 
     // pairs of (real|ghost) cards on the same row whose x-extents overlap.
     // bucketing by y first keeps this O(sum k_y^2) rather than O(n^2).
@@ -292,6 +398,114 @@
         {/if}
     {/if}
 
+    <!-- Phase 3: cycle nodes (red ring around layer.ts-flagged cycle members) -->
+    {#if layers.showCycleNodes}
+        {#each cycleIds as id (`cycle-${id}`)}
+            {@const pos = layout.positions.get(id)}
+            {#if pos}
+                <circle
+                    cx={(pos.x + CARD_W_U / 2) * unit}
+                    cy={(pos.y + CARD_H_U / 2) * unit}
+                    r={(CARD_W_U / 2 + 0.3) * unit}
+                    fill="none"
+                    stroke="#ef4444"
+                    stroke-width="2.5"
+                    vector-effect="non-scaling-stroke"
+                    opacity="0.8"
+                />
+            {/if}
+        {/each}
+    {/if}
+
+    <!-- Phase 3: bond/centroid delta -->
+    {#if layers.showBondCentroidDelta}
+        {#each centroidDeltas as d (d.id)}
+            <!-- bond midpoint dot -->
+            <circle cx={d.bondX * unit} cy={d.bondY * unit} r={3} fill="#22d3ee" opacity="0.9" />
+            <!-- centroid caret -->
+            <circle
+                cx={d.centroidX * unit}
+                cy={d.bondY * unit}
+                r={3}
+                fill="none"
+                stroke="#22d3ee"
+                stroke-width="1.5"
+                vector-effect="non-scaling-stroke"
+                opacity="0.9"
+            />
+            <!-- connector line; longer = more offset -->
+            <line
+                x1={d.bondX * unit}
+                y1={d.bondY * unit}
+                x2={d.centroidX * unit}
+                y2={d.bondY * unit}
+                stroke="#22d3ee"
+                stroke-width="1"
+                stroke-dasharray="3 3"
+                vector-effect="non-scaling-stroke"
+                opacity="0.7"
+            />
+        {/each}
+    {/if}
+
+    <!-- Phase 3: orphan badge (top-left corner mark on isolates) -->
+    {#if layers.showOrphanBadge}
+        {#each orphanIds as id (`orphan-${id}`)}
+            {@const pos = layout.positions.get(id)}
+            {#if pos}
+                <circle
+                    cx={pos.x * unit + 6}
+                    cy={pos.y * unit + 6}
+                    r={4}
+                    fill="#f97316"
+                    opacity="0.85"
+                />
+                <text
+                    x={pos.x * unit + 12}
+                    y={pos.y * unit + 9}
+                    font-size="9px"
+                    fill="#f97316"
+                    opacity="0.85"
+                >
+                    orphan
+                </text>
+            {/if}
+        {/each}
+    {/if}
+
+    <!-- Phase 3: rank gutter labels in the left margin -->
+    {#if layers.showRankGutterLabels}
+        {#each rankLabels as r (`rank-${r.rank}`)}
+            <text
+                x={-unit * 1.4}
+                y={r.y * unit}
+                font-size="10px"
+                fill="#a3a3a3"
+                opacity="0.75"
+                font-weight="bold"
+            >
+                r{r.rank}
+            </text>
+        {/each}
+    {/if}
+
+    <!-- Phase 3: last-edit halo (1-second yellow ring; CSS animation handles
+         the fade). Re-keyed by id so a new edit retriggers the animation. -->
+    {#if layers.showLastEditHalo && lastEditPos}
+        {#key lastEditPos.id}
+            <circle
+                class="last-edit-halo"
+                cx={lastEditPos.x * unit}
+                cy={lastEditPos.y * unit}
+                r={(CARD_W_U / 2 + 0.5) * unit}
+                fill="none"
+                stroke="#fde047"
+                stroke-width="3"
+                vector-effect="non-scaling-stroke"
+            />
+        {/key}
+    {/if}
+
     <!-- path step labels (renders when tracePath is set, no separate toggle) -->
     {#if tracePath}
         <!-- highlight person nodes in path -->
@@ -336,5 +550,18 @@
         font-family: ui-monospace, monospace;
         pointer-events: none;
         user-select: none;
+    }
+    /* Phase 3: last-edit halo — 1 s fade. Re-keyed by id so a new edit
+       remounts the circle and restarts the animation. */
+    :global(.debug-overlay .last-edit-halo) {
+        animation: last-edit-fade 1s ease-out forwards;
+    }
+    @keyframes last-edit-fade {
+        from {
+            opacity: 0.85;
+        }
+        to {
+            opacity: 0;
+        }
     }
 </style>

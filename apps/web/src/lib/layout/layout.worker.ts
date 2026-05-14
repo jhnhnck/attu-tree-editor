@@ -25,7 +25,7 @@
  * licensed under the MIT license; see LICENSE.md for full text
  */
 
-import { LayeredEngine } from "$lib/layout/engines/layered-hv";
+import { LayeredEngine, type LayeredEngineTimings } from "$lib/layout/engines/layered-hv";
 import {
     serializeLayered,
     serializeOrdered,
@@ -62,6 +62,7 @@ interface CacheEntry {
     placed: PlacedGraphWire;
     segments: readonly Segment[];
     warnings: readonly LayoutWarning[];
+    timings: LayeredEngineTimings;
 }
 
 let cache: CacheEntry | null = null;
@@ -117,6 +118,9 @@ self.onmessage = (e: MessageEvent<WorkerInput>): void => {
             placed: cache.placed,
             segments: cache.segments,
             warnings: cache.warnings,
+            // cache-hit timings reflect the original run, not zero — useful
+            // signal that re-renders are landing on the cache fast path.
+            timings: cache.timings,
         });
         return;
     }
@@ -151,7 +155,17 @@ self.onmessage = (e: MessageEvent<WorkerInput>): void => {
         placed,
         segments,
         warnings,
+        timings: result.timings,
     };
 
-    self.postMessage({ seq, engineId, layered, ordered, placed, segments, warnings });
+    self.postMessage({
+        seq,
+        engineId,
+        layered,
+        ordered,
+        placed,
+        segments,
+        warnings,
+        timings: result.timings,
+    });
 };

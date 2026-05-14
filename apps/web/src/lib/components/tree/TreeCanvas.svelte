@@ -29,6 +29,7 @@
         type PlacedGraphWire,
     } from "$lib/layout/ir";
     import type { Segment } from "$lib/layout/edgeRouter";
+    import type { LayeredEngineTimings } from "$lib/layout/engines/layered-hv";
     import { shortestPath, type Path } from "$lib/layout/graph";
     import { bundlesForPath } from "$lib/layout/pathHighlight";
     import EdgeLayer from "$lib/components/tree/EdgeLayer.svelte";
@@ -71,6 +72,10 @@
                   tracePath?: Path | undefined;
               }
             | undefined;
+        /** invoked on every layout response with per-pass timings (ms) */
+        ontimings?: ((t: LayeredEngineTimings) => void) | undefined;
+        /** Phase 3: drives the last-edit halo overlay; bumped on mutation. */
+        lastEditedId?: PersonId | undefined;
     }
 
     let {
@@ -88,6 +93,8 @@
         traceIds,
         ontoggleinspector,
         debugOptions,
+        ontimings,
+        lastEditedId,
     }: Props = $props();
 
     // pixels per unit. hvLayout produces positions where 1 unit = "half a card
@@ -171,9 +178,10 @@
             placed: PlacedGraphWire;
             segments: readonly Segment[];
             warnings: readonly LayoutWarning[];
+            timings?: LayeredEngineTimings;
         }>,
     ): void => {
-        const { seq, layered, ordered, placed, segments: segs, warnings } = e.data;
+        const { seq, layered, ordered, placed, segments: segs, warnings, timings } = e.data;
         if (seq !== layoutSeq) return; // drop stale response
         layeredGraph = hydrateLayered(layered);
         orderedGraph = hydrateOrdered(ordered);
@@ -181,7 +189,13 @@
         rawSegments = segs;
         routedEdges = toRendered(segs);
         layoutWarnings = warnings;
+        if (timings) {
+            lastTimings = timings;
+            ontimings?.(timings);
+        }
     };
+
+    let lastTimings = $state<LayeredEngineTimings | undefined>(undefined);
 
     onDestroy(() => layoutWorker.terminate());
 
@@ -530,6 +544,7 @@
             ...(capturedCycleNodes !== undefined && capturedCycleNodes.length > 0
                 ? { cycleNodes: capturedCycleNodes }
                 : {}),
+            ...(lastTimings !== undefined ? { timings: lastTimings } : {}),
             dumpSegment(id: string): void {
                 const seg = capturedRaw.find((s) => s.id === id || s.id.startsWith(id));
                 if (!seg) {
@@ -1120,6 +1135,10 @@
                     {selectedId}
                     layers={debugOptions.layers}
                     unit={UNIT}
+                    {layeredGraph}
+                    {placedGraph}
+                    {tree}
+                    {lastEditedId}
                 />
             {/if}
         </svg>

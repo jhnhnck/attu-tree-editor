@@ -26,6 +26,11 @@ interface TreeDebugHandle {
      */
     cycleNodes?: readonly string[];
     /**
+     * Per-pass wall-clock timings (ms) from the most recent layered-engine
+     * run. Undefined while the hyperbolic engine is active.
+     */
+    timings?: import("$lib/layout/engines/layered-hv").LayeredEngineTimings;
+    /**
      * Non-fatal anomalies from the most recent layout pass. Empty on a clean
      * run; populated entries indicate `route()` invariant violations
      * (negative drops, etc.) or future pass-level warnings. Replaces direct

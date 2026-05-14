@@ -41,6 +41,7 @@
         Layers,
         CircleDot,
         Network,
+        Bug,
     } from "@lucide/svelte";
 
     import {
@@ -141,6 +142,7 @@
 
     // debug overlay state
     let debugOpen = $state(false);
+    let debugPillHidden = $state(false);
     let debugLayers = $state<DebugLayerOptions>({
         showGrid: false,
         showNodeBounds: true,
@@ -150,7 +152,23 @@
         showHops: false,
         showOverlapPairs: false,
         exposeTreeDebug: false,
+        // Phase 3 additions
+        showCycleNodes: false,
+        showBondCentroidDelta: false,
+        showOrphanBadge: false,
+        showRankGutterLabels: false,
+        showLastEditHalo: false,
     });
+    // Phase 3: most recent layout-pass timings (from the worker) + last
+    // mutated person id (for the last-edit halo). Both reset when the
+    // engine swaps or tree loads, but otherwise persist across renders.
+    let debugTimings = $state<
+        import("$lib/layout/engines/layered-hv").LayeredEngineTimings | undefined
+    >(undefined);
+    let debugLastEditedId = $state<PersonId | undefined>(undefined);
+    // Phase 3: dump/load tree JSON textarea state (separate $state so the
+    // user's draft survives toggling the panel).
+    let debugDumpJson = $state("");
     let showInspector = $state(true);
     let inspectorInitialTab = $state<"personal" | "connections" | "details" | "bio">("personal");
 
@@ -673,6 +691,78 @@
     function onSave(id: string, patch: PersonPatch): void {
         if (readOnly) return;
         treeStore.update((t) => updatePerson(t, id, patch));
+        debugLastEditedId = id;
+    }
+
+    // Phase 3 debug-toolbox runtime actions ----------------------------------
+
+    async function copyLayoutSnapshot(): Promise<void> {
+        const handle = window.__treeDebug;
+        if (!handle) {
+            toasts.push("expose __treeDebug first", "info", 2000);
+            return;
+        }
+        // Routed/placed graphs include Maps that JSON.stringify drops.
+        // Materialise them to plain objects so the snapshot survives the
+        // clipboard round-trip.
+        const placed = handle.placedGraph;
+        const payload = {
+            tree: { id: treeStore.tree.id, editRev: treeStore.tree.editRev },
+            timings: handle.timings,
+            warnings: handle.warnings,
+            cycleNodes: handle.cycleNodes,
+            placed: placed
+                ? {
+                      bbox: placed.bbox,
+                      ranks: placed.ranks,
+                      nodes: Array.from(placed.nodes.entries()),
+                      x: Array.from(placed.x.entries()),
+                      y: Array.from(placed.y.entries()),
+                  }
+                : null,
+            segments: handle.rawSegments,
+        };
+        try {
+            await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+            toasts.push("layout snapshot copied", "info", 1500);
+        } catch {
+            toasts.push("clipboard write failed", "error");
+        }
+    }
+
+    function dumpTreeJson(): void {
+        debugDumpJson = JSON.stringify(treeStore.tree, null, 2);
+    }
+
+    function loadTreeJson(): void {
+        try {
+            const parsed = JSON.parse(debugDumpJson) as unknown;
+            if (!parsed || typeof parsed !== "object") {
+                toasts.push("invalid tree json", "error");
+                return;
+            }
+            treeStore.reset(parsed as typeof treeStore.tree);
+            toasts.push("tree loaded from textarea", "info", 1500);
+        } catch (err) {
+            toasts.push(
+                `load failed: ${err instanceof Error ? err.message : String(err)}`,
+                "error",
+            );
+        }
+    }
+
+    function forceConflict(): void {
+        const rev = syncStore.revision;
+        if (rev === null || rev <= 0) {
+            toasts.push("force-conflict needs a signed-in synced tree", "info", 2000);
+            return;
+        }
+        syncStore.setRevision(rev - 1);
+        toasts.push(
+            `revision rolled back to ${String(rev - 1)} — next save will 409`,
+            "info",
+            2500,
+        );
     }
 
     async function forceSave(): Promise<void> {
@@ -1183,6 +1273,8 @@
                         ? [selection.selectedPersonId, traceTargetId]
                         : undefined}
                     {debugOptions}
+                    ontimings={(t) => (debugTimings = t)}
+                    lastEditedId={debugLastEditedId}
                 />
             {/if}
             {#if canvasController && (selectedEngine === "layered" || selectedEngine === "family-view")}
@@ -1192,25 +1284,37 @@
                     onfit={() => canvasController?.fit()}
                 />
             {/if}
+            <!-- Phase 3: bug-icon discovery pill. Visible by default
+                 (the "permanently hide" option in the panel clears it);
+                 Ctrl+Shift+D is the keyboard fallback regardless. -->
+            {#if !debugPillHidden}
+                <button
+                    type="button"
+                    class="text-fg-muted hover:text-accent bg-canvas-elev/80 border-line pointer-events-auto absolute bottom-3 left-28 z-30 flex h-6 w-6 items-center justify-center rounded-md border"
+                    aria-label="toggle debug panel"
+                    title="debug panel (Ctrl+Shift+D)"
+                    data-testid="debug-pill"
+                    onclick={() => (debugOpen = !debugOpen)}
+                >
+                    <Bug class="h-3 w-3" />
+                </button>
+            {/if}
             {#if debugOpen}
-                <!-- Phase 0d (layered-and-tooling plan): relocated from top-center
-                     to bottom-left, anchored above the people-count stats pill
-                     that TreeCanvas renders at bottom-3 left-3. Phase 3 will fill
-                     this shell with toggle switches, sectioned layout, new overlay
-                     options, and corner readouts. Pure relocation for now -
-                     existing checkboxes and `Ctrl+Shift+D` toggle behavior unchanged. -->
+                <!-- Phase 3 (layered-and-tooling plan): sectioned debug
+                     panel at bottom-left, anchored above the stats pill.
+                     Sections: layout / routing / diagnostics / runtime.
+                     Each toggle is a button-style chip (matches the
+                     Connections-tab convention for married/primary). -->
                 <div
-                    class="pointer-events-auto absolute bottom-14 left-3 z-40
-                           rounded-lg border border-line bg-canvas-elev/95 px-3 py-2
-                           shadow-xl backdrop-blur text-fg text-xs font-mono"
+                    class="pointer-events-auto absolute bottom-14 left-3 z-40 max-h-[80vh] w-72 overflow-y-auto rounded-lg border border-line bg-canvas-elev/95 px-3 py-2 text-fg text-xs font-mono shadow-xl backdrop-blur"
                     role="dialog"
                     aria-label="debug overlay controls"
                     data-testid="debug-panel"
                 >
-                    <div class="mb-1.5 flex items-center justify-between gap-4">
+                    <div class="mb-2 flex items-center justify-between gap-4">
                         <span
                             class="text-[10px] font-semibold uppercase tracking-wider text-fg-muted"
-                            >Debug</span
+                            >Debug · Ctrl+Shift+D</span
                         >
                         <button
                             type="button"
@@ -1220,38 +1324,171 @@
                             >×</button
                         >
                     </div>
-                    <div class="grid grid-cols-2 gap-x-5 gap-y-1">
-                        {#each [["showGrid", "Unit grid"], ["showNodeBounds", "Node bounds"], ["showSegmentIds", "Segment IDs"], ["showGhostArrows", "Ghost arrows"], ["showComponentBounds", "Component bounds"], ["showHops", "Bridge hops"], ["showOverlapPairs", "Overlap pairs"]] as const as [key, label] (key)}
-                            <label class="flex cursor-pointer select-none items-center gap-1.5">
-                                <input
-                                    type="checkbox"
-                                    class="h-3 w-3 accent-accent"
-                                    checked={debugLayers[key]}
-                                    onchange={() => {
-                                        debugLayers[key] = !debugLayers[key];
-                                    }}
+
+                    <!-- layout section -->
+                    <div class="mb-2">
+                        <div
+                            class="mb-1 text-[9px] font-semibold uppercase tracking-wider text-fg-muted"
+                        >
+                            layout
+                        </div>
+                        <div class="flex flex-wrap gap-1">
+                            {#each [["showGrid", "grid"], ["showNodeBounds", "node bounds"], ["showSegmentIds", "segment ids"], ["showComponentBounds", "components"]] as const as [key, label] (key)}
+                                <button
+                                    type="button"
+                                    class="border-line text-fg-muted hover:text-fg rounded border px-1.5 py-0.5"
+                                    class:text-accent={debugLayers[key]}
+                                    class:border-accent={debugLayers[key]}
+                                    onclick={() => (debugLayers[key] = !debugLayers[key])}
                                     data-testid={`debug-toggle-${key}`}
-                                />
-                                {label}
-                            </label>
-                        {/each}
+                                >
+                                    {label}
+                                </button>
+                            {/each}
+                        </div>
                     </div>
-                    <div class="col-span-2 mt-1 border-t border-line/30 pt-1">
-                        <label class="flex cursor-pointer select-none items-center gap-1.5">
-                            <input
-                                type="checkbox"
-                                class="h-3 w-3 accent-accent"
-                                checked={debugLayers.exposeTreeDebug}
-                                onchange={() => {
-                                    debugLayers.exposeTreeDebug = !debugLayers.exposeTreeDebug;
-                                }}
+
+                    <!-- routing section -->
+                    <div class="mb-2">
+                        <div
+                            class="mb-1 text-[9px] font-semibold uppercase tracking-wider text-fg-muted"
+                        >
+                            routing
+                        </div>
+                        <div class="flex flex-wrap gap-1">
+                            {#each [["showGhostArrows", "ghost arrows"], ["showHops", "bridge hops"], ["showOverlapPairs", "overlap pairs"]] as const as [key, label] (key)}
+                                <button
+                                    type="button"
+                                    class="border-line text-fg-muted hover:text-fg rounded border px-1.5 py-0.5"
+                                    class:text-accent={debugLayers[key]}
+                                    class:border-accent={debugLayers[key]}
+                                    onclick={() => (debugLayers[key] = !debugLayers[key])}
+                                    data-testid={`debug-toggle-${key}`}
+                                >
+                                    {label}
+                                </button>
+                            {/each}
+                        </div>
+                    </div>
+
+                    <!-- diagnostics section (Phase 3 new) -->
+                    <div class="mb-2">
+                        <div
+                            class="mb-1 text-[9px] font-semibold uppercase tracking-wider text-fg-muted"
+                        >
+                            diagnostics
+                        </div>
+                        <div class="flex flex-wrap gap-1">
+                            {#each [["showCycleNodes", "cycle nodes"], ["showBondCentroidDelta", "bond/centroid Δ"], ["showOrphanBadge", "orphans"], ["showRankGutterLabels", "rank labels"], ["showLastEditHalo", "last-edit halo"]] as const as [key, label] (key)}
+                                <button
+                                    type="button"
+                                    class="border-line text-fg-muted hover:text-fg rounded border px-1.5 py-0.5"
+                                    class:text-accent={debugLayers[key]}
+                                    class:border-accent={debugLayers[key]}
+                                    onclick={() => (debugLayers[key] = !debugLayers[key])}
+                                    data-testid={`debug-toggle-${key}`}
+                                >
+                                    {label}
+                                </button>
+                            {/each}
+                        </div>
+                    </div>
+
+                    <!-- runtime section -->
+                    <div class="mb-2">
+                        <div
+                            class="mb-1 text-[9px] font-semibold uppercase tracking-wider text-fg-muted"
+                        >
+                            runtime
+                        </div>
+                        <div class="flex flex-wrap gap-1">
+                            <button
+                                type="button"
+                                class="border-line text-fg-muted hover:text-fg rounded border px-1.5 py-0.5"
+                                class:text-accent={debugLayers.exposeTreeDebug}
+                                class:border-accent={debugLayers.exposeTreeDebug}
+                                onclick={() =>
+                                    (debugLayers.exposeTreeDebug = !debugLayers.exposeTreeDebug)}
                                 data-testid="debug-toggle-exposeTreeDebug"
-                            />
-                            Expose window.__treeDebug
-                        </label>
+                            >
+                                expose __treeDebug
+                            </button>
+                            <button
+                                type="button"
+                                class="border-line text-fg-muted hover:text-fg rounded border px-1.5 py-0.5"
+                                onclick={() => void copyLayoutSnapshot()}
+                                data-testid="debug-copy-snapshot"
+                                title="copy placed IR + segments to clipboard as JSON"
+                            >
+                                copy snapshot
+                            </button>
+                            <button
+                                type="button"
+                                class="border-line text-fg-muted hover:text-fg rounded border px-1.5 py-0.5"
+                                onclick={forceConflict}
+                                disabled={syncStore.revision === null || syncStore.revision <= 0}
+                                data-testid="debug-force-conflict"
+                                title="bump server revision to trigger the 409 conflict UI on next save (requires sign-in + a synced tree)"
+                            >
+                                force conflict
+                            </button>
+                        </div>
+                        <!-- dump / load tree JSON -->
+                        <textarea
+                            class="border-line bg-canvas mt-1.5 h-16 w-full resize-none rounded border px-1 py-0.5 text-[10px] font-mono"
+                            placeholder="paste tree JSON, then click load; or click dump to populate"
+                            bind:value={debugDumpJson}
+                            data-testid="debug-dump-textarea"
+                        ></textarea>
+                        <div class="mt-1 flex gap-1">
+                            <button
+                                type="button"
+                                class="border-line text-fg-muted hover:text-fg rounded border px-1.5 py-0.5"
+                                onclick={dumpTreeJson}
+                                data-testid="debug-dump-json"
+                            >
+                                dump
+                            </button>
+                            <button
+                                type="button"
+                                class="border-line text-fg-muted hover:text-fg rounded border px-1.5 py-0.5"
+                                onclick={loadTreeJson}
+                                data-testid="debug-load-json"
+                            >
+                                load
+                            </button>
+                        </div>
                     </div>
-                    <div class="mt-1.5 text-[9px] text-fg-muted">
-                        window.__treeDebug exposed when toggled above · Ctrl+Shift+D
+
+                    <!-- pill hide -->
+                    <div class="mt-2 border-t border-line/30 pt-1.5">
+                        <button
+                            type="button"
+                            class="text-fg-muted hover:text-fg text-[10px]"
+                            onclick={() => (debugPillHidden = !debugPillHidden)}
+                        >
+                            {debugPillHidden ? "show bug pill" : "permanently hide bug pill"}
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Phase 3 corner readouts (top-right of canvas) -->
+                <div
+                    class="text-fg-muted bg-canvas-elev/90 border-line pointer-events-none absolute top-3 right-3 z-40 rounded-md border px-2 py-1 text-[10px] font-mono"
+                    data-testid="debug-corner-readouts"
+                >
+                    {#if debugTimings}
+                        <div>
+                            layer {debugTimings.layer.toFixed(1)} · order {debugTimings.order.toFixed(
+                                1,
+                            )} · place {debugTimings.place.toFixed(1)} · route {debugTimings.route.toFixed(
+                                1,
+                            )} = <span class="text-fg">{debugTimings.total.toFixed(1)} ms</span>
+                        </div>
+                    {/if}
+                    <div>
+                        editRev <span class="text-fg">{treeStore.tree.editRev}</span>
+                        · {Object.keys(treeStore.tree.people).length} people
                     </div>
                 </div>
             {/if}
