@@ -229,6 +229,24 @@ when adding a schema-breaking domain change: bump `CURRENT_SCHEMA_VERSION`, push
 12. **dexie + svelte 5 $state proxies**: anything written to IndexedDB via Dexie goes through structured-clone, which throws `DataCloneError` when given a Svelte 5 `$state` proxy. `persistence/trees.ts:saveTree` round-trips the `Tree` through `JSON.parse(JSON.stringify(...))` to drop the reactivity wrappers. Domain types are JSON-safe (no `Date`, `Map`, functions) so this is lossless. Apply the same pattern when writing other reactive runes to Dexie.
 13. **storing blobs in dexie**: store image bytes as `Uint8Array`, never as `Blob`. fake-indexeddb (used in tests) mangles Blob round-trips, and even real IndexedDB has subtle differences across browsers. `persistence/blobs.ts:putBlob` requires `Uint8Array`; the cropper output (a `Blob` from `canvas.toBlob`) is converted via `new Uint8Array(await blob.arrayBuffer())` at the call site. Read sites wrap back in `new Blob([bytes.slice()], { type: mime })` to create object URLs.
 14. **autosave + first-load semantics**: `treeStore.dirty` distinguishes user mutations from initial-load hydration. App.svelte's autosave `$effect` only schedules a save when `firstLoadComplete && treeStore.dirty`. `treeStore.hydrate(tree)` resets state without flipping dirty (used to restore from Dexie); `treeStore.reset(tree)` does flip dirty (used by import). Don't conflate the two - hydrate-then-save would just rewrite what we read.
+15. **family-view card-affordance slots are reserved**: the focus card and every visible card in the family-view engine has four corner slots + two centred-edge slots that are spoken for. New affordances must pick a free slot or share via a menu, not overlap. The current allocation:
+    - **top-left**: `+ person` (add-relative, focus card only — phase 4) / `g+N` generation badge (non-focus cards — phase 5)
+    - **top-right**: `−` collapse (when the branch was expanded — phase 1)
+    - **top-centre**: `+` expand parents (ancestors with un-shown parents — phase 1)
+    - **bottom-centre**: `+` expand children (descendants with un-shown children — phase 1)
+    - **bottom-right**: `˅` union picker (multi-union persons — phase 2)
+    - **bottom edge (1-px strip)**: era underline (HSL hue by birth-year century — phase 5)
+    The focus card has rank 0 so the generation badge never collides with the `+ person` slot. A future seventh affordance should consider modifier-click, long-press, or an existing-menu entry rather than reaching for a new corner.
+16. **wrapper-attribute selectors for e2e**: family-view affordances live on the *absolutely-positioned wrapper* around `PersonNode`, not on `[data-person-id]` itself. e2e selectors target the wrapper-attribute and (if needed) filter by hasText. Established attributes:
+    - `data-expand-toggle="expand" | "collapse"` (`+` / `−` buttons — phase 1)
+    - `data-union-picker="toggle" | "menu"` (`˅` and its dropdown — phase 2)
+    - `data-on-path="true"` (when on the selection→focus BFS path — phase 3)
+    - `data-add-toggle="open" | "menu"` (`+ person` and its dropdown — phase 4)
+    - `data-add-kind="parent" | "partner" | "child"` (add-relative menu items — phase 4)
+    - `data-generation-badge="g±N"` (non-focus generation pill — phase 5)
+    - `data-silhouette="true"` (User-icon fallback when no portraitUrl — phase 5)
+    - `data-era-underline="true"` (1-px century-banded strip at card bottom — phase 5)
+    Aria-label substrings are *also* selector surface (phase 2 hit a collision when `˅`'s aria-label contained "view-time" and lit up the existing `getByRole("button", { name: "View" })` selector). When adding an affordance, scan existing aria-label / role selectors before settling on copy.
 
 ---
 
@@ -243,6 +261,7 @@ commit conventions, comment style, file headers, the feature-completion checklis
 **`notes/dev/`**
 - [`notes/dev/dev_setup.md`](dev/dev_setup.md) - one-time install steps (node, pnpm, python, uv, playwright)
 - [`notes/dev/testing.md`](dev/testing.md) - test layout, fixtures, how to run subsets
+- [`notes/dev/process.md`](dev/process.md) - the phased-plan / phase-loop / ship-gate development process; lists generic shared skills (`pre-mortem`, `phase-retro`, `bug-triage`, `integration-check`, `plan-revise`, `ship-readiness`) used at each step
 
 **`notes/`**
 - [`notes/.meta.md`](.meta.md) - guide to this documentation system

@@ -66,7 +66,18 @@ export interface CommandHandlers {
     viewEngineFamilyView: () => void;
     viewEngineLayered: () => void;
     viewEngineHyperbolic: () => void;
-    viewOverlayPathHighlightStub: () => void;
+    /**
+     * Phase 6 (family-view): set the currently-active engine as the
+     * per-browser default. Writes `fte.defaultEngine` so future first-runs
+     * (cleared Dexie, fresh browser, etc.) start in this engine.
+     */
+    viewSetCurrentEngineAsDefault: () => void;
+    /**
+     * Phase 6 (family-view): toggles the path-highlight overlay on/off.
+     * Persisted via `fte.overlays.pathHighlight` localStorage key with a
+     * default of `true` (the Phase 3 path highlight ships on-by-default).
+     */
+    viewOverlayPathHighlightToggle: () => void;
     /** relationship-vocabulary Phase 4 wires this; today shows "coming soon" */
     viewOverlaySwornBondsStub: () => void;
     /** relationship-vocabulary Phase 4 wires this; today shows "coming soon" */
@@ -103,6 +114,12 @@ export interface CommandEnabledFlags {
     engineLayeredActive?: () => boolean;
     /** True when the hyperbolic engine is the active layout. */
     engineHyperbolicActive?: () => boolean;
+    /**
+     * Phase 6 (family-view): is the path-highlight overlay currently
+     * enabled? Drives the menu's check state. Returns true when the
+     * `fte.overlays.pathHighlight` preference is true.
+     */
+    overlayPathHighlightActive?: () => boolean;
 }
 
 export function buildCommands(
@@ -284,17 +301,28 @@ export function buildCommands(
             checked: enabled.engineHyperbolicActive,
             run: h.viewEngineHyperbolic,
         },
-        // Overlays sub-list — Phase 0 stub placeholders. Each entry is
-        // disabled today; family-view's Phase 3 wires path highlight; the
-        // relationship-vocabulary plan wires the remaining five in Phases
-        // 4 / 6a / 6b (see notes/plans/relationship-vocabulary.md).
+        {
+            // Phase 6: writes `fte.defaultEngine` to the currently-active
+            // engine so the next first-run picks it up. Useful for users
+            // who prefer the layered or hyperbolic engine but had Phase 0
+            // flip the default to family-view.
+            id: "view.setCurrentEngineAsDefault",
+            label: "Set current engine as default",
+            group: "View",
+            run: h.viewSetCurrentEngineAsDefault,
+        },
+        // Overlays sub-list — Phase 6 enables the path-highlight entry
+        // (default on; toggled via `fte.overlays.pathHighlight`). The
+        // remaining five entries stay placeholders until the
+        // relationship-vocabulary plan wires them in Phases 4 / 6a / 6b
+        // (see notes/plans/relationship-vocabulary.md).
         {
             id: "view.overlay.pathHighlight",
-            label: "Overlay: path highlight (coming in phase 3)",
+            label: "Overlay: path highlight",
             group: "View",
             dividerBefore: true,
-            enabled: () => false,
-            run: h.viewOverlayPathHighlightStub,
+            checked: enabled.overlayPathHighlightActive,
+            run: h.viewOverlayPathHighlightToggle,
         },
         {
             id: "view.overlay.swornBonds",

@@ -46,6 +46,16 @@
     interface Props {
         tree: Tree;
         selectedId?: PersonId | undefined;
+        /**
+         * Phase 6 (family-view): path-highlight overlay master switch.
+         * `true` (default) → Phase 3 behaviour: edges thicken, off-path
+         * dims, cards get `ring-accent`, badges accent. `false` → renderer
+         * treats the path set as empty regardless of selection, so the
+         * canvas reads the same as Phase 2 visually. Toggled via the
+         * View > "Overlay: path highlight" menu entry; persisted to
+         * `fte.overlays.pathHighlight`.
+         */
+        pathHighlight?: boolean | undefined;
         onselect?: ((id: PersonId) => void) | undefined;
         ondeselect?: (() => void) | undefined;
         onedit?: ((id: PersonId) => void) | undefined;
@@ -80,6 +90,7 @@
     let {
         tree,
         selectedId,
+        pathHighlight = true,
         onselect,
         ondeselect,
         onedit,
@@ -136,7 +147,19 @@
     // Phase 2 primary-union override — same per-(treeId, focusId) lifecycle.
     let primaryUnion = $derived(usePrimaryUnionState(tree.id, activeFocus));
 
-    let pathHl = $derived(usePath(tree, activeFocus, selectedId));
+    // Phase 6: when the Overlays > "Path highlight" toggle is off, skip
+    // the BFS path lookup and present an empty path-set so the renderer
+    // falls through to its no-path styling (Phase 2 visual). The
+    // `pathHighlight === false` path costs O(1) — saves the BFS scan
+    // on every selection / focus change for users who've turned the
+    // overlay off.
+    const EMPTY_PATH = {
+        pathSet: new Set<PersonId>() as ReadonlySet<PersonId>,
+        onPath: () => false,
+    } as const;
+    let pathHl = $derived(
+        pathHighlight === false ? EMPTY_PATH : usePath(tree, activeFocus, selectedId),
+    );
 
     /**
      * Family-view layout. Re-runs when the tree, focus, expansion set, or

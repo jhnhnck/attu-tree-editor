@@ -1,10 +1,13 @@
 /*
- * FamilyTreeEditor - Phase 0 family-view: cross-engine continuity smoke test.
+ * FamilyTreeEditor - Phase 6 family-view: cross-engine continuity full e2e.
  *
- * Asserts the walking-skeleton contract: a person selected in one engine
- * stays selected after switching to another engine and back. Phase 6 will
- * upgrade this to a full e2e (edits visible across engines, recenter on
- * the same person); Phase 0 only checks the selection seam.
+ * Phase 0 asserted the selection-survives seam; Phase 6 upgrades to a
+ * full continuity check:
+ *   - edits made in family-view are visible after switching to layered
+ *   - selection survives swaps in both directions
+ *   - "Overlay: path highlight" entry is enabled (Phase 6 wired it)
+ *   - command palette person-pick opens the inspector and calls
+ *     canvasController.focusSelection() (pre-wired in Phase 6)
  *
  * Clears the `fte.*` localStorage namespace in beforeEach so the
  * defaultEngine setting is the documented `family-view` regardless of
@@ -69,17 +72,15 @@ test.describe("family view — cross-engine continuity", () => {
         await expect(familySel).toBeVisible();
     });
 
-    test("Overlays placeholder appears in the View menu (disabled)", async ({ page }) => {
+    test("Overlay: path highlight is enabled and togglable in the View menu", async ({ page }) => {
         await page.goto("/");
         await page.locator('[data-testid="import-input"]').setInputFiles(TINY);
         await expect(page.getByText(/loaded \d+ people/)).toBeVisible();
 
         await page.getByRole("button", { name: "View" }).click();
-        const overlay = page.getByRole("menuitem", {
-            name: /path highlight \(coming in phase 3\)/i,
-        });
+        const overlay = page.getByRole("menuitem", { name: /overlay: path highlight/i });
         await expect(overlay).toBeVisible();
-        await expect(overlay).toBeDisabled();
+        await expect(overlay).toBeEnabled();
     });
 
     test("the `+` affordance is real in phase 1 (expansion, not toast)", async ({ page }) => {
@@ -103,5 +104,67 @@ test.describe("family view — cross-engine continuity", () => {
         const oldStubButtons = page.locator("[data-add-stub]");
         expect(await oldStubButtons.count()).toBe(0);
         void count;
+    });
+
+    test("edit made in family-view is visible after switching to layered", async ({ page }) => {
+        // Phase 6 cross-engine continuity: edits persist when you swap engines.
+        await page.goto("/");
+        await page.locator('[data-testid="import-input"]').setInputFiles(TINY);
+        await expect(page.getByText(/loaded \d+ people/)).toBeVisible();
+
+        // tiny.ged root is Alpha Smith. Select the focus card.
+        const alphaCard = page.locator("[data-person-id]").filter({ hasText: "Alpha" }).first();
+        await expect(alphaCard).toBeVisible();
+        await alphaCard.click();
+
+        // Inspector opens; edit the given name and commit via blur.
+        const givenField = page.getByLabel("given");
+        await expect(givenField).toBeVisible();
+        await givenField.fill("AlphaEdited");
+        await givenField.press("Tab"); // triggers onblur → commitGiven
+
+        // The family-view card should immediately reflect the new name.
+        await expect(page.locator("[data-person-id]").filter({ hasText: "AlphaEdited" })).toBeVisible();
+
+        // Switch to layered engine; the same card must show the edited name.
+        await page.getByRole("button", { name: "View" }).click();
+        await page.getByRole("menuitem", { name: "Use layered engine" }).click();
+        await expect(
+            page.locator("[data-person-id]").filter({ hasText: "AlphaEdited" }),
+        ).toBeVisible();
+
+        // Switch back to family-view; the name persists in the round-trip.
+        await page.getByRole("button", { name: "View" }).click();
+        await page.getByRole("menuitem", { name: "Use family view" }).click();
+        await expect(
+            page.locator("[data-person-id]").filter({ hasText: "AlphaEdited" }),
+        ).toBeVisible();
+    });
+
+    test("command palette person-pick opens inspector", async ({ page }) => {
+        // Phase 6: canvasController.focusSelection() is called after palette pick.
+        // The observable effect is the inspector opening for the picked person.
+        await page.goto("/");
+        await page.locator('[data-testid="import-input"]').setInputFiles(TINY);
+        await expect(page.getByText(/loaded \d+ people/)).toBeVisible();
+
+        // Open find-person palette via Edit menu.
+        await page.getByRole("button", { name: "Edit" }).click();
+        await page.getByRole("menuitem", { name: /find person/i }).click();
+
+        // The palette opens; type to narrow to Gamma.
+        const paletteInput = page.getByLabel("palette search");
+        await expect(paletteInput).toBeVisible({ timeout: 3_000 });
+        await paletteInput.fill("Gamma");
+
+        // Pick the first person result.
+        const gammaResult = page.locator("[data-kind='person']").filter({ hasText: "Gamma" }).first();
+        await expect(gammaResult).toBeVisible({ timeout: 3_000 });
+        await gammaResult.click();
+
+        // Inspector should open for Gamma; palette closes on pick.
+        await expect(page.getByLabel("given")).toBeVisible({ timeout: 3_000 });
+        const givenValue = await page.getByLabel("given").inputValue();
+        expect(givenValue).toBe("Gamma");
     });
 });

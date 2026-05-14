@@ -20,14 +20,19 @@ _known defects with reproducible misbehavior. feature work, deployment plumbing,
 
 ### ui / interaction
 
-- ⭕ `medium priority` `low effort` command-palette pick should re-focus the canvas on the selected person via `canvasController.focusSelection()` (currently it only opens the inspector; the canvas stays where it was) 🎯 *planned in [family-view.md](../plans/family-view.md)*
+- ⭕ `medium priority` `low effort` family-view zoom is not centered and 100% is not a stable reference - zoom origin isn't the viewport center (zooming in/out drifts the focal point), and the "100%" label on the zoom widget tracks the raw canvas transform rather than a logical scale, so the same "100%" renders cards at wildly different on-screen sizes between displays / window sizes. Fix: anchor zoom about the viewport center (or pointer position, consistently); define 100% as "one standard card / label at its design size" and derive the displayed % from that ratio so it means the same thing on every screen 🎯 *planned in [family-view.md](../plans/family-view.md)*
+- ⭕ `medium priority` `low effort` family-view e2e tests on mobile viewport (Pixel 7) are flaky — inspector overlay intercepts canvas pointer events, causing 3 test failures: "selection survives engine swaps", "edit visible after switch", "path-highlight clicking again clears it". All 3 pass on chromium. Root cause: `<aside aria-label="person inspector">` is bottom-anchored on narrow viewport and intercepts subsequent card clicks. Fix: add a close-inspector step before the second canvas interaction, or viewport-clip the test to a wider width for canvas-heavy scenarios
 - ⭕ `low priority` `low effort` Menu's first item is always visually highlighted on open even when the user opened it with the mouse - only auto-highlight after an explicit keyboard nav (↑/↓ or End/Home), not on mouse open
 - ⭕ `low priority` `low effort` cursor correctness audit - the canvas root's `cursor-grab` overrides cards / buttons inside it (should show pointer over PersonNodes), and the cursor occasionally stays in `grabbing` after a pan ends outside the window. fix the grab/grabbing/default/pointer transitions so the OS cursor always matches what's under the pointer
+- ⭕ `low priority` `low effort` on-path stroke and ring are raw Tailwind classes (`stroke-[2.5]`, `ring-accent/70`) rather than design tokens - extract to theme tokens so the on-path visual can be tuned globally without a multi-file search 🎯 *deferred from Phase 3 through Phase 6*
+- ⭕ `low priority` `low effort` smooth-diff animation absent - switching focus in family-view is a jump-cut; a FLIP-style transition or opacity fade would help users maintain orientation after recenter. Deferred every phase from Phase 1 through Phase 6
+- ⭕ `low priority` `no effort` Akarians visual-golden specs duplicate the mask shape — both `visual-akarians-family-view.spec.ts` and `visual-akarians.spec.ts` specify the same toast/save-pill/people-badge mask. a shared `maskAkariansOverlays(page)` helper would centralise the shape
 
 ---
 
 ## fixed
 
+- 🔴 `14 May 2026` command-palette pick left canvas in place — `App.svelte:1156` now calls `canvasController?.focusSelection()` after `focusPerson`; all three engines recenter on the picked person. Phase 6.
 - 🔴 `14 May 2026` same-rank short couple bond renders as two stub segments on small fixtures - `route.ts:296` `maxBondSpan = min(MAX_BOND_SPAN_CEILING, bbox.width/4)` collapsed to ~3.5u on tiny trees (8-person fixture, bbox 7.9u wide), so any couple with children pulling bondSpan past that became a `/stub-l` + `/stub-r` pair. Fix: floor the threshold at `BUNDLE_THRESHOLD` (= 8 × `ROW_H`). Effect: same-rank short-bond stub pairs dropped 1→0 / 2→0 / 3→1 across `eightPersonFamily`, `ghostStrandingDistilled`, and Akarians; Akarians' remaining stub is a legitimate cross-cluster long-bond
 - 🔴 `14 May 2026` same-rank both-known couple orientation was order-driven (50/50 male-left vs female-left) - `passes/order.ts` `repairCoupleAdjacency` gained a `preferredLeft` map (built from `tree` when threaded by `LayeredEngine`) that picks the male partner as anchor for mixed-gender both-known couples. Same-sex couples, unknown-gender pairs, and multi-spouse secondary unions fall through to position-based ordering. Matches the hyperbolic engine convention from commit `e3e7d8c`. Result: 100% male-left on all 37 same-rank both-known couples on the Akarians DEMO fixture. Cross-rank orientation remains a separate open item per the entry above
 - 🔴 `14 May 2026` ~12% of drops had negative height — root cause: `passes/layer.ts`'s `computeRanks` longest-path BFS ignored spouse edges, so a couple with one parented + one unparented partner ended up on different ranks. The joint child then took max(parent ranks) + 1, which could be above the unparented partner's rank, producing a negative-height drop. Fixed by a couple-equalisation post-pass in `layer.ts` that raises unparented partners to match the parented partner's rank. Regression test `korakWifeChildrenThenAddParent > emits no negative-height parent drops` covers the bugs.md repro. Phase 2b.1 of [relationship-vocabulary.md](../plans/relationship-vocabulary.md). Commit 7f12a72.
@@ -72,5 +77,5 @@ if a feature in `to-do.md` turns up a defect during implementation, file the def
 
 ```yaml
 last_updated: 14 May 2026
-total_fixed: 4
+total_fixed: 5
 ```

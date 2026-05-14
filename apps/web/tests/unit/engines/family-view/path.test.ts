@@ -84,7 +84,7 @@ describe("bfsPath", () => {
         t = parent.tree;
         const step = addPerson(t, blank("Step", "f"));
         t = step.tree;
-        let l = linkParent(t, ROOT_ID, parent.id);
+        const l = linkParent(t, ROOT_ID, parent.id);
         if (!l.ok) throw new Error(l.error);
         t = l.value;
         const sp = linkSpouse(t, parent.id, step.id);
@@ -127,7 +127,7 @@ describe("usePath", () => {
 
     it("returns the full path set when selection is on the tree", () => {
         const { tree, ids } = chain(4);
-        const h = usePath(tree, ROOT_ID, ids[3]!);
+        const h = usePath(tree, ROOT_ID, ids[3]);
         // pathSet contains every id in the path.
         for (const id of ids) expect(h.onPath(id)).toBe(true);
         expect(h.pathSet.size).toBe(4);

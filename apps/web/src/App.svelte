@@ -49,11 +49,14 @@
         createTree,
         getParents,
         linkParent,
+        linkParentRef,
         linkSpouse,
         removePerson,
         unlinkParent,
+        unlinkParentByPersonId,
         unlinkSpouse,
         updateCouple,
+        updateParentRef,
         updatePerson,
         type CouplePatch,
         type PersonPatch,
@@ -90,6 +93,7 @@
         DEFAULT_ENGINE,
         loadEngineSetting,
         saveEngineSetting,
+        writeDefaultEngine,
         type EngineKind,
     } from "$lib/state/engine";
     import Inspector from "$lib/components/inspector/Inspector.svelte";
@@ -211,6 +215,37 @@
     // proband at centre) based on this. Hydrated from settings on mount;
     // changes persist immediately.
     let selectedEngine = $state<EngineKind>(DEFAULT_ENGINE);
+
+    // Phase 6 (family-view): path-highlight overlay toggle. Defaults to
+    // `true` (Phase 3 ships on-by-default); persisted to localStorage so
+    // the choice survives reload. Drives the View menu's "Overlay: path
+    // highlight" checkmark and gates FamilyViewCanvas's `pathHighlight`
+    // prop. Read inline rather than via a separate module — single
+    // boolean with no other consumer.
+    const PATH_HIGHLIGHT_LS_KEY = "fte.overlays.pathHighlight";
+    function readPathHighlightPref(): boolean {
+        try {
+            const raw =
+                typeof localStorage === "undefined"
+                    ? null
+                    : localStorage.getItem(PATH_HIGHLIGHT_LS_KEY);
+            // null → default on (no stored choice yet)
+            // anything but "false" → on (defensive vs. malformed values)
+            return raw !== "false";
+        } catch {
+            return true;
+        }
+    }
+    function writePathHighlightPref(on: boolean): void {
+        try {
+            if (typeof localStorage !== "undefined") {
+                localStorage.setItem(PATH_HIGHLIGHT_LS_KEY, on ? "true" : "false");
+            }
+        } catch {
+            // ignore — quota / disabled storage is non-fatal
+        }
+    }
+    let pathHighlightEnabled = $state(readPathHighlightPref());
 
     // save-pill state
     let lastSavedAt = $state<number | undefined>(undefined);
@@ -392,6 +427,7 @@
     type InspectorTab = "personal" | "connections" | "details" | "bio";
     type ConnectionSlot =
         | { kind: "parent"; role: "mother" | "father" }
+        | { kind: "parent-extra" }
         | { kind: "partner" }
         | { kind: "child" };
 
@@ -498,6 +534,33 @@
         treeStore.update((t) => unlinkParent(t, childId, role));
     }
 
+    function addParentRefLink(
+        childId: PersonId,
+        ref: import("$lib/domain/types").ParentRef,
+    ): void {
+        const r = linkParentRef(treeStore.tree, childId, ref);
+        if (!r.ok) {
+            toasts.push(r.error, "error");
+            return;
+        }
+        treeStore.set(r.value);
+    }
+
+    function unsetParentLinkById(childId: PersonId, parentId: PersonId): void {
+        treeStore.update((t) => unlinkParentByPersonId(t, childId, parentId));
+    }
+
+    function updateParentRefLink(
+        childId: PersonId,
+        parentId: PersonId,
+        patch: {
+            role?: import("$lib/domain/types").ParentRole;
+            pedi?: import("$lib/domain/types").ParentPedi;
+        },
+    ): void {
+        treeStore.update((t) => updateParentRef(t, childId, parentId, patch));
+    }
+
     function addPartnerLink(aId: PersonId, bId: PersonId): void {
         const r = linkSpouse(treeStore.tree, aId, bId);
         if (!r.ok) {
@@ -539,6 +602,13 @@
         let next = t1;
         if (slot.kind === "parent") {
             const r = linkParent(next, forPersonId, newId, slot.role);
+            if (r.ok) next = r.value;
+        } else if (slot.kind === "parent-extra") {
+            const r = linkParentRef(next, forPersonId, {
+                personId: newId,
+                role: "parent",
+                pedi: "birth",
+            });
             if (r.ok) next = r.value;
         } else if (slot.kind === "partner") {
             const r = linkSpouse(next, forPersonId, newId);
@@ -887,10 +957,21 @@
         viewEngineFamilyView: () => void switchEngine("family-view"),
         viewEngineLayered: () => void switchEngine("layered"),
         viewEngineHyperbolic: () => void switchEngine("hyperbolic"),
-        viewOverlayPathHighlightStub: () => {
-            // Phase 0 placeholder — disabled in the menu; this handler exists
-            // so the command shape stays uniform for Phase 3 wire-up.
-            toasts.push("path highlight — coming in phase 3", "info", 1500);
+        viewSetCurrentEngineAsDefault: () => {
+            // Phase 6: writes the active engine to fte.defaultEngine so a
+            // fresh first-run picks it up. The active engine is whatever
+            // `selectedEngine` reads as right now; toast confirms which
+            // engine just won the default slot so the user knows the
+            // command applied to the right one.
+            writeDefaultEngine(selectedEngine);
+            toasts.push(`${selectedEngine} is the new default engine`, "success", 2000);
+        },
+        viewOverlayPathHighlightToggle: () => {
+            // Phase 6: real toggle. Flips the local state + persists the
+            // preference, so the View menu's check tracks live and a
+            // reload restores the user's choice.
+            pathHighlightEnabled = !pathHighlightEnabled;
+            writePathHighlightPref(pathHighlightEnabled);
         },
         // Relationship-vocabulary plan Phase 0 stub placeholders. Each
         // overlay's real wiring lands in the absorbing phase.
@@ -980,6 +1061,7 @@
             canRedo: () => treeStore.canRedo,
             engineFamilyViewActive: () => selectedEngine === "family-view",
             engineLayeredActive: () => selectedEngine === "layered",
+            overlayPathHighlightActive: () => pathHighlightEnabled,
             engineHyperbolicActive: () => selectedEngine === "hyperbolic",
         }),
     );
@@ -1249,6 +1331,7 @@
                 <FamilyViewCanvas
                     tree={treeStore.tree}
                     selectedId={selection.selectedPersonId}
+                    pathHighlight={pathHighlightEnabled}
                     onselect={(id: string) => selection.select(id)}
                     ondeselect={() => selection.select(undefined)}
                     onedit={(id: string) => focusPerson(id, "personal")}
@@ -1293,9 +1376,14 @@
                         ? [selection.selectedPersonId, traceTargetId]
                         : undefined}
                     {debugOptions}
-                    ontimings={(t) => (debugTimings = t)}
+                    ontimings={(t: import("$lib/layout/engines/layered-hv").LayeredEngineTimings) =>
+                        (debugTimings = t)}
                     lastEditedId={debugLastEditedId}
-                    onlayoutstats={(s) => (layoutStats = s)}
+                    onlayoutstats={(s: {
+                        totalPeople: number;
+                        components: number;
+                        isolated: number;
+                    }) => (layoutStats = s)}
                 />
             {/if}
             <!-- ZoomWidget moved out of the canvas into the toolbar; the
@@ -1555,6 +1643,9 @@
                 onpatch={onSave}
                 onsetParent={setParentLink}
                 onunsetParent={unsetParentLink}
+                onaddParentRef={addParentRefLink}
+                onunsetParentById={unsetParentLinkById}
+                onupdateParentRef={updateParentRefLink}
                 onaddPartner={addPartnerLink}
                 onremovePartner={removePartnerLink}
                 onaddChild={addChildLink}
