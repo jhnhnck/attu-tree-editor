@@ -298,7 +298,7 @@ function placeAt(
     rank: number,
     x: number,
 ): void {
-    nodes.set(personId, { personId, rank, x, y: rank * ROW_H });
+    nodes.set(personId, { personId, rank, x, y: rank * ROW_H, h: CARD_H });
 }
 
 function planRank(

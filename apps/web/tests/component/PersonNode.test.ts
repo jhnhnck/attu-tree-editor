@@ -136,4 +136,12 @@ describe("PersonNode", () => {
         render(PersonNode, { person: person({ given: "", surname: "" }) });
         expect(screen.getByRole("treeitem")).toHaveTextContent("(unnamed)");
     });
+
+    // visual fix-up plan stubs — converted per phase as fixes land.
+    // see notes/features/family-view-visual-fixup.md
+    it.todo("issue #1: two-line name does not clip against card bottom border");
+    it.todo("issue #2: name+avatar block is vertically centered when no date is present");
+    it.todo("issue #3: card height grows when a photo is present (2:3 portrait visible)");
+    it.todo("issue #7: selection ring renders without a visible gap at card corners");
+    it.todo("issue #11: avatar slot is reduced when no photo is present");
 });

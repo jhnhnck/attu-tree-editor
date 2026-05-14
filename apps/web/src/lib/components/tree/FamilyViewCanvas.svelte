@@ -56,6 +56,14 @@
          * `fte.overlays.pathHighlight`.
          */
         pathHighlight?: boolean | undefined;
+        /**
+         * Visual fix-up plan phase 0: master switch for the generation-badge
+         * overlay (`g+N` / `gN` pills on cards offset from focus). Defaults
+         * to `true` to preserve current behaviour; phase 4 wires a View-menu
+         * toggle and flips the default to `false`. Persisted upstream via
+         * `fte.overlays.generationBadge`.
+         */
+        showGenerationBadge?: boolean | undefined;
         onselect?: ((id: PersonId) => void) | undefined;
         ondeselect?: (() => void) | undefined;
         onedit?: ((id: PersonId) => void) | undefined;
@@ -68,11 +76,7 @@
          * the pill stays compact and matches the shape `TreeCanvas` emits.
          */
         onlayoutstats?:
-            | ((stats: {
-                  totalPeople: number;
-                  components: number;
-                  isolated: number;
-              }) => void)
+            | ((stats: { totalPeople: number; components: number; isolated: number }) => void)
             | undefined;
         /**
          * Phase 4 add-relative affordance. Fires with the anchor person
@@ -91,6 +95,7 @@
         tree,
         selectedId,
         pathHighlight = true,
+        showGenerationBadge = true,
         onselect,
         ondeselect,
         onedit,
@@ -330,7 +335,7 @@
         const node = layout.nodes.get(id);
         if (node) {
             panX = hostW / 2 - (node.x + PERSON_W / 2) * UNIT * scale;
-            panY = hostH / 2 - (node.y + CARD_H / 2) * UNIT * scale;
+            panY = hostH / 2 - (node.y + (node.h ?? CARD_H) / 2) * UNIT * scale;
             return;
         }
         // Off-subset target — shift focus; the auto-fit effect re-centres
@@ -563,7 +568,7 @@
                     style:left="{node.x * UNIT}px"
                     style:top="{node.y * UNIT}px"
                     style:width="{CARD_W_PX}px"
-                    style:height="{CARD_H_PX}px"
+                    style:height="{(node.h ?? CARD_H) * UNIT}px"
                 >
                     <PersonNode
                         {person}
@@ -607,14 +612,15 @@
                             <Minus size={14} strokeWidth={2.5} />
                         </button>
                     {/if}
-                    {#if generationLabel(node)}
+                    {#if showGenerationBadge && generationLabel(node)}
                         <span
                             class="border-line bg-canvas-elev/90 text-fg-muted
                                    pointer-events-none absolute -top-2 -left-2 z-20
                                    rounded-full border px-1 font-mono text-[10px]
                                    leading-tight shadow-sm"
                             data-generation-badge={generationLabel(node)}
-                            aria-hidden="true">{generationLabel(node)}</span>
+                            aria-hidden="true">{generationLabel(node)}</span
+                        >
                     {/if}
                     {#if node.personId === activeFocus}
                         <button

@@ -44,9 +44,15 @@ export interface UnionAnchor {
 export interface FamilyViewNode {
     readonly personId: PersonId;
     readonly rank: Rank;
-    /** Top-left in unit space; width is PERSON_W, height fixed (see layout.ts). */
+    /** Top-left in unit space; width is PERSON_W. */
     readonly x: number;
     readonly y: number;
+    /**
+     * Card height in unit space. Optional for backward-compat; consumers
+     * fall back to `CARD_H` when absent. Phase 1 of the visual fix-up plan
+     * will vary this per node based on photo presence + name length.
+     */
+    readonly h?: number;
 }
 
 /** Edge role surfaced to the renderer; data-driven per design rule #3. */
