@@ -1147,12 +1147,6 @@
                         canvasScale = c.getScale();
                         canvasMode = c.getMode();
                     }}
-                    onaddstub={(slot: "north" | "south" | "east" | "west", _id: string) => {
-                        void _id;
-                        const label =
-                            slot === "north" ? "parent" : slot === "south" ? "child" : "partner";
-                        toasts.push(`add ${label} — coming in phase 4`, "info", 1500);
-                    }}
                 />
             {:else}
                 <TreeCanvas

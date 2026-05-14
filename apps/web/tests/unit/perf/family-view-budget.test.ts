@@ -25,7 +25,9 @@ describe("family-view perf budget", () => {
         const median = samples.sort((a, b) => a - b)[2]!;
         const max = Math.max(...samples);
         // eslint-disable-next-line no-console
-        console.log(`[family-view-perf] median=${median.toFixed(2)}ms max=${max.toFixed(2)}ms samples=${samples.map(s=>s.toFixed(1)).join(",")}`);
+        console.log(
+            `[family-view-perf] median=${median.toFixed(2)}ms max=${max.toFixed(2)}ms samples=${samples.map((s) => s.toFixed(1)).join(",")}`,
+        );
         expect(median).toBeLessThan(100);
     });
 });

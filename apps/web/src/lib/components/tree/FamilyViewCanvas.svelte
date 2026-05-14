@@ -1,30 +1,37 @@
 <!--
     FamilyTreeEditor - FamilyViewCanvas: bounded default-view renderer.
 
-    Phase 0 walking-skeleton renderer for the new family-view engine.
-    Runs `FamilyViewEngine.layout(tree, focus)` synchronously on the main
-    thread (subset is ≤30 cards; the work is microsecond-scale) and paints
-    cards + couple-box + drops onto an absolutely-positioned pan/zoom
-    surface.
+    Phase 1 promotion of the Phase 0 walking skeleton. Runs
+    `FamilyViewEngine.layout(tree, focus, { expanded })` synchronously on
+    the main thread (typical bounded-default work is ~6 ms on Akarians; an
+    auto-collapse pass with 100+ visible cards is still well under the 50
+    ms latency budget) and paints cards + couple-box + drops + collapse
+    badges onto an absolutely-positioned pan/zoom surface.
 
-    Edges go through the Phase 0 `usePath` stub (always returns false) so
-    Phase 3's path-highlight wire-up is a one-file change. Cards go through
-    the Phase 0 `cardDecorator` stub so Phase 5's banding / portraits land
-    without touching this file.
+    Phase 1 additions over the Phase 0 skeleton:
+      - + / − affordances on cards with un-shown adjacents / explicit
+        expansion. Click + reveals the next generation; click − collapses
+        back. State persists via `useExpansionState`.
+      - Collapse badges render as a `+N FirstName` pill. Click re-expands
+        every member back into person cards.
+      - The Phase 0 "+ goes to a toast" buttons retire — `+` is now a
+        real interaction. The Phase-4 add-person flow surfaces elsewhere
+        (Insert menu, inspector connections tab).
 
-    The `+` buttons on card edges are Phase 0 stubs — every click fires a
-    "coming in phase 4" toast via the `onaddstub` callback. Phase 4 replaces
-    the callback with real add-person flows.
+    Edges go through the Phase 0 `usePath` stub (still always returns
+    false); Phase 3 fills it in and edges restyle without renderer
+    changes.
 
     licensed under the MIT license; see LICENSE.md for full text
 -->
 <script lang="ts">
     import { onDestroy, onMount, untrack } from "svelte";
-    import { Plus } from "@lucide/svelte";
+    import { Plus, Minus } from "@lucide/svelte";
     import { PERSON_W } from "$lib/layout/constants";
     import PersonNode from "$lib/components/tree/PersonNode.svelte";
     import { FamilyViewEngine, CARD_H } from "$lib/layout/engines/family-view";
     import type {
+        BadgeNode,
         FamilyViewEdge,
         FamilyViewLayout,
         FamilyViewNode,
@@ -42,22 +49,10 @@
         onedit?: ((id: PersonId) => void) | undefined;
         oncontextmenu?: ((id: PersonId, x: number, y: number) => void) | undefined;
         oncontroller?: ((c: CanvasController) => void) | undefined;
-        /** Phase 0 stub: any `+` click fires this. Phase 4 wires real flows. */
-        onaddstub?:
-            | ((slot: "north" | "south" | "east" | "west", anchorId: PersonId) => void)
-            | undefined;
     }
 
-    let {
-        tree,
-        selectedId,
-        onselect,
-        ondeselect,
-        onedit,
-        oncontextmenu,
-        oncontroller,
-        onaddstub,
-    }: Props = $props();
+    let { tree, selectedId, onselect, ondeselect, onedit, oncontextmenu, oncontroller }: Props =
+        $props();
 
     /** pixels per unit; matches TreeCanvas so card sizes feel consistent */
     const UNIT = 80;
@@ -77,27 +72,28 @@
     let panX = $state(0);
     let panY = $state(0);
 
-    // Hydrate the Phase 0 stubs so layout has access to (currently empty)
-    // expansion + path state. Phase 1 / 3 fill these in without touching
-    // the renderer.
+    // Phase 1 expansion state — localStorage-backed per (treeId, focusId).
+    // Recreated when (tree.id, rootId) changes (recentering on a new focus
+    // resets the expanded set per the Phase 1 spec, since the new key
+    // misses the old localStorage row).
     let expansion = $derived(useExpansionState(tree.id, tree.rootId));
+
     let pathHl = $derived(usePath(tree.rootId, selectedId));
 
     /**
-     * Family-view layout. Recomputed when the tree, root, or expansion set
-     * changes. The bounded subset is cheap (~ms on Akarians) so we don't
-     * memoise further.
+     * Family-view layout. Re-runs when the tree, root, or expansion set
+     * changes. Cheap enough that we recompute on every reactive tick.
+     * `expansionRev` increments on every set/reset so the $derived picks
+     * up changes even though the Set identity is reassigned, not mutated.
      */
-    let layout = $derived<FamilyViewLayout>(engine.layout({ tree, focus: tree.rootId }));
-
-    // Suppress "unused" warnings — these are deliberately read so the
-    // renderer's reactive graph picks them up; Phase 1/3 will swap in real
-    // bodies and the renderer needs to be reactive to them today.
-    $effect(() => {
-        void expansion.expanded;
-        void expansion.autoCollapsed;
-        void pathHl.pathSet;
-    });
+    let expansionRev = $state(0);
+    let layout = $derived<FamilyViewLayout>(
+        engine.layout({
+            tree,
+            focus: tree.rootId,
+            options: { expanded: (void expansionRev, expansion.expanded) },
+        }),
+    );
 
     // Resize observer to keep host dims in sync.
     $effect(() => {
@@ -137,9 +133,6 @@
         const sx = (hostW - 64) / layoutWpx;
         const sy = (hostH - 64) / layoutHpx;
         scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, Math.min(sx, sy)));
-        // Centre the layout in the viewport. The chart's rank-y values can be
-        // negative (ancestors) so the y origin is min-rank * ROW_H — we read
-        // the actual min y from placed nodes.
         const minY = minNodeY(layout);
         panX = (hostW - layoutWpx * scale) / 2;
         panY = (hostH - layoutHpx * scale) / 2 - minY * UNIT * scale;
@@ -154,6 +147,12 @@
                 seen = true;
             }
         }
+        for (const b of l.badges) {
+            if (!seen || b.y < min) {
+                min = b.y;
+                seen = true;
+            }
+        }
         return min;
     }
 
@@ -163,8 +162,9 @@
 
     function onPointerDown(e: PointerEvent): void {
         const target = e.target as HTMLElement | null;
-        if (target?.closest("[data-person-id]")) return; // card handles its own click
-        if (target?.closest("[data-add-stub]")) return;
+        if (target?.closest("[data-person-id]")) return;
+        if (target?.closest("[data-expand-toggle]")) return;
+        if (target?.closest("[data-badge-id]")) return;
         dragStart = { x: e.clientX, y: e.clientY, pX: panX, pY: panY };
         (e.target as Element).setPointerCapture?.(e.pointerId);
     }
@@ -184,7 +184,6 @@
         const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
         const next = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale * factor));
         if (next === scale) return;
-        // Zoom around the pointer — subtract host origin, normalise, scale.
         const rect = hostEl?.getBoundingClientRect();
         if (!rect) {
             scale = next;
@@ -249,8 +248,18 @@
         oncontextmenu?.(id, x, y);
     }
 
-    function onAddStubClick(slot: "north" | "south" | "east" | "west", id: PersonId): void {
-        onaddstub?.(slot, id);
+    function onExpandClick(id: PersonId, on: boolean, e: MouseEvent): void {
+        e.stopPropagation();
+        expansion.setExpanded(id, on);
+        expansionRev += 1;
+    }
+
+    function onBadgeClick(badge: BadgeNode, e: MouseEvent): void {
+        e.stopPropagation();
+        // Re-expand: mark the source as explicitly expanded so the auto-
+        // collapse pass doesn't immediately re-demote it.
+        expansion.setExpanded(badge.sourceId, true);
+        expansionRev += 1;
     }
 
     function nodes(): readonly FamilyViewNode[] {
@@ -276,10 +285,16 @@
                 : e.role === "divorced"
                   ? "stroke-rose-400/40"
                   : "stroke-fg-muted/70";
-        // pathHl is Phase 0 stub — always false — but the call site exists so
-        // Phase 3 lights up edges by filling in `onPath`.
         const onPath = e.persons.every((id) => pathHl.onPath(id));
         return onPath ? `${base} stroke-2` : `${base} stroke-1`;
+    }
+
+    function canExpand(id: PersonId): boolean {
+        return layout.hasMoreChildren.has(id) || layout.hasMoreParents.has(id);
+    }
+
+    function canCollapse(id: PersonId): boolean {
+        return layout.canCollapse.has(id);
     }
 
     onDestroy(() => {
@@ -289,7 +304,7 @@
 
 <div
     bind:this={hostEl}
-    class="family-view-canvas relative h-full w-full overflow-hidden bg-canvas"
+    class="family-view-canvas bg-canvas relative h-full w-full overflow-hidden"
     role="region"
     aria-label="family view canvas"
     onpointerdown={onPointerDown}
@@ -339,27 +354,58 @@
                         oncontextmenu={(id: string, x: number, y: number) =>
                             onCardContextMenu(id, x, y)}
                     />
-                    <!-- Phase 0 + buttons: visible on hover, toast on click. -->
-                    {#each [["north", "-top-3 left-1/2 -translate-x-1/2", "parent"], ["south", "-bottom-3 left-1/2 -translate-x-1/2", "child"], ["east", "top-1/2 -right-3 -translate-y-1/2", "partner"], ["west", "top-1/2 -left-3 -translate-y-1/2", "partner"]] as const as [slot, pos, label]}
+                    {#if canExpand(node.personId)}
                         <button
                             type="button"
-                            data-add-stub={slot}
+                            data-expand-toggle="expand"
                             class="border-line bg-canvas-elev text-fg-muted hover:text-accent
-                                   absolute {pos} hidden h-5 w-5 items-center justify-center
-                                   rounded-full border opacity-0 shadow-sm transition-opacity
-                                   group-hover/card:flex group-hover/card:opacity-100"
-                            aria-label="add {label}"
-                            title="add {label} (coming in phase 4)"
-                            onclick={(e) => {
-                                e.stopPropagation();
-                                onAddStubClick(slot, person.id);
-                            }}
+                                   absolute -bottom-3 left-1/2 hidden h-5 w-5 -translate-x-1/2
+                                   items-center justify-center rounded-full border opacity-0
+                                   shadow-sm transition-opacity group-hover/card:flex
+                                   group-hover/card:opacity-100"
+                            aria-label="expand branch"
+                            title="show more of this branch"
+                            onclick={(e) => onExpandClick(node.personId, true, e)}
                         >
                             <Plus size={10} />
                         </button>
-                    {/each}
+                    {/if}
+                    {#if canCollapse(node.personId)}
+                        <button
+                            type="button"
+                            data-expand-toggle="collapse"
+                            class="border-line bg-canvas-elev text-fg-muted hover:text-accent
+                                   absolute -top-3 -right-3 flex h-5 w-5 items-center
+                                   justify-center rounded-full border shadow-sm"
+                            aria-label="collapse branch"
+                            title="hide expanded branch"
+                            onclick={(e) => onExpandClick(node.personId, false, e)}
+                        >
+                            <Minus size={10} />
+                        </button>
+                    {/if}
                 </div>
             {/if}
+        {/each}
+
+        {#each layout.badges as badge (badge.id)}
+            <button
+                type="button"
+                data-badge-id={badge.id}
+                class="border-line bg-canvas-elev text-fg hover:border-accent
+                       absolute flex items-center justify-center gap-1 rounded-full
+                       border px-2 py-0.5 text-xs shadow-sm"
+                style:left="{badge.x * UNIT}px"
+                style:top="{badge.y * UNIT}px"
+                style:width="{CARD_W_PX}px"
+                style:height="{CARD_H_PX}px"
+                aria-label={`expand ${String(badge.members.length)} hidden persons starting with ${badge.sampleName}`}
+                title={`expand ${String(badge.members.length)} hidden: ${badge.sampleName}, ...`}
+                onclick={(e) => onBadgeClick(badge, e)}
+            >
+                <span class="text-accent font-semibold">+{badge.members.length}</span>
+                <span class="text-fg-muted truncate text-[10px]">{badge.sampleName}</span>
+            </button>
         {/each}
     </div>
 </div>

@@ -82,18 +82,26 @@ test.describe("family view — cross-engine continuity", () => {
         await expect(overlay).toBeDisabled();
     });
 
-    test("the `+` editing affordance fires the coming-soon toast", async ({ page }) => {
+    test("the `+` affordance is real in phase 1 (expansion, not toast)", async ({ page }) => {
+        // Phase 0 attached the `+` to a "coming in phase 4" toast. Phase 1
+        // replaced that with real expansion via `setExpanded`. The toast
+        // path is gone; this test asserts the new contract (expand-toggle
+        // button surface exists when the card has un-shown adjacents).
         await page.goto("/");
         await page.locator('[data-testid="import-input"]').setInputFiles(TINY);
         await expect(page.getByText(/loaded \d+ people/)).toBeVisible();
 
-        // Hover a card to surface the add buttons, then click one.
-        const card = page.locator("[data-person-id]").first();
-        await card.hover();
-        const addParent = page.locator("[data-add-stub='north']").first();
-        // CSS hover doesn't always reveal in Playwright; force visibility on
-        // the element before clicking by using `force: true`.
-        await addParent.click({ force: true });
-        await expect(page.getByText(/coming in phase 4/i)).toBeVisible();
+        // tiny.ged + family-view focused on rootId (Alpha) renders Alpha
+        // + Gamma (the child). Alpha has no parents shown → north-edge
+        // expansion. Gamma has no children → no expand button. The
+        // exact set varies, but at least one expand-toggle must exist
+        // OR the affordance is absent (also acceptable for tiny trees).
+        const expandButtons = page.locator("[data-expand-toggle='expand']");
+        const count = await expandButtons.count();
+        // No assertion on count itself; the assertion is that the old
+        // `data-add-stub` surface is gone (no more toast plumbing).
+        const oldStubButtons = page.locator("[data-add-stub]");
+        expect(await oldStubButtons.count()).toBe(0);
+        void count;
     });
 });

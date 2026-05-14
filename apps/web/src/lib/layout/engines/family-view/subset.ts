@@ -1,45 +1,64 @@
 /*
  * FamilyTreeEditor - family-view bounded subset selection.
  *
- * Phase 0 walking skeleton. Selects the people that compose the default
- * bounded view: focus + ancestor spine (3 generations) + descendants (2)
- * + siblings at each ancestor rank. Result is the hardcoded subset; no
- * expansion state yet (Phase 1).
+ * Phase 0 set the bounded default: focus + 3 ancestor gens + 2
+ * descendant gens + siblings at each ancestor rank. Phase 1 layers
+ * an explicit-expansion set on top: each id in `expanded` includes
+ * its next-generation relatives (children for descendant-side or
+ * sibling-of-ancestor cards; parents for the topmost ancestor rank).
  *
- * The selection is intentionally permissive — `linkParent` accepts cycles
- * (rule #6) so the BFS guards against infinite loops with a visited set,
- * never with a structural assumption.
+ * Cycle-safe via a `visited` set; the schema is permissive (rule #6)
+ * and self-parent / ancestral-cycle shapes are legal.
  *
  * licensed under the MIT license; see LICENSE.md for full text
  */
 
 import type { PersonId, Tree } from "$lib/domain/types";
 
-/** How many generations up from focus to include (parents = 1). */
+/** How many generations up from focus the default subset includes. */
 export const ANCESTOR_DEPTH = 3;
-/** How many generations down from focus to include (children = 1). */
+/** How many generations down from focus the default subset includes. */
 export const DESCENDANT_DEPTH = 2;
 
 export interface RankedSubset {
     /** Visible person ids. */
     readonly visible: ReadonlySet<PersonId>;
-    /** Rank for each visible person: 0 = focus, negative = ancestors, positive = descendants. */
+    /** Rank: 0 = focus, negative = ancestors, positive = descendants. */
     readonly rank: ReadonlyMap<PersonId, number>;
+    /** Persons whose `+` button has un-revealed children to show. */
+    readonly hasMoreChildren: ReadonlySet<PersonId>;
+    /** Persons at the topmost ancestor rank who still have un-shown parents. */
+    readonly hasMoreParents: ReadonlySet<PersonId>;
+}
+
+export interface SubsetOptions {
+    /**
+     * Explicit-expansion set: ids whose adjacent generation should be
+     * included beyond the default bounded subset. Empty by default.
+     */
+    readonly expanded?: ReadonlySet<PersonId>;
 }
 
 /**
- * Walk the focus's ancestors up to `ANCESTOR_DEPTH`, descendants down to
- * `DESCENDANT_DEPTH`, and add siblings at every ancestor rank. Returns a
- * set + per-id rank map.
- *
- * Phase 0 does not include focus's partner or partners of intermediate
- * people; the next phase introduces partner inclusion under the expansion
- * model.
+ * Walk the focus's ancestors / descendants / siblings per the bounded
+ * default, then expand any ids in `opts.expanded`.
  */
-export function selectBoundedSubset(tree: Tree, focusId: PersonId): RankedSubset {
+export function selectBoundedSubset(
+    tree: Tree,
+    focusId: PersonId,
+    opts: SubsetOptions = {},
+): RankedSubset {
+    const expanded = opts.expanded ?? new Set<PersonId>();
     const visible = new Set<PersonId>();
     const rank = new Map<PersonId, number>();
-    if (!tree.people[focusId]) return { visible, rank };
+    if (!tree.people[focusId]) {
+        return {
+            visible,
+            rank,
+            hasMoreChildren: new Set(),
+            hasMoreParents: new Set(),
+        };
+    }
 
     const place = (id: PersonId, r: number): void => {
         if (!tree.people[id]) return;
@@ -50,7 +69,7 @@ export function selectBoundedSubset(tree: Tree, focusId: PersonId): RankedSubset
 
     place(focusId, 0);
 
-    // Ancestor spine + siblings at each ancestor rank.
+    // Ancestor spine.
     let frontier: PersonId[] = [focusId];
     for (let depth = 1; depth <= ANCESTOR_DEPTH; depth += 1) {
         const next: PersonId[] = [];
@@ -64,17 +83,16 @@ export function selectBoundedSubset(tree: Tree, focusId: PersonId): RankedSubset
                 }
             }
         }
-        // Add siblings of each ancestor at this rank (depth-1 → parent's children).
+        // Siblings at this ancestor rank: other children of each ancestor.
         for (const ancestorId of next) {
-            for (const siblingId of childrenOf(tree, ancestorId)) {
-                // siblings of an ancestor = children of that ancestor at rank -(depth-1)
+            for (const siblingId of directChildrenOf(tree, ancestorId)) {
                 if (!visible.has(siblingId)) place(siblingId, -(depth - 1));
             }
         }
         frontier = next;
     }
 
-    // Siblings of focus at rank 0 (children of focus's parents).
+    // Siblings of focus at rank 0.
     const focus = tree.people[focusId];
     if (focus) {
         for (const parentId of [focus.motherId, focus.fatherId]) {
@@ -85,7 +103,7 @@ export function selectBoundedSubset(tree: Tree, focusId: PersonId): RankedSubset
         }
     }
 
-    // Descendants down to DESCENDANT_DEPTH.
+    // Descendants down to the default depth.
     let downFrontier: PersonId[] = [focusId];
     for (let depth = 1; depth <= DESCENDANT_DEPTH; depth += 1) {
         const next: PersonId[] = [];
@@ -100,14 +118,91 @@ export function selectBoundedSubset(tree: Tree, focusId: PersonId): RankedSubset
         downFrontier = next;
     }
 
-    return { visible, rank };
+    // Phase 1 expansion: walk every id in `expanded` and pull in the
+    // appropriate adjacent generation.
+    //
+    // Heuristic per id (single + per card):
+    //   - If id has un-shown children → show its children at id.rank + 1.
+    //   - Else if id is at the topmost (most negative) rank with un-shown
+    //     parents → show its parents at id.rank - 1.
+    //
+    // Repeat over the expanded set until quiescent so a deep chain of
+    // explicit expands all materialise in one pass.
+    let changed = true;
+    let iter = 0;
+    const MAX_ITER = 32; // generous safety cap
+    while (changed && iter < MAX_ITER) {
+        changed = false;
+        iter += 1;
+        const minRank = minOf(rank);
+        for (const id of expanded) {
+            if (!visible.has(id)) continue;
+            const r = rank.get(id);
+            if (r === undefined) continue;
+            const hadChildren = revealChildren(tree, id, r, visible, rank, place);
+            if (hadChildren) {
+                changed = true;
+                continue;
+            }
+            if (r === minRank) {
+                const hadParents = revealParents(tree, id, r, visible, rank, place);
+                if (hadParents) changed = true;
+            }
+        }
+    }
+
+    const hasMoreChildren = collectHasMoreChildren(tree, visible);
+    const hasMoreParents = collectHasMoreParents(tree, visible, rank);
+
+    return { visible, rank, hasMoreChildren, hasMoreParents };
 }
 
-/**
- * Children of `parentId` in the visible-subset sense — anyone whose
- * motherId or fatherId points back to this person. Used both for sibling
- * inclusion (via a parent of the focus) and for the descendant walk.
- */
+function revealChildren(
+    tree: Tree,
+    id: PersonId,
+    parentRank: number,
+    visible: Set<PersonId>,
+    _rank: Map<PersonId, number>,
+    place: (id: PersonId, r: number) => void,
+): boolean {
+    // Returns true iff we placed at least one new child. If every child
+    // is already visible (nothing new to reveal), return false so the
+    // caller can try the "reveal parents" branch instead.
+    let placedAny = false;
+    for (const childId of directChildrenOf(tree, id)) {
+        if (!visible.has(childId)) {
+            place(childId, parentRank + 1);
+            placedAny = true;
+        }
+    }
+    return placedAny;
+}
+
+function revealParents(
+    tree: Tree,
+    id: PersonId,
+    childRank: number,
+    visible: Set<PersonId>,
+    rank: Map<PersonId, number>,
+    place: (id: PersonId, r: number) => void,
+): boolean {
+    const p = tree.people[id];
+    if (!p) return false;
+    let any = false;
+    for (const parentId of [p.motherId, p.fatherId]) {
+        if (!parentId) continue;
+        if (!visible.has(parentId)) {
+            place(parentId, childRank - 1);
+            any = true;
+        } else if ((rank.get(parentId) ?? 0) !== childRank - 1) {
+            // Conflict — keep silent
+        } else {
+            any = true;
+        }
+    }
+    return any;
+}
+
 function directChildrenOf(tree: Tree, parentId: PersonId): readonly PersonId[] {
     const out: PersonId[] = [];
     for (const person of Object.values(tree.people)) {
@@ -118,19 +213,53 @@ function directChildrenOf(tree: Tree, parentId: PersonId): readonly PersonId[] {
     return out;
 }
 
-/**
- * Siblings of `personId` = other children of the same parents. Returns
- * `personId`'s siblings without including the person itself.
- */
-function childrenOf(tree: Tree, personId: PersonId): readonly PersonId[] {
-    const person = tree.people[personId];
-    if (!person) return [];
-    const seen = new Set<PersonId>();
-    for (const parentId of [person.motherId, person.fatherId]) {
-        if (!parentId) continue;
-        for (const id of directChildrenOf(tree, parentId)) {
-            if (id !== personId) seen.add(id);
+function minOf(rank: ReadonlyMap<PersonId, number>): number {
+    let m = 0;
+    let seen = false;
+    for (const r of rank.values()) {
+        if (!seen || r < m) {
+            m = r;
+            seen = true;
         }
     }
-    return Array.from(seen);
+    return m;
+}
+
+/** Visible persons who have at least one child that isn't visible. */
+function collectHasMoreChildren(tree: Tree, visible: ReadonlySet<PersonId>): ReadonlySet<PersonId> {
+    const out = new Set<PersonId>();
+    for (const id of visible) {
+        for (const child of directChildrenOf(tree, id)) {
+            if (!visible.has(child)) {
+                out.add(id);
+                break;
+            }
+        }
+    }
+    return out;
+}
+
+/** Visible persons at the topmost rank with at least one un-shown parent. */
+function collectHasMoreParents(
+    tree: Tree,
+    visible: ReadonlySet<PersonId>,
+    rank: ReadonlyMap<PersonId, number>,
+): ReadonlySet<PersonId> {
+    if (visible.size === 0) return new Set();
+    const minR = minOf(rank);
+    const out = new Set<PersonId>();
+    for (const id of visible) {
+        if (rank.get(id) !== minR) continue;
+        const p = tree.people[id];
+        if (!p) continue;
+        if (p.motherId && !visible.has(p.motherId)) {
+            out.add(id);
+            continue;
+        }
+        if (p.fatherId && !visible.has(p.fatherId)) {
+            out.add(id);
+            continue;
+        }
+    }
+    return out;
 }
