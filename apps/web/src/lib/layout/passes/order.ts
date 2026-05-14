@@ -31,6 +31,7 @@ import type {
     LayoutOverrides,
     OrderedGraph,
 } from "$lib/layout/ir";
+import type { Tree } from "$lib/domain/types";
 
 // ---------------------------------------------------------------------------
 // Tuning constants
@@ -106,9 +107,19 @@ export function computeInitialOrder(graph: LayeredGraph): LayoutNodeId[][] {
  *
  * @param graph     - Output of the layering pass.
  * @param overrides - Optional swap hints applied after the final sweep.
+ * @param tree      - Optional domain tree; when present, enables the
+ *                    genealogy-conventional father-left tie-break on
+ *                    mixed-gender couples (matches the hyperbolic engine,
+ *                    see commit e3e7d8c). Falls through to position-based
+ *                    ordering for same-sex pairs or any pair with an
+ *                    unknown-gender partner.
  * @returns         An OrderedGraph with an `order` map (0-based position per rank).
  */
-export function order(graph: LayeredGraph, overrides?: LayoutOverrides): OrderedGraph {
+export function order(
+    graph: LayeredGraph,
+    overrides?: LayoutOverrides,
+    tree?: Tree,
+): OrderedGraph {
     const { nodes } = graph;
 
     if (nodes.size === 0) {
@@ -140,6 +151,14 @@ export function order(graph: LayeredGraph, overrides?: LayoutOverrides): Ordered
         if (node.clusterBlockId) mapPush(clusterBlocks, node.clusterBlockId, nodeId);
     }
 
+    // Father-left tie-break: per spouseGroup, identify the partner who should
+    // anchor on the left iff exactly one partner has gender = "m". Empty when
+    // no tree provided, when both partners are same-sex, or when either
+    // partner's gender is unknown. Cross-rank cases include the ghost (whose
+    // personId resolves to the duplicated real person, so the gender lookup
+    // is symmetric with the same-rank case).
+    const preferredLeft = buildPreferredLeftMap(spouseGroups, nodes, tree);
+
     let best = countCrossings(rankOrder, graph.parentEdges);
     let stall = 0;
 
@@ -158,7 +177,7 @@ export function order(graph: LayeredGraph, overrides?: LayoutOverrides): Ordered
                 // displaced by sibling compaction.
                 repairSiblingBlocks(rankOrder[r]!, siblingBlocks, nodes);
                 repairClusterBlocks(rankOrder[r]!, clusterBlocks, nodes);
-                repairCoupleAdjacency(rankOrder[r]!, spouseGroups, nodes);
+                repairCoupleAdjacency(rankOrder[r]!, spouseGroups, nodes, preferredLeft);
             }
         } else {
             // Upward sweep: fix rank r+1, optimise rank r.
@@ -166,7 +185,7 @@ export function order(graph: LayeredGraph, overrides?: LayoutOverrides): Ordered
                 sortByMedian(rankOrder[r]!, lowerN, rankOrder[r + 1]!);
                 repairSiblingBlocks(rankOrder[r]!, siblingBlocks, nodes);
                 repairClusterBlocks(rankOrder[r]!, clusterBlocks, nodes);
-                repairCoupleAdjacency(rankOrder[r]!, spouseGroups, nodes);
+                repairCoupleAdjacency(rankOrder[r]!, spouseGroups, nodes, preferredLeft);
             }
         }
 
@@ -187,7 +206,7 @@ export function order(graph: LayeredGraph, overrides?: LayoutOverrides): Ordered
     for (const rank of rankOrder) {
         repairSiblingBlocks(rank, siblingBlocks, nodes);
         repairClusterBlocks(rank, clusterBlocks, nodes);
-        repairCoupleAdjacency(rank, spouseGroups, nodes);
+        repairCoupleAdjacency(rank, spouseGroups, nodes, preferredLeft);
     }
 
     // Apply swap overrides after all passes so they are final.
@@ -268,12 +287,27 @@ function sortByMedian(
 /**
  * Ensure every spouseGroup pair in this rank is immediately adjacent.
  * For each pair, moves the right member to the position immediately after
- * the left member (using their current left-to-right order as anchor).
+ * the left member.
+ *
+ * Anchor selection (left position):
+ *   - if `preferredLeft` names one of the two members, that member anchors
+ *     (drives the genealogy-conventional father-left tie-break; matches
+ *     the hyperbolic engine, see commit e3e7d8c). Fires only on mixed-
+ *     gender both-known couples — see buildPreferredLeftMap.
+ *   - otherwise, the member at the lower current position anchors
+ *     (position-based; preserves the median heuristic's choice for
+ *     same-sex couples and unknown-gender pairs).
+ *
+ * When the preferred anchor is currently the right partner, a swap is
+ * forced regardless of adjacency: removing both members and reinserting
+ * [anchor, mover] at the leftmost prior position guarantees the
+ * orientation flip without disturbing surrounding nodes.
  */
 function repairCoupleAdjacency(
     rank: LayoutNodeId[],
     spouseGroups: ReadonlyMap<string, readonly LayoutNodeId[]>,
     nodes: ReadonlyMap<LayoutNodeId, LayoutNode>,
+    preferredLeft?: ReadonlyMap<string, LayoutNodeId>,
 ): void {
     // Collect all spouseGroup keys present in this rank before mutating it.
     const groupsHere = new Set<string>();
@@ -288,15 +322,63 @@ function repairCoupleAdjacency(
 
         const posA = rank.indexOf(members[0]!);
         const posB = rank.indexOf(members[1]!);
-        if (Math.abs(posA - posB) === 1) continue; // already adjacent
 
-        // Anchor the leftmost, move the other to immediately follow it.
-        const [anchorId, moverId] =
-            posA < posB ? [members[0]!, members[1]!] : [members[1]!, members[0]!];
+        const preferred = preferredLeft?.get(sg);
+        const preferenceApplies = preferred !== undefined && members.includes(preferred);
+        const adjacent = Math.abs(posA - posB) === 1;
+
+        // Pick anchor: preferred wins when applicable; otherwise leftmost
+        // by current position.
+        const [anchorId, moverId] = preferenceApplies
+            ? [preferred, preferred === members[0] ? members[1]! : members[0]!]
+            : posA < posB
+              ? [members[0]!, members[1]!]
+              : [members[1]!, members[0]!];
+
+        const anchorAlreadyLeft =
+            rank.indexOf(anchorId) === Math.min(rank.indexOf(anchorId), rank.indexOf(moverId));
+        if (adjacent && anchorAlreadyLeft) continue; // already in the desired shape
 
         rank.splice(rank.indexOf(moverId), 1);
         rank.splice(rank.indexOf(anchorId) + 1, 0, moverId);
     }
+}
+
+/**
+ * Identify, per spouseGroup, the member that should anchor on the left of
+ * the pair. Fires for the genealogy-conventional father-left tie-break on
+ * mixed-gender both-known couples; returns an empty map when `tree` is
+ * undefined, or for same-sex / unknown-gender pairs.
+ *
+ * `LayoutNode.personId` resolves to the duplicated real person for ghost
+ * nodes, so cross-rank pairs work identically to same-rank pairs — both
+ * lookups land in `tree.people`.
+ */
+function buildPreferredLeftMap(
+    spouseGroups: ReadonlyMap<string, readonly LayoutNodeId[]>,
+    nodes: ReadonlyMap<LayoutNodeId, LayoutNode>,
+    tree: Tree | undefined,
+): Map<string, LayoutNodeId> {
+    const out = new Map<string, LayoutNodeId>();
+    if (!tree) return out;
+
+    for (const [sg, members] of spouseGroups) {
+        if (members.length !== 2) continue;
+        const [aId, bId] = members;
+        if (!aId || !bId) continue;
+        const aPerson = tree.people[nodes.get(aId)?.personId ?? ""];
+        const bPerson = tree.people[nodes.get(bId)?.personId ?? ""];
+        if (!aPerson || !bPerson) continue;
+        const aMale = aPerson.gender === "m";
+        const bMale = bPerson.gender === "m";
+        // Only fire when exactly one is male. Same-sex couples (both "m" or
+        // both "f") and unknown-gender pairs (any "u") fall through to
+        // position-based ordering, preserving today's behavior.
+        if (aMale === bMale) continue;
+        if (aPerson.gender === "u" || bPerson.gender === "u") continue;
+        out.set(sg, aMale ? aId : bId);
+    }
+    return out;
 }
 
 /**

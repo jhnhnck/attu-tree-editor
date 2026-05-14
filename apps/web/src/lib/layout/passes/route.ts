@@ -292,8 +292,13 @@ function buildSegments(
 
     // Scale the stub-vs-bond threshold to the tree's overall width so it
     // doesn't fire indiscriminately on dense layouts where 25 u is a small
-    // fraction of the canvas.
-    const maxBondSpan = Math.min(MAX_BOND_SPAN_CEILING, placed.bbox.width / 4);
+    // fraction of the canvas. Floor at BUNDLE_THRESHOLD so small fixtures
+    // (where bbox.width/4 collapses to a few units) don't mis-classify
+    // short bonds as long — fixes bugs.md:17.
+    const maxBondSpan = Math.min(
+        MAX_BOND_SPAN_CEILING,
+        Math.max(BUNDLE_THRESHOLD, placed.bbox.width / 4),
+    );
 
     // Drop-direction invariant: a parent-drop / child-drop segment is vertical
     // and must agree with its expected direction (`down` for a parent above

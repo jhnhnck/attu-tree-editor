@@ -6,7 +6,7 @@
       "people": 8,
       "couples": 2,
       "ghosts": 0,
-      "bboxWidth": 7.875,
+      "bboxWidth": 7.5625,
       "bboxHeight": 6,
       "ghostAdjacency": {
         "totalGhosts": 0,
@@ -16,15 +16,17 @@
         "maxStrand": 0
       },
       "bondStubs": {
-        "sameRankStubPairs": 1,
+        "sameRankStubPairs": 0,
         "crossRankStubPairs": 0,
-        "sameRankSingleBonds": 1
+        "sameRankSingleBonds": 2
       },
       "orientation": {
-        "bothKnownMaleLeft": 1,
-        "bothKnownFemaleLeft": 1,
+        "bothKnownMaleLeft": 2,
+        "bothKnownFemaleLeft": 0,
         "oneKnown": 0,
-        "bothUnknown": 0
+        "bothUnknown": 0,
+        "sameRankBothKnownMaleLeft": 2,
+        "sameRankBothKnownFemaleLeft": 0
       },
       "crossings": 0
     },
@@ -48,10 +50,12 @@
         "sameRankSingleBonds": 4
       },
       "orientation": {
-        "bothKnownMaleLeft": 0,
-        "bothKnownFemaleLeft": 3,
+        "bothKnownMaleLeft": 3,
+        "bothKnownFemaleLeft": 0,
         "oneKnown": 0,
-        "bothUnknown": 3
+        "bothUnknown": 3,
+        "sameRankBothKnownMaleLeft": 3,
+        "sameRankBothKnownFemaleLeft": 0
       },
       "crossings": 0
     },
@@ -60,27 +64,29 @@
       "people": 1802,
       "couples": 204,
       "ghosts": 167,
-      "bboxWidth": 430.2213368685916,
+      "bboxWidth": 541.7628251314163,
       "bboxHeight": 146,
       "ghostAdjacency": {
         "totalGhosts": 167,
-        "stranded5": 8,
-        "stranded10": 3,
-        "stranded175": 0,
-        "maxStrand": 17.5
+        "stranded5": 21,
+        "stranded10": 13,
+        "stranded175": 5,
+        "maxStrand": 23.134178161621094
       },
       "bondStubs": {
-        "sameRankStubPairs": 3,
+        "sameRankStubPairs": 1,
         "crossRankStubPairs": 0,
-        "sameRankSingleBonds": 186
+        "sameRankSingleBonds": 189
       },
       "orientation": {
-        "bothKnownMaleLeft": 101,
-        "bothKnownFemaleLeft": 103,
+        "bothKnownMaleLeft": 117,
+        "bothKnownFemaleLeft": 87,
         "oneKnown": 0,
-        "bothUnknown": 0
+        "bothUnknown": 0,
+        "sameRankBothKnownMaleLeft": 37,
+        "sameRankBothKnownFemaleLeft": 0
       },
-      "crossings": 2734
+      "crossings": 2852
     }
   ]
 }

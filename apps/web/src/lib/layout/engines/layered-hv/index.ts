@@ -61,7 +61,7 @@ export class LayeredEngine implements LayoutEngine {
 
     layout(input: LayoutInput): LayeredEngineResult {
         const lg = layer(input.tree, input.visible, input.focus, input.overrides);
-        const og = order(lg, input.overrides);
+        const og = order(lg, input.overrides, input.tree);
         const pg = place(og, input.overrides);
         const { segments, warnings } = route(pg, input.tree);
 

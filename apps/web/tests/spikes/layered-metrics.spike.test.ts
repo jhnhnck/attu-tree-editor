@@ -59,6 +59,13 @@ interface OrientationBreakdown {
     readonly bothKnownFemaleLeft: number;
     readonly oneKnown: number;
     readonly bothUnknown: number;
+    /** subset of bothKnown* where both partners share a rank — the
+     *  segment the Phase 1 father-left tie-break can actually influence.
+     *  Cross-rank couples have their real-person X positions decided
+     *  independently per rank, so repairCoupleAdjacency cannot reorient
+     *  them. */
+    readonly sameRankBothKnownMaleLeft: number;
+    readonly sameRankBothKnownFemaleLeft: number;
 }
 
 interface FixtureMetrics {
@@ -153,6 +160,8 @@ function orientationMetrics(tree: Tree, placed: PlacedGraph): OrientationBreakdo
     let bothKnownFemaleLeft = 0;
     let oneKnown = 0;
     let bothUnknown = 0;
+    let sameRankBothKnownMaleLeft = 0;
+    let sameRankBothKnownFemaleLeft = 0;
     for (const couple of tree.couples) {
         if (couple.leftId === couple.rightId) continue;
         const lp = tree.people[couple.leftId];
@@ -166,15 +175,34 @@ function orientationMetrics(tree: Tree, placed: PlacedGraph): OrientationBreakdo
         const rg = rightP.gender;
         if (lg === "u" && rg === "u") {
             bothUnknown++;
-        } else if (lg === "u" || rg === "u") {
+            continue;
+        }
+        if (lg === "u" || rg === "u") {
             oneKnown++;
-        } else {
-            // both known — count male-left iff left.gender === "m"
-            if (lg === "m") bothKnownMaleLeft++;
-            else bothKnownFemaleLeft++;
+            continue;
+        }
+        // both-known mixed (or same-sex)
+        const isMaleLeft = lg === "m";
+        if (isMaleLeft) bothKnownMaleLeft++;
+        else bothKnownFemaleLeft++;
+
+        // Same-rank subset: only couples whose two real partners share a
+        // rank are reachable by repairCoupleAdjacency's tie-break.
+        const lnRank = placed.nodes.get(couple.leftId)?.rank;
+        const rnRank = placed.nodes.get(couple.rightId)?.rank;
+        if (lnRank !== undefined && lnRank === rnRank) {
+            if (isMaleLeft) sameRankBothKnownMaleLeft++;
+            else sameRankBothKnownFemaleLeft++;
         }
     }
-    return { bothKnownMaleLeft, bothKnownFemaleLeft, oneKnown, bothUnknown };
+    return {
+        bothKnownMaleLeft,
+        bothKnownFemaleLeft,
+        oneKnown,
+        bothUnknown,
+        sameRankBothKnownMaleLeft,
+        sameRankBothKnownFemaleLeft,
+    };
 }
 
 /**
@@ -217,7 +245,9 @@ function crossingsCount(segments: readonly Segment[]): number {
 function measure(label: string, tree: Tree): FixtureMetrics {
     const visible = new Set<PersonId>(Object.keys(tree.people));
     const lg = layer(tree, visible, tree.rootId, undefined);
-    const og = order(lg, undefined);
+    // Pass `tree` to order() so the spike exercises the father-left
+    // tie-break the way LayeredEngine does in production.
+    const og = order(lg, undefined, tree);
     const pg = place(og, undefined);
     const { segments } = route(pg, tree);
 
@@ -317,16 +347,19 @@ function renderBaselineMd(results: readonly FixtureMetrics[]): string {
     );
     lines.push("");
     lines.push(
-        "| fixture | both-known male-left | both-known female-left | one-known | both-unknown | male-left % (of both-known) |",
+        "| fixture | both-known male-left | both-known female-left | one-known | both-unknown | male-left % (all both-known) | male-left % (same-rank both-known) |",
     );
-    lines.push("|---|---:|---:|---:|---:|---:|");
+    lines.push("|---|---:|---:|---:|---:|---:|---:|");
     for (const r of results) {
         const o = r.orientation;
         const bk = o.bothKnownMaleLeft + o.bothKnownFemaleLeft;
         const pct = bk === 0 ? "n/a" : `${((o.bothKnownMaleLeft / bk) * 100).toFixed(1)}%`;
+        const srbk = o.sameRankBothKnownMaleLeft + o.sameRankBothKnownFemaleLeft;
+        const srPct =
+            srbk === 0 ? "n/a" : `${((o.sameRankBothKnownMaleLeft / srbk) * 100).toFixed(1)}%`;
         lines.push(
             `| ${r.label} | ${String(o.bothKnownMaleLeft)} | ${String(o.bothKnownFemaleLeft)} ` +
-                `| ${String(o.oneKnown)} | ${String(o.bothUnknown)} | ${pct} |`,
+                `| ${String(o.oneKnown)} | ${String(o.bothUnknown)} | ${pct} | ${srPct} |`,
         );
     }
     lines.push("");
