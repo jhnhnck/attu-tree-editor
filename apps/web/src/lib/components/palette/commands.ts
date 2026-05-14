@@ -67,6 +67,16 @@ export interface CommandHandlers {
     viewEngineLayered: () => void;
     viewEngineHyperbolic: () => void;
     viewOverlayPathHighlightStub: () => void;
+    /** relationship-vocabulary Phase 4 wires this; today shows "coming soon" */
+    viewOverlaySwornBondsStub: () => void;
+    /** relationship-vocabulary Phase 4 wires this; today shows "coming soon" */
+    viewOverlayTransformationsStub: () => void;
+    /** relationship-vocabulary Phase 4 wires this; today shows "coming soon" */
+    viewOverlaySeverancesStub: () => void;
+    /** relationship-vocabulary Phase 6a wires this; today shows "coming soon" */
+    viewOverlayGroupFramesStub: () => void;
+    /** relationship-vocabulary Phase 6b wires this; today shows "coming soon" */
+    viewOverlayConsanguinityStub: () => void;
     selectClear: () => void;
     selectEdit: () => void;
     selectDelete: () => void;
@@ -274,9 +284,10 @@ export function buildCommands(
             checked: enabled.engineHyperbolicActive,
             run: h.viewEngineHyperbolic,
         },
-        // Overlays sub-list — Phase 0 stub placeholder. The single entry is
-        // disabled today; Phase 3 wires the click; the relationship-vocabulary
-        // workstream adds further entries (sworn-bond, transformation, etc.).
+        // Overlays sub-list — Phase 0 stub placeholders. Each entry is
+        // disabled today; family-view's Phase 3 wires path highlight; the
+        // relationship-vocabulary plan wires the remaining five in Phases
+        // 4 / 6a / 6b (see notes/plans/relationship-vocabulary.md).
         {
             id: "view.overlay.pathHighlight",
             label: "Overlay: path highlight (coming in phase 3)",
@@ -284,6 +295,41 @@ export function buildCommands(
             dividerBefore: true,
             enabled: () => false,
             run: h.viewOverlayPathHighlightStub,
+        },
+        {
+            id: "view.overlay.swornBonds",
+            label: "Overlay: sworn bonds (coming in phase 4)",
+            group: "View",
+            enabled: () => false,
+            run: h.viewOverlaySwornBondsStub,
+        },
+        {
+            id: "view.overlay.transformations",
+            label: "Overlay: transformations (coming in phase 4)",
+            group: "View",
+            enabled: () => false,
+            run: h.viewOverlayTransformationsStub,
+        },
+        {
+            id: "view.overlay.severances",
+            label: "Overlay: severances (coming in phase 4)",
+            group: "View",
+            enabled: () => false,
+            run: h.viewOverlaySeverancesStub,
+        },
+        {
+            id: "view.overlay.groupFrames",
+            label: "Overlay: group frames (coming in phase 6a)",
+            group: "View",
+            enabled: () => false,
+            run: h.viewOverlayGroupFramesStub,
+        },
+        {
+            id: "view.overlay.consanguinity",
+            label: "Overlay: consanguinity (coming in phase 6b)",
+            group: "View",
+            enabled: () => false,
+            run: h.viewOverlayConsanguinityStub,
         },
 
         // Insert

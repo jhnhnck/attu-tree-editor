@@ -789,6 +789,23 @@
             // so the command shape stays uniform for Phase 3 wire-up.
             toasts.push("path highlight — coming in phase 3", "info", 1500);
         },
+        // Relationship-vocabulary plan Phase 0 stub placeholders. Each
+        // overlay's real wiring lands in the absorbing phase.
+        viewOverlaySwornBondsStub: () => {
+            toasts.push("sworn bonds — coming with relationship-vocabulary phase 4", "info", 1500);
+        },
+        viewOverlayTransformationsStub: () => {
+            toasts.push("transformations — coming with relationship-vocabulary phase 4", "info", 1500);
+        },
+        viewOverlaySeverancesStub: () => {
+            toasts.push("severances — coming with relationship-vocabulary phase 4", "info", 1500);
+        },
+        viewOverlayGroupFramesStub: () => {
+            toasts.push("group frames — coming with relationship-vocabulary phase 6a", "info", 1500);
+        },
+        viewOverlayConsanguinityStub: () => {
+            toasts.push("consanguinity — coming with relationship-vocabulary phase 6b", "info", 1500);
+        },
         selectClear: () => selection.select(undefined),
         selectEdit: () => withSelected((id) => focusPerson(id, "personal")),
         selectDelete: () => withSelected((id) => deletePerson(id)),
