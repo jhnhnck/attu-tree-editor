@@ -5,7 +5,7 @@
     licensed under the MIT license; see LICENSE.md for full text
 -->
 <script lang="ts">
-    import { Maximize2 } from "@lucide/svelte";
+    import { Maximize2, Search } from "@lucide/svelte";
 
     interface Props {
         scale: number;
@@ -116,16 +116,16 @@
     <button
         bind:this={triggerEl}
         type="button"
-        class="text-fg-muted hover:text-fg flex h-7 min-w-12 items-center justify-center rounded font-mono text-xs"
+        class="text-fg-muted hover:text-fg flex h-7 w-7 items-center justify-center rounded"
         class:text-accent={open}
-        title="Zoom"
+        title="Zoom ({Math.round(scale * 100)}%)"
         aria-label="zoom"
         aria-haspopup="dialog"
         aria-expanded={open}
         data-testid="zoom-trigger"
         onclick={toggle}
     >
-        {Math.round(scale * 100)}%
+        <Search size={16} />
     </button>
 
     {#if open}

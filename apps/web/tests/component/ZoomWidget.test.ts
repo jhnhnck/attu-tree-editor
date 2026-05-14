@@ -20,9 +20,9 @@ async function openPopover(): Promise<void> {
 }
 
 describe("ZoomWidget", () => {
-    it("trigger button shows the current scale percentage", () => {
+    it("trigger button exposes the current scale percentage in its title", () => {
         render(ZoomWidget, { ...baseProps(), scale: 1.5 });
-        expect(screen.getByLabelText("zoom")).toHaveTextContent("150%");
+        expect(screen.getByLabelText("zoom")).toHaveAttribute("title", "Zoom (150%)");
     });
 
     it("popover is closed by default; opens on trigger click", async () => {
