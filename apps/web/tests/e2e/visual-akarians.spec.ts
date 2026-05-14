@@ -27,6 +27,20 @@ const AKARIANS = resolve(process.cwd(), "tests/fixtures/Akarians.ged");
 test.describe("DEMO visual golden", () => {
     test.skip(({ isMobile }) => isMobile, "visual goldens are desktop-only");
 
+    test.beforeEach(async ({ page }) => {
+        // Phase 0 of family-view.md flipped the default engine. The layered
+        // canvas-host selector this golden asserts against only mounts when
+        // the layered engine is active; pin it via the documented
+        // `fte.defaultEngine` localStorage override.
+        await page.addInitScript(() => {
+            try {
+                localStorage.setItem("fte.defaultEngine", "layered");
+            } catch {
+                /* non-fatal */
+            }
+        });
+    });
+
     test("Akarians fixture renders the layered canvas", async ({ page }) => {
         // 1,802-person ged takes a few seconds to parse + lay out; budget for it.
         test.setTimeout(60_000);

@@ -18,6 +18,19 @@ import { expect, test } from "@playwright/test";
 
 const TINY = resolve(process.cwd(), "tests/fixtures/tiny.ged");
 
+test.beforeEach(async ({ page }) => {
+    // Phase 0 of family-view.md flipped the default engine to family-view.
+    // These tests exercise the layered ↔ hyperbolic seam specifically, so
+    // pin the default to layered via the documented LS override.
+    await page.addInitScript(() => {
+        try {
+            localStorage.setItem("fte.defaultEngine", "layered");
+        } catch {
+            /* non-fatal */
+        }
+    });
+});
+
 test("engine picker switches canvas and persists across reload", async ({ page }) => {
     await page.goto("/");
     await page.locator('[data-testid="import-input"]').setInputFiles(TINY);

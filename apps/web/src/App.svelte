@@ -40,6 +40,7 @@
         TreePine,
         Layers,
         CircleDot,
+        Network,
     } from "@lucide/svelte";
 
     import {
@@ -80,6 +81,8 @@
 
     import TreeCanvas from "$lib/components/tree/TreeCanvas.svelte";
     import HyperbolicCanvas from "$lib/components/tree/HyperbolicCanvas.svelte";
+    import FamilyViewCanvas from "$lib/components/tree/FamilyViewCanvas.svelte";
+    import { onFinding } from "$lib/domain/findings";
     import type { CanvasController } from "$lib/components/tree/canvasController";
     import {
         DEFAULT_ENGINE,
@@ -230,6 +233,15 @@
 
     onUnauthorized(() => {
         authStore.clear();
+    });
+
+    // Runtime findings (e.g. schema-overflow attempts) surface as toasts.
+    // Phase 4 replaces the toast path with a structured server finding when
+    // the spike outcome supports it; the listener stays the same.
+    onMount(() => {
+        return onFinding((f) => {
+            toasts.push(f.detail, "info", 2500);
+        });
     });
 
     onMount(async () => {
@@ -769,8 +781,14 @@
         viewZoomOut: () => withCanvas((c) => c.zoomBy(0.8)),
         viewCenterRoot: () => withCanvas((c) => c.centerOnRoot()),
         viewToggleInspector: () => (showInspector = !showInspector),
+        viewEngineFamilyView: () => void switchEngine("family-view"),
         viewEngineLayered: () => void switchEngine("layered"),
         viewEngineHyperbolic: () => void switchEngine("hyperbolic"),
+        viewOverlayPathHighlightStub: () => {
+            // Phase 0 placeholder — disabled in the menu; this handler exists
+            // so the command shape stays uniform for Phase 3 wire-up.
+            toasts.push("path highlight — coming in phase 3", "info", 1500);
+        },
         selectClear: () => selection.select(undefined),
         selectEdit: () => withSelected((id) => focusPerson(id, "personal")),
         selectDelete: () => withSelected((id) => deletePerson(id)),
@@ -809,6 +827,7 @@
         "view.handTool": Hand,
         "view.selectTool": MousePointer2,
         "view.toggleInspector": SidebarOpen,
+        "view.engineFamilyView": Network,
         "view.engineLayered": Layers,
         "view.engineHyperbolic": CircleDot,
         "person.addChild": Baby,
@@ -827,6 +846,7 @@
         buildCommands(handlers, icons, {
             canUndo: () => treeStore.canUndo,
             canRedo: () => treeStore.canRedo,
+            engineFamilyViewActive: () => selectedEngine === "family-view",
             engineLayeredActive: () => selectedEngine === "layered",
             engineHyperbolicActive: () => selectedEngine === "hyperbolic",
         }),
@@ -1095,6 +1115,28 @@
                         canvasMode = c.getMode();
                     }}
                 />
+            {:else if selectedEngine === "family-view"}
+                <FamilyViewCanvas
+                    tree={treeStore.tree}
+                    selectedId={selection.selectedPersonId}
+                    onselect={(id: string) => selection.select(id)}
+                    ondeselect={() => selection.select(undefined)}
+                    onedit={(id: string) => focusPerson(id, "personal")}
+                    oncontextmenu={(id: string, x: number, y: number) => {
+                        contextMenu = { personId: id, x, y };
+                    }}
+                    oncontroller={(c: CanvasController) => {
+                        canvasController = c;
+                        canvasScale = c.getScale();
+                        canvasMode = c.getMode();
+                    }}
+                    onaddstub={(slot: "north" | "south" | "east" | "west", _id: string) => {
+                        void _id;
+                        const label =
+                            slot === "north" ? "parent" : slot === "south" ? "child" : "partner";
+                        toasts.push(`add ${label} — coming in phase 4`, "info", 1500);
+                    }}
+                />
             {:else}
                 <TreeCanvas
                     tree={treeStore.tree}
@@ -1120,7 +1162,7 @@
                     {debugOptions}
                 />
             {/if}
-            {#if canvasController && selectedEngine === "layered"}
+            {#if canvasController && (selectedEngine === "layered" || selectedEngine === "family-view")}
                 <ZoomWidget
                     scale={canvasScale}
                     onzoom={(n: number) => canvasController?.setScale(n)}

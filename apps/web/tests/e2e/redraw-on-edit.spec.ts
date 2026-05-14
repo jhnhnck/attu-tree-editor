@@ -23,6 +23,18 @@ import { expect, test } from "@playwright/test";
 
 const TINY = resolve(process.cwd(), "tests/fixtures/tiny.ged");
 
+test.beforeEach(async ({ page }) => {
+    // Phase 0 family-view flipped the default; this regression-check
+    // asserts the layered worker-driven "N people" badge so pin layered.
+    await page.addInitScript(() => {
+        try {
+            localStorage.setItem("fte.defaultEngine", "layered");
+        } catch {
+            /* non-fatal */
+        }
+    });
+});
+
 test("adding an unattached person updates the canvas badge without a reload", async ({ page }) => {
     await page.goto("/");
 

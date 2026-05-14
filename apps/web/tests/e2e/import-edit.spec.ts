@@ -8,6 +8,18 @@ import { expect, test } from "@playwright/test";
 
 const TINY = resolve(process.cwd(), "tests/fixtures/tiny.ged");
 
+test.beforeEach(async ({ page }) => {
+    // Phase 0 family-view flipped the default; pin layered for tests that
+    // assume the layered card grid (≥3 cards on tiny.ged's 3-person tree).
+    await page.addInitScript(() => {
+        try {
+            localStorage.setItem("fte.defaultEngine", "layered");
+        } catch {
+            /* non-fatal */
+        }
+    });
+});
+
 test("import a tiny ged file, render person cards, focus the inspector", async ({ page }) => {
     await page.goto("/");
 

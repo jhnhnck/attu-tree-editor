@@ -63,8 +63,10 @@ export interface CommandHandlers {
     viewZoomOut: () => void;
     viewCenterRoot: () => void;
     viewToggleInspector: () => void;
+    viewEngineFamilyView: () => void;
     viewEngineLayered: () => void;
     viewEngineHyperbolic: () => void;
+    viewOverlayPathHighlightStub: () => void;
     selectClear: () => void;
     selectEdit: () => void;
     selectDelete: () => void;
@@ -85,6 +87,8 @@ export interface CommandHandlers {
 export interface CommandEnabledFlags {
     canUndo?: () => boolean;
     canRedo?: () => boolean;
+    /** True when the family-view engine is the active layout (Phase 0+). */
+    engineFamilyViewActive?: () => boolean;
     /** True when the layered engine is the active layout. */
     engineLayeredActive?: () => boolean;
     /** True when the hyperbolic engine is the active layout. */
@@ -246,10 +250,18 @@ export function buildCommands(
             run: h.viewToggleInspector,
         },
         {
+            id: "view.engineFamilyView",
+            label: "Use family view",
+            group: "View",
+            dividerBefore: true,
+            icon: icons["view.engineFamilyView"],
+            checked: enabled.engineFamilyViewActive,
+            run: h.viewEngineFamilyView,
+        },
+        {
             id: "view.engineLayered",
             label: "Use layered engine",
             group: "View",
-            dividerBefore: true,
             icon: icons["view.engineLayered"],
             checked: enabled.engineLayeredActive,
             run: h.viewEngineLayered,
@@ -261,6 +273,17 @@ export function buildCommands(
             icon: icons["view.engineHyperbolic"],
             checked: enabled.engineHyperbolicActive,
             run: h.viewEngineHyperbolic,
+        },
+        // Overlays sub-list — Phase 0 stub placeholder. The single entry is
+        // disabled today; Phase 3 wires the click; the relationship-vocabulary
+        // workstream adds further entries (sworn-bond, transformation, etc.).
+        {
+            id: "view.overlay.pathHighlight",
+            label: "Overlay: path highlight (coming in phase 3)",
+            group: "View",
+            dividerBefore: true,
+            enabled: () => false,
+            run: h.viewOverlayPathHighlightStub,
         },
 
         // Insert

@@ -8,6 +8,18 @@ import { expect, test } from "@playwright/test";
 
 const TINY = resolve(process.cwd(), "tests/fixtures/tiny.ged");
 
+test.beforeEach(async ({ page }) => {
+    // Phase 0 family-view flipped the default; this test asserts the
+    // layered-only "N people" badge so pin layered explicitly.
+    await page.addInitScript(() => {
+        try {
+            localStorage.setItem("fte.defaultEngine", "layered");
+        } catch {
+            /* non-fatal */
+        }
+    });
+});
+
 test("imported tree survives a page reload via dexie autosave", async ({ page }) => {
     await page.goto("/");
 
