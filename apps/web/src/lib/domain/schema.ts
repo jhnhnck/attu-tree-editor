@@ -22,7 +22,7 @@ export type SchemaVersion = string;
  * of `Tree` changes in a way that needs migration. Each bump is paired with
  * a `Migration` in the registry below.
  */
-export const CURRENT_SCHEMA_VERSION: SchemaVersion = "2.0.0";
+export const CURRENT_SCHEMA_VERSION: SchemaVersion = "3.0.0";
 
 export interface Migration {
     from: SchemaVersion;
@@ -44,6 +44,69 @@ const identity = (raw: unknown): unknown => raw;
  * Phase 2b: legacy fields are deleted from the in-memory record after
  * the array is populated; readers must use `getParents(person)`.
  */
+/**
+ * 2.0.0 → 3.0.0 migration body. Walks `tree.couples` and populates
+ * `tree.unions` with one `UnionRecord` per couple:
+ *   - `partnerIds: [leftId, rightId]` preserves the legacy pair order
+ *   - `id: union-<unionIndex>` deterministic from the couple's index so
+ *     re-running the migration on the same input produces the same id
+ *   - `childIds` / `marriageDate` / `isPrimary` / `isCurrent` thread
+ *     through verbatim
+ *   - `kind` / `closed` / `preferredBy` / `name` left undefined; new
+ *     domain ops + the Phase 3c inspector UI populate them
+ *
+ * Trees that already carry a `unions` array (e.g. written by a newer
+ * build that round-tripped through this build) are left alone so we
+ * don't clobber data we don't understand. The legacy `couples` array
+ * is NOT deleted in 3a — Phase 3b sweeps readers to `getUnions(tree)`,
+ * after which a later phase can drop it.
+ */
+function migrateUnionRecordV2ToV3(raw: unknown): unknown {
+    if (!raw || typeof raw !== "object") return raw;
+    const tree = raw as {
+        couples?: unknown;
+        unions?: unknown;
+    };
+    if (Array.isArray(tree.unions) && tree.unions.length > 0) return raw;
+    if (!Array.isArray(tree.couples)) return raw;
+    const unions: {
+        id: string;
+        partnerIds: string[];
+        childIds: string[];
+        marriageDate?: unknown;
+        isPrimary?: boolean;
+        isCurrent?: boolean;
+    }[] = [];
+    for (const c of tree.couples) {
+        if (!c || typeof c !== "object") continue;
+        const couple = c as {
+            leftId?: string;
+            rightId?: string;
+            unionIndex?: number;
+            childIds?: string[];
+            marriageDate?: unknown;
+            isPrimary?: boolean;
+            isCurrent?: boolean;
+        };
+        if (typeof couple.leftId !== "string" || typeof couple.rightId !== "string") continue;
+        const idx =
+            typeof couple.unionIndex === "number" && couple.unionIndex >= 0
+                ? couple.unionIndex
+                : unions.length + 1;
+        const rec: (typeof unions)[number] = {
+            id: `union-${String(idx)}-${couple.leftId}-${couple.rightId}`,
+            partnerIds: [couple.leftId, couple.rightId],
+            childIds: Array.isArray(couple.childIds) ? [...couple.childIds] : [],
+        };
+        if (couple.marriageDate !== undefined) rec.marriageDate = couple.marriageDate;
+        if (typeof couple.isPrimary === "boolean") rec.isPrimary = couple.isPrimary;
+        if (typeof couple.isCurrent === "boolean") rec.isCurrent = couple.isCurrent;
+        unions.push(rec);
+    }
+    tree.unions = unions;
+    return raw;
+}
+
 function migrateParentIdsV1ToV2(raw: unknown): unknown {
     if (!raw || typeof raw !== "object") return raw;
     const tree = raw as { people?: Record<string, unknown> };
@@ -88,8 +151,8 @@ export const migrations: Migration[] = [
     {
         from: "2.0.0",
         to: "3.0.0",
-        description: "UnionRecord replaces CoupleRecord (Phase 3)",
-        migrate: identity,
+        description: "UnionRecord replaces CoupleRecord (Phase 3a)",
+        migrate: migrateUnionRecordV2ToV3,
     },
     {
         from: "3.0.0",

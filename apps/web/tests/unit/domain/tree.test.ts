@@ -7,20 +7,25 @@ import { describe, expect, it } from "vitest";
 import { ROOT_ID } from "$lib/domain/ids";
 import {
     addPerson,
+    addUnionPartner,
     ancestorsOf,
     createTree,
     descendantsOf,
     getParents,
+    getUnions,
     linkParent,
     linkParentRef,
     linkSpouse,
+    linkUnion,
     removePerson,
+    removeUnionPartner,
     siblingsOf,
     unlinkParent,
     unlinkParentByPersonId,
     unlinkSpouse,
     updateParentRef,
     updatePerson,
+    updateUnion,
 } from "$lib/domain/tree";
 import type { Person, Tree } from "$lib/domain/types";
 
@@ -394,5 +399,180 @@ describe("linkParentRef / unlinkParentByPersonId / updateParentRef (Phase 2b.3 N
         expect(child.parentIds).toEqual([
             { personId: addExtra.id, role: "social", pedi: "adopted" },
         ]);
+    });
+});
+
+describe("getUnions (Phase 3a forward-compat reader)", () => {
+    it("returns tree.unions if populated", () => {
+        const t = createTree("x", bareRoot());
+        const tWithUnions: Tree = {
+            ...t,
+            unions: [
+                {
+                    id: "u1",
+                    partnerIds: ["a", "b", "c"],
+                    childIds: [],
+                    kind: "civil",
+                    closed: true,
+                },
+            ],
+        };
+        const got = getUnions(tWithUnions);
+        expect(got).toHaveLength(1);
+        expect(got[0]?.partnerIds).toEqual(["a", "b", "c"]);
+        expect(got[0]?.kind).toBe("civil");
+    });
+
+    it("derives from legacy couples[] when unions is absent", () => {
+        // build a tree the legacy way; assert getUnions reads identically to
+        // what the migration produces.
+        let t = createTree("x", { ...bareRoot(), gender: "m" });
+        const a = ROOT_ID;
+        const addB = addPerson(t, bareChild("B", "f"));
+        t = addB.tree;
+        const r = linkSpouse(t, a, addB.id);
+        if (!r.ok) throw new Error(r.error);
+        t = r.value;
+        const got = getUnions(t);
+        expect(got).toHaveLength(1);
+        expect(got[0]?.partnerIds.sort()).toEqual([a, addB.id].sort());
+        expect(got[0]?.childIds).toEqual([]);
+        expect(got[0]?.id).toMatch(/^union-1-/);
+    });
+
+    it("returns empty array when no couples and no unions", () => {
+        const t = createTree("x", bareRoot());
+        expect(getUnions(t)).toEqual([]);
+    });
+});
+
+describe("linkUnion / addUnionPartner / removeUnionPartner (Phase 3a N-partner ops)", () => {
+    function buildEmptyUnionsTree(): { tree: Tree; ids: Record<string, string> } {
+        // populate tree.unions = [] so writers know to sync (mirrors what the
+        // 2.0.0 → 3.0.0 migration does on save).
+        let t = createTree("x", bareRoot());
+        const addA = addPerson(t, bareChild("A", "f"));
+        t = addA.tree;
+        const addB = addPerson(t, bareChild("B", "m"));
+        t = addB.tree;
+        const addC = addPerson(t, bareChild("C", "u"));
+        t = addC.tree;
+        t = { ...t, unions: [] };
+        return { tree: t, ids: { a: addA.id, b: addB.id, c: addC.id } };
+    }
+
+    it("linkUnion(2 partners) creates a union and back-fills couples[]", () => {
+        const { tree, ids } = buildEmptyUnionsTree();
+        const r = linkUnion(tree, [ids.a ?? "", ids.b ?? ""]);
+        if (!r.ok) throw new Error(r.error);
+        expect(r.value.unions).toHaveLength(1);
+        expect(r.value.unions?.[0]?.partnerIds.sort()).toEqual([ids.a, ids.b].sort());
+        // 2-partner unions back-fill the legacy couples[] for unmigrated readers
+        expect(r.value.couples).toHaveLength(1);
+        // spouseIds mirrored on both sides
+        expect(r.value.people[ids.a ?? ""]?.spouseIds).toContain(ids.b);
+        expect(r.value.people[ids.b ?? ""]?.spouseIds).toContain(ids.a);
+    });
+
+    it("linkUnion(3 partners) creates one union but does NOT back-fill couples[]", () => {
+        const { tree, ids } = buildEmptyUnionsTree();
+        const r = linkUnion(tree, [ids.a ?? "", ids.b ?? "", ids.c ?? ""]);
+        if (!r.ok) throw new Error(r.error);
+        expect(r.value.unions).toHaveLength(1);
+        expect(r.value.unions?.[0]?.partnerIds).toHaveLength(3);
+        // >2-partner unions don't fit into the legacy CoupleRecord shape; the
+        // Phase 3b reader migration sweep is what makes such unions visible.
+        expect(r.value.couples).toEqual([]);
+        // every pair has the spouse bond mirrored
+        expect(r.value.people[ids.a ?? ""]?.spouseIds.sort()).toEqual([ids.b, ids.c].sort());
+        expect(r.value.people[ids.b ?? ""]?.spouseIds.sort()).toEqual([ids.a, ids.c].sort());
+        expect(r.value.people[ids.c ?? ""]?.spouseIds.sort()).toEqual([ids.a, ids.b].sort());
+    });
+
+    it("linkUnion(unknown partner) errs", () => {
+        const { tree, ids } = buildEmptyUnionsTree();
+        const r = linkUnion(tree, [ids.a ?? "", "ZZZZZ"]);
+        expect(r.ok).toBe(false);
+    });
+
+    it("addUnionPartner appends to partnerIds and mirrors spouseIds", () => {
+        const { tree, ids } = buildEmptyUnionsTree();
+        const r1 = linkUnion(tree, [ids.a ?? "", ids.b ?? ""]);
+        if (!r1.ok) throw new Error(r1.error);
+        const unionId = r1.value.unions?.[0]?.id ?? "";
+        const r2 = addUnionPartner(r1.value, unionId, ids.c ?? "");
+        if (!r2.ok) throw new Error(r2.error);
+        expect(r2.value.unions?.[0]?.partnerIds).toHaveLength(3);
+        expect(r2.value.people[ids.c ?? ""]?.spouseIds.sort()).toEqual([ids.a, ids.b].sort());
+        expect(r2.value.people[ids.a ?? ""]?.spouseIds).toContain(ids.c);
+        expect(r2.value.people[ids.b ?? ""]?.spouseIds).toContain(ids.c);
+    });
+
+    it("addUnionPartner errs when person already in union", () => {
+        const { tree, ids } = buildEmptyUnionsTree();
+        const r1 = linkUnion(tree, [ids.a ?? "", ids.b ?? ""]);
+        if (!r1.ok) throw new Error(r1.error);
+        const unionId = r1.value.unions?.[0]?.id ?? "";
+        const r2 = addUnionPartner(r1.value, unionId, ids.a ?? "");
+        expect(r2.ok).toBe(false);
+    });
+
+    it("removeUnionPartner filters partnerIds; deletes union when empty", () => {
+        const { tree, ids } = buildEmptyUnionsTree();
+        const r1 = linkUnion(tree, [ids.a ?? "", ids.b ?? "", ids.c ?? ""]);
+        if (!r1.ok) throw new Error(r1.error);
+        const unionId = r1.value.unions?.[0]?.id ?? "";
+        const after = removeUnionPartner(r1.value, unionId, ids.c ?? "");
+        expect(after.unions?.[0]?.partnerIds.sort()).toEqual([ids.a, ids.b].sort());
+        const empty = removeUnionPartner(
+            removeUnionPartner(after, unionId, ids.a ?? ""),
+            unionId,
+            ids.b ?? "",
+        );
+        expect(empty.unions).toEqual([]);
+    });
+
+    it("updateUnion patches kind / closed / name without disturbing partners", () => {
+        const { tree, ids } = buildEmptyUnionsTree();
+        const r1 = linkUnion(tree, [ids.a ?? "", ids.b ?? "", ids.c ?? ""]);
+        if (!r1.ok) throw new Error(r1.error);
+        const unionId = r1.value.unions?.[0]?.id ?? "";
+        const after = updateUnion(r1.value, unionId, {
+            kind: "civil",
+            closed: true,
+            name: "House Marvane",
+        });
+        const u = after.unions?.[0];
+        expect(u?.kind).toBe("civil");
+        expect(u?.closed).toBe(true);
+        expect(u?.name).toBe("House Marvane");
+        expect(u?.partnerIds).toHaveLength(3);
+    });
+
+    it("linkSpouse on a tree with tree.unions populated keeps both in sync", () => {
+        const { tree, ids } = buildEmptyUnionsTree();
+        const r = linkSpouse(tree, ids.a ?? "", ids.b ?? "");
+        if (!r.ok) throw new Error(r.error);
+        expect(r.value.couples).toHaveLength(1);
+        expect(r.value.unions).toHaveLength(1);
+        expect(r.value.unions?.[0]?.partnerIds.sort()).toEqual([ids.a, ids.b].sort());
+    });
+
+    it("unlinkSpouse on a synced tree removes from both couples[] and unions[]", () => {
+        const { tree, ids } = buildEmptyUnionsTree();
+        const linked = linkSpouse(tree, ids.a ?? "", ids.b ?? "");
+        if (!linked.ok) throw new Error(linked.error);
+        const after = unlinkSpouse(linked.value, ids.a ?? "", ids.b ?? "");
+        expect(after.couples).toEqual([]);
+        expect(after.unions).toEqual([]);
+    });
+
+    it("removePerson sweeps both couples[] and unions[]", () => {
+        const { tree, ids } = buildEmptyUnionsTree();
+        const linked = linkUnion(tree, [ids.a ?? "", ids.b ?? "", ids.c ?? ""]);
+        if (!linked.ok) throw new Error(linked.error);
+        const after = removePerson(linked.value, ids.c ?? "");
+        expect(after.unions?.[0]?.partnerIds.sort()).toEqual([ids.a, ids.b].sort());
+        expect(after.unions?.[0]?.partnerIds).not.toContain(ids.c);
     });
 });

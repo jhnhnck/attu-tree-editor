@@ -39,24 +39,17 @@ describe("migrateToCurrent", () => {
     });
 
     it("accepts a minor-newer version with a forward-compat warning", () => {
-        // Test against a version that is minor-newer than CURRENT regardless
-        // of which major CURRENT happens to be on. CURRENT="2.0.0" → minor
-        // newer is "2.5.0"; if CURRENT bumps again, this test naturally
-        // tracks via the parsed-major helper.
-        const minorNewer = "999.999.999".replace(/999/g, (_, i) => (i === 0 ? "2" : "999"));
+        // Synthesize a minor-newer version relative to whatever CURRENT is
+        // today by appending ".999.999" to CURRENT's major. CURRENT="3.0.0"
+        // → "3.999.999"; future major bumps naturally track via the parse.
+        const major = CURRENT_SCHEMA_VERSION.split(".")[0] ?? "1";
+        const minorNewer = `${major}.999.999`;
         const r = migrateToCurrent({ name: "x" }, minorNewer);
-        // Either it's accepted with a forward-compat warning (same-major
-        // newer-minor), or it's rejected as major-newer (different-major).
-        // We assert against whichever path matches the parsed major of the
-        // stub used here ("2.999.999" → forward-compat for CURRENT=2.x.y).
-        if (r.ok) {
-            expect(r.value.forwardCompatWarning).toMatch(/minor-newer/);
-            expect(r.value.appliedMigrations).toEqual([]);
-        } else {
-            // Acceptable: CURRENT major bumped above 2.x; treat as
-            // major-newer-rejected.
-            expect(r.error).toMatch(/newer than this build/);
-        }
+        // Same major as CURRENT, higher minor → forward-compat accepted.
+        expect(r.ok).toBe(true);
+        if (!r.ok) return;
+        expect(r.value.forwardCompatWarning).toMatch(/minor-newer/);
+        expect(r.value.appliedMigrations).toEqual([]);
     });
 
     it("rejects a malformed semver string", () => {
@@ -106,6 +99,105 @@ describe("migration chain (Phase 0 identity-stub round-trip)", () => {
             "3.2.0->3.3.0",
             "3.3.0->3.4.0",
         ]);
+    });
+});
+
+describe("Phase 3a migration: 2.0.0 → 3.0.0 populates unions[] from couples[]", () => {
+    it("converts every CoupleRecord into a UnionRecord with deterministic id", () => {
+        const v2 = {
+            name: "x",
+            people: {},
+            couples: [
+                {
+                    leftId: "alice",
+                    rightId: "bob",
+                    unionIndex: 1,
+                    childIds: ["kid1"],
+                    marriageDate: { era: "PC", year: 1500, month: 6, day: 1 },
+                    isPrimary: true,
+                    isCurrent: true,
+                },
+                {
+                    leftId: "alice",
+                    rightId: "carol",
+                    unionIndex: 2,
+                    childIds: [],
+                    isCurrent: false,
+                },
+            ],
+        };
+        const r = _migrateBetween(v2, "2.0.0", "3.0.0");
+        expect(r.ok).toBe(true);
+        if (!r.ok) return;
+        const migrated = r.value.value as typeof v2 & {
+            unions?: { id: string; partnerIds: string[]; childIds: string[] }[];
+        };
+        expect(migrated.unions).toBeDefined();
+        expect(migrated.unions).toHaveLength(2);
+        expect(migrated.unions?.[0]).toEqual({
+            id: "union-1-alice-bob",
+            partnerIds: ["alice", "bob"],
+            childIds: ["kid1"],
+            marriageDate: { era: "PC", year: 1500, month: 6, day: 1 },
+            isPrimary: true,
+            isCurrent: true,
+        });
+        expect(migrated.unions?.[1]).toEqual({
+            id: "union-2-alice-carol",
+            partnerIds: ["alice", "carol"],
+            childIds: [],
+            isCurrent: false,
+        });
+        // legacy couples[] kept intact — Phase 3b sweeps readers
+        expect(migrated.couples).toEqual(v2.couples);
+    });
+
+    it("leaves an already-populated unions[] alone (forward-compat)", () => {
+        const alreadyV3 = {
+            name: "x",
+            people: {},
+            couples: [{ leftId: "a", rightId: "b", unionIndex: 1, childIds: [] }],
+            unions: [
+                {
+                    id: "custom-id",
+                    partnerIds: ["a", "b", "c"],
+                    childIds: [],
+                    kind: "civil",
+                    closed: true,
+                },
+            ],
+        };
+        const r = _migrateBetween(alreadyV3, "2.0.0", "3.0.0");
+        expect(r.ok).toBe(true);
+        if (!r.ok) return;
+        const migrated = r.value.value as typeof alreadyV3;
+        expect(migrated.unions).toEqual(alreadyV3.unions);
+    });
+
+    it("handles empty couples[] cleanly", () => {
+        const v2 = { name: "x", people: {}, couples: [] };
+        const r = _migrateBetween(v2, "2.0.0", "3.0.0");
+        expect(r.ok).toBe(true);
+        if (!r.ok) return;
+        const migrated = r.value.value as typeof v2 & { unions?: unknown[] };
+        expect(migrated.unions).toEqual([]);
+    });
+
+    it("preserves omitted optional fields (no undefined leaks)", () => {
+        const v2 = {
+            name: "x",
+            people: {},
+            couples: [{ leftId: "a", rightId: "b", unionIndex: 0, childIds: [] }],
+        };
+        const r = _migrateBetween(v2, "2.0.0", "3.0.0");
+        expect(r.ok).toBe(true);
+        if (!r.ok) return;
+        const u = (r.value.value as { unions: { marriageDate?: unknown; isPrimary?: unknown }[] })
+            .unions[0];
+        expect(u).toBeDefined();
+        expect("marriageDate" in (u ?? {})).toBe(false);
+        expect("isPrimary" in (u ?? {})).toBe(false);
+        expect("isCurrent" in (u ?? {})).toBe(false);
     });
 });
 
