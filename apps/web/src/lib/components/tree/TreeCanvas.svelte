@@ -63,8 +63,8 @@
         highlightedBundleIds?: ReadonlySet<string> | undefined;
         /** pair of people to trace path between; highlights the path on canvas */
         traceIds?: readonly [PersonId, PersonId] | undefined;
-        /** clicking the people-count pill calls this to toggle the inspector */
-        ontoggleinspector?: (() => void) | undefined;
+        // ontoggleinspector removed: the stats pill (the only caller)
+        // moved out to App.svelte's shared bottom-left bar.
         /** debug overlay options (if undefined, debug overlay is not rendered) */
         debugOptions?:
             | {
@@ -76,6 +76,12 @@
         ontimings?: ((t: LayeredEngineTimings) => void) | undefined;
         /** Phase 3: drives the last-edit halo overlay; bumped on mutation. */
         lastEditedId?: PersonId | undefined;
+        /** invoked when the in-canvas layout updates with people / cluster
+         *  counts; the shell renders the stats pill so it can share a
+         *  bottom-left bar with the debug toolbox pill. */
+        onlayoutstats?:
+            | ((stats: { totalPeople: number; components: number; isolated: number }) => void)
+            | undefined;
     }
 
     let {
@@ -91,10 +97,10 @@
         onmodechange,
         highlightedBundleIds,
         traceIds,
-        ontoggleinspector,
         debugOptions,
         ontimings,
         lastEditedId,
+        onlayoutstats,
     }: Props = $props();
 
     // pixels per unit. hvLayout produces positions where 1 unit = "half a card
@@ -150,6 +156,17 @@
     let layout = $derived(placedGraph ? placedGraphToHvLayout(placedGraph) : EMPTY_LAYOUT);
     let canvasW = $derived(layout.canvas.width * UNIT);
     let canvasH = $derived(layout.canvas.height * UNIT);
+
+    // Shell renders the people / cluster stats pill (combined with the
+    // debug toolbox pill in App.svelte's bottom-left bar). Mirror the
+    // layout values up whenever they change.
+    $effect(() => {
+        onlayoutstats?.({
+            totalPeople: layout.totalPeople,
+            components: layout.components.length,
+            isolated: layout.isolated.length,
+        });
+    });
 
     // Send the tree to the worker whenever tree.id, tree.editRev, or overrides change.
     // The engineId is hard-coded to "layered" here: TreeCanvas is the layered-engine
@@ -1192,33 +1209,9 @@
         />
     {/if}
 
-    <div class="pointer-events-none absolute bottom-3 left-3 flex items-center gap-2">
-        <button
-            type="button"
-            class="text-fg-muted bg-canvas-elev/80 border-line rounded-md border px-2.5 py-1 font-mono text-xs"
-            class:pointer-events-auto={!!ontoggleinspector}
-            class:hover:border-accent={!!ontoggleinspector}
-            class:cursor-pointer={!!ontoggleinspector}
-            class:cursor-default={!ontoggleinspector}
-            title={layout.components.length > 1
-                ? `${String(layout.components.length)} clusters` +
-                  (layout.isolated.length > 0
-                      ? ` + ${String(layout.isolated.length)} isolated`
-                      : "")
-                : undefined}
-            onclick={() => ontoggleinspector?.()}
-        >
-            {String(layout.totalPeople)} people
-            {#if layout.components.length > 1 || layout.isolated.length > 0}
-                <span class="text-amber-400"
-                    >· {String(layout.components.length)}{#if layout.isolated.length > 0}+{String(
-                            layout.isolated.length,
-                        )}{/if}
-                    clusters</span
-                >
-            {/if}
-        </button>
-    </div>
+    <!-- Stats pill moved to the shell's bottom-left bar in App.svelte
+         so it can share the row with the debug toolbox pill (and any
+         future shell chrome). Data flows up via `onlayoutstats`. -->
 </div>
 
 <style>

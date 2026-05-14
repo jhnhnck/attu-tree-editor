@@ -169,6 +169,12 @@
     // Phase 3: dump/load tree JSON textarea state (separate $state so the
     // user's draft survives toggling the panel).
     let debugDumpJson = $state("");
+    // Bottom-left bar shell state. Mirrored up from TreeCanvas via
+    // onlayoutstats so the stats pill can share the row with the debug
+    // toolbox pill (and any future shell chrome).
+    let layoutStats = $state<
+        { totalPeople: number; components: number; isolated: number } | undefined
+    >(undefined);
     let showInspector = $state(true);
     let inspectorInitialTab = $state<"personal" | "connections" | "details" | "bio">("personal");
 
@@ -1268,13 +1274,13 @@
                     }}
                     onscalechange={(s: number) => (canvasScale = s)}
                     onmodechange={(m: "select" | "hand") => (canvasMode = m)}
-                    ontoggleinspector={() => (showInspector = !showInspector)}
                     traceIds={selection.selectedPersonId && traceTargetId
                         ? [selection.selectedPersonId, traceTargetId]
                         : undefined}
                     {debugOptions}
                     ontimings={(t) => (debugTimings = t)}
                     lastEditedId={debugLastEditedId}
+                    onlayoutstats={(s) => (layoutStats = s)}
                 />
             {/if}
             {#if canvasController && (selectedEngine === "layered" || selectedEngine === "family-view")}
@@ -1284,20 +1290,53 @@
                     onfit={() => canvasController?.fit()}
                 />
             {/if}
-            <!-- Phase 3: bug-icon discovery pill. Visible by default
-                 (the "permanently hide" option in the panel clears it);
-                 Ctrl+Shift+D is the keyboard fallback regardless. -->
-            {#if !debugPillHidden}
-                <button
-                    type="button"
-                    class="text-fg-muted hover:text-accent bg-canvas-elev/80 border-line pointer-events-auto absolute bottom-3 left-28 z-30 flex h-6 w-6 items-center justify-center rounded-md border"
-                    aria-label="toggle debug panel"
-                    title="debug panel (Ctrl+Shift+D)"
-                    data-testid="debug-pill"
-                    onclick={() => (debugOpen = !debugOpen)}
+            <!-- Shell bottom-left bar: stats pill (when the layered engine
+                 reports stats), debug toolbox pill (lucide Bug, visible
+                 unless the user hides it from the panel). Built as a flex
+                 row so future pills slot in without rewiring positions. -->
+            {#if layoutStats || !debugPillHidden}
+                <div
+                    class="pointer-events-none absolute bottom-3 left-3 z-30 flex items-center gap-2"
+                    data-testid="canvas-bottom-bar"
                 >
-                    <Bug class="h-3 w-3" />
-                </button>
+                    {#if layoutStats}
+                        <button
+                            type="button"
+                            class="text-fg-muted bg-canvas-elev/80 border-line hover:border-accent pointer-events-auto cursor-pointer rounded-md border px-2.5 py-1 font-mono text-xs"
+                            title={layoutStats.components > 1
+                                ? `${String(layoutStats.components)} clusters` +
+                                  (layoutStats.isolated > 0
+                                      ? ` + ${String(layoutStats.isolated)} isolated`
+                                      : "")
+                                : undefined}
+                            onclick={() => (showInspector = !showInspector)}
+                            data-testid="stats-pill"
+                        >
+                            {String(layoutStats.totalPeople)} people
+                            {#if layoutStats.components > 1 || layoutStats.isolated > 0}
+                                <span class="text-amber-400"
+                                    >· {String(
+                                        layoutStats.components,
+                                    )}{#if layoutStats.isolated > 0}+{String(
+                                            layoutStats.isolated,
+                                        )}{/if} clusters</span
+                                >
+                            {/if}
+                        </button>
+                    {/if}
+                    {#if !debugPillHidden}
+                        <button
+                            type="button"
+                            class="text-fg-muted hover:text-accent bg-canvas-elev/80 border-line pointer-events-auto flex h-6 w-6 items-center justify-center rounded-md border"
+                            aria-label="toggle debug panel"
+                            title="debug panel (Ctrl+Shift+D)"
+                            data-testid="debug-pill"
+                            onclick={() => (debugOpen = !debugOpen)}
+                        >
+                            <Bug class="h-3 w-3" />
+                        </button>
+                    {/if}
+                </div>
             {/if}
             {#if debugOpen}
                 <!-- Phase 3 (layered-and-tooling plan): sectioned debug
