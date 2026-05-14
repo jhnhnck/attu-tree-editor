@@ -118,10 +118,9 @@ export function updateCouple(t: Tree, aId: PersonId, bId: PersonId, patch: Coupl
         }
         return next;
     });
-    // Phase 3a forward-compat: mirror the same field changes onto the
-    // matching `unions[]` entry so readers using `getUnions(tree)` see the
-    // update. Identifies the union by partner-id set match (legacy couples
-    // are 2-partner by construction).
+    // Mirror the same field changes onto the matching `unions[]` entry so
+    // readers using `getUnions(tree)` see the update. Identifies the union
+    // by partner-id set match (legacy couples are 2-partner by construction).
     const unions = t.unions
         ? t.unions.map((u) => {
               if (!matchUnion(u, [aId, bId])) return u;
@@ -158,8 +157,8 @@ export function removePerson(t: Tree, id: PersonId): Tree {
     const couples = t.couples.filter(
         (c) => c.leftId !== id && c.rightId !== id && !c.childIds.includes(id),
     );
-    // Phase 3a forward-compat: strip `id` from every union's partnerIds
-    // and childIds. Drop the union entirely if no partners remain.
+    // Strip `id` from every union's partnerIds and childIds; drop the
+    // union entirely if no partners remain.
     const unions = t.unions
         ?.map((u) => {
             if (!u.partnerIds.includes(id) && !u.childIds.includes(id)) return u;

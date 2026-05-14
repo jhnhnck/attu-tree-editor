@@ -3,12 +3,20 @@
  * licensed under the MIT license; see LICENSE.md for full text
  */
 
-import type { CoupleRecord, Person, PersonId, Tree } from "$lib/domain/types";
+import type { CoupleRecord, Person, PersonId, Tree, UnionRecord } from "$lib/domain/types";
 
 export interface TreeDiff {
     people: Record<PersonId, { before: Person | null; after: Person | null }>;
     /** keyed by `${leftId}+${rightId}` */
     couples: Record<string, { before: CoupleRecord | null; after: CoupleRecord | null }>;
+    /**
+     * Keyed by `UnionRecord.id` (deterministic from migration or fresh uuid
+     * from `linkUnion`). Captures inserts, deletes, and field-level changes
+     * (kind, closed, name, marriageDate, isPrimary, isCurrent, preferredBy,
+     * partnerIds, childIds). Mirrors the `couples` field semantically; both
+     * coexist during the Phase 3a/3b transition.
+     */
+    unions: Record<string, { before: UnionRecord | null; after: UnionRecord | null }>;
     rootId?: { before: PersonId; after: PersonId };
     name?: { before: string; after: string };
     updatedAt?: { before: number; after: number };
@@ -47,9 +55,22 @@ export function diffTrees(before: Tree, after: Tree): TreeDiff {
         }
     }
 
+    const unions: TreeDiff["unions"] = {};
+    const beforeUnions = new Map((before.unions ?? []).map((u) => [u.id, u]));
+    const afterUnions = new Map((after.unions ?? []).map((u) => [u.id, u]));
+    const allUnionKeys = new Set([...beforeUnions.keys(), ...afterUnions.keys()]);
+    for (const key of allUnionKeys) {
+        const b = beforeUnions.get(key) ?? null;
+        const a = afterUnions.get(key) ?? null;
+        if (JSON.stringify(b) !== JSON.stringify(a)) {
+            unions[key] = { before: b, after: a };
+        }
+    }
+
     return {
         people,
         couples,
+        unions,
         ...(before.rootId !== after.rootId
             ? { rootId: { before: before.rootId, after: after.rootId } }
             : {}),
@@ -88,10 +109,36 @@ export function applyDiff(tree: Tree, diff: TreeDiff): Tree {
         }
     }
 
+    // Same order-preserving treatment for unions[]. Omit the field
+    // entirely when the diff has no union changes AND the input tree
+    // had no `unions` field, so pre-3a fixtures don't grow an empty
+    // `unions` key just from passing through `applyDiff`.
+    const hasUnionChanges = Object.keys(diff.unions).length > 0;
+    const inputHasUnions = tree.unions !== undefined;
+    let unionsOut: UnionRecord[] | undefined;
+    if (hasUnionChanges || inputHasUnions) {
+        const processedUnionKeys = new Set<string>();
+        const acc = (tree.unions ?? [])
+            .map((u) => {
+                const entry = diff.unions[u.id];
+                if (entry === undefined) return u;
+                processedUnionKeys.add(u.id);
+                return entry.after;
+            })
+            .filter((u): u is UnionRecord => u !== null);
+        for (const [key, { after }] of Object.entries(diff.unions)) {
+            if (!processedUnionKeys.has(key) && after !== null) {
+                acc.push(after);
+            }
+        }
+        unionsOut = acc;
+    }
+
     return {
         ...tree,
         people,
         couples,
+        ...(unionsOut !== undefined ? { unions: unionsOut } : {}),
         ...(diff.rootId !== undefined ? { rootId: diff.rootId.after } : {}),
         ...(diff.name !== undefined ? { name: diff.name.after } : {}),
         ...(diff.updatedAt !== undefined ? { updatedAt: diff.updatedAt.after } : {}),
@@ -109,9 +156,15 @@ export function invertDiff(diff: TreeDiff): TreeDiff {
         couples[key] = { before: after, after: before };
     }
 
+    const unions: TreeDiff["unions"] = {};
+    for (const [key, { before, after }] of Object.entries(diff.unions)) {
+        unions[key] = { before: after, after: before };
+    }
+
     return {
         people,
         couples,
+        unions,
         ...(diff.rootId
             ? { rootId: { before: diff.rootId.after, after: diff.rootId.before } }
             : {}),
@@ -126,6 +179,7 @@ export function isEmptyDiff(diff: TreeDiff): boolean {
     return (
         Object.keys(diff.people).length === 0 &&
         Object.keys(diff.couples).length === 0 &&
+        Object.keys(diff.unions).length === 0 &&
         diff.rootId === undefined &&
         diff.name === undefined &&
         diff.updatedAt === undefined

@@ -10,11 +10,13 @@ import {
     createTree,
     linkParent,
     linkSpouse,
+    linkUnion,
     removePerson,
     updatePerson,
+    updateUnion,
 } from "$lib/domain/tree";
 import { applyDiff, diffTrees, invertDiff, isEmptyDiff } from "$lib/domain/treeDiff";
-import type { Person, Tree } from "$lib/domain/types";
+import type { Person, Tree, UnionRecord } from "$lib/domain/types";
 
 function bare(name: string, gender: Person["gender"] = "u"): Omit<Person, "id"> {
     return { given: name, surname: "", gender, spouseIds: [], display: "z1" };
@@ -193,5 +195,111 @@ describe("applyDiff + invertDiff — undo round-trip", () => {
 
         const redone2 = applyDiff(redone1, diff2);
         expect(redone2).toEqual(t2);
+    });
+});
+
+describe("unions[] diffing (Phase 3b.1)", () => {
+    /** seed a tree with `unions: []` so writers sync the field */
+    function baseWithUnions(): { tree: Tree; ids: { a: string; b: string; c: string } } {
+        let t = createTree("test", bare("Root", "m"));
+        const addA = addPerson(t, bare("A", "f"));
+        t = addA.tree;
+        const addB = addPerson(t, bare("B", "m"));
+        t = addB.tree;
+        const addC = addPerson(t, bare("C", "u"));
+        t = addC.tree;
+        t = { ...t, unions: [] };
+        return { tree: t, ids: { a: addA.id, b: addB.id, c: addC.id } };
+    }
+
+    it("detects union insertion and round-trips it forward", () => {
+        const { tree: before, ids } = baseWithUnions();
+        const r = linkUnion(before, [ids.a, ids.b, ids.c]);
+        if (!r.ok) throw new Error(r.error);
+        const after = r.value;
+        const diff = diffTrees(before, after);
+        expect(Object.keys(diff.unions)).toHaveLength(1);
+        const result = applyDiff(before, diff);
+        expect(result).toEqual(after);
+    });
+
+    it("detects union deletion and inverts cleanly", () => {
+        const { tree: t0, ids } = baseWithUnions();
+        const r = linkUnion(t0, [ids.a, ids.b, ids.c]);
+        if (!r.ok) throw new Error(r.error);
+        const before = r.value;
+        // remove person A — sweeps union too (3 → 2 partners)
+        const after = removePerson(before, ids.a);
+        const diff = diffTrees(before, after);
+        expect(Object.keys(diff.unions)).toHaveLength(1);
+        const restored = applyDiff(after, invertDiff(diff));
+        expect(restored).toEqual(before);
+    });
+
+    it("detects union field-level update (kind / closed / name)", () => {
+        const { tree: t0, ids } = baseWithUnions();
+        const r = linkUnion(t0, [ids.a, ids.b]);
+        if (!r.ok) throw new Error(r.error);
+        const before = r.value;
+        const unionId = (before.unions ?? [])[0]?.id ?? "";
+        const after = updateUnion(before, unionId, {
+            kind: "civil",
+            closed: true,
+            name: "House X",
+        });
+        const diff = diffTrees(before, after);
+        expect(Object.keys(diff.unions)).toEqual([unionId]);
+        const forward = applyDiff(before, diff);
+        expect(forward).toEqual(after);
+        const restored = applyDiff(after, invertDiff(diff));
+        expect(restored).toEqual(before);
+    });
+
+    it("preserves union order on apply (existing first, new appended)", () => {
+        const { tree: t0, ids } = baseWithUnions();
+        const r1 = linkUnion(t0, [ids.a, ids.b]);
+        if (!r1.ok) throw new Error(r1.error);
+        const r2 = linkUnion(r1.value, [ids.a, ids.c]);
+        if (!r2.ok) throw new Error(r2.error);
+        const before = r2.value;
+        const fst = (before.unions ?? [])[0];
+        const snd = (before.unions ?? [])[1];
+        // delete the first union via a hand-rolled new tree
+        const after: Tree = { ...before, unions: snd ? [snd] : [] };
+        const diff = diffTrees(before, after);
+        const result = applyDiff(before, diff);
+        expect(result.unions).toEqual(snd ? [snd] : []);
+        // invert: restore both. A union deleted in the forward diff lands at
+        // the END of the unions[] on invert (the "append new" branch), so
+        // order is [snd, fst] not [fst, snd]. Membership is what matters for
+        // undo correctness; positional fidelity for re-added entries is not
+        // currently a contract.
+        const restored = applyDiff(after, invertDiff(diff));
+        expect(new Set((restored.unions ?? []).map((u: UnionRecord) => u.id))).toEqual(
+            new Set([fst?.id, snd?.id]),
+        );
+    });
+
+    it("treats trees without `unions` field as having no union changes", () => {
+        // both inputs lack `unions` → diff.unions is empty, applyDiff leaves the
+        // output without `unions`, isEmptyDiff still true.
+        const before = base();
+        const after = updatePerson(before, ROOT_ID, { given: "Changed" });
+        const diff = diffTrees(before, after);
+        expect(Object.keys(diff.unions)).toHaveLength(0);
+        const result = applyDiff(before, diff);
+        expect("unions" in result).toBe(false);
+    });
+
+    it("isEmptyDiff returns false when only unions change", () => {
+        const { tree: before, ids } = baseWithUnions();
+        const r = linkUnion(before, [ids.a, ids.b]);
+        if (!r.ok) throw new Error(r.error);
+        const diff = diffTrees(before, r.value);
+        // people and couples both change (spouseIds + new couple), so isEmptyDiff
+        // would already be false. Synthesize a pure-unions diff to test the
+        // unions-aware branch.
+        const unionsOnly = { ...diff, people: {}, couples: {} };
+        expect(isEmptyDiff(unionsOnly)).toBe(false);
     });
 });
