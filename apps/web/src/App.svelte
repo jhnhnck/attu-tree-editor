@@ -1384,6 +1384,7 @@
                     selectedId={selection.selectedPersonId}
                     pathHighlight={pathHighlightEnabled}
                     showGenerationBadge={generationBadgeEnabled}
+                    {portraitUrls}
                     onselect={(id: string) => selection.select(id)}
                     ondeselect={() => selection.select(undefined)}
                     onedit={(id: string) => focusPerson(id, "personal")}

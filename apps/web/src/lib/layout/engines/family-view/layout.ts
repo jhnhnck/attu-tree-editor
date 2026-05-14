@@ -50,10 +50,34 @@ import type {
 } from "$lib/layout/engines/family-view/types";
 import { selectBoundedSubset, type RankedSubset } from "$lib/layout/engines/family-view/subset";
 
-/** Card height in unit space — matches the layered engine's CARD_H. */
+/** Default card height in unit space — used as the fallback when a node carries no explicit `h`. */
 export const CARD_H = 1.2;
+/** Card height when a portrait is present — taller to render a 2:3 portrait visibly. ROW_H=2 caps this at 1.6. */
+export const CARD_H_WITH_PORTRAIT = 1.6;
+/** Card height for short-name no-portrait cards — shrunken to reduce visual weight from the silhouette avatar. */
+export const CARD_H_COMPACT = 0.9;
+/** Above this name length, fall back to the default card height even without a portrait. */
+const NAME_COMPACT_THRESHOLD = 14;
 /** Past this many visible cards, auto-collapse kicks in (Phase 1 plan). */
 export const AUTO_COLLAPSE_THRESHOLD = 50;
+
+/**
+ * Content-driven card height (Phase 1 of the visual fix-up plan).
+ *
+ * Deterministic from the person record alone — worker-safe.
+ * Heuristic: portrait blob present → tall (renders the photo at ~2:3);
+ * short name with no portrait → compact (avoids top-heavy silhouette);
+ * default otherwise.
+ */
+export function cardHeight(
+    person: { portraitBlobId?: string; given?: string; surname?: string } | undefined,
+): number {
+    if (!person) return CARD_H;
+    if (person.portraitBlobId) return CARD_H_WITH_PORTRAIT;
+    const nameLen = (person.given ?? "").length + 1 + (person.surname ?? "").length;
+    if (nameLen <= NAME_COMPACT_THRESHOLD) return CARD_H_COMPACT;
+    return CARD_H;
+}
 
 function roleFor(tree: Tree, childId: PersonId, parentId: PersonId): FamilyViewEdgeRole {
     const child = tree.people[childId];
@@ -182,17 +206,17 @@ export function computeLayout(
             const slot = slots[i]!;
             if (i > 0) cursor += SUBTREE_GAP;
             if (slot.kind === "single") {
-                placeAt(nodes, slot.personId, r, cursor);
+                placeAt(nodes, tree, slot.personId, r, cursor);
                 cursor += PERSON_W;
             } else if (slot.kind === "couple") {
-                placeAt(nodes, slot.leftId, r, cursor);
+                placeAt(nodes, tree, slot.leftId, r, cursor);
                 cursor += PERSON_W + SIBLING_GAP;
-                placeAt(nodes, slot.rightId, r, cursor);
+                placeAt(nodes, tree, slot.rightId, r, cursor);
                 cursor += PERSON_W;
             } else if (slot.kind === "multi-union") {
                 for (let pi = 0; pi < slot.partnerIds.length; pi += 1) {
                     if (pi > 0) cursor += SIBLING_GAP;
-                    placeAt(nodes, slot.partnerIds[pi]!, r, cursor);
+                    placeAt(nodes, tree, slot.partnerIds[pi]!, r, cursor);
                     cursor += PERSON_W;
                 }
             } else {
@@ -294,11 +318,13 @@ function markMate(
 
 function placeAt(
     nodes: Map<PersonId, FamilyViewNode>,
+    tree: Tree,
     personId: PersonId,
     rank: number,
     x: number,
 ): void {
-    nodes.set(personId, { personId, rank, x, y: rank * ROW_H, h: CARD_H });
+    const h = cardHeight(tree.people[personId]);
+    nodes.set(personId, { personId, rank, x, y: rank * ROW_H, h });
 }
 
 function planRank(
@@ -389,7 +415,8 @@ function emitAnchorsAndEdges(
         anchors.push(anchor);
         edges.push(coupleConnector(couple, leftNode, rightNode));
         const anchorCenterX = (midX(leftNode) + midX(rightNode)) / 2;
-        const anchorY = leftNode.y + CARD_H / 2;
+        // anchor at the shorter card's midline so the couple-bus passes through both cards
+        const anchorY = leftNode.y + Math.min(leftNode.h ?? CARD_H, rightNode.h ?? CARD_H) / 2;
         for (const kid of visibleKids) {
             const kidNode = nodes.get(kid);
             if (!kidNode) continue;
@@ -441,10 +468,12 @@ function emitAnchorsAndEdges(
         anchors.push(anchor);
         // Connector edges from the bus primitive (one bar across all
         // partners + zero-length tails on-rank).
+        // multi-partner bus runs at the shortest partner's midline so it passes through every card
+        const busHalfH = Math.min(...partnerNodes.map((n) => (n.h ?? CARD_H) / 2));
         const partnerPositions = partnerNodes.map((n) => ({
             personId: n.personId,
             x: midX(n),
-            y: n.y + CARD_H / 2,
+            y: n.y + busHalfH,
         }));
         const manifold = computeManifold(PRIMARY_PRIMITIVE, partnerPositions);
         for (let ei = 0; ei < manifold.edges.length; ei += 1) {
@@ -525,7 +554,7 @@ function emitAnchorsAndEdges(
                     [parentId, child.id],
                     roleFor(tree, child.id, parentId),
                     midX(parentNode),
-                    parentNode.y + CARD_H,
+                    parentNode.y + (parentNode.h ?? CARD_H),
                     midX(kidNode),
                     kidNode.y,
                 ),
@@ -543,7 +572,7 @@ function emitAnchorsAndEdges(
             .filter((n): n is FamilyViewNode => n !== undefined);
         const parentXs = parentNodes.map((n) => midX(n));
         const centroidX = parentXs.reduce((s, x) => s + x, 0) / parentXs.length;
-        const maxParentY = Math.max(...parentNodes.map((n) => n.y + CARD_H));
+        const maxParentY = Math.max(...parentNodes.map((n) => n.y + (n.h ?? CARD_H)));
         const minParentRank = Math.min(...parentNodes.map((n) => n.rank));
         const pillY = (maxParentY + kidNode.y) / 2;
         const anchorRank = (minParentRank + kidNode.rank) / 2;
@@ -561,7 +590,7 @@ function emitAnchorsAndEdges(
                 persons: [parentNode.personId, child.id],
                 role: roleFor(tree, child.id, parentNode.personId),
                 points: [
-                    { x: midX(parentNode), y: parentNode.y + CARD_H },
+                    { x: midX(parentNode), y: parentNode.y + (parentNode.h ?? CARD_H) },
                     { x: midX(parentNode), y: pillY },
                     { x: centroidX, y: pillY },
                 ],
@@ -590,7 +619,7 @@ function emitAnchorsAndEdges(
                 [badge.sourceId],
                 "blood",
                 midX(source),
-                source.y + CARD_H,
+                source.y + (source.h ?? CARD_H),
                 badgeMidX(badge),
                 badge.y,
             ),
@@ -606,7 +635,8 @@ function coupleConnector(
     left: FamilyViewNode,
     right: FamilyViewNode,
 ): FamilyViewEdge {
-    const y = left.y + CARD_H / 2;
+    // anchor at the shorter card's midline so the bond passes through both cards
+    const y = left.y + Math.min(left.h ?? CARD_H, right.h ?? CARD_H) / 2;
     return {
         id: `bond:${couple.leftId}|${couple.rightId}|${String(couple.unionIndex)}`,
         persons: [couple.leftId, couple.rightId],

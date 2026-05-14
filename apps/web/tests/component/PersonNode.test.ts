@@ -139,9 +139,35 @@ describe("PersonNode", () => {
 
     // visual fix-up plan stubs — converted per phase as fixes land.
     // see notes/features/family-view-visual-fixup.md
-    it.todo("issue #1: two-line name does not clip against card bottom border");
+    it("issue #1: name allows up to two lines (line-clamp-2)", () => {
+        render(PersonNode, {
+            person: person({ given: "Kadar", surname: "Arkaran and Amarkan" }),
+        });
+        // the name span at level 0 must allow two-line wrap so wide names
+        // don't clip against the card's bottom border. paired with the
+        // layout-engine heuristic that grows the card for long names.
+        const lvl0 = document.querySelector('.lvl[data-lvl="0"] .line-clamp-2');
+        expect(lvl0).not.toBeNull();
+    });
+
+    it("issue #3: portrait slot uses .portrait-slot when a photo is present", () => {
+        render(PersonNode, { person: person(), portraitUrl: "blob:abc" });
+        // the slot class signals to css that the photo area expands with
+        // the card's intrinsic height (flex: 1 1 auto, min-height: 2.5rem).
+        const slot = document.querySelector('[data-portrait-slot="true"]');
+        expect(slot).not.toBeNull();
+        expect(slot?.classList.contains("portrait-slot")).toBe(true);
+    });
+
+    it("issue #11: silhouette slot is compact (h-8) when no portrait is present", () => {
+        render(PersonNode, { person: person() });
+        const silhouette = document.querySelector('[data-silhouette="true"]');
+        expect(silhouette).not.toBeNull();
+        // tailwind h-8 = 2rem (32 px) — reduced from the pre-phase-1 h-10
+        // so short-name no-photo cards aren't visually top-heavy.
+        expect(silhouette?.classList.contains("h-8")).toBe(true);
+    });
+
     it.todo("issue #2: name+avatar block is vertically centered when no date is present");
-    it.todo("issue #3: card height grows when a photo is present (2:3 portrait visible)");
     it.todo("issue #7: selection ring renders without a visible gap at card corners");
-    it.todo("issue #11: avatar slot is reduced when no photo is present");
 });

@@ -29,6 +29,7 @@
     import { Plus, Minus, ChevronDown, UserPlus } from "@lucide/svelte";
     import { PERSON_W } from "$lib/layout/constants";
     import PersonNode from "$lib/components/tree/PersonNode.svelte";
+    import type { PortraitUrlCache } from "$lib/state/portraitUrls.svelte";
     import { FamilyViewEngine, CARD_H } from "$lib/layout/engines/family-view";
     import type {
         BadgeNode,
@@ -64,6 +65,14 @@
          * `fte.overlays.generationBadge`.
          */
         showGenerationBadge?: boolean | undefined;
+        /**
+         * Portrait blob -> object-URL cache shared with the layered engine.
+         * Phase 1 of the visual fix-up plan: family-view now renders
+         * portraits at the larger card height when `person.portraitBlobId`
+         * is set. Absent the cache, photos silently fall back to the
+         * silhouette (current pre-phase-1 behaviour).
+         */
+        portraitUrls?: PortraitUrlCache | undefined;
         onselect?: ((id: PersonId) => void) | undefined;
         ondeselect?: (() => void) | undefined;
         onedit?: ((id: PersonId) => void) | undefined;
@@ -96,6 +105,7 @@
         selectedId,
         pathHighlight = true,
         showGenerationBadge = true,
+        portraitUrls,
         onselect,
         ondeselect,
         onedit,
@@ -574,6 +584,7 @@
                         {person}
                         selected={selectedId === person.id}
                         level={0}
+                        portraitUrl={portraitUrls?.get(person.portraitBlobId)}
                         onselect={(id: string) => onCardClick(id)}
                         onedit={(id: string) => onCardDoubleClick(id)}
                         oncontextmenu={(id: string, x: number, y: number) =>

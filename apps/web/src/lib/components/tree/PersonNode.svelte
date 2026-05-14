@@ -121,7 +121,14 @@
          source via Svelte's compiled {#if} branch ContentRangeInserted). -->
     <div class="lvl" data-lvl="0">
         {#if portraitUrl}
-            <div class="border-line/40 mb-1 h-10 w-full overflow-hidden rounded border">
+            <!-- Visual fix-up plan phase 1: portrait slot grows with the
+                 card so the 2:3 image is visible. Canvas-side card height
+                 is driven by `cardHeight()` in family-view layout, which
+                 returns the taller value when `portraitBlobId` is set. -->
+            <div
+                class="border-line/40 portrait-slot mb-1 w-full overflow-hidden rounded border"
+                data-portrait-slot="true"
+            >
                 <img src={portraitUrl} alt="" class="h-full w-full object-cover object-top" />
             </div>
         {:else}
@@ -129,16 +136,16 @@
                  icon scaled to the same slot. Deceased people (death date
                  present) get a greyscale tint so a face on the canvas
                  always means "alive or unknown"; greyscale always means
-                 "deceased." Reads at fit-zoom even though the icon itself
-                 is small (the slot is ~40% of the card height). -->
+                 "deceased." Visual fix-up plan phase 1: silhouette stays
+                 compact (h-8) so short-name cards don't feel top-heavy. -->
             <div
-                class="border-line/40 bg-canvas/40 mb-1 flex h-10 w-full items-center
+                class="border-line/40 bg-canvas/40 mb-1 flex h-8 w-full items-center
                        justify-center overflow-hidden rounded border text-fg/70"
                 class:is-deceased={isDeceased}
                 aria-hidden="true"
                 data-silhouette="true"
             >
-                <User size={24} strokeWidth={1.5} />
+                <User size={20} strokeWidth={1.5} />
             </div>
         {/if}
         <span class="line-clamp-2 text-sm leading-tight font-semibold">
@@ -224,6 +231,15 @@
        with a portrait, default flex-start lets the portrait sit at the top */
     .person-card[data-level="0"][data-portrait="0"] {
         justify-content: center;
+    }
+    /* Visual fix-up plan phase 1: when a portrait is present the card is
+       sized taller by the layout engine (CARD_H_WITH_PORTRAIT = 1.6 units).
+       The portrait slot grows to fill the available space above the name
+       + date row so the 2:3 image is actually visible, rather than being
+       capped at the old fixed h-10. */
+    .portrait-slot {
+        flex: 1 1 auto;
+        min-height: 2.5rem;
     }
     /* hide every level variant by default; the matching one is revealed below.
        `display: contents` keeps the variant's children as direct flex children
