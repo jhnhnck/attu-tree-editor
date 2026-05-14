@@ -1,5 +1,7 @@
 <!--
-    FamilyTreeEditor - canvas zoom pill (bottom-right). slider is log-scale 10..500%
+    FamilyTreeEditor - toolbar zoom control + popover. Trigger button shows
+    the current zoom %; clicking opens a slider/manual-entry/fit popover
+    that anchors centered below the trigger.
     licensed under the MIT license; see LICENSE.md for full text
 -->
 <script lang="ts">
@@ -28,9 +30,12 @@
         return [...ZOOM_STEPS].reverse().find((s) => s < clamped - 0.001) ?? MIN;
     }
 
+    let open = $state(false);
     let editing = $state(false);
     let editValue = $state("");
     let editEl: HTMLInputElement | undefined = $state();
+    let triggerEl: HTMLButtonElement | undefined = $state();
+    let popoverEl: HTMLDivElement | undefined = $state();
 
     function clamp(n: number, lo: number, hi: number): number {
         return Math.max(lo, Math.min(hi, n));
@@ -79,82 +84,134 @@
             editing = false;
         }
     }
+
+    function toggle(): void {
+        open = !open;
+    }
+
+    // Outside-click + Escape close. The handlers are mounted only while
+    // the popover is open so they don't run unnecessarily.
+    $effect(() => {
+        if (!open) return;
+        function onDocClick(e: MouseEvent): void {
+            const target = e.target as Node | null;
+            if (!target) return;
+            if (triggerEl?.contains(target)) return;
+            if (popoverEl?.contains(target)) return;
+            open = false;
+        }
+        function onKey(e: KeyboardEvent): void {
+            if (e.key === "Escape") open = false;
+        }
+        document.addEventListener("mousedown", onDocClick);
+        document.addEventListener("keydown", onKey);
+        return () => {
+            document.removeEventListener("mousedown", onDocClick);
+            document.removeEventListener("keydown", onKey);
+        };
+    });
 </script>
 
-<div
-    class="zoom-widget pointer-events-auto absolute right-3 bottom-3 z-30 flex items-center gap-2 rounded-full border px-2 py-1 backdrop-blur"
-    aria-label="zoom controls"
->
+<div class="relative inline-flex">
     <button
+        bind:this={triggerEl}
         type="button"
-        class="text-fg-muted hover:text-fg flex h-7 w-7 items-center justify-center rounded font-mono text-base"
-        title="Zoom out"
-        aria-label="zoom out"
-        onclick={() => onzoom(stepDown(scale))}
+        class="text-fg-muted hover:text-fg flex h-7 min-w-12 items-center justify-center rounded font-mono text-xs"
+        class:text-accent={open}
+        title="Zoom"
+        aria-label="zoom"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        data-testid="zoom-trigger"
+        onclick={toggle}
     >
-        −
+        {Math.round(scale * 100)}%
     </button>
 
-    <input
-        type="range"
-        min="0"
-        max="1000"
-        value={String(Math.round(scaleToSlider(scale) * 1000))}
-        oninput={onSliderInput}
-        class="zoom-slider h-1.5 w-32 appearance-none rounded"
-        style:--val="{Math.round(scaleToSlider(scale) * 100)}%"
-        aria-label="zoom level"
-    />
-
-    <button
-        type="button"
-        class="text-fg-muted hover:text-fg flex h-7 w-7 items-center justify-center rounded font-mono text-base"
-        title="Zoom in"
-        aria-label="zoom in"
-        onclick={() => onzoom(stepUp(scale))}
-    >
-        +
-    </button>
-
-    {#if editing}
-        <input
-            bind:this={editEl}
-            bind:value={editValue}
-            onblur={commitEdit}
-            onkeydown={onEditKey}
-            class="bg-canvas border-line text-fg w-14 rounded border px-1 py-0.5 text-center font-mono text-xs outline-none"
-            type="text"
-            inputmode="numeric"
-            aria-label="exact zoom percent"
-        />
-    {:else}
-        <button
-            type="button"
-            class="text-fg-muted hover:text-fg w-14 text-center font-mono text-xs"
-            title="Click to set exact zoom"
-            aria-label="zoom percent (click to edit)"
-            onclick={startEdit}
+    {#if open}
+        <!-- Popover anchors directly below the trigger and centers
+             horizontally on it via left-1/2 + -translate-x-1/2. -->
+        <div
+            bind:this={popoverEl}
+            class="zoom-popover bg-canvas-elev border-line absolute top-full left-1/2 z-40 mt-1 flex w-72 -translate-x-1/2 items-center gap-2 rounded-md border px-2 py-1.5 shadow-xl backdrop-blur"
+            role="dialog"
+            aria-label="zoom controls"
+            data-testid="zoom-popover"
         >
-            {Math.round(scale * 100)}%
-        </button>
-    {/if}
+            <button
+                type="button"
+                class="text-fg-muted hover:text-fg flex h-7 w-7 items-center justify-center rounded font-mono text-base"
+                title="Zoom out"
+                aria-label="zoom out"
+                onclick={() => onzoom(stepDown(scale))}
+            >
+                −
+            </button>
 
-    <button
-        type="button"
-        class="text-fg-muted hover:text-fg flex h-7 items-center gap-1 rounded px-1.5 text-xs"
-        title="Fit (Ctrl+0)"
-        aria-label="fit to window"
-        onclick={onfit}
-    >
-        <Maximize2 size={14} />
-        Fit
-    </button>
+            <input
+                type="range"
+                min="0"
+                max="1000"
+                value={String(Math.round(scaleToSlider(scale) * 1000))}
+                oninput={onSliderInput}
+                class="zoom-slider h-1.5 flex-1 appearance-none rounded"
+                style:--val="{Math.round(scaleToSlider(scale) * 100)}%"
+                aria-label="zoom level"
+            />
+
+            <button
+                type="button"
+                class="text-fg-muted hover:text-fg flex h-7 w-7 items-center justify-center rounded font-mono text-base"
+                title="Zoom in"
+                aria-label="zoom in"
+                onclick={() => onzoom(stepUp(scale))}
+            >
+                +
+            </button>
+
+            {#if editing}
+                <input
+                    bind:this={editEl}
+                    bind:value={editValue}
+                    onblur={commitEdit}
+                    onkeydown={onEditKey}
+                    class="bg-canvas border-line text-fg w-14 rounded border px-1 py-0.5 text-center font-mono text-xs outline-none"
+                    type="text"
+                    inputmode="numeric"
+                    aria-label="exact zoom percent"
+                />
+            {:else}
+                <button
+                    type="button"
+                    class="text-fg-muted hover:text-fg w-12 text-center font-mono text-xs"
+                    title="Click to set exact zoom"
+                    aria-label="zoom percent (click to edit)"
+                    onclick={startEdit}
+                >
+                    {Math.round(scale * 100)}%
+                </button>
+            {/if}
+
+            <button
+                type="button"
+                class="text-fg-muted hover:text-fg flex h-7 items-center gap-1 rounded px-1.5 text-xs"
+                title="Fit (Ctrl+0)"
+                aria-label="fit to window"
+                onclick={() => {
+                    onfit();
+                    open = false;
+                }}
+            >
+                <Maximize2 size={14} />
+                Fit
+            </button>
+        </div>
+    {/if}
 </div>
 
 <style>
-    .zoom-widget {
-        background-color: color-mix(in srgb, var(--color-canvas-elev) 80%, transparent);
-        border-color: var(--color-line);
+    .zoom-popover {
+        background-color: color-mix(in srgb, var(--color-canvas-elev) 95%, transparent);
     }
     .zoom-slider {
         background: linear-gradient(
@@ -182,10 +239,5 @@
         background: var(--color-accent);
         cursor: pointer;
         border: 2px solid var(--color-canvas-elev);
-    }
-    @media (pointer: coarse) {
-        .zoom-widget {
-            display: none;
-        }
     }
 </style>

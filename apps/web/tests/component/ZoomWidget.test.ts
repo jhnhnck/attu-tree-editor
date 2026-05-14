@@ -1,5 +1,5 @@
 /*
- * FamilyTreeEditor - ZoomWidget: slider, fit button, zoom controls
+ * FamilyTreeEditor - ZoomWidget: trigger + popover (slider, fit, manual entry)
  * licensed under the MIT license; see LICENSE.md for full text
  */
 
@@ -15,22 +15,36 @@ function baseProps() {
     };
 }
 
+async function openPopover(): Promise<void> {
+    await fireEvent.click(screen.getByLabelText("zoom"));
+}
+
 describe("ZoomWidget", () => {
-    it("renders the current scale percentage as the label", () => {
+    it("trigger button shows the current scale percentage", () => {
         render(ZoomWidget, { ...baseProps(), scale: 1.5 });
-        expect(screen.getByLabelText(/zoom percent/i)).toHaveTextContent("150%");
+        expect(screen.getByLabelText("zoom")).toHaveTextContent("150%");
     });
 
-    it("clicking the fit button fires onfit", async () => {
+    it("popover is closed by default; opens on trigger click", async () => {
+        render(ZoomWidget, baseProps());
+        expect(screen.queryByLabelText("fit to window")).toBeNull();
+        await openPopover();
+        expect(screen.getByLabelText("fit to window")).toBeInTheDocument();
+    });
+
+    it("clicking the fit button fires onfit and closes the popover", async () => {
         const props = baseProps();
         render(ZoomWidget, props);
+        await openPopover();
         await fireEvent.click(screen.getByLabelText("fit to window"));
         expect(props.onfit).toHaveBeenCalledTimes(1);
+        expect(screen.queryByLabelText("fit to window")).toBeNull();
     });
 
     it("zoom-in button calls onzoom with a larger scale", async () => {
         const props = baseProps();
         render(ZoomWidget, { ...props, scale: 1.0 });
+        await openPopover();
         await fireEvent.click(screen.getByLabelText("zoom in"));
         expect(props.onzoom).toHaveBeenCalledTimes(1);
         expect(props.onzoom.mock.calls[0]?.[0]).toBeGreaterThan(1.0);
@@ -39,6 +53,7 @@ describe("ZoomWidget", () => {
     it("zoom-out button calls onzoom with a smaller scale", async () => {
         const props = baseProps();
         render(ZoomWidget, { ...props, scale: 1.0 });
+        await openPopover();
         await fireEvent.click(screen.getByLabelText("zoom out"));
         expect(props.onzoom).toHaveBeenCalledTimes(1);
         expect(props.onzoom.mock.calls[0]?.[0]).toBeLessThan(1.0);
@@ -47,6 +62,7 @@ describe("ZoomWidget", () => {
     it("slider input fires onzoom with the mapped log-scale value", async () => {
         const props = baseProps();
         render(ZoomWidget, { ...props, scale: 1.0 });
+        await openPopover();
         const slider = screen.getByLabelText<HTMLInputElement>("zoom level");
         // slider runs 0..1000; 0 maps to 10%, 1000 maps to 500%
         await fireEvent.input(slider, { target: { value: "0" } });

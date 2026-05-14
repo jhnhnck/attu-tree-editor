@@ -1121,18 +1121,16 @@
             >
                 <MousePointer2 size={15} />
             </button>
-            <button
-                type="button"
-                class="flex h-7 w-7 items-center justify-center rounded"
-                class:text-accent={canvasMode === "hand"}
-                class:text-fg-muted={canvasMode !== "hand"}
-                title="Hand tool (H)"
-                aria-label="hand tool"
-                aria-pressed={canvasMode === "hand"}
-                onclick={() => handlers.viewHandTool()}
-            >
-                <Hand size={15} />
-            </button>
+            <!-- Hand tool button removed: behaves the same as Select for
+                 the current canvas, so it's redundant chrome. Shortcut H
+                 + the Mod-drag pan in canvas still work. -->
+            {#if canvasController && (selectedEngine === "layered" || selectedEngine === "family-view")}
+                <ZoomWidget
+                    scale={canvasScale}
+                    onzoom={(n: number) => canvasController?.setScale(n)}
+                    onfit={() => canvasController?.fit()}
+                />
+            {/if}
             <div class="border-line mx-0.5 h-5 w-px shrink-0 border-l"></div>
             <button
                 type="button"
@@ -1255,6 +1253,7 @@
                         canvasScale = c.getScale();
                         canvasMode = c.getMode();
                     }}
+                    onlayoutstats={(s) => (layoutStats = s)}
                 />
             {:else}
                 <TreeCanvas
@@ -1283,13 +1282,9 @@
                     onlayoutstats={(s) => (layoutStats = s)}
                 />
             {/if}
-            {#if canvasController && (selectedEngine === "layered" || selectedEngine === "family-view")}
-                <ZoomWidget
-                    scale={canvasScale}
-                    onzoom={(n: number) => canvasController?.setScale(n)}
-                    onfit={() => canvasController?.fit()}
-                />
-            {/if}
+            <!-- ZoomWidget moved out of the canvas into the toolbar; the
+                 toolbar slot mounts its trigger button + popover. -->
+
             <!-- Shell bottom-left bar: stats pill (when the layered engine
                  reports stats), debug toolbox pill (lucide Bug, visible
                  unless the user hides it from the panel). Built as a flex
