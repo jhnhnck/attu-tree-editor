@@ -78,19 +78,47 @@ function multipleGhostsCrossRank(): {
     tree: Tree;
     ids: Record<string, string>;
 } {
+    // M with 3 wives, each at a different rank from M. To keep the cross-
+    // rank case real (and not collapsed by Phase 2b.1's couple-equalisation
+    // post-pass), every partner must have a visible parent of their own.
+    //   ROOT → mDad → M (M at rank 2)
+    //   Each Wi has its own parent → Wi at rank 1
+    //   Children of M + Wi land at max(2,1)+1 = 3
     let t = createTree("multi", blank("dad", "m"));
+    const mDad = addPerson(t, blank("mDad", "m"));
+    t = mDad.tree;
+    const r00 = linkParent(t, mDad.id, ROOT_ID);
+    if (!r00.ok) throw new Error(r00.error);
+    t = r00.value;
     const m = addPerson(t, blank("M", "m"));
     t = m.tree;
-    const r0 = linkParent(t, m.id, ROOT_ID);
+    const r0 = linkParent(t, m.id, mDad.id);
     if (!r0.ok) throw new Error(r0.error);
     t = r0.value;
 
+    const w1p = addPerson(t, blank("w1Parent", "u"));
+    t = w1p.tree;
     const w1 = addPerson(t, blank("W1", "f"));
     t = w1.tree;
+    const lw1 = linkParent(t, w1.id, w1p.id);
+    if (!lw1.ok) throw new Error(lw1.error);
+    t = lw1.value;
+
+    const w2p = addPerson(t, blank("w2Parent", "u"));
+    t = w2p.tree;
     const w2 = addPerson(t, blank("W2", "f"));
     t = w2.tree;
+    const lw2 = linkParent(t, w2.id, w2p.id);
+    if (!lw2.ok) throw new Error(lw2.error);
+    t = lw2.value;
+
+    const w3p = addPerson(t, blank("w3Parent", "u"));
+    t = w3p.tree;
     const w3 = addPerson(t, blank("W3", "f"));
     t = w3.tree;
+    const lw3 = linkParent(t, w3.id, w3p.id);
+    if (!lw3.ok) throw new Error(lw3.error);
+    t = lw3.value;
 
     for (const wid of [w1.id, w2.id, w3.id]) {
         const sp = linkSpouse(t, m.id, wid);
@@ -110,11 +138,16 @@ function multipleGhostsCrossRank(): {
 
 /** root (f) → a_kid → a_grand (f) + b (m) → child  [cross-rank couple] */
 function crossRankCouple(): { tree: Tree; ids: Record<string, string> } {
+    // root → a_kid → a_grand (a_grand at rank 2); b_parent → b (b at rank 1).
+    // Both partners parented so the Phase-2b.1 couple-equalisation pass
+    // leaves the cross-rank gap intact. a_grand + b → child (rank 3).
     let t = createTree("cross", blank("root", "f"));
     const ak = addPerson(t, blank("a_kid", "u"));
     t = ak.tree;
     const ag = addPerson(t, blank("a_grand", "f"));
     t = ag.tree;
+    const bp = addPerson(t, blank("b_parent", "m"));
+    t = bp.tree;
     const b = addPerson(t, blank("b", "m"));
     t = b.tree;
     const child = addPerson(t, blank("child", "u"));
@@ -123,7 +156,9 @@ function crossRankCouple(): { tree: Tree; ids: Record<string, string> } {
     if (!r1.ok) throw new Error(r1.error);
     const r2 = linkParent(r1.value, ag.id, ak.id);
     if (!r2.ok) throw new Error(r2.error);
-    const r3 = linkSpouse(r2.value, ag.id, b.id);
+    const rB = linkParent(r2.value, b.id, bp.id);
+    if (!rB.ok) throw new Error(rB.error);
+    const r3 = linkSpouse(rB.value, ag.id, b.id);
     if (!r3.ok) throw new Error(r3.error);
     const r4 = linkParent(r3.value, child.id, ag.id);
     if (!r4.ok) throw new Error(r4.error);
@@ -131,7 +166,14 @@ function crossRankCouple(): { tree: Tree; ids: Record<string, string> } {
     if (!r5.ok) throw new Error(r5.error);
     return {
         tree: r5.value,
-        ids: { root: ROOT_ID, a_kid: ak.id, a_grand: ag.id, b: b.id, child: child.id },
+        ids: {
+            root: ROOT_ID,
+            a_kid: ak.id,
+            a_grand: ag.id,
+            b_parent: bp.id,
+            b: b.id,
+            child: child.id,
+        },
     };
 }
 

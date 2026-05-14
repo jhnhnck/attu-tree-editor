@@ -83,6 +83,26 @@ export function layer(
     const { ranks: rankOf, cycleNodes } = computeRanks(vis, adj);
 
     // -----------------------------------------------------------------------
+    // 1b. Couple-equalisation post-pass.
+    //     computeRanks is a longest-path BFS over the parent-child DAG only —
+    //     spouse edges are ignored. So a couple where one partner has parents
+    //     and the other doesn't ends up on different ranks (e.g. after
+    //     "add parent" on Korak, his Wife with no parents stays at rank 0
+    //     while Korak moves to rank 1). This pass pulls each unparented
+    //     partner down to match their parented partner's rank.
+    //
+    //     Constraint: never raise (decrease rank of) the parented partner —
+    //     that would put them above their own parents and break the
+    //     parent-drop edge. So we only move partners that have NO visible
+    //     parents (free to land anywhere). Iterate to fixed point in case
+    //     equalising one couple unblocks another.
+    //
+    //     Closes the negative-drop-height and spurious-top-rank-ghost bugs
+    //     in notes/bugs.md (both claimed by relationship-vocabulary Phase 2).
+    // -----------------------------------------------------------------------
+    equalizeCoupleRanks(tree, vis, adj, rankOf);
+
+    // -----------------------------------------------------------------------
     // 2. Precompute joint visible children for each couple.
     //    Uses person.motherId / person.fatherId rather than couple.childIds
     //    because linkParent() populates the person record but does not back-
@@ -351,6 +371,69 @@ function computeRanks(
     }
 
     return { ranks, cycleNodes };
+}
+
+/**
+ * Couple-equalisation post-pass (Phase 2b.1 of the relationship-vocabulary
+ * plan). After `computeRanks` runs its parent-DAG BFS, partners on a
+ * `CoupleRecord` may end up on different ranks because spouse edges are
+ * invisible to the rank computation. This pass walks every couple where
+ * both partners are visible and:
+ *
+ *   - If both partners have the same rank, leave alone.
+ *   - If one partner has NO visible parents (rank entirely determined by
+ *     "no incoming edges, defaults to 0"), raise them to the other
+ *     partner's rank.
+ *   - If both partners have visible parents but on different ranks, leave
+ *     alone — raising either would break their own parent-drop edge.
+ *
+ * Iterates to fixed point in case equalising one couple unblocks another
+ * (rare in practice; bounded by tree depth).
+ *
+ * Closes:
+ *   - "12% of drops have negative height" (notes/bugs.md): drops from a
+ *     same-rank-as-child parent were the dominant cause; equalising
+ *     couples eliminates the mis-aligned-spouse subset.
+ *   - "spurious ghost on the top rank after add-parent" (notes/bugs.md):
+ *     the exact repro (Korak gets parented, moves to rank 1; Wife with no
+ *     parents stays at rank 0) now resolves with Wife pulled to rank 1.
+ */
+function equalizeCoupleRanks(
+    tree: Tree,
+    vis: ReadonlySet<PersonId>,
+    adj: Adjacency,
+    rankOf: Map<PersonId, number>,
+): void {
+    const MAX_ITERATIONS = 32; // tree depth ceiling; bounds the fixed-point loop
+    let changed = true;
+    let iterations = 0;
+    while (changed && iterations < MAX_ITERATIONS) {
+        changed = false;
+        iterations += 1;
+        for (const couple of tree.couples) {
+            if (couple.leftId === couple.rightId) continue;
+            if (!vis.has(couple.leftId) || !vis.has(couple.rightId)) continue;
+            const rL = rankOf.get(couple.leftId);
+            const rR = rankOf.get(couple.rightId);
+            if (rL === undefined || rR === undefined) continue;
+            if (rL === rR) continue;
+
+            // Identify the lower-ranked partner (smaller rank number = closer
+            // to the root = less parented) and the higher-ranked partner.
+            const lowerId = rL < rR ? couple.leftId : couple.rightId;
+            const higherRank = Math.max(rL, rR);
+
+            // Only safe to raise the lower-ranked partner if they have no
+            // visible parents. With visible parents, raising them would put
+            // them below their parents and break the parent-drop edge.
+            const lowerParents = adj.parentsOf.get(lowerId) ?? [];
+            const lowerHasVisibleParent = lowerParents.some((p) => vis.has(p));
+            if (lowerHasVisibleParent) continue;
+
+            rankOf.set(lowerId, higherRank);
+            changed = true;
+        }
+    }
 }
 
 /**
