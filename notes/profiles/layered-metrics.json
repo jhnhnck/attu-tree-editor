@@ -6,7 +6,7 @@
       "people": 8,
       "couples": 2,
       "ghosts": 0,
-      "bboxWidth": 7.5625,
+      "bboxWidth": 7.875,
       "bboxHeight": 6,
       "ghostAdjacency": {
         "totalGhosts": 0,
@@ -63,30 +63,30 @@
       "label": "Akarians",
       "people": 1802,
       "couples": 204,
-      "ghosts": 167,
-      "bboxWidth": 541.7628251314163,
+      "ghosts": 129,
+      "bboxWidth": 409.1977019235492,
       "bboxHeight": 146,
       "ghostAdjacency": {
-        "totalGhosts": 167,
-        "stranded5": 21,
-        "stranded10": 13,
-        "stranded175": 5,
-        "maxStrand": 23.134178161621094
+        "totalGhosts": 129,
+        "stranded5": 9,
+        "stranded10": 2,
+        "stranded175": 1,
+        "maxStrand": 40.57662916183472
       },
       "bondStubs": {
-        "sameRankStubPairs": 1,
-        "crossRankStubPairs": 0,
-        "sameRankSingleBonds": 189
+        "sameRankStubPairs": 11,
+        "crossRankStubPairs": 1,
+        "sameRankSingleBonds": 188
       },
       "orientation": {
-        "bothKnownMaleLeft": 117,
-        "bothKnownFemaleLeft": 87,
+        "bothKnownMaleLeft": 138,
+        "bothKnownFemaleLeft": 66,
         "oneKnown": 0,
         "bothUnknown": 0,
-        "sameRankBothKnownMaleLeft": 37,
+        "sameRankBothKnownMaleLeft": 75,
         "sameRankBothKnownFemaleLeft": 0
       },
-      "crossings": 2852
+      "crossings": 1934
     }
   ]
 }
