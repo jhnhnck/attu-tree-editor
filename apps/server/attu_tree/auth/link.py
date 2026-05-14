@@ -73,6 +73,7 @@ def normalize_code(supplied: str) -> str:
     etc. matches the storage form so callers can pass straight to the db."""
     return _NON_ALNUM.sub('', supplied.upper())
 
+
 # roles the server understands; anything else from the bot is dropped.
 # precedence is by list order: first match wins when multiple known roles are
 # supplied (e.g. ['admin', 'user'] resolves to 'admin').

@@ -92,13 +92,15 @@ describe("family-view fit-zoom probe — Akarians DEMO", () => {
         );
         const effectiveCardW = PERSON_W * baseUnitPx * fitScale;
 
+        // fitScale ≥ 1 means the layout fits at or under 1:1 zoom (room to
+        // spare). fitScale < 1 means we'd have to scale down to fit.
         const triadHolds =
-            cardCount <= TARGET_MAX_CARDS && effectiveCardW >= TARGET_CARD_W_PX && fitScale <= 1;
+            cardCount <= TARGET_MAX_CARDS && effectiveCardW >= TARGET_CARD_W_PX && fitScale >= 1;
 
         // eslint-disable-next-line no-console
         console.log(
             `[family-view-fit] triad ${triadHolds ? "HOLDS" : "MISSED"} ` +
-                `(target: ≤${String(TARGET_MAX_CARDS)} cards, ≥${String(TARGET_CARD_W_PX)} px width, fit scale ≤1)`,
+                `(target: ≤${String(TARGET_MAX_CARDS)} cards, ≥${String(TARGET_CARD_W_PX)} px width, fit scale ≥1)`,
         );
         // No hard assert here — Phase 0 explicitly says the ladder is the
         // rollback. The retro reads the console output.

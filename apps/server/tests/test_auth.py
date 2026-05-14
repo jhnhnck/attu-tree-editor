@@ -56,6 +56,7 @@ async def test_auth_start_prod_codes_avoid_dev_alphabet(client: AsyncClient, mon
 async def test_redeem_accepts_various_input_forms(client: AsyncClient):
     """server normalises supplied codes - `AB-123456`, `ab123456`, etc. all work."""
     import json as _json
+
     from tests.conftest import hmac_headers
 
     r = await client.post('/api/auth/start')

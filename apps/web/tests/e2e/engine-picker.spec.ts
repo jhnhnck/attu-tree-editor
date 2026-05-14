@@ -44,10 +44,10 @@ test("engine picker switches canvas and persists across reload", async ({ page }
     await page.getByRole("button", { name: "View" }).click();
     await page.getByRole("menuitem", { name: /hyperbolic engine/ }).click();
 
-    // The hyperbolic canvas mounts; PersonNode cards are gone, the
-    // "Phase 5 stub" affordance is visible.
-    await expect(cards).toHaveCount(0);
-    await expect(page.getByText(/Phase 5 stub/)).toBeVisible();
+    // The hyperbolic canvas mounts; the layered canvas region is gone
+    // and the hyperbolic canvas region is visible. (Hyperbolic also
+    // renders PersonNodes, so card count is not a useful discriminator.)
+    await expect(page.getByRole("region", { name: /family tree canvas/ })).toHaveCount(0);
     await expect(page.getByRole("region", { name: /hyperbolic canvas/ })).toBeVisible();
 
     // Switch back to layered; cards return.
@@ -59,11 +59,11 @@ test("engine picker switches canvas and persists across reload", async ({ page }
     // persisted to the IndexedDB `settings` table and picked up on mount.
     await page.getByRole("button", { name: "View" }).click();
     await page.getByRole("menuitem", { name: /hyperbolic engine/ }).click();
-    await expect(page.getByText(/Phase 5 stub/)).toBeVisible();
+    await expect(page.getByRole("region", { name: /hyperbolic canvas/ })).toBeVisible();
 
     await page.reload();
-    await expect(page.getByText(/Phase 5 stub/)).toBeVisible();
-    await expect(page.locator("[data-person-id]")).toHaveCount(0);
+    await expect(page.getByRole("region", { name: /hyperbolic canvas/ })).toBeVisible();
+    await expect(page.getByRole("region", { name: /family tree canvas/ })).toHaveCount(0);
 });
 
 test("hyperbolic canvas shows the proband at disk centre", async ({ page }) => {
