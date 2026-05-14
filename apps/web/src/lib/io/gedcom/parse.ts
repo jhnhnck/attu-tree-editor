@@ -15,6 +15,8 @@ import type {
     ParentRole,
     Person,
     PersonId,
+    Relationship,
+    RelationshipKind,
     Tree,
     UnionKind,
     UnionRecord,
@@ -91,6 +93,7 @@ function buildTree(root: TreeNodeRoot): GedParseResult {
     const indiNodes: TreeNode[] = [];
     const famNodes: TreeNode[] = [];
     const unionNodes: TreeNode[] = [];
+    const relNodes: TreeNode[] = [];
 
     for (const child of root.children) {
         switch (child.tag) {
@@ -105,6 +108,9 @@ function buildTree(root: TreeNodeRoot): GedParseResult {
                 break;
             case "_TREES_UNION":
                 unionNodes.push(child);
+                break;
+            case "_TREES_REL":
+                relNodes.push(child);
                 break;
             case "TRLR":
             case "SUBM":
@@ -194,6 +200,16 @@ function buildTree(root: TreeNodeRoot): GedParseResult {
         if (rec) unions.push(rec);
     }
 
+    // _TREES_REL extensions: parse overlay relationships (Phase 4;
+    // schema 3.1.0). Each is a `0 @Rxx@ _TREES_REL` top-level record
+    // with `_KIND` + `_SOURCE*` + `_TARGET*` + optional `_CAUSE` /
+    // `DATE` / `_NOTES`.
+    const relationships: Relationship[] = [];
+    for (const r of relNodes) {
+        const rec = parseTreesRel(r, idByXref);
+        if (rec) relationships.push(rec);
+    }
+
     // pick a root: first INDI (xref @I1@ in FE exports is the file's "owner")
     const firstId = Object.keys(people)[0];
     const rootId = firstId ?? "START";
@@ -205,6 +221,7 @@ function buildTree(root: TreeNodeRoot): GedParseResult {
         people,
         couples,
         unions,
+        relationships,
         editRev: 0,
         updatedAt: Date.now(),
     };
@@ -556,6 +573,65 @@ function parseTreesUnion(node: TreeNode, idByXref: Map<string, PersonId>): Union
     if (marriageDate !== undefined) rec.marriageDate = marriageDate;
     if (isPrimary !== undefined) rec.isPrimary = isPrimary;
     if (isCurrent !== undefined) rec.isCurrent = isCurrent;
+    return rec;
+}
+
+/**
+ * Parse a top-level `0 @Rxx@ _TREES_REL` record into a Relationship.
+ * Subtags: `_KIND`, `_SOURCE+`, `_TARGET+`, `_CAUSE`, `DATE/DATE`,
+ * `_NOTES`. Drops the record if no resolvable source or target.
+ */
+function parseTreesRel(node: TreeNode, idByXref: Map<string, PersonId>): Relationship | null {
+    let kind: RelationshipKind | undefined;
+    const sourceIds: PersonId[] = [];
+    const targetIds: PersonId[] = [];
+    let cause: string | undefined;
+    let date: import("$lib/date/HaracalndeDate").HaracalndeDateData | undefined;
+    let notes: string | undefined;
+
+    for (const sub of node.children) {
+        switch (sub.tag) {
+            case "_KIND":
+                if (sub.value) kind = sub.value as RelationshipKind;
+                break;
+            case "_SOURCE": {
+                const id = sub.value ? idByXref.get(sub.value) : undefined;
+                if (id) sourceIds.push(id);
+                break;
+            }
+            case "_TARGET": {
+                const id = sub.value ? idByXref.get(sub.value) : undefined;
+                if (id) targetIds.push(id);
+                break;
+            }
+            case "_CAUSE":
+                if (sub.value) cause = sub.value;
+                break;
+            case "DATE":
+                for (const grand of sub.children) {
+                    if (grand.tag === "DATE" && grand.value) {
+                        const parsed = HaracalndeDate.parseGedcom(grand.value);
+                        if (parsed.ok) date = parsed.value.toJSON();
+                    }
+                }
+                break;
+            case "_NOTES":
+                if (sub.value) notes = sub.value;
+                break;
+        }
+    }
+
+    if (kind === undefined) return null;
+    if (sourceIds.length === 0 && targetIds.length === 0) return null;
+    const xref = node.pointer ?? "";
+    const id =
+        xref.length > 0
+            ? xref.replace(/^@/, "").replace(/@$/, "")
+            : `rel-${kind}-${[...sourceIds, ...targetIds].join("-")}`;
+    const rec: Relationship = { id, kind, sourceIds, targetIds };
+    if (cause !== undefined) rec.cause = cause;
+    if (date !== undefined) rec.date = date;
+    if (notes !== undefined) rec.notes = notes;
     return rec;
 }
 

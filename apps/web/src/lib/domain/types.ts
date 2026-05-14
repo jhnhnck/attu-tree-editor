@@ -160,6 +160,40 @@ export interface UnionRecord {
     name?: string;
 }
 
+/**
+ * Kind of relationship overlay (Phase 4). Not modelled by the rank-and-
+ * bus skeleton; rendered as overlay segments that route independently
+ * of the standard parent / partner / sibling layout. Drives the
+ * relationship-vocabulary stroke palette downstream (chained for sworn
+ * bonds, wavy for transformations / reincarnations, doubled-slash for
+ * severances, etc.).
+ */
+export type RelationshipKind =
+    | "sworn-bond"
+    | "oath-sibling"
+    | "blood-brother"
+    | "master-apprentice"
+    | "covenant"
+    | "transformed-from"
+    | "reincarnated-as"
+    | "merged-from"
+    | "split-into"
+    | "alias-of"
+    | "severed"
+    | "estranged"
+    | "exiled"
+    | "disowned";
+
+export interface Relationship {
+    id: string;
+    kind: RelationshipKind;
+    sourceIds: PersonId[];
+    targetIds: PersonId[];
+    cause?: string;
+    date?: HaracalndeDateData;
+    notes?: string;
+}
+
 export interface Tree {
     id: string;
     name: string;
@@ -180,6 +214,13 @@ export interface Tree {
      * derives from `couples` when this field is absent or empty.
      */
     unions?: UnionRecord[];
+    /**
+     * Overlay relationships (Phase 4; schema 3.1.0). Sworn bonds,
+     * transformations, severances, alias-of, etc. — relationships that
+     * are not part of the rank-and-bus skeleton. Rendered as overlay
+     * segments routed independently of the standard layout.
+     */
+    relationships?: Relationship[];
     /**
      * Local edit counter, monotonically incremented by the tree store on
      * every user-driven mutation (set / update / reset / undo / redo).

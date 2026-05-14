@@ -22,7 +22,7 @@ export type SchemaVersion = string;
  * of `Tree` changes in a way that needs migration. Each bump is paired with
  * a `Migration` in the registry below.
  */
-export const CURRENT_SCHEMA_VERSION: SchemaVersion = "3.0.0";
+export const CURRENT_SCHEMA_VERSION: SchemaVersion = "3.1.0";
 
 export interface Migration {
     from: SchemaVersion;
@@ -158,6 +158,9 @@ export const migrations: Migration[] = [
         from: "3.0.0",
         to: "3.1.0",
         description: "add tree.relationships[] overlay (Phase 4)",
+        // Additive: no data transform needed; old bundles simply gain an
+        // implicit empty `relationships` array via the optional field. The
+        // migration entry exists so semver compares correctly.
         migrate: identity,
     },
     {

@@ -88,8 +88,47 @@ export function serializeGedcom(tree: Tree, opts: GedSerializeOptions = {}): str
         unionCounter += 1;
     }
 
+    // Overlay relationships (Phase 4; schema 3.1.0). Emit each as a
+    // `_TREES_REL` top-level record. The extension is additive — tools
+    // that don't know the tag strip it; FamilyTree Editor re-imports
+    // for full fidelity.
+    let relCounter = 1;
+    for (const r of tree.relationships ?? []) {
+        appendRelationship(lines, r, xrefByPerson, relCounter);
+        relCounter += 1;
+    }
+
     lines.push("0 TRLR");
     return lines.join(LINE_END) + LINE_END;
+}
+
+function appendRelationship(
+    lines: string[],
+    rel: import("$lib/domain/types").Relationship,
+    xrefByPerson: Map<PersonId, string>,
+    relNumber: number,
+): void {
+    const xref = `@R${String(relNumber)}@`;
+    lines.push(`0 ${xref} _TREES_REL`);
+    lines.push(`1 _KIND ${rel.kind}`);
+    for (const sid of rel.sourceIds) {
+        const x = xrefByPerson.get(sid);
+        if (x) lines.push(`1 _SOURCE ${x}`);
+    }
+    for (const tid of rel.targetIds) {
+        const x = xrefByPerson.get(tid);
+        if (x) lines.push(`1 _TARGET ${x}`);
+    }
+    if (rel.cause !== undefined && rel.cause.length > 0) {
+        lines.push(`1 _CAUSE ${rel.cause}`);
+    }
+    if (rel.date !== undefined) {
+        lines.push("1 DATE");
+        lines.push(`2 DATE ${HaracalndeDate.of(rel.date).toGedcom()}`);
+    }
+    if (rel.notes !== undefined && rel.notes.length > 0) {
+        lines.push(`1 _NOTES ${rel.notes}`);
+    }
 }
 
 function appendUnion(

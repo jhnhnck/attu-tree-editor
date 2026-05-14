@@ -272,6 +272,43 @@ describe("serializeGedcom - synthetic", () => {
         expect(out).toContain("1 _NAME House Marvane");
     });
 
+    it("emits and round-trips _TREES_REL overlay relationships (Phase 4)", () => {
+        const base = tinyTree();
+        base.relationships = [
+            {
+                id: "rel-1",
+                kind: "sworn-bond",
+                sourceIds: ["AAAAA"],
+                targetIds: ["BBBBB"],
+                cause: "battle of two flags",
+            },
+            {
+                id: "rel-2",
+                kind: "transformed-from",
+                sourceIds: ["AAAAA"],
+                targetIds: ["CCCCC"],
+                notes: "phoenix arc",
+            },
+        ];
+        const out = serializeGedcom(base);
+        expect(out).toContain("0 @R1@ _TREES_REL");
+        expect(out).toContain("1 _KIND sworn-bond");
+        expect(out).toContain("1 _SOURCE @I1@");
+        expect(out).toContain("1 _TARGET @I2@");
+        expect(out).toContain("0 @R2@ _TREES_REL");
+        expect(out).toContain("1 _KIND transformed-from");
+        expect(out).toContain("1 _NOTES phoenix arc");
+
+        const r = unwrap(parseGedcom(out));
+        const rels = r.tree.relationships ?? [];
+        expect(rels).toHaveLength(2);
+        const sworn = rels.find((rel) => rel.kind === "sworn-bond");
+        expect(sworn).toBeDefined();
+        expect(sworn?.cause).toBe("battle of two flags");
+        const transformed = rels.find((rel) => rel.kind === "transformed-from");
+        expect(transformed?.notes).toBe("phoenix arc");
+    });
+
     it("round-trips a 3-partner UnionRecord through serialize → parse", () => {
         const base = tinyTree();
         base.unions = [
