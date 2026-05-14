@@ -23,7 +23,11 @@
 
 import type { PersonId, Tree } from "$lib/domain/types";
 import { getParents } from "$lib/domain/tree";
-import { primaryChildrenOf, primaryPartnerOf } from "$lib/layout/engines/family-view/couples";
+import {
+    partnersInMultiUnionsOf,
+    primaryChildrenOf,
+    primaryPartnerOf,
+} from "$lib/layout/engines/family-view/couples";
 
 /** How many generations up from focus the default subset includes. */
 export const ANCESTOR_DEPTH = 3;
@@ -89,6 +93,12 @@ export function selectBoundedSubset(
     // Focus's primary partner at rank 0.
     const focusPartner = primaryPartnerOf(tree, focusId, overrides);
     if (focusPartner) place(focusPartner, 0);
+    // N>2-partner unions: every partner across every closed polycule
+    // the focus is in goes on rank 0. (2-partner unions stay covered
+    // by primaryPartnerOf so non-primary mates stay hidden by default.)
+    for (const pid of partnersInMultiUnionsOf(tree, focusId)) {
+        if (!visible.has(pid)) place(pid, 0);
+    }
 
     // Ancestor spine. Each ancestor's primary partner is placed alongside.
     let frontier: PersonId[] = [focusId];

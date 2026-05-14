@@ -86,6 +86,12 @@ export function createTree(name: string, root: Omit<Person, "id">): Tree {
         rootId: ROOT_ID,
         people: { [ROOT_ID]: rootPerson },
         couples: [],
+        // Phase 3b: every newly-created tree carries `unions: []` from
+        // rev 0 so writers can sync unconditionally. Pre-3a fixtures /
+        // bundles still load (the helper `getUnions(tree)` falls back to
+        // `tree.couples` when the field is absent), but new code paths
+        // produce trees that always have both representations populated.
+        unions: [],
         editRev: 0,
         updatedAt: Date.now(),
     };
@@ -121,18 +127,16 @@ export function updateCouple(t: Tree, aId: PersonId, bId: PersonId, patch: Coupl
     // Mirror the same field changes onto the matching `unions[]` entry so
     // readers using `getUnions(tree)` see the update. Identifies the union
     // by partner-id set match (legacy couples are 2-partner by construction).
-    const unions = t.unions
-        ? t.unions.map((u) => {
-              if (!matchUnion(u, [aId, bId])) return u;
-              const next: UnionRecord = { ...u };
-              for (const [k, v] of Object.entries(patch) as [keyof CouplePatch, unknown][]) {
-                  if (v === undefined) delete next[k];
-                  else (next[k] as unknown) = v;
-              }
-              return next;
-          })
-        : undefined;
-    return unions === undefined ? { ...t, couples } : { ...t, couples, unions };
+    const unions = (t.unions ?? []).map((u) => {
+        if (!matchUnion(u, [aId, bId])) return u;
+        const next: UnionRecord = { ...u };
+        for (const [k, v] of Object.entries(patch) as [keyof CouplePatch, unknown][]) {
+            if (v === undefined) delete next[k];
+            else (next[k] as unknown) = v;
+        }
+        return next;
+    });
+    return { ...t, couples, unions };
 }
 
 export function updatePerson(t: Tree, id: PersonId, patch: PersonPatch): Tree {
@@ -159,17 +163,15 @@ export function removePerson(t: Tree, id: PersonId): Tree {
     );
     // Strip `id` from every union's partnerIds and childIds; drop the
     // union entirely if no partners remain.
-    const unions = t.unions
-        ?.map((u) => {
+    const unions = (t.unions ?? [])
+        .map((u) => {
             if (!u.partnerIds.includes(id) && !u.childIds.includes(id)) return u;
             const partnerIds = u.partnerIds.filter((p) => p !== id);
             const childIds = u.childIds.filter((c) => c !== id);
             return { ...u, partnerIds, childIds };
         })
         .filter((u) => u.partnerIds.length > 0);
-    return unions === undefined
-        ? { ...t, people: remaining, couples }
-        : { ...t, people: remaining, couples, unions };
+    return { ...t, people: remaining, couples, unions };
 }
 
 function sweepReferences(p: Person, removedId: PersonId): Person {
@@ -305,13 +307,13 @@ export function linkSpouse(
         const spouseIds = a.spouseIds.includes(aId) ? a.spouseIds : [...a.spouseIds, aId];
         const idx = unionIndex ?? nextUnionIndex(t.couples);
         const couples = upsertCouple(t.couples, aId, aId, idx);
-        const unions = t.unions !== undefined ? upsertUnion(t.unions, [aId], idx) : undefined;
-        const base = {
+        const unions = upsertUnion(t.unions, [aId], idx);
+        return ok({
             ...t,
             people: { ...t.people, [aId]: { ...a, spouseIds } },
             couples,
-        };
-        return ok(unions === undefined ? base : { ...base, unions });
+            unions,
+        });
     }
 
     const aSpouses = a.spouseIds.includes(bId) ? a.spouseIds : [...a.spouseIds, bId];
@@ -319,9 +321,9 @@ export function linkSpouse(
 
     const idx = unionIndex ?? nextUnionIndex(t.couples);
     const couples = upsertCouple(t.couples, aId, bId, idx);
-    const unions = t.unions !== undefined ? upsertUnion(t.unions, [aId, bId], idx) : undefined;
+    const unions = upsertUnion(t.unions, [aId, bId], idx);
 
-    const base = {
+    return ok({
         ...t,
         people: {
             ...t.people,
@@ -329,8 +331,8 @@ export function linkSpouse(
             [bId]: { ...b, spouseIds: bSpouses },
         },
         couples,
-    };
-    return ok(unions === undefined ? base : { ...base, unions });
+        unions,
+    });
 }
 
 export function unlinkSpouse(t: Tree, aId: PersonId, bId: PersonId): Tree {
@@ -341,8 +343,8 @@ export function unlinkSpouse(t: Tree, aId: PersonId, bId: PersonId): Tree {
         (c) =>
             !((c.leftId === aId && c.rightId === bId) || (c.leftId === bId && c.rightId === aId)),
     );
-    const unions = t.unions?.filter((u) => !matchUnion(u, [aId, bId]));
-    const base = {
+    const unions = (t.unions ?? []).filter((u) => !matchUnion(u, [aId, bId]));
+    return {
         ...t,
         people: {
             ...t.people,
@@ -350,8 +352,8 @@ export function unlinkSpouse(t: Tree, aId: PersonId, bId: PersonId): Tree {
             [bId]: { ...b, spouseIds: b.spouseIds.filter((s) => s !== aId) },
         },
         couples,
+        unions,
     };
-    return unions === undefined ? base : { ...base, unions };
 }
 
 function upsertCouple(

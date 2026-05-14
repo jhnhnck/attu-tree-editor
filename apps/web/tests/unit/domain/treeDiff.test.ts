@@ -280,10 +280,25 @@ describe("unions[] diffing (Phase 3b.1)", () => {
         );
     });
 
-    it("treats trees without `unions` field as having no union changes", () => {
-        // both inputs lack `unions` → diff.unions is empty, applyDiff leaves the
-        // output without `unions`, isEmptyDiff still true.
+    it("trees from createTree carry unions:[] from rev 0; no-op edits produce no union changes", () => {
+        // post-3b: every freshly-created tree has `unions: []`. A pure
+        // person-field update produces no union changes; applyDiff
+        // preserves the empty array verbatim.
         const before = base();
+        expect(before.unions).toEqual([]);
+        const after = updatePerson(before, ROOT_ID, { given: "Changed" });
+        const diff = diffTrees(before, after);
+        expect(Object.keys(diff.unions)).toHaveLength(0);
+        const result = applyDiff(before, diff);
+        expect(result.unions).toEqual([]);
+    });
+
+    it("pre-3a trees with no `unions` field stay that way through applyDiff", () => {
+        // Pre-3a-shaped fixture (no unions field) round-trips through
+        // applyDiff without growing one. Important for bundles produced
+        // by older builds that round-trip through this build via undo.
+        const before: Tree = { ...base(), unions: undefined } as unknown as Tree;
+        delete (before as { unions?: unknown }).unions;
         const after = updatePerson(before, ROOT_ID, { given: "Changed" });
         const diff = diffTrees(before, after);
         expect(Object.keys(diff.unions)).toHaveLength(0);

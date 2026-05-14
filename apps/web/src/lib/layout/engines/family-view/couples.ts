@@ -103,6 +103,26 @@ export function primaryPartnerOf(
 }
 
 /**
+ * Partners of `personId` from any N>2-partner union (polycules etc.)
+ * the person belongs to. 2-partner unions are deliberately excluded
+ * because the existing `primaryPartnerOf` path covers those, with
+ * primary-union semantics (so other-union partners stay hidden by
+ * default). N>2-partner unions have no such "primary" concept yet —
+ * all members of the polycule are rendered together.
+ */
+export function partnersInMultiUnionsOf(tree: Tree, personId: PersonId): readonly PersonId[] {
+    const out = new Set<PersonId>();
+    for (const u of tree.unions ?? []) {
+        if (u.partnerIds.length <= 2) continue;
+        if (!u.partnerIds.includes(personId)) continue;
+        for (const pid of u.partnerIds) {
+            if (pid !== personId) out.add(pid);
+        }
+    }
+    return [...out];
+}
+
+/**
  * The list of children for `personId` that should appear by default
  * under the primary union. Single-parent children (kids with only one
  * listed parent === personId) are always included regardless of which

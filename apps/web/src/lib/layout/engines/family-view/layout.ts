@@ -28,13 +28,17 @@
 import { PERSON_W, ROW_H, SIBLING_GAP, SUBTREE_GAP } from "$lib/layout/constants";
 import { computeDoiScores } from "$lib/layout/doi";
 import type { CoupleRecord, PersonId, Tree } from "$lib/domain/types";
-import { getParents } from "$lib/domain/tree";
+import { getParents, getUnions } from "$lib/domain/tree";
 import {
     orientCouple,
     otherUnionsOf,
     resolvePrimary,
     unionCount,
 } from "$lib/layout/engines/family-view/couples";
+import {
+    computeManifold,
+    PRIMARY_PRIMITIVE,
+} from "$lib/layout/engines/family-view/nPartnerGeometry";
 import type {
     BadgeNode,
     FamilyViewEdge,
@@ -78,6 +82,12 @@ type RankSlot =
           readonly leftId: PersonId;
           readonly rightId: PersonId;
           readonly coupleIndex: number;
+      }
+    | {
+          /** N>2 partner union; partners get N adjacent cards in order. */
+          readonly kind: "multi-union";
+          readonly unionId: string;
+          readonly partnerIds: readonly PersonId[];
       }
     | { readonly kind: "badge"; readonly badgeId: string };
 
@@ -179,6 +189,12 @@ export function computeLayout(
                 cursor += PERSON_W + SIBLING_GAP;
                 placeAt(nodes, slot.rightId, r, cursor);
                 cursor += PERSON_W;
+            } else if (slot.kind === "multi-union") {
+                for (let pi = 0; pi < slot.partnerIds.length; pi += 1) {
+                    if (pi > 0) cursor += SIBLING_GAP;
+                    placeAt(nodes, slot.partnerIds[pi]!, r, cursor);
+                    cursor += PERSON_W;
+                }
             } else {
                 const original = badges.find((b) => b.id === slot.badgeId);
                 if (!original) continue;
@@ -293,6 +309,9 @@ function planRank(
     const slots: RankSlot[] = [];
     const here = new Set(ids);
     const placed = new Set<PersonId>();
+    // Walk legacy `tree.couples` for 2-partner slots so existing orientation
+    // and coupleIndex semantics stay byte-identical, then walk
+    // `getUnions(tree)` for N>2 unions (which have no `tree.couples` entry).
     for (let ci = 0; ci < tree.couples.length; ci += 1) {
         const couple = tree.couples[ci]!;
         if (!here.has(couple.leftId) || !here.has(couple.rightId)) continue;
@@ -308,6 +327,17 @@ function planRank(
         });
         placed.add(couple.leftId);
         placed.add(couple.rightId);
+    }
+    // N>2 partner unions: emit a `multi-union` slot per visible union so
+    // all partners land contiguously in the rank. 2-partner unions are
+    // covered by the loop above (via the legacy `tree.couples` sync).
+    const visibleUnions = getUnions(tree).filter(
+        (u) => u.partnerIds.length > 2 && u.partnerIds.every((pid) => here.has(pid)),
+    );
+    for (const u of visibleUnions) {
+        if (u.partnerIds.some((pid) => placed.has(pid))) continue;
+        slots.push({ kind: "multi-union", unionId: u.id, partnerIds: u.partnerIds });
+        for (const pid of u.partnerIds) placed.add(pid);
     }
     for (const id of ids) {
         if (placed.has(id)) continue;
@@ -381,6 +411,80 @@ function emitAnchorsAndEdges(
                     role,
                     anchorCenterX,
                     anchorY,
+                    midX(kidNode),
+                    kidNode.y,
+                ),
+            );
+            childCovered.add(kid);
+        }
+    }
+
+    // N>2-partner union anchors. Each visible union with all partners
+    // placed gets a UnionAnchor and a bus-primitive connector (computed
+    // by `computeManifold`). Children of the union (from `union.childIds`)
+    // hang from the manifold's childAnchor centroid.
+    for (const u of getUnions(tree)) {
+        if (u.partnerIds.length <= 2) continue;
+        const partnerNodes = u.partnerIds
+            .map((pid) => nodes.get(pid))
+            .filter((n): n is FamilyViewNode => n !== undefined);
+        if (partnerNodes.length !== u.partnerIds.length) continue;
+        if (!partnerNodes.every((n) => n.rank === partnerNodes[0]?.rank)) continue;
+        const rank = partnerNodes[0]!.rank;
+        const visibleKids = u.childIds.filter((id) => nodes.has(id));
+        const anchor: UnionAnchor = {
+            id: `union:${u.id}`,
+            partnerIds: u.partnerIds,
+            childIds: visibleKids,
+            rank,
+        };
+        anchors.push(anchor);
+        // Connector edges from the bus primitive (one bar across all
+        // partners + zero-length tails on-rank).
+        const partnerPositions = partnerNodes.map((n) => ({
+            personId: n.personId,
+            x: midX(n),
+            y: n.y + CARD_H / 2,
+        }));
+        const manifold = computeManifold(PRIMARY_PRIMITIVE, partnerPositions);
+        for (let ei = 0; ei < manifold.edges.length; ei += 1) {
+            const me = manifold.edges[ei]!;
+            edges.push({
+                id: `${anchor.id}/manifold/${String(ei)}`,
+                persons: me.endpoints ? [me.endpoints[0], me.endpoints[1]] : u.partnerIds,
+                role: "married",
+                points: [
+                    { x: me.from.x, y: me.from.y },
+                    { x: me.to.x, y: me.to.y },
+                ],
+            });
+        }
+        // Child drops from the manifold's centroid down to each kid.
+        for (const kid of visibleKids) {
+            const kidNode = nodes.get(kid);
+            if (!kidNode) continue;
+            const kidPerson = tree.people[kid];
+            const kidParentIds = kidPerson
+                ? new Set(getParents(kidPerson).map((r) => r.personId))
+                : new Set<PersonId>();
+            const partnerSet = new Set(u.partnerIds);
+            const sharesAll =
+                kidParentIds.size > 0 &&
+                u.partnerIds.every((pid) => kidParentIds.has(pid)) &&
+                [...kidParentIds].every((pid) => partnerSet.has(pid));
+            // role choice: blood when the kid's parentIds == the union's
+            // partnerIds set; otherwise "half" (e.g. kid is a child of a
+            // subset of the union).
+            const role: FamilyViewEdgeRole = sharesAll
+                ? roleFor(tree, kid, u.partnerIds[0]!)
+                : "half";
+            edges.push(
+                drop(
+                    `drop:${anchor.id}|${kid}`,
+                    [...u.partnerIds, kid],
+                    role,
+                    manifold.childAnchor.x,
+                    manifold.childAnchor.y,
                     midX(kidNode),
                     kidNode.y,
                 ),
