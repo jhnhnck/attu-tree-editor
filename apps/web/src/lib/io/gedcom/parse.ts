@@ -16,6 +16,8 @@ import type {
     Person,
     PersonId,
     Tree,
+    UnionKind,
+    UnionRecord,
 } from "$lib/domain/types";
 
 const ID_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -88,6 +90,7 @@ function buildTree(root: TreeNodeRoot): GedParseResult {
     let head: GedHead = { children: [] };
     const indiNodes: TreeNode[] = [];
     const famNodes: TreeNode[] = [];
+    const unionNodes: TreeNode[] = [];
 
     for (const child of root.children) {
         switch (child.tag) {
@@ -99,6 +102,9 @@ function buildTree(root: TreeNodeRoot): GedParseResult {
                 break;
             case "FAM":
                 famNodes.push(child);
+                break;
+            case "_TREES_UNION":
+                unionNodes.push(child);
                 break;
             case "TRLR":
             case "SUBM":
@@ -178,6 +184,16 @@ function buildTree(root: TreeNodeRoot): GedParseResult {
         }
     }
 
+    // _TREES_UNION extensions: parse N>2-partner unions (top-level
+    // `0 @Uxx@ _TREES_UNION` records). 2-partner unions stay covered by
+    // the FAM blocks already parsed above. The extension carries the
+    // full UnionRecord shape; HEAD.SCHMA registers the namespace.
+    const unions: UnionRecord[] = [];
+    for (const u of unionNodes) {
+        const rec = parseTreesUnion(u, idByXref);
+        if (rec) unions.push(rec);
+    }
+
     // pick a root: first INDI (xref @I1@ in FE exports is the file's "owner")
     const firstId = Object.keys(people)[0];
     const rootId = firstId ?? "START";
@@ -188,6 +204,7 @@ function buildTree(root: TreeNodeRoot): GedParseResult {
         rootId,
         people,
         couples,
+        unions,
         editRev: 0,
         updatedAt: Date.now(),
     };
@@ -470,6 +487,76 @@ function applyFam(
         }
     }
     return couples;
+}
+
+/**
+ * Parse a top-level `0 @Uxx@ _TREES_UNION` record into a UnionRecord.
+ * Subtags: `_PARTNER` (xref → personId), `_CHIL`, `_KIND`, `_CLOSED`,
+ * `_NAME`, `MARR / DATE`, `_PRIMARY`, `_CURRENT`. Drops the record if
+ * fewer than 1 resolvable partner.
+ */
+function parseTreesUnion(node: TreeNode, idByXref: Map<string, PersonId>): UnionRecord | null {
+    const partnerIds: PersonId[] = [];
+    const childIds: PersonId[] = [];
+    let kind: UnionKind | undefined;
+    let closed: boolean | undefined;
+    let name: string | undefined;
+    let marriageDate: import("$lib/date/HaracalndeDate").HaracalndeDateData | undefined;
+    let isPrimary: boolean | undefined;
+    let isCurrent: boolean | undefined;
+
+    for (const sub of node.children) {
+        switch (sub.tag) {
+            case "_PARTNER": {
+                const id = sub.value ? idByXref.get(sub.value) : undefined;
+                if (id) partnerIds.push(id);
+                break;
+            }
+            case "_CHIL": {
+                const id = sub.value ? idByXref.get(sub.value) : undefined;
+                if (id) childIds.push(id);
+                break;
+            }
+            case "_KIND":
+                if (sub.value) kind = sub.value as UnionKind;
+                break;
+            case "_CLOSED":
+                closed = (sub.value ?? "").trim().toUpperCase() === "Y";
+                break;
+            case "_NAME":
+                if (sub.value) name = sub.value;
+                break;
+            case "MARR":
+                for (const grand of sub.children) {
+                    if (grand.tag === "DATE" && grand.value) {
+                        const parsed = HaracalndeDate.parseGedcom(grand.value);
+                        if (parsed.ok) marriageDate = parsed.value.toJSON();
+                    }
+                }
+                break;
+            case "_PRIMARY":
+                isPrimary = (sub.value ?? "").trim().toUpperCase() === "Y";
+                break;
+            case "_CURRENT":
+                isCurrent = (sub.value ?? "").trim().toUpperCase() === "Y";
+                break;
+        }
+    }
+
+    if (partnerIds.length === 0) return null;
+    const xref = node.pointer ?? "";
+    const id =
+        xref.length > 0
+            ? xref.replace(/^@/, "").replace(/@$/, "")
+            : `union-${partnerIds.join("-")}`;
+    const rec: UnionRecord = { id, partnerIds, childIds };
+    if (kind !== undefined) rec.kind = kind;
+    if (closed !== undefined) rec.closed = closed;
+    if (name !== undefined) rec.name = name;
+    if (marriageDate !== undefined) rec.marriageDate = marriageDate;
+    if (isPrimary !== undefined) rec.isPrimary = isPrimary;
+    if (isCurrent !== undefined) rec.isCurrent = isCurrent;
+    return rec;
 }
 
 function deriveTreeName(head: GedHead): string {

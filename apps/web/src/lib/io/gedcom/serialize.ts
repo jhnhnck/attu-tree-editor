@@ -76,8 +76,49 @@ export function serializeGedcom(tree: Tree, opts: GedSerializeOptions = {}): str
         famCounter += 1;
     }
 
+    // N>2-partner unions: emit `_TREES_UNION` top-level records (full
+    // fidelity). 2-partner unions are already covered by the standard
+    // FAM blocks above. The extension format mirrors `_TREES_PARENT_REF`
+    // — registered via HEAD.SCHMA, stripped by tools that don't know it,
+    // and re-imported by FamilyTree Editor for full round-trip.
+    let unionCounter = 1;
+    for (const u of tree.unions ?? []) {
+        if (u.partnerIds.length <= 2) continue;
+        appendUnion(lines, u, xrefByPerson, unionCounter);
+        unionCounter += 1;
+    }
+
     lines.push("0 TRLR");
     return lines.join(LINE_END) + LINE_END;
+}
+
+function appendUnion(
+    lines: string[],
+    union: import("$lib/domain/types").UnionRecord,
+    xrefByPerson: Map<PersonId, string>,
+    unionNumber: number,
+): void {
+    const xref = `@U${String(unionNumber)}@`;
+    lines.push(`0 ${xref} _TREES_UNION`);
+    for (const pid of union.partnerIds) {
+        const x = xrefByPerson.get(pid);
+        if (x) lines.push(`1 _PARTNER ${x}`);
+    }
+    for (const cid of union.childIds) {
+        const x = xrefByPerson.get(cid);
+        if (x) lines.push(`1 _CHIL ${x}`);
+    }
+    if (union.kind !== undefined) lines.push(`1 _KIND ${union.kind}`);
+    if (union.closed !== undefined) lines.push(`1 _CLOSED ${union.closed ? "Y" : "N"}`);
+    if (union.name !== undefined && union.name.length > 0) {
+        lines.push(`1 _NAME ${union.name}`);
+    }
+    if (union.marriageDate !== undefined) {
+        lines.push("1 MARR");
+        lines.push(`2 DATE ${HaracalndeDate.of(union.marriageDate).toGedcom()}`);
+    }
+    if (union.isCurrent !== undefined) lines.push(`1 _CURRENT ${union.isCurrent ? "Y" : "N"}`);
+    if (union.isPrimary !== undefined) lines.push(`1 _PRIMARY ${union.isPrimary ? "Y" : "N"}`);
 }
 
 /** Numeric sort key for `@I123@`-style xrefs so 2 < 10 (not "10" < "2"). */

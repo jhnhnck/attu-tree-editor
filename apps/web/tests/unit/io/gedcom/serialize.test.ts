@@ -249,6 +249,52 @@ describe("serializeGedcom - synthetic", () => {
         expect(fatherRef?.pedi).toBe("adopted");
         expect(donorRef?.pedi).toBe("magical");
     });
+
+    it("emits a top-level _TREES_UNION record for N>2-partner unions", () => {
+        const base = tinyTree();
+        base.unions = [
+            {
+                id: "union-1-test",
+                partnerIds: ["AAAAA", "BBBBB", "CCCCC"],
+                childIds: [],
+                kind: "civil",
+                closed: true,
+                name: "House Marvane",
+            },
+        ];
+        const out = serializeGedcom(base);
+        expect(out).toContain("0 @U1@ _TREES_UNION");
+        expect(out).toContain("1 _PARTNER @I1@");
+        expect(out).toContain("1 _PARTNER @I2@");
+        expect(out).toContain("1 _PARTNER @I3@");
+        expect(out).toContain("1 _KIND civil");
+        expect(out).toContain("1 _CLOSED Y");
+        expect(out).toContain("1 _NAME House Marvane");
+    });
+
+    it("round-trips a 3-partner UnionRecord through serialize → parse", () => {
+        const base = tinyTree();
+        base.unions = [
+            {
+                id: "union-1-test",
+                partnerIds: ["AAAAA", "BBBBB", "CCCCC"],
+                childIds: [],
+                kind: "ritual",
+                closed: true,
+                name: "Triad",
+            },
+        ];
+        const out = serializeGedcom(base);
+        const r = unwrap(parseGedcom(out));
+        expect(r.tree.unions).toBeDefined();
+        const triad = (r.tree.unions ?? []).find((u) => u.partnerIds.length === 3);
+        expect(triad).toBeDefined();
+        if (!triad) return;
+        expect(triad.partnerIds).toHaveLength(3);
+        expect(triad.kind).toBe("ritual");
+        expect(triad.closed).toBe(true);
+        expect(triad.name).toBe("Triad");
+    });
 });
 
 describe("serializeGedcom - golden snapshot", () => {
