@@ -19,6 +19,7 @@ import {
     linkUnion,
     removePerson,
     removeUnionPartner,
+    setPreferredUnion,
     siblingsOf,
     unlinkParent,
     unlinkParentByPersonId,
@@ -547,6 +548,52 @@ describe("linkUnion / addUnionPartner / removeUnionPartner (Phase 3a N-partner o
         expect(u?.closed).toBe(true);
         expect(u?.name).toBe("House Marvane");
         expect(u?.partnerIds).toHaveLength(3);
+    });
+
+    it("updateUnion accepts a preferredBy map and clears it on undefined", () => {
+        const { tree, ids } = buildEmptyUnionsTree();
+        const r1 = linkUnion(tree, [ids.a ?? "", ids.b ?? ""]);
+        if (!r1.ok) throw new Error(r1.error);
+        const unionId = r1.value.unions?.[0]?.id ?? "";
+        const after = updateUnion(r1.value, unionId, {
+            preferredBy: { [ids.a ?? ""]: true },
+        });
+        expect(after.unions?.[0]?.preferredBy).toEqual({ [ids.a ?? ""]: true });
+        const cleared = updateUnion(after, unionId, { preferredBy: undefined });
+        expect(cleared.unions?.[0]?.preferredBy).toBeUndefined();
+    });
+
+    it("setPreferredUnion sweeps prior preferences across unions", () => {
+        const { tree, ids } = buildEmptyUnionsTree();
+        // person `a` is in two unions: with `b`, and with `c`
+        const r1 = linkUnion(tree, [ids.a ?? "", ids.b ?? ""]);
+        if (!r1.ok) throw new Error(r1.error);
+        const r2 = linkUnion(r1.value, [ids.a ?? "", ids.c ?? ""]);
+        if (!r2.ok) throw new Error(r2.error);
+        const unionAB = r2.value.unions?.[0]?.id ?? "";
+        const unionAC = r2.value.unions?.[1]?.id ?? "";
+        // prefer AB
+        const t1 = setPreferredUnion(r2.value, unionAB, ids.a ?? "", true);
+        expect(t1.unions?.[0]?.preferredBy?.[ids.a ?? ""]).toBe(true);
+        expect(t1.unions?.[1]?.preferredBy).toBeUndefined();
+        // switch to AC; AB's flag should be swept
+        const t2 = setPreferredUnion(t1, unionAC, ids.a ?? "", true);
+        expect(t2.unions?.[1]?.preferredBy?.[ids.a ?? ""]).toBe(true);
+        expect(t2.unions?.[0]?.preferredBy).toBeUndefined();
+        // clear
+        const t3 = setPreferredUnion(t2, unionAC, ids.a ?? "", false);
+        expect(t3.unions?.[1]?.preferredBy).toBeUndefined();
+    });
+
+    it("setPreferredUnion no-ops on unknown unions or non-partners", () => {
+        const { tree, ids } = buildEmptyUnionsTree();
+        const r1 = linkUnion(tree, [ids.a ?? "", ids.b ?? ""]);
+        if (!r1.ok) throw new Error(r1.error);
+        const unionId = r1.value.unions?.[0]?.id ?? "";
+        // unknown union id - no-op
+        expect(setPreferredUnion(r1.value, "nope", ids.a ?? "", true)).toBe(r1.value);
+        // person isn't a partner of the union - no-op
+        expect(setPreferredUnion(r1.value, unionId, ids.c ?? "", true)).toBe(r1.value);
     });
 
     it("linkSpouse on a tree with tree.unions populated keeps both in sync", () => {

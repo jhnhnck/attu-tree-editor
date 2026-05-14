@@ -551,6 +551,13 @@ export type UnionPatch = {
     marriageDate?: UnionRecord["marriageDate"] | undefined;
     isPrimary?: boolean | undefined;
     isCurrent?: boolean | undefined;
+    /**
+     * Per-partner preferred-union flag. Pass `{ [personId]: true }` to
+     * mark a person's preferred union; pass `{ [personId]: false }` (or
+     * omit the key from a fresh map) to clear. Passing `undefined`
+     * clears the entire field.
+     */
+    preferredBy?: Record<PersonId, boolean> | undefined;
 };
 
 export function updateUnion(t: Tree, unionId: string, patch: UnionPatch): Tree {
@@ -565,6 +572,42 @@ export function updateUnion(t: Tree, unionId: string, patch: UnionPatch): Tree {
         else (next[k] as unknown) = v;
     }
     return { ...t, unions: [...unions.slice(0, idx), next, ...unions.slice(idx + 1)] };
+}
+
+/**
+ * Mark `personId`'s preferred union to be `unionId` (or clear it when
+ * `preferred` is false). Enforces the one-preferred-union-per-person
+ * invariant by sweeping every other union and clearing the same key.
+ * No-ops if `unionId` is unknown or `personId` isn't in the target
+ * union. Called by the inspector "preferred" toggle and the
+ * Phase 3c localStorage migration.
+ */
+export function setPreferredUnion(
+    t: Tree,
+    unionId: string,
+    personId: PersonId,
+    preferred: boolean,
+): Tree {
+    const unions = t.unions ?? [];
+    const idx = unions.findIndex((u) => u.id === unionId);
+    if (idx < 0) return t;
+    const target = unions[idx];
+    if (!target || !target.partnerIds.includes(personId)) return t;
+    const nextUnions = unions.map((u, i) => {
+        const pref = { ...(u.preferredBy ?? {}) };
+        if (i === idx) {
+            if (preferred) pref[personId] = true;
+            else delete pref[personId];
+        } else {
+            // sweep: a person has at most one preferred union
+            if (pref[personId] !== undefined) delete pref[personId];
+        }
+        const nextU: UnionRecord = { ...u };
+        if (Object.keys(pref).length === 0) delete nextU.preferredBy;
+        else nextU.preferredBy = pref;
+        return nextU;
+    });
+    return { ...t, unions: nextUnions };
 }
 
 export function* ancestorsOf(t: Tree, id: PersonId): Iterable<Person> {
