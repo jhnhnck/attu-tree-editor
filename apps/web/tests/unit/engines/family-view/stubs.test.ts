@@ -32,15 +32,19 @@ describe("expansion stub", () => {
     });
 });
 
-describe("path-highlight stub", () => {
-    it("returns empty path-set and always-false onPath", () => {
-        const p = usePath("focus", "selected");
+describe("path-highlight degenerate cases", () => {
+    // Phase 3 promotion: usePath now takes (tree, focus, selected) and
+    // returns a non-empty set when a path exists. The stubs-test suite
+    // covers only the degenerate cases (no tree / no selection / both
+    // ids unknown); real-path coverage lives in `path.test.ts`.
+    it("returns empty path-set when tree is undefined", () => {
+        const p = usePath(undefined, "focus", "selected");
         expect(p.pathSet.size).toBe(0);
         expect(p.onPath("anyone")).toBe(false);
     });
 
-    it("works with no selection", () => {
-        const p = usePath("focus", undefined);
+    it("returns empty path-set when no selection", () => {
+        const p = usePath(undefined, "focus", undefined);
         expect(p.pathSet.size).toBe(0);
         expect(p.onPath("focus")).toBe(false);
     });

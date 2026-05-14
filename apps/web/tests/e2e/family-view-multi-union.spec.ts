@@ -62,9 +62,9 @@ test.describe("family view — Phase 2 multi-union UI", () => {
         await seraItem.dispatchEvent("click");
 
         // After swap: Sera + Iva visible; Mira + Calen hidden.
-        await expect(
-            page.locator("[data-person-id]").filter({ hasText: /Sera/ }),
-        ).toBeVisible({ timeout: 5000 });
+        await expect(page.locator("[data-person-id]").filter({ hasText: /Sera/ })).toBeVisible({
+            timeout: 5000,
+        });
         await expect(page.locator("[data-person-id]").filter({ hasText: /Iva/ })).toBeVisible();
         await expect(page.locator("[data-person-id]").filter({ hasText: /Mira/ })).toHaveCount(0);
         await expect(page.locator("[data-person-id]").filter({ hasText: /Calen/ })).toHaveCount(0);

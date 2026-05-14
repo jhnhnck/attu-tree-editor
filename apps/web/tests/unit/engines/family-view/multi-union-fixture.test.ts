@@ -67,9 +67,7 @@ describe("multi-union.ged — Phase 2 contract", () => {
         const calen = findByName("Calen");
         const iva = findByName("Iva");
         // Find the index of the Sera union.
-        const seraUnion = cached.couples.findIndex(
-            (c) => c.leftId === sera || c.rightId === sera,
-        );
+        const seraUnion = cached.couples.findIndex((c) => c.leftId === sera || c.rightId === sera);
         expect(seraUnion).toBeGreaterThanOrEqual(0);
         const out = engine.layout({
             tree: cached,

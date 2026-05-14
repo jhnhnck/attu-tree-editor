@@ -42,6 +42,8 @@ export {
     expansionStorageKey,
     clearAllExpansion,
 } from "$lib/layout/engines/family-view/expansion";
+export { usePath, badgeOnPath } from "$lib/layout/engines/family-view/path";
+export type { PathHighlight } from "$lib/layout/engines/family-view/path";
 export {
     usePrimaryUnionState,
     primaryUnionStorageKey,
@@ -60,10 +62,7 @@ export {
     otherUnionsOf,
     resolveRenderablePair,
 } from "$lib/layout/engines/family-view/couples";
-export type {
-    OrientedCouple,
-    RenderablePair,
-} from "$lib/layout/engines/family-view/couples";
+export type { OrientedCouple, RenderablePair } from "$lib/layout/engines/family-view/couples";
 export type {
     FamilyViewLayout,
     FamilyViewNode,

@@ -19,10 +19,7 @@
 
 import type { CoupleRecord, PersonId, Tree } from "$lib/domain/types";
 import { emitFinding } from "$lib/domain/findings";
-import {
-    defaultPrimaryUnion,
-    unionsOf,
-} from "$lib/layout/engines/family-view/primaryUnion";
+import { defaultPrimaryUnion, unionsOf } from "$lib/layout/engines/family-view/primaryUnion";
 
 export interface OrientedCouple {
     readonly leftId: PersonId;

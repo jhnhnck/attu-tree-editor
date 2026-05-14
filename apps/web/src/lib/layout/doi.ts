@@ -213,6 +213,75 @@ function findBranchPoints(tree: Tree, threshold: number): ReadonlySet<PersonId> 
 }
 
 /**
+ * BFS shortest path from `source` to `target` over the consanguinity
+ * graph (mother/father ↔ child) plus spouse edges. Used by Phase 3's
+ * `usePath` to surface the selected-to-focus path-highlight set.
+ *
+ * Returns an ordered array from `source` to `target` inclusive, or an
+ * empty array when the two are disconnected (or either is missing). A
+ * source === target call returns `[source]` so the renderer can still
+ * treat the focus as "on path" for selection-on-self.
+ *
+ * Sibling of `bfsDistances`: the Phase 3 spike chose this layout (one
+ * helper per concern) over extending `bfsDistances` with a predecessor
+ * map because the two are read by different consumers (DOI scoring
+ * vs. selection path) and bundling them would cost more than splitting.
+ */
+export function bfsPath(tree: Tree, source: PersonId, target: PersonId): readonly PersonId[] {
+    if (!tree.people[source] || !tree.people[target]) return [];
+    if (source === target) return [source];
+
+    const childrenOf = new Map<PersonId, PersonId[]>();
+    for (const p of Object.values(tree.people)) {
+        for (const parentId of [p.motherId, p.fatherId]) {
+            if (!parentId) continue;
+            const arr = childrenOf.get(parentId);
+            if (arr) arr.push(p.id);
+            else childrenOf.set(parentId, [p.id]);
+        }
+    }
+    // BFS with predecessors so we can reconstruct one shortest path.
+    const pred = new Map<PersonId, PersonId>();
+    const visited = new Set<PersonId>([source]);
+    const queue: PersonId[] = [source];
+    let reached = false;
+    while (queue.length) {
+        const id = queue.shift();
+        if (id === undefined) continue;
+        if (id === target) {
+            reached = true;
+            break;
+        }
+        const person = tree.people[id];
+        if (!person) continue;
+        const neighbours: PersonId[] = [];
+        if (person.motherId) neighbours.push(person.motherId);
+        if (person.fatherId) neighbours.push(person.fatherId);
+        const kids = childrenOf.get(id);
+        if (kids) neighbours.push(...kids);
+        for (const sId of person.spouseIds) neighbours.push(sId);
+        for (const n of neighbours) {
+            if (visited.has(n)) continue;
+            visited.add(n);
+            pred.set(n, id);
+            queue.push(n);
+        }
+    }
+    if (!reached) return [];
+    // Reconstruct source → target.
+    const path: PersonId[] = [target];
+    let cur: PersonId | undefined = target;
+    while (cur !== undefined && cur !== source) {
+        const p = pred.get(cur);
+        if (p === undefined) break;
+        path.push(p);
+        cur = p;
+    }
+    path.reverse();
+    return path;
+}
+
+/**
  * BFS distances from `focus` over the consanguinity graph (mother/father
  * ↔ child) plus spouse edges. Spouses get a +1 distance so a direct-line
  * spouse outranks a step-deeper ancestor.

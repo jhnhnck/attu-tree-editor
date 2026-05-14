@@ -152,7 +152,14 @@ describe("Phase 2 — primary-union default & switching", () => {
             if (!l.ok) throw new Error(l.error);
             t = l.value;
         }
-        return { tree: t, w1: w1.id, w2: w2.id, kidW1: kidW1.id, kidW2a: kidW2a.id, kidW2b: kidW2b.id };
+        return {
+            tree: t,
+            w1: w1.id,
+            w2: w2.id,
+            kidW1: kidW1.id,
+            kidW2a: kidW2a.id,
+            kidW2b: kidW2b.id,
+        };
     }
 
     it("default subset includes primary partner + primary union's children only", () => {

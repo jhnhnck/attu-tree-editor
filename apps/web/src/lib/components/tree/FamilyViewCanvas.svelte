@@ -39,7 +39,7 @@
     } from "$lib/layout/engines/family-view";
     import { useExpansionState } from "$lib/layout/engines/family-view/expansion";
     import { usePrimaryUnionState } from "$lib/layout/engines/family-view/primaryUnion";
-    import { usePath } from "$lib/layout/engines/family-view/path";
+    import { usePath, badgeOnPath } from "$lib/layout/engines/family-view/path";
     import type { PersonId, Tree } from "$lib/domain/types";
     import type { CanvasController } from "./canvasController";
 
@@ -82,7 +82,7 @@
     // Phase 2 primary-union override — same per-(treeId, focusId) lifecycle.
     let primaryUnion = $derived(usePrimaryUnionState(tree.id, tree.rootId));
 
-    let pathHl = $derived(usePath(tree.rootId, selectedId));
+    let pathHl = $derived(usePath(tree, tree.rootId, selectedId));
 
     /**
      * Family-view layout. Re-runs when the tree, root, expansion set, or
@@ -320,14 +320,38 @@
     }
 
     function edgeClass(e: FamilyViewEdge): string {
-        const base =
-            e.role === "married"
-                ? "stroke-rose-400/70"
+        const hasPath = pathHl.pathSet.size > 0;
+        // An edge is on-path iff every implicated person is on the path
+        // (couple connector: both partners; drop: parent + child).
+        const onPath = hasPath && e.persons.every((id) => pathHl.onPath(id));
+        if (!hasPath) {
+            return e.role === "married"
+                ? "stroke-rose-400/70 stroke-1"
                 : e.role === "divorced"
-                  ? "stroke-rose-400/40"
-                  : "stroke-fg-muted/70";
-        const onPath = e.persons.every((id) => pathHl.onPath(id));
-        return onPath ? `${base} stroke-2` : `${base} stroke-1`;
+                  ? "stroke-rose-400/40 stroke-1"
+                  : "stroke-fg-muted/70 stroke-1";
+        }
+        if (onPath) {
+            return e.role === "married"
+                ? "stroke-rose-400 stroke-[2.5]"
+                : e.role === "divorced"
+                  ? "stroke-rose-400/70 stroke-[2.5]"
+                  : "stroke-accent stroke-[2.5]";
+        }
+        // Off-path while a path is active: dim.
+        return e.role === "married"
+            ? "stroke-rose-400/25 stroke-1"
+            : e.role === "divorced"
+              ? "stroke-rose-400/15 stroke-1"
+              : "stroke-fg-muted/25 stroke-1";
+    }
+
+    function cardOnPath(id: PersonId): boolean {
+        return pathHl.onPath(id);
+    }
+
+    function isBadgeOnPath(b: BadgeNode): boolean {
+        return badgeOnPath(b, pathHl.pathSet);
     }
 
     function canExpand(id: PersonId): boolean {
@@ -380,7 +404,10 @@
             {@const person = tree.people[node.personId]}
             {#if person}
                 <div
-                    class="group/card absolute"
+                    class="group/card absolute {cardOnPath(node.personId)
+                        ? 'family-view-onpath rounded ring-2 ring-accent/70'
+                        : ''}"
+                    data-on-path={cardOnPath(node.personId) ? "true" : undefined}
                     style:left="{node.x * UNIT}px"
                     style:top="{node.y * UNIT}px"
                     style:width="{CARD_W_PX}px"
@@ -478,9 +505,11 @@
             <button
                 type="button"
                 data-badge-id={badge.id}
+                data-on-path={isBadgeOnPath(badge) ? "true" : undefined}
                 class="border-line bg-canvas-elev text-fg hover:border-accent
                        absolute flex items-center justify-center gap-1 rounded-full
-                       border px-2 py-0.5 text-xs shadow-sm"
+                       border px-2 py-0.5 text-xs shadow-sm
+                       {isBadgeOnPath(badge) ? 'ring-2 ring-accent/70 border-accent' : ''}"
                 style:left="{badge.x * UNIT}px"
                 style:top="{badge.y * UNIT}px"
                 style:width="{CARD_W_PX}px"
