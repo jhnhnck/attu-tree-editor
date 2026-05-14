@@ -92,6 +92,25 @@ export interface BadgeNode {
     readonly origin: "auto" | "manual";
 }
 
+/**
+ * Per-card descriptor for the multi-union picker (`˅` affordance). For
+ * each visible card we say: "your couple-mate has multi unions; here
+ * are the other options the user can swap in". Empty when the mate has
+ * only one union or when this card has no couple-mate visible. Used by
+ * the renderer to decide whether to render a `˅` and what menu it shows.
+ */
+export interface MultiUnionMate {
+    /** The couple-mate (the other person currently in this card's couple). */
+    readonly mateId: PersonId;
+    /** Currently-primary coupleIndex for `mateId`. */
+    readonly primaryCoupleIndex: number;
+    /** Alternates: mate's other unions, surfacing the partner id. */
+    readonly alternates: readonly {
+        readonly coupleIndex: number;
+        readonly partnerId: PersonId | undefined;
+    }[];
+}
+
 /** Result of one family-view layout pass. */
 export interface FamilyViewLayout {
     readonly focus: PersonId;
@@ -108,6 +127,13 @@ export interface FamilyViewLayout {
     readonly canCollapse: ReadonlySet<PersonId>;
     /** Persons whose children block was demoted by auto-collapse this pass. */
     readonly autoCollapsed: ReadonlySet<PersonId>;
+    /**
+     * Per-card multi-union picker info (Phase 2). Keyed by personId; an
+     * entry means the renderer should draw a `˅` on that card and use the
+     * `alternates` for the picker menu. Persons without multi-union mates
+     * have no entry.
+     */
+    readonly multiUnionMates: ReadonlyMap<PersonId, MultiUnionMate>;
     /**
      * Overlay segments (sworn bonds, transformations, severances).
      * Optional; empty/absent in v1 (Phase 0 of the relationship-vocabulary

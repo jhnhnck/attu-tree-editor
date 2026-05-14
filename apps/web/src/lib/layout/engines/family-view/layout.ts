@@ -28,12 +28,19 @@
 import { PERSON_W, ROW_H, SIBLING_GAP, SUBTREE_GAP } from "$lib/layout/constants";
 import { computeDoiScores } from "$lib/layout/doi";
 import type { CoupleRecord, PersonId, Tree } from "$lib/domain/types";
+import {
+    orientCouple,
+    otherUnionsOf,
+    resolvePrimary,
+    unionCount,
+} from "$lib/layout/engines/family-view/couples";
 import type {
     BadgeNode,
     FamilyViewEdge,
     FamilyViewEdgeRole,
     FamilyViewLayout,
     FamilyViewNode,
+    MultiUnionMate,
     UnionAnchor,
 } from "$lib/layout/engines/family-view/types";
 import { selectBoundedSubset, type RankedSubset } from "$lib/layout/engines/family-view/subset";
@@ -60,6 +67,12 @@ type RankSlot =
 export interface LayoutOptions {
     /** User-explicit-expansion set (Phase 1+). */
     readonly expanded?: ReadonlySet<PersonId>;
+    /**
+     * Per-person primary-union override (Phase 2+). Maps personId →
+     * coupleIndex; persons not in the map fall back to
+     * `defaultPrimaryUnion` from `couples.ts`.
+     */
+    readonly primaryUnionOverrides?: ReadonlyMap<PersonId, number>;
     /** Override the auto-collapse threshold; used by perf tests. */
     readonly autoCollapseThreshold?: number;
 }
@@ -70,8 +83,12 @@ export function computeLayout(
     opts: LayoutOptions = {},
 ): FamilyViewLayout {
     const expanded = opts.expanded ?? new Set<PersonId>();
+    const primaryOverrides = opts.primaryUnionOverrides ?? new Map<PersonId, number>();
     const threshold = opts.autoCollapseThreshold ?? AUTO_COLLAPSE_THRESHOLD;
-    const subset = selectBoundedSubset(tree, focusId, { expanded });
+    const subset = selectBoundedSubset(tree, focusId, {
+        expanded,
+        primaryUnionOverrides: primaryOverrides,
+    });
 
     // Auto-collapse: while visible > threshold, demote the lowest-DOI
     // sibling block. A sibling block = all children of one (parent) +
@@ -88,7 +105,13 @@ export function computeLayout(
             const victim = pickCollapseVictim(tree, working, scores, protect, autoCollapsed);
             if (!victim) break;
             autoCollapsed.add(victim);
-            working = recomputeAfterCollapse(tree, focusId, expanded, autoCollapsed);
+            working = recomputeAfterCollapse(
+                tree,
+                focusId,
+                expanded,
+                primaryOverrides,
+                autoCollapsed,
+            );
             visibleCount = working.visible.size;
         }
     }
@@ -181,6 +204,8 @@ export function computeLayout(
     const canCollapse = new Set<PersonId>();
     for (const id of expanded) if (working.visible.has(id)) canCollapse.add(id);
 
+    const multiUnionMates = collectMultiUnionMates(tree, anchors, primaryOverrides);
+
     return {
         focus: focusId,
         nodes,
@@ -192,7 +217,46 @@ export function computeLayout(
         hasMoreParents: working.hasMoreParents,
         canCollapse,
         autoCollapsed,
+        multiUnionMates,
     };
+}
+
+/**
+ * For every couple-anchor in the layout, mark each partner card as
+ * having a multi-union mate (= the other partner) iff the mate has
+ * >1 unions. The renderer uses this to decide whether to render a
+ * `˅` and what alternates the picker shows.
+ */
+function collectMultiUnionMates(
+    tree: Tree,
+    anchors: readonly UnionAnchor[],
+    primaryOverrides: ReadonlyMap<PersonId, number>,
+): ReadonlyMap<PersonId, MultiUnionMate> {
+    const out = new Map<PersonId, MultiUnionMate>();
+    for (const anchor of anchors) {
+        if (anchor.partnerIds.length !== 2) continue;
+        const [a, b] = [anchor.partnerIds[0]!, anchor.partnerIds[1]!];
+        markMate(tree, out, a, b, primaryOverrides);
+        markMate(tree, out, b, a, primaryOverrides);
+    }
+    return out;
+}
+
+function markMate(
+    tree: Tree,
+    out: Map<PersonId, MultiUnionMate>,
+    cardId: PersonId,
+    mateId: PersonId,
+    primaryOverrides: ReadonlyMap<PersonId, number>,
+): void {
+    if (unionCount(tree, mateId) <= 1) return;
+    const primaryIdx = resolvePrimary(tree, mateId, primaryOverrides);
+    if (primaryIdx === undefined) return;
+    out.set(cardId, {
+        mateId,
+        primaryCoupleIndex: primaryIdx,
+        alternates: otherUnionsOf(tree, mateId, primaryIdx),
+    });
 }
 
 function placeAt(
@@ -216,10 +280,13 @@ function planRank(
         const couple = tree.couples[ci]!;
         if (!here.has(couple.leftId) || !here.has(couple.rightId)) continue;
         if (placed.has(couple.leftId) || placed.has(couple.rightId)) continue;
+        // Apply the genealogy-conventional orientation: father-left /
+        // mother-right; same-gender → personId asc. Stable across renders.
+        const oriented = orientCouple(tree, couple, ci);
         slots.push({
             kind: "couple",
-            leftId: couple.leftId,
-            rightId: couple.rightId,
+            leftId: oriented.leftId,
+            rightId: oriented.rightId,
             coupleIndex: ci,
         });
         placed.add(couple.leftId);
@@ -256,10 +323,14 @@ function emitAnchorsAndEdges(
 
     for (let ci = 0; ci < tree.couples.length; ci += 1) {
         const couple = tree.couples[ci]!;
-        const leftNode = nodes.get(couple.leftId);
-        const rightNode = nodes.get(couple.rightId);
-        if (!leftNode || !rightNode) continue;
-        if (leftNode.rank !== rightNode.rank) continue;
+        const aNode = nodes.get(couple.leftId);
+        const bNode = nodes.get(couple.rightId);
+        if (!aNode || !bNode) continue;
+        if (aNode.rank !== bNode.rank) continue;
+        // Determine screen-left / screen-right by placed x, not by the
+        // raw CoupleRecord field order — `planRank` may have swapped
+        // them under the genealogy-conventional orientation rule.
+        const [leftNode, rightNode] = aNode.x <= bNode.x ? [aNode, bNode] : [bNode, aNode];
         const visibleKids = couple.childIds.filter((id) => nodes.has(id));
         const anchor: UnionAnchor = {
             id: `union:${couple.leftId}|${couple.rightId}|${String(couple.unionIndex)}`,
@@ -278,8 +349,8 @@ function emitAnchorsAndEdges(
             edges.push(
                 drop(
                     `drop:${anchor.id}|${kid}`,
-                    [couple.leftId, couple.rightId, kid],
-                    roleFor(tree, kid, couple.leftId),
+                    [leftNode.personId, rightNode.personId, kid],
+                    roleFor(tree, kid, leftNode.personId),
                     anchorCenterX,
                     anchorY,
                     midX(kidNode),
@@ -427,9 +498,10 @@ function recomputeAfterCollapse(
     tree: Tree,
     focusId: PersonId,
     expanded: ReadonlySet<PersonId>,
+    primaryUnionOverrides: ReadonlyMap<PersonId, number>,
     autoCollapsed: ReadonlySet<PersonId>,
 ): RankedSubset {
-    const base = selectBoundedSubset(tree, focusId, { expanded });
+    const base = selectBoundedSubset(tree, focusId, { expanded, primaryUnionOverrides });
     if (autoCollapsed.size === 0) return base;
     // Remove children of any auto-collapsed source from the visible set.
     const visible = new Set(base.visible);

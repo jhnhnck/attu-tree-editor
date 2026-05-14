@@ -2,10 +2,18 @@
  * FamilyTreeEditor - family-view bounded subset selection.
  *
  * Phase 0 set the bounded default: focus + 3 ancestor gens + 2
- * descendant gens + siblings at each ancestor rank. Phase 1 layers
- * an explicit-expansion set on top: each id in `expanded` includes
- * its next-generation relatives (children for descendant-side or
- * sibling-of-ancestor cards; parents for the topmost ancestor rank).
+ * descendant gens + siblings at each ancestor rank. Phase 1 layered
+ * an explicit-expansion set on top. Phase 2 narrows descendant /
+ * partner inclusion to the **primary union** of each visible person:
+ *
+ *   - Each visible person's primary partner is placed at the same rank;
+ *     non-primary partners stay hidden unless added to `expanded`.
+ *   - Descendant walks follow `primaryChildrenOf` (= primary union's
+ *     children + single-parent children), so Johnakar Oken with 6
+ *     wives does not blow up the bounded subset.
+ *   - Siblings of focus and of ancestors are still placed by
+ *     `directChildrenOf` because they are siblings of the *parent*,
+ *     not descendants through a union — half-siblings stay visible.
  *
  * Cycle-safe via a `visited` set; the schema is permissive (rule #6)
  * and self-parent / ancestral-cycle shapes are legal.
@@ -14,6 +22,7 @@
  */
 
 import type { PersonId, Tree } from "$lib/domain/types";
+import { primaryChildrenOf, primaryPartnerOf } from "$lib/layout/engines/family-view/couples";
 
 /** How many generations up from focus the default subset includes. */
 export const ANCESTOR_DEPTH = 3;
@@ -37,6 +46,13 @@ export interface SubsetOptions {
      * included beyond the default bounded subset. Empty by default.
      */
     readonly expanded?: ReadonlySet<PersonId>;
+    /**
+     * Per-person primary-union override (per focus). Maps personId →
+     * coupleIndex (position in `tree.couples`). Persons not in the map
+     * fall back to `defaultPrimaryUnion` (CoupleRecord.isPrimary, else
+     * lowest unionIndex). Empty by default.
+     */
+    readonly primaryUnionOverrides?: ReadonlyMap<PersonId, number>;
 }
 
 /**
@@ -49,6 +65,7 @@ export function selectBoundedSubset(
     opts: SubsetOptions = {},
 ): RankedSubset {
     const expanded = opts.expanded ?? new Set<PersonId>();
+    const overrides = opts.primaryUnionOverrides ?? new Map<PersonId, number>();
     const visible = new Set<PersonId>();
     const rank = new Map<PersonId, number>();
     if (!tree.people[focusId]) {
@@ -68,8 +85,11 @@ export function selectBoundedSubset(
     };
 
     place(focusId, 0);
+    // Focus's primary partner at rank 0.
+    const focusPartner = primaryPartnerOf(tree, focusId, overrides);
+    if (focusPartner) place(focusPartner, 0);
 
-    // Ancestor spine.
+    // Ancestor spine. Each ancestor's primary partner is placed alongside.
     let frontier: PersonId[] = [focusId];
     for (let depth = 1; depth <= ANCESTOR_DEPTH; depth += 1) {
         const next: PersonId[] = [];
@@ -83,16 +103,25 @@ export function selectBoundedSubset(
                 }
             }
         }
-        // Siblings at this ancestor rank: other children of each ancestor.
+        // Primary partner of each ancestor (= the other parent of the line of focus
+        // if the conventional union is primary, otherwise a step-parent).
         for (const ancestorId of next) {
-            for (const siblingId of directChildrenOf(tree, ancestorId)) {
+            const partner = primaryPartnerOf(tree, ancestorId, overrides);
+            if (partner && !visible.has(partner)) place(partner, -depth);
+        }
+        // Siblings at this ancestor rank: other children of each ancestor's primary
+        // union (so step-half-siblings via non-primary unions stay hidden by default).
+        for (const ancestorId of next) {
+            for (const siblingId of primaryChildrenOf(tree, ancestorId, overrides)) {
                 if (!visible.has(siblingId)) place(siblingId, -(depth - 1));
             }
         }
         frontier = next;
     }
 
-    // Siblings of focus at rank 0.
+    // Siblings of focus at rank 0. Walk full directChildrenOf each parent so
+    // half-siblings (children of mom or dad via other unions) stay visible —
+    // they're focus's siblings by blood, regardless of which union produced them.
     const focus = tree.people[focusId];
     if (focus) {
         for (const parentId of [focus.motherId, focus.fatherId]) {
@@ -103,28 +132,39 @@ export function selectBoundedSubset(
         }
     }
 
-    // Descendants down to the default depth.
+    // Descendants down to the default depth, scoped to the primary-union
+    // children of each person we walk.
     let downFrontier: PersonId[] = [focusId];
     for (let depth = 1; depth <= DESCENDANT_DEPTH; depth += 1) {
         const next: PersonId[] = [];
         for (const id of downFrontier) {
-            for (const childId of directChildrenOf(tree, id)) {
+            for (const childId of primaryChildrenOf(tree, id, overrides)) {
                 if (!visible.has(childId)) {
                     place(childId, depth);
                     next.push(childId);
                 }
             }
         }
+        // Primary partner of each newly placed descendant at the same rank.
+        for (const childId of next) {
+            const partner = primaryPartnerOf(tree, childId, overrides);
+            if (partner && !visible.has(partner)) place(partner, depth);
+        }
         downFrontier = next;
     }
 
     // Phase 1 expansion: walk every id in `expanded` and pull in the
-    // appropriate adjacent generation.
+    // appropriate adjacent generation. Phase 2 broadens to:
+    //   - reveal *all* of id's children (across every union), not just
+    //     the primary-union subset, so the user can explore alternate
+    //     unions via `+`,
+    //   - and pull in every visible-but-not-yet-placed partner.
     //
     // Heuristic per id (single + per card):
-    //   - If id has un-shown children → show its children at id.rank + 1.
-    //   - Else if id is at the topmost (most negative) rank with un-shown
-    //     parents → show its parents at id.rank - 1.
+    //   - If id has un-shown children → show every direct child at
+    //     id.rank + 1 plus the corresponding other-parent partner.
+    //   - Else if id is at the topmost (most negative) rank with un-
+    //     shown parents → show its parents at id.rank - 1.
     //
     // Repeat over the expanded set until quiescent so a deep chain of
     // explicit expands all materialise in one pass.
@@ -168,11 +208,27 @@ function revealChildren(
     // Returns true iff we placed at least one new child. If every child
     // is already visible (nothing new to reveal), return false so the
     // caller can try the "reveal parents" branch instead.
+    //
+    // Phase 2 also pulls in the other-parent partner for each newly
+    // revealed child — the user expanded an `+` button hoping to see
+    // both the child and the union it came from, including the partner
+    // who isn't this person's primary.
     let placedAny = false;
+    const placedChildren: PersonId[] = [];
     for (const childId of directChildrenOf(tree, id)) {
         if (!visible.has(childId)) {
             place(childId, parentRank + 1);
+            placedChildren.push(childId);
             placedAny = true;
+        }
+    }
+    for (const childId of placedChildren) {
+        const child = tree.people[childId];
+        if (!child) continue;
+        for (const other of [child.motherId, child.fatherId]) {
+            if (!other) continue;
+            if (other === id) continue;
+            if (!visible.has(other)) place(other, parentRank);
         }
     }
     return placedAny;

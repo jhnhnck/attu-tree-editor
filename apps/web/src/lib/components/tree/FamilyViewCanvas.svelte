@@ -26,7 +26,7 @@
 -->
 <script lang="ts">
     import { onDestroy, onMount, untrack } from "svelte";
-    import { Plus, Minus } from "@lucide/svelte";
+    import { Plus, Minus, ChevronDown } from "@lucide/svelte";
     import { PERSON_W } from "$lib/layout/constants";
     import PersonNode from "$lib/components/tree/PersonNode.svelte";
     import { FamilyViewEngine, CARD_H } from "$lib/layout/engines/family-view";
@@ -35,8 +35,10 @@
         FamilyViewEdge,
         FamilyViewLayout,
         FamilyViewNode,
+        MultiUnionMate,
     } from "$lib/layout/engines/family-view";
     import { useExpansionState } from "$lib/layout/engines/family-view/expansion";
+    import { usePrimaryUnionState } from "$lib/layout/engines/family-view/primaryUnion";
     import { usePath } from "$lib/layout/engines/family-view/path";
     import type { PersonId, Tree } from "$lib/domain/types";
     import type { CanvasController } from "./canvasController";
@@ -77,23 +79,33 @@
     // resets the expanded set per the Phase 1 spec, since the new key
     // misses the old localStorage row).
     let expansion = $derived(useExpansionState(tree.id, tree.rootId));
+    // Phase 2 primary-union override — same per-(treeId, focusId) lifecycle.
+    let primaryUnion = $derived(usePrimaryUnionState(tree.id, tree.rootId));
 
     let pathHl = $derived(usePath(tree.rootId, selectedId));
 
     /**
-     * Family-view layout. Re-runs when the tree, root, or expansion set
-     * changes. Cheap enough that we recompute on every reactive tick.
-     * `expansionRev` increments on every set/reset so the $derived picks
-     * up changes even though the Set identity is reassigned, not mutated.
+     * Family-view layout. Re-runs when the tree, root, expansion set, or
+     * primary-union overrides change. Cheap enough that we recompute on
+     * every reactive tick. Bumping `expansionRev` / `primaryRev` is the
+     * reactivity trigger because the underlying Maps/Sets reassign rather
+     * than mutate.
      */
     let expansionRev = $state(0);
+    let primaryRev = $state(0);
     let layout = $derived<FamilyViewLayout>(
         engine.layout({
             tree,
             focus: tree.rootId,
-            options: { expanded: (void expansionRev, expansion.expanded) },
+            options: {
+                expanded: (void expansionRev, expansion.expanded),
+                primaryUnionOverrides: (void primaryRev, primaryUnion.overrides),
+            },
         }),
     );
+
+    /** Open picker state — only one `˅` menu open at a time. */
+    let pickerOpenFor = $state<PersonId | null>(null);
 
     // Resize observer to keep host dims in sync.
     $effect(() => {
@@ -165,6 +177,9 @@
         if (target?.closest("[data-person-id]")) return;
         if (target?.closest("[data-expand-toggle]")) return;
         if (target?.closest("[data-badge-id]")) return;
+        if (target?.closest("[data-union-picker]")) return;
+        // Click outside any picker closes it.
+        if (pickerOpenFor !== null) pickerOpenFor = null;
         dragStart = { x: e.clientX, y: e.clientY, pX: panX, pY: panY };
         (e.target as Element).setPointerCapture?.(e.pointerId);
     }
@@ -252,6 +267,32 @@
         e.stopPropagation();
         expansion.setExpanded(id, on);
         expansionRev += 1;
+    }
+
+    function onPickerToggle(cardId: PersonId, e: MouseEvent): void {
+        e.stopPropagation();
+        pickerOpenFor = pickerOpenFor === cardId ? null : cardId;
+    }
+
+    function onPickerSelect(mateId: PersonId, coupleIndex: number, e: MouseEvent): void {
+        e.stopPropagation();
+        // Switching primary union is per-mate UI state — it does NOT touch
+        // the domain's Couple.isPrimary or Couple.isCurrent flags.
+        primaryUnion.setPrimary(mateId, coupleIndex);
+        primaryRev += 1;
+        pickerOpenFor = null;
+    }
+
+    function multiUnionMate(id: PersonId): MultiUnionMate | undefined {
+        return layout.multiUnionMates.get(id);
+    }
+
+    function partnerLabel(id: PersonId | undefined): string {
+        if (!id) return "(unknown)";
+        const p = tree.people[id];
+        if (!p) return id;
+        const n = `${p.given} ${p.surname}`.trim();
+        return n || id;
     }
 
     function onBadgeClick(badge: BadgeNode, e: MouseEvent): void {
@@ -383,6 +424,51 @@
                         >
                             <Minus size={10} />
                         </button>
+                    {/if}
+                    {#if multiUnionMate(node.personId)}
+                        {@const m = multiUnionMate(node.personId)!}
+                        <button
+                            type="button"
+                            data-union-picker="toggle"
+                            data-union-picker-for={node.personId}
+                            class="border-line bg-canvas-elev text-fg-muted hover:text-accent
+                                   absolute -bottom-3 -right-3 flex h-5 w-5 items-center
+                                   justify-center rounded-full border shadow-sm"
+                            aria-label={`switch shown union for ${partnerLabel(m.mateId)} (session-only preference, doesn't change record)`}
+                            aria-haspopup="menu"
+                            aria-expanded={pickerOpenFor === node.personId}
+                            title={`switch primary union for ${partnerLabel(m.mateId)} (session-only; doesn't change record)`}
+                            onclick={(e) => onPickerToggle(node.personId, e)}
+                        >
+                            <ChevronDown size={10} />
+                        </button>
+                        {#if pickerOpenFor === node.personId}
+                            <div
+                                data-union-picker="menu"
+                                role="menu"
+                                class="border-line bg-canvas-elev absolute top-full right-0 z-10 mt-1
+                                       min-w-32 rounded border py-1 text-xs shadow-md"
+                            >
+                                {#each m.alternates as alt (alt.coupleIndex)}
+                                    <button
+                                        type="button"
+                                        role="menuitem"
+                                        data-union-picker-alt={alt.coupleIndex}
+                                        class="text-fg hover:bg-canvas-hover block w-full
+                                               px-2 py-1 text-left"
+                                        onclick={(e) =>
+                                            onPickerSelect(m.mateId, alt.coupleIndex, e)}
+                                    >
+                                        switch to {partnerLabel(alt.partnerId)}
+                                    </button>
+                                {/each}
+                                {#if m.alternates.length === 0}
+                                    <span class="text-fg-muted block px-2 py-1"
+                                        >(no other unions)</span
+                                    >
+                                {/if}
+                            </div>
+                        {/if}
                     {/if}
                 </div>
             {/if}

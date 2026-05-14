@@ -42,11 +42,34 @@ export {
     expansionStorageKey,
     clearAllExpansion,
 } from "$lib/layout/engines/family-view/expansion";
+export {
+    usePrimaryUnionState,
+    primaryUnionStorageKey,
+    clearAllPrimaryUnion,
+    defaultPrimaryUnion,
+    unionsOf,
+} from "$lib/layout/engines/family-view/primaryUnion";
+export type { PrimaryUnionState } from "$lib/layout/engines/family-view/primaryUnion";
+export {
+    orientCouple,
+    orientByIds,
+    resolvePrimary,
+    primaryPartnerOf,
+    primaryChildrenOf,
+    unionCount,
+    otherUnionsOf,
+    resolveRenderablePair,
+} from "$lib/layout/engines/family-view/couples";
+export type {
+    OrientedCouple,
+    RenderablePair,
+} from "$lib/layout/engines/family-view/couples";
 export type {
     FamilyViewLayout,
     FamilyViewNode,
     FamilyViewEdge,
     FamilyViewEdgeRole,
+    MultiUnionMate,
     UnionAnchor,
     BadgeNode,
 } from "$lib/layout/engines/family-view/types";
