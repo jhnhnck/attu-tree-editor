@@ -56,22 +56,23 @@ async def list_trees(
     user: Annotated[aiosqlite.Row, Depends(current_user)],
     conn: aiosqlite.Connection = Depends(get_db),
 ) -> TreeListResponse:
-    owned = await (await conn.execute(
-        "SELECT id, name, revision, updated_at, 'owner' as role FROM trees WHERE owner_id = ?",
-        (user['id'],),
-    )).fetchall()
-    shared = await (await conn.execute(
-        """
+    owned = await (
+        await conn.execute(
+            "SELECT id, name, revision, updated_at, 'owner' as role FROM trees WHERE owner_id = ?",
+            (user['id'],),
+        )
+    ).fetchall()
+    shared = await (
+        await conn.execute(
+            """
         SELECT t.id, t.name, t.revision, t.updated_at, g.role
         FROM tree_grants g JOIN trees t ON t.id = g.tree_id
         WHERE g.user_id = ?
         """,
-        (user['id'],),
-    )).fetchall()
-    trees = [
-        TreeListing(id=r['id'], name=r['name'], role=r['role'], revision=r['revision'], updated_at=r['updated_at'])
-        for r in (*owned, *shared)
-    ]
+            (user['id'],),
+        )
+    ).fetchall()
+    trees = [TreeListing(id=r['id'], name=r['name'], role=r['role'], revision=r['revision'], updated_at=r['updated_at']) for r in (*owned, *shared)]
     return TreeListResponse(trees=trees)
 
 
@@ -162,24 +163,28 @@ async def list_grants(
     conn: aiosqlite.Connection = Depends(get_db),
 ) -> GrantListResponse:
     tree, _ = tree_and_role
-    rows = await (await conn.execute(
-        """
+    rows = await (
+        await conn.execute(
+            """
         SELECT u.id as user_id, u.discord_id, u.display_name, g.role
         FROM tree_grants g JOIN users u ON u.id = g.user_id
         WHERE g.tree_id = ?
         ORDER BY u.display_name
         """,
-        (tree['id'],),
-    )).fetchall()
-    return GrantListResponse(grants=[
-        GrantListing(
-            user_id=r['user_id'],
-            discord_id=r['discord_id'],
-            display_name=r['display_name'],
-            role=r['role'],
+            (tree['id'],),
         )
-        for r in rows
-    ])
+    ).fetchall()
+    return GrantListResponse(
+        grants=[
+            GrantListing(
+                user_id=r['user_id'],
+                discord_id=r['discord_id'],
+                display_name=r['display_name'],
+                role=r['role'],
+            )
+            for r in rows
+        ]
+    )
 
 
 @router.post('/{tree_id}/grants', response_model=GrantResponse, status_code=201)
@@ -190,9 +195,7 @@ async def add_grant(
 ) -> GrantResponse:
     tree, _ = tree_and_role
     # resolve or stub-create the target user
-    user_row = await (await conn.execute(
-        'SELECT id FROM users WHERE discord_id = ?', (body.discord_id,)
-    )).fetchone()
+    user_row = await (await conn.execute('SELECT id FROM users WHERE discord_id = ?', (body.discord_id,))).fetchone()
     if user_row is None:
         # stub user: known discord id, not yet linked
         target_id = str(uuid.uuid4())

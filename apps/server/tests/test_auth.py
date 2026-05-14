@@ -32,6 +32,7 @@ async def test_auth_start_returns_code(client: AsyncClient):
 async def test_auth_start_dev_codes_use_dev_alphabet(client: AsyncClient, monkeypatch):
     """on dev, the second alpha char is in {X, Z} so the bot can route."""
     from attu_tree.settings import settings
+
     monkeypatch.setattr(settings.app, 'environment', 'dev')
     # 50 samples is plenty to catch a partition bug
     for _ in range(50):
@@ -45,6 +46,7 @@ async def test_auth_start_prod_codes_avoid_dev_alphabet(client: AsyncClient, mon
     """on prod, the second alpha char is never in {X, Z}; that's how the bot
     decides to route to the prod backend rather than dev."""
     from attu_tree.settings import settings
+
     monkeypatch.setattr(settings.app, 'environment', 'prod')
     for _ in range(50):
         r = await client.post('/api/auth/start')
@@ -64,7 +66,10 @@ async def test_redeem_accepts_various_input_forms(client: AsyncClient):
     # try the lowercased / dash-stripped form (what a sloppy bot might send)
     sloppy = code.lower().replace('-', '')
     body = _json.dumps({
-        'code': sloppy, 'discord_id': '1', 'discord_username': 'x', 'roles': [],
+        'code': sloppy,
+        'discord_id': '1',
+        'discord_username': 'x',
+        'roles': [],
     }).encode()
     r2 = await client.post(
         '/api/bot/auth/link',
@@ -99,7 +104,10 @@ async def test_bot_link_happy_path(client: AsyncClient):
 
     # bot redeems
     body = json.dumps({
-        'code': code, 'discord_id': '111', 'discord_username': 'testuser', 'roles': [],
+        'code': code,
+        'discord_id': '111',
+        'discord_username': 'testuser',
+        'roles': [],
     }).encode()
     r2 = await client.post(
         '/api/bot/auth/link',
@@ -118,7 +126,10 @@ async def test_bot_link_happy_path(client: AsyncClient):
 @pytest.mark.unit
 async def test_bot_link_code_not_found(client: AsyncClient):
     body = json.dumps({
-        'code': 'XXXXXX', 'discord_id': '111', 'discord_username': 'x', 'roles': [],
+        'code': 'XXXXXX',
+        'discord_id': '111',
+        'discord_username': 'x',
+        'roles': [],
     }).encode()
     r = await client.post(
         '/api/bot/auth/link',
@@ -229,6 +240,7 @@ async def test_logout_clears_session(client: AsyncClient):
 # bot-supplied roles
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.unit
 async def test_default_role_is_user(client: AsyncClient):
     """no roles supplied (or empty list) → user is plain 'user'."""
@@ -318,10 +330,16 @@ async def test_concurrent_redeem_only_one_wins(client: AsyncClient):
     code = r.json()['code']
 
     body_a = json.dumps({
-        'code': code, 'discord_id': '1', 'discord_username': 'a', 'roles': [],
+        'code': code,
+        'discord_id': '1',
+        'discord_username': 'a',
+        'roles': [],
     }).encode()
     body_b = json.dumps({
-        'code': code, 'discord_id': '2', 'discord_username': 'b', 'roles': [],
+        'code': code,
+        'discord_id': '2',
+        'discord_username': 'b',
+        'roles': [],
     }).encode()
 
     async def _post(body: bytes):

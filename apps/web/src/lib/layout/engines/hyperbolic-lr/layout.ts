@@ -428,9 +428,7 @@ function emitParentChildEdges(
         const childPos = positions.get(p.id);
         if (!childPos || childPos.space !== "hyperbolic") continue;
         const refs = getParents(p);
-        const visibleParentIds = refs
-            .map((r) => r.personId)
-            .filter((pid) => visible.has(pid));
+        const visibleParentIds = refs.map((r) => r.personId).filter((pid) => visible.has(pid));
         // pick first two as the "couple" anchor for bundling
         const [m, f] = visibleParentIds;
         for (const parentId of visibleParentIds) {

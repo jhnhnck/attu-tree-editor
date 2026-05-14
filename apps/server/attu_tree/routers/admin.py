@@ -23,10 +23,12 @@ async def list_users(
     per_page: int = 50,
 ) -> AdminUserListResponse:
     offset = (max(page, 1) - 1) * per_page
-    rows = await (await conn.execute(
-        'SELECT id, discord_id, discord_username, display_name, role, created_at, deleted_at FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?',
-        (per_page, offset),
-    )).fetchall()
+    rows = await (
+        await conn.execute(
+            'SELECT id, discord_id, discord_username, display_name, role, created_at, deleted_at FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?',
+            (per_page, offset),
+        )
+    ).fetchall()
     total = (await (await conn.execute('SELECT COUNT(*) FROM users')).fetchone())[0]
     users = [
         AdminUserListing(
@@ -53,10 +55,12 @@ async def update_user(
     """admin can rename a user's display_name. role mutation lives on the
     discord side and is mirrored into our users table on every link redemption,
     so it's not exposed here."""
-    row = await (await conn.execute(
-        'SELECT id, discord_id, discord_username, display_name, role, created_at, deleted_at FROM users WHERE id = ?',
-        (user_id,),
-    )).fetchone()
+    row = await (
+        await conn.execute(
+            'SELECT id, discord_id, discord_username, display_name, role, created_at, deleted_at FROM users WHERE id = ?',
+            (user_id,),
+        )
+    ).fetchone()
     if row is None:
         raise HTTPException(status_code=404, detail='user not found')
 
@@ -66,10 +70,12 @@ async def update_user(
             (body.display_name, user_id),
         )
         await conn.commit()
-        row = await (await conn.execute(
-            'SELECT id, discord_id, discord_username, display_name, role, created_at, deleted_at FROM users WHERE id = ?',
-            (user_id,),
-        )).fetchone()
+        row = await (
+            await conn.execute(
+                'SELECT id, discord_id, discord_username, display_name, role, created_at, deleted_at FROM users WHERE id = ?',
+                (user_id,),
+            )
+        ).fetchone()
 
     return AdminUserListing(
         id=row['id'],
@@ -94,6 +100,7 @@ async def delete_user(
     if row is None:
         raise HTTPException(status_code=404, detail='user not found')
     from datetime import datetime
+
     now = datetime.now(UTC).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
     await conn.execute('UPDATE users SET deleted_at = ? WHERE id = ?', (now, user_id))
     await conn.commit()

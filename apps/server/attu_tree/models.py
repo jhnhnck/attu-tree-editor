@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 # auth
 # ---------------------------------------------------------------------------
 
+
 class LinkStartResponse(BaseModel):
     code: str
     expires_at: str
@@ -29,6 +30,7 @@ class MeResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # trees
 # ---------------------------------------------------------------------------
+
 
 class TreeListing(BaseModel):
     id: str
@@ -107,6 +109,7 @@ class GrantListResponse(BaseModel):
 # bot-only
 # ---------------------------------------------------------------------------
 
+
 class BotLinkRequest(BaseModel):
     code: str
     discord_id: str
@@ -145,6 +148,7 @@ class BotViewLinkResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # admin
 # ---------------------------------------------------------------------------
+
 
 class AdminUserListing(BaseModel):
     id: str

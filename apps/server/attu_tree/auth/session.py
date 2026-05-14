@@ -34,16 +34,18 @@ async def create_session(conn: aiosqlite.Connection, user_id: str, token: str | 
 
 async def resolve_session(conn: aiosqlite.Connection, token: str) -> aiosqlite.Row | None:
     """returns the user row (joined) if session is valid and not expired."""
-    row = await (await conn.execute(
-        """
+    row = await (
+        await conn.execute(
+            """
         SELECT u.id, u.discord_id, u.discord_username, u.display_name, u.role, u.deleted_at,
                s.expires_at
         FROM sessions s
         JOIN users u ON u.id = s.user_id
         WHERE s.token = ? AND s.expires_at > strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
         """,
-        (token,),
-    )).fetchone()
+            (token,),
+        )
+    ).fetchone()
     return row
 
 

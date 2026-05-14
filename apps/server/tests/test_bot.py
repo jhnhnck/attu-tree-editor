@@ -12,6 +12,7 @@ from tests.conftest import authed, hmac_headers, link_user
 # bot user trees
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.unit
 async def test_bot_user_trees_empty(client: AsyncClient):
     await link_user(client, '1', 'owner')
@@ -44,6 +45,7 @@ async def test_bot_user_trees_not_linked(client: AsyncClient):
 # ---------------------------------------------------------------------------
 # bot grant / revoke
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.unit
 async def test_bot_grant_and_revoke(client: AsyncClient):
@@ -160,6 +162,7 @@ async def test_bot_view_link_no_access(client: AsyncClient):
 # ---------------------------------------------------------------------------
 # hmac on bot routes
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.unit
 async def test_bot_routes_reject_missing_hmac(client: AsyncClient):

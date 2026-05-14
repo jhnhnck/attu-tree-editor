@@ -83,10 +83,7 @@
      * choices. Level 5 (dot) uses an opaque fill so the tiny shape
      * reads at distance; lower levels use the muted bg+border pair.
      */
-    function toneClassFor(
-        tone: "sky" | "rose" | "amber",
-        lvl: PersonNodeLevel,
-    ): string {
+    function toneClassFor(tone: "sky" | "rose" | "amber", lvl: PersonNodeLevel): string {
         if (lvl >= 5) {
             if (tone === "sky") return "bg-sky-500";
             if (tone === "rose") return "bg-rose-500";

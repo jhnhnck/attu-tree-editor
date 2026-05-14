@@ -46,10 +46,12 @@ async def apply_save(
     schema_version: int | None = None,
 ) -> tuple[int, str]:
     """save and return (new_revision, updated_at). raises RevisionConflict on mismatch."""
-    row = await (await conn.execute(
-        'SELECT revision, blob, updated_at, name, schema_version FROM trees WHERE id = ?',
-        (tree_id,),
-    )).fetchone()
+    row = await (
+        await conn.execute(
+            'SELECT revision, blob, updated_at, name, schema_version FROM trees WHERE id = ?',
+            (tree_id,),
+        )
+    ).fetchone()
     if row is None:
         raise ValueError('tree not found')
 

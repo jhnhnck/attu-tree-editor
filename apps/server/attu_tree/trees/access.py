@@ -25,15 +25,18 @@ async def _get_grant_role(
     """returns 'owner', 'editor', 'viewer', or None if no access."""
     if user_id == owner_id:
         return 'owner'
-    row = await (await conn.execute(
-        'SELECT role FROM tree_grants WHERE tree_id = ? AND user_id = ?',
-        (tree_id, user_id),
-    )).fetchone()
+    row = await (
+        await conn.execute(
+            'SELECT role FROM tree_grants WHERE tree_id = ? AND user_id = ?',
+            (tree_id, user_id),
+        )
+    ).fetchone()
     return row['role'] if row else None
 
 
 def make_tree_access(require_write: bool = False, require_owner: bool = False):
     """returns a FastAPI dependency factory for tree access checks."""
+
     async def _dep(
         tree_id: str,
         user: Annotated[aiosqlite.Row, Depends(current_user)],
@@ -52,6 +55,7 @@ def make_tree_access(require_write: bool = False, require_owner: bool = False):
         if require_write and role == 'viewer':
             raise HTTPException(status_code=403, detail='read-only access')
         return tree, role
+
     return _dep
 
 

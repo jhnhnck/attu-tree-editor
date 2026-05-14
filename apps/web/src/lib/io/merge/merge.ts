@@ -442,7 +442,14 @@ function mergeParentRefs(
         }
         if (existing.role !== ref.role && existing.role !== undefined && ref.role !== undefined) {
             findings.push(
-                makeConflict(pid, `parentRef[${ref.personId}].role`, existing.role, ref.role, aSrc, prefer),
+                makeConflict(
+                    pid,
+                    `parentRef[${ref.personId}].role`,
+                    existing.role,
+                    ref.role,
+                    aSrc,
+                    prefer,
+                ),
             );
             if (prefer !== aSrc) existing.role = ref.role;
         } else if (existing.role === undefined && ref.role !== undefined) {
@@ -450,7 +457,14 @@ function mergeParentRefs(
         }
         if (existing.pedi !== ref.pedi && existing.pedi !== undefined && ref.pedi !== undefined) {
             findings.push(
-                makeConflict(pid, `parentRef[${ref.personId}].pedi`, existing.pedi, ref.pedi, aSrc, prefer),
+                makeConflict(
+                    pid,
+                    `parentRef[${ref.personId}].pedi`,
+                    existing.pedi,
+                    ref.pedi,
+                    aSrc,
+                    prefer,
+                ),
             );
             if (prefer !== aSrc) existing.pedi = ref.pedi;
         } else if (existing.pedi === undefined && ref.pedi !== undefined) {

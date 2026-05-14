@@ -118,14 +118,16 @@ async def start_link(conn: aiosqlite.Connection) -> tuple[str, str, str]:
 
 async def check_link(conn: aiosqlite.Connection, session_token: str) -> str:
     """returns 'pending' or 'ok'. the web client polls this."""
-    row = await (await conn.execute(
-        """
+    row = await (
+        await conn.execute(
+            """
         SELECT user_id, expires_at, consumed_at
         FROM link_codes
         WHERE session_token = ?
         """,
-        (session_token,),
-    )).fetchone()
+            (session_token,),
+        )
+    ).fetchone()
     if row is None:
         return 'not_found'
     if row['expires_at'] < _now_iso():
@@ -165,10 +167,12 @@ async def redeem_link(
     # step 1: read the code row so we can give a precise error and grab the
     # pre-issued session token. this is just for diagnostics + reading the
     # token; the actual consume-claim happens atomically below.
-    row = await (await conn.execute(
-        'SELECT session_token, expires_at, consumed_at FROM link_codes WHERE code = ?',
-        (code_norm,),
-    )).fetchone()
+    row = await (
+        await conn.execute(
+            'SELECT session_token, expires_at, consumed_at FROM link_codes WHERE code = ?',
+            (code_norm,),
+        )
+    ).fetchone()
     if row is None:
         raise LinkCodeError('code_not_found')
     if row['expires_at'] < now:
@@ -190,10 +194,12 @@ async def redeem_link(
         """,
         (candidate_id, discord_id, discord_username, discord_username, role),
     )
-    user_row = await (await conn.execute(
-        'SELECT id, display_name FROM users WHERE discord_id = ?',
-        (discord_id,),
-    )).fetchone()
+    user_row = await (
+        await conn.execute(
+            'SELECT id, display_name FROM users WHERE discord_id = ?',
+            (discord_id,),
+        )
+    ).fetchone()
     user_id = user_row['id']
     display_name = user_row['display_name']
 

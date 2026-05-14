@@ -67,7 +67,7 @@ class Settings(BaseSettings):
         raw = self.server.database_url
         for prefix in ('sqlite+aiosqlite:///', 'sqlite:///'):
             if raw.startswith(prefix):
-                return raw[len(prefix):]
+                return raw[len(prefix) :]
         return raw
 
     @classmethod

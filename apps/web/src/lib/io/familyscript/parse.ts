@@ -182,7 +182,10 @@ function parsePerson(
                 if (ID_RE.test(value)) {
                     const refs: ParentRef[] = person.parentIds ?? [];
                     if (!refs.some((r) => r.personId === value)) {
-                        person.parentIds = [...refs, { personId: value, role: "mother", pedi: "birth" }];
+                        person.parentIds = [
+                            ...refs,
+                            { personId: value, role: "mother", pedi: "birth" },
+                        ];
                     }
                 } else findings.push({ kind: "unknown-tag", from: id, tag, value });
                 break;
@@ -190,7 +193,10 @@ function parsePerson(
                 if (ID_RE.test(value)) {
                     const refs: ParentRef[] = person.parentIds ?? [];
                     if (!refs.some((r) => r.personId === value)) {
-                        person.parentIds = [...refs, { personId: value, role: "father", pedi: "birth" }];
+                        person.parentIds = [
+                            ...refs,
+                            { personId: value, role: "father", pedi: "birth" },
+                        ];
                     }
                 } else findings.push({ kind: "unknown-tag", from: id, tag, value });
                 break;

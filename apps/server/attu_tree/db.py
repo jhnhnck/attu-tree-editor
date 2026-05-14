@@ -53,18 +53,13 @@ async def get_db() -> AsyncGenerator[aiosqlite.Connection]:
 
 
 async def _run_migrations(conn: aiosqlite.Connection) -> None:
-    await conn.execute(
-        'CREATE TABLE IF NOT EXISTS _meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)'
-    )
+    await conn.execute('CREATE TABLE IF NOT EXISTS _meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)')
     await conn.commit()
 
     row = await (await conn.execute("SELECT value FROM _meta WHERE key='schema_version'")).fetchone()
     current = int(row['value']) if row else 0
 
-    migration_files = sorted(
-        f for f in _MIGRATIONS_DIR.iterdir()
-        if re.match(r'^\d{3}_.*\.sql$', f.name)
-    )
+    migration_files = sorted(f for f in _MIGRATIONS_DIR.iterdir() if re.match(r'^\d{3}_.*\.sql$', f.name))
 
     applied = 0
     for path in migration_files:

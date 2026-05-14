@@ -124,7 +124,9 @@ test.describe("family view — cross-engine continuity", () => {
         await givenField.press("Tab"); // triggers onblur → commitGiven
 
         // The family-view card should immediately reflect the new name.
-        await expect(page.locator("[data-person-id]").filter({ hasText: "AlphaEdited" })).toBeVisible();
+        await expect(
+            page.locator("[data-person-id]").filter({ hasText: "AlphaEdited" }),
+        ).toBeVisible();
 
         // Switch to layered engine; the same card must show the edited name.
         await page.getByRole("button", { name: "View" }).click();
@@ -158,7 +160,10 @@ test.describe("family view — cross-engine continuity", () => {
         await paletteInput.fill("Gamma");
 
         // Pick the first person result.
-        const gammaResult = page.locator("[data-kind='person']").filter({ hasText: "Gamma" }).first();
+        const gammaResult = page
+            .locator("[data-kind='person']")
+            .filter({ hasText: "Gamma" })
+            .first();
         await expect(gammaResult).toBeVisible({ timeout: 3_000 });
         await gammaResult.click();
 

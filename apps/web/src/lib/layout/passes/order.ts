@@ -115,11 +115,7 @@ export function computeInitialOrder(graph: LayeredGraph): LayoutNodeId[][] {
  *                    unknown-gender partner.
  * @returns         An OrderedGraph with an `order` map (0-based position per rank).
  */
-export function order(
-    graph: LayeredGraph,
-    overrides?: LayoutOverrides,
-    tree?: Tree,
-): OrderedGraph {
+export function order(graph: LayeredGraph, overrides?: LayoutOverrides, tree?: Tree): OrderedGraph {
     const { nodes } = graph;
 
     if (nodes.size === 0) {

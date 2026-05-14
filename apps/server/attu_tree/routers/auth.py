@@ -53,6 +53,7 @@ async def auth_logout(
 ) -> None:
     if attu_session:
         from attu_tree.auth.session import delete_session
+
         await delete_session(conn, attu_session)
     response.delete_cookie(
         key='attu_session',

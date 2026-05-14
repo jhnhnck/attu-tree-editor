@@ -105,6 +105,7 @@ async def test_unauthenticated_cannot_access_admin_routes(client: AsyncClient):
 # admin's cross-tree authority
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.unit
 async def test_admin_can_read_others_tree(client: AsyncClient):
     """admins bypass per-tree access checks and can GET any tree."""
@@ -193,10 +194,12 @@ async def test_admin_can_revoke_grants_on_others_tree(client: AsyncClient):
 
     client.cookies.set('attu_session', owner_cookie)
     tree_id = (await client.post('/api/trees', json={'name': 'tt'})).json()['id']
-    grant = (await client.post(
-        f'/api/trees/{tree_id}/grants',
-        json={'discord_id': '3', 'role': 'editor'},
-    )).json()
+    grant = (
+        await client.post(
+            f'/api/trees/{tree_id}/grants',
+            json={'discord_id': '3', 'role': 'editor'},
+        )
+    ).json()
 
     client.cookies.set('attu_session', admin_cookie)
     r = await client.delete(f'/api/trees/{tree_id}/grants/{grant["user_id"]}')

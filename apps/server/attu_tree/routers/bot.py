@@ -48,29 +48,28 @@ async def bot_user_trees(
     discord_id: str,
     conn: aiosqlite.Connection = Depends(get_db),
 ) -> TreeListResponse:
-    user_row = await (await conn.execute(
-        'SELECT id FROM users WHERE discord_id = ? AND deleted_at IS NULL', (discord_id,)
-    )).fetchone()
+    user_row = await (await conn.execute('SELECT id FROM users WHERE discord_id = ? AND deleted_at IS NULL', (discord_id,))).fetchone()
     if user_row is None:
         raise HTTPException(status_code=404, detail='user_not_linked')
 
     uid = user_row['id']
-    owned = await (await conn.execute(
-        "SELECT id, name, revision, updated_at, 'owner' as role FROM trees WHERE owner_id = ?",
-        (uid,),
-    )).fetchall()
-    shared = await (await conn.execute(
-        """
+    owned = await (
+        await conn.execute(
+            "SELECT id, name, revision, updated_at, 'owner' as role FROM trees WHERE owner_id = ?",
+            (uid,),
+        )
+    ).fetchall()
+    shared = await (
+        await conn.execute(
+            """
         SELECT t.id, t.name, t.revision, t.updated_at, g.role
         FROM tree_grants g JOIN trees t ON t.id = g.tree_id
         WHERE g.user_id = ?
         """,
-        (uid,),
-    )).fetchall()
-    return TreeListResponse(trees=[
-        TreeListing(id=r['id'], name=r['name'], role=r['role'], revision=r['revision'], updated_at=r['updated_at'])
-        for r in (*owned, *shared)
-    ])
+            (uid,),
+        )
+    ).fetchall()
+    return TreeListResponse(trees=[TreeListing(id=r['id'], name=r['name'], role=r['role'], revision=r['revision'], updated_at=r['updated_at']) for r in (*owned, *shared)])
 
 
 @router.post('/trees/{tree_id}/grants', response_model=GrantResponse, status_code=201)
@@ -80,10 +79,12 @@ async def bot_add_grant(
     conn: aiosqlite.Connection = Depends(get_db),
 ) -> GrantResponse:
     # verify actor owns the tree (or is admin)
-    actor_row = await (await conn.execute(
-        'SELECT id, role FROM users WHERE discord_id = ? AND deleted_at IS NULL',
-        (body.actor_discord_id,),
-    )).fetchone()
+    actor_row = await (
+        await conn.execute(
+            'SELECT id, role FROM users WHERE discord_id = ? AND deleted_at IS NULL',
+            (body.actor_discord_id,),
+        )
+    ).fetchone()
     if actor_row is None:
         raise HTTPException(status_code=403, detail='actor not found')
 
@@ -95,9 +96,7 @@ async def bot_add_grant(
         raise HTTPException(status_code=403, detail='not_owner')
 
     # find or stub-create target
-    target_row = await (await conn.execute(
-        'SELECT id FROM users WHERE discord_id = ?', (body.target_discord_id,)
-    )).fetchone()
+    target_row = await (await conn.execute('SELECT id FROM users WHERE discord_id = ?', (body.target_discord_id,))).fetchone()
     if target_row is None:
         target_id = str(uuid.uuid4())
         await conn.execute(
@@ -124,10 +123,12 @@ async def bot_revoke_grant(
     body: BotRevokeRequest,
     conn: aiosqlite.Connection = Depends(get_db),
 ) -> None:
-    actor_row = await (await conn.execute(
-        'SELECT id, role FROM users WHERE discord_id = ? AND deleted_at IS NULL',
-        (body.actor_discord_id,),
-    )).fetchone()
+    actor_row = await (
+        await conn.execute(
+            'SELECT id, role FROM users WHERE discord_id = ? AND deleted_at IS NULL',
+            (body.actor_discord_id,),
+        )
+    ).fetchone()
     if actor_row is None:
         raise HTTPException(status_code=403, detail='actor not found')
 
@@ -138,9 +139,7 @@ async def bot_revoke_grant(
     if actor_row['id'] != tree_row['owner_id'] and actor_row['role'] != 'admin':
         raise HTTPException(status_code=403, detail='not_owner')
 
-    target_row = await (await conn.execute(
-        'SELECT id FROM users WHERE discord_id = ?', (body.target_discord_id,)
-    )).fetchone()
+    target_row = await (await conn.execute('SELECT id FROM users WHERE discord_id = ?', (body.target_discord_id,))).fetchone()
     if target_row is None:
         return  # nothing to revoke
 
@@ -157,10 +156,12 @@ async def bot_view_link(
     body: BotViewLinkRequest,
     conn: aiosqlite.Connection = Depends(get_db),
 ) -> BotViewLinkResponse:
-    actor_row = await (await conn.execute(
-        'SELECT id, role FROM users WHERE discord_id = ? AND deleted_at IS NULL',
-        (body.actor_discord_id,),
-    )).fetchone()
+    actor_row = await (
+        await conn.execute(
+            'SELECT id, role FROM users WHERE discord_id = ? AND deleted_at IS NULL',
+            (body.actor_discord_id,),
+        )
+    ).fetchone()
     if actor_row is None:
         raise HTTPException(status_code=403, detail='actor not found')
 
@@ -169,13 +170,7 @@ async def bot_view_link(
         raise HTTPException(status_code=404, detail='tree_not_found')
 
     uid = actor_row['id']
-    has_access = (
-        uid == tree_row['owner_id']
-        or actor_row['role'] == 'admin'
-        or await (await conn.execute(
-            'SELECT 1 FROM tree_grants WHERE tree_id = ? AND user_id = ?', (tree_id, uid)
-        )).fetchone() is not None
-    )
+    has_access = uid == tree_row['owner_id'] or actor_row['role'] == 'admin' or await (await conn.execute('SELECT 1 FROM tree_grants WHERE tree_id = ? AND user_id = ?', (tree_id, uid))).fetchone() is not None
     if not has_access:
         raise HTTPException(status_code=403, detail='no_access')
 

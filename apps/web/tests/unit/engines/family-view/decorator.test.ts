@@ -112,10 +112,7 @@ describe("PersonNode — Phase 5 architectural invariant", () => {
     // reappears (e.g. in a Phase-6 hotfix), this fails immediately and
     // points the author at the decorator-extension path instead.
     it("PersonNode.svelte contains zero `gender ===` branches", () => {
-        const path = resolve(
-            process.cwd(),
-            "src/lib/components/tree/PersonNode.svelte",
-        );
+        const path = resolve(process.cwd(), "src/lib/components/tree/PersonNode.svelte");
         const src = readFileSync(path, "utf8");
         // Strip comments so the (intentional) doc reference in the
         // refactor commentary doesn't false-positive.

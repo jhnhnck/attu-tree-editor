@@ -11,6 +11,7 @@ from tests.conftest import authed, link_user
 # CRUD
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.unit
 async def test_create_tree(client: AsyncClient):
     await authed(client, '1')
@@ -81,6 +82,7 @@ async def test_delete_tree_not_owner(client: AsyncClient):
 # ---------------------------------------------------------------------------
 # share grants
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.unit
 async def test_add_and_revoke_grant(client: AsyncClient):
@@ -189,6 +191,7 @@ async def test_listed_trees_include_shared(client: AsyncClient):
 # revision-checked autosave
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.unit
 async def test_save_lww_happy_path(client: AsyncClient):
     await authed(client, '1')
@@ -235,6 +238,7 @@ async def test_save_revision_increments(client: AsyncClient):
 # ---------------------------------------------------------------------------
 # blob size cap
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.unit
 async def test_create_tree_rejects_oversized_blob(client: AsyncClient, monkeypatch):
