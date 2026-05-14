@@ -30,13 +30,13 @@
     import type { PersonId, Tree } from "$lib/domain/types";
     import { layoutHourglass } from "$lib/layout/engines/hyperbolic-lr/layout";
     import {
-        ZERO,
         type Complex,
         type Mobius,
         ID as IDENTITY,
         apply as applyMobius,
         applyInverse,
         translationFromTo,
+        mobiusFromFn,
         abs,
         RHO_MAX,
     } from "$lib/layout/hyperbolic/poincare";
@@ -81,9 +81,50 @@
     let diskCx = $derived(hostW / 2);
     let diskCy = $derived(hostH / 2);
 
-    // Run the layout once per (tree, focus). Cheap relative to a re-paint
-    // so we don't bother memoising further.
-    let layoutOut = $derived(layoutHourglass(tree, tree.rootId, new Set(Object.keys(tree.people))));
+    // Live-tunable knobs. Persisted in localStorage so a reload keeps the
+    // chosen values; the tuning panel writes the same keys back.
+    interface Tuning {
+        stepDistance: number;
+        spouseAngle: number;
+        baseCardPx: number;
+        clusterThresholdPx: number;
+    }
+    const DEFAULT_TUNING: Tuning = {
+        stepDistance: 0.7,
+        spouseAngle: 0.35,
+        baseCardPx: 120,
+        clusterThresholdPx: 12,
+    };
+    const TUNING_STORAGE_KEY = "fte.hyperbolic.tuning.v1";
+    function readTuning(): Tuning {
+        if (typeof localStorage === "undefined") return DEFAULT_TUNING;
+        try {
+            const raw = localStorage.getItem(TUNING_STORAGE_KEY);
+            if (!raw) return DEFAULT_TUNING;
+            const parsed = JSON.parse(raw) as Partial<Tuning>;
+            return { ...DEFAULT_TUNING, ...parsed };
+        } catch {
+            return DEFAULT_TUNING;
+        }
+    }
+    let tuning = $state<Tuning>(readTuning());
+    $effect(() => {
+        if (typeof localStorage === "undefined") return;
+        try {
+            localStorage.setItem(TUNING_STORAGE_KEY, JSON.stringify(tuning));
+        } catch {
+            /* quota or disabled — non-fatal */
+        }
+    });
+
+    // Run the layout once per (tree, focus, tuning). Cheap relative to a
+    // re-paint so we don't bother memoising further.
+    let layoutOut = $derived(
+        layoutHourglass(tree, tree.rootId, new Set(Object.keys(tree.people)), {
+            stepDistance: tuning.stepDistance,
+            spouseAngle: tuning.spouseAngle,
+        }),
+    );
 
     // View transform: a single Möbius that maps layout coords → viewed coords.
     // Identity at startup; drag-pan composes additional translations into it.
@@ -98,10 +139,7 @@
         return dragLive ? dragLive(stage1) : stage1;
     }
 
-    /** Approximate PersonNode width in CSS pixels at level 0. */
-    const BASE_CARD_PX = 120;
-    /** Below this on-screen size the card collapses to a cluster glyph. */
-    const CLUSTER_THRESHOLD_PX = 12;
+    let isTuningOpen = $state(false);
 
     // DOI scores per (tree, focus, selection). Cheap; recomputed on selection
     // change. Selection enters via the `anchors` set so the focused person
@@ -134,8 +172,8 @@
             const cy = diskCy + z.im * diskRadius;
             // Fisheye: cards near the disk boundary shrink toward zero.
             const scale = Math.max(0.05, 1 - r * r);
-            const onScreenPx = BASE_CARD_PX * scale;
-            const belowThreshold = onScreenPx < CLUSTER_THRESHOLD_PX;
+            const onScreenPx = tuning.baseCardPx * scale;
+            const belowThreshold = onScreenPx < tuning.clusterThresholdPx;
             out.push({ id, cx, cy, scale, belowThreshold });
         }
         return out;
@@ -202,14 +240,31 @@
     }
     let projectedEdges = $derived.by((): ProjectedEdge[] => {
         if (diskRadius <= 0) return [];
+        // Map clusterId → its rep's hyperbolic position. Edges whose
+        // endpoint is inside a cluster get rerouted to the cluster's rep
+        // so they terminate on the visible glyph rather than the now-
+        // hidden card. Edges fully inside a single cluster are dropped.
+        const clusterRepZ = new Map<string, Complex>();
+        for (const c of clusters) {
+            const pos = layoutOut.positions.get(c.rep);
+            if (pos && pos.space === "hyperbolic") clusterRepZ.set(c.id, pos.z);
+        }
         const out: ProjectedEdge[] = [];
         for (const edge of layoutOut.edges) {
             if (edge.route.kind !== "geodesic-arc") continue;
             const from = edge.route.from;
             const to = edge.route.to;
             if (from.space !== "hyperbolic" || to.space !== "hyperbolic") continue;
-            const f = viewPoint(from.z);
-            const t = viewPoint(to.z);
+            const personFrom = edge.persons[0];
+            const personTo = edge.persons[1];
+            if (personFrom === undefined || personTo === undefined) continue;
+            const fromCluster = clusterOf.get(personFrom);
+            const toCluster = clusterOf.get(personTo);
+            if (fromCluster && fromCluster === toCluster) continue;
+            const fromZ = fromCluster ? (clusterRepZ.get(fromCluster) ?? from.z) : from.z;
+            const toZ = toCluster ? (clusterRepZ.get(toCluster) ?? to.z) : to.z;
+            const f = viewPoint(fromZ);
+            const t = viewPoint(toZ);
             if (abs(f) > RHO_MAX || abs(t) > RHO_MAX) continue;
             out.push({
                 id: edge.id,
@@ -278,22 +333,19 @@
         dragLive = translationFromTo(viewedAnchor, clampedPointer);
     }
 
-    function onPointerUp(e: PointerEvent): void {
-        if (!dragAnchor) return;
-        // Commit `dragLive` into viewBase. Composition: viewedZ = dragLive(viewBase(z)).
-        // Parametrise the composition by re-deriving from current+anchor.
-        const rect = hostEl?.getBoundingClientRect();
-        if (rect) {
-            const px = e.clientX - rect.left;
-            const py = e.clientY - rect.top;
-            const finalLayoutAnchor = pixelToLayoutDisk(px, py);
-            // We want a new viewBase' such that viewBase'(dragAnchor) === viewPoint(dragAnchor)
-            // after the drag. Equivalent: viewBase'(z) = translationFromTo(dragAnchor, finalLayoutAnchor)(z).
-            // Since translationFromTo is a one-shot function, we capture it.
-            const layoutTranslate = translationFromTo(dragAnchor, finalLayoutAnchor);
-            // Convert one-shot back into a (a, θ) Mobius by sampling: take what it does to ZERO.
-            const newA = layoutTranslate(ZERO);
-            viewBase = { a: { re: -newA.re, im: -newA.im }, theta: 0 };
+    function onPointerUp(_e: PointerEvent): void {
+        if (!dragAnchor) {
+            dragLive = undefined;
+            return;
+        }
+        // Bake what the user has been seeing — dragLive ∘ viewBase — into
+        // a single canonical Mobius. Composition of two pure translations
+        // is not itself a pure translation (it picks up a rotation), so we
+        // recover (a, θ) from sampling rather than algebraically.
+        if (dragLive) {
+            const live = dragLive;
+            const base = viewBase;
+            viewBase = mobiusFromFn((z) => live(applyMobius(base, z)));
         }
         dragLive = undefined;
         dragAnchor = undefined;
@@ -465,21 +517,28 @@
         {#each projected as item (item.id)}
             {@const person = lookupPerson(item.id)}
             {#if person && !clusterOf.has(item.id)}
+                <!-- Two nested transforms — the outer centres the card on (cx, cy)
+                     via translate(-50%, -50%), the inner applies the fisheye
+                     scale around its own center. Splitting them avoids a known
+                     percent-translate × scale anchoring drift that visibly
+                     detaches the card from its edge as it shrinks. -->
                 <!-- svelte-ignore a11y_no_static_element_interactions -->
                 <div
-                    class="hyp-person absolute -translate-x-1/2 -translate-y-1/2"
-                    style="left: {item.cx}px; top: {item.cy}px; transform: translate(-50%, -50%) scale({item.scale}); transform-origin: center; pointer-events: {item.scale >
+                    class="hyp-person absolute"
+                    style="left: {item.cx}px; top: {item.cy}px; transform: translate(-50%, -50%); pointer-events: {item.scale >
                     0.15
                         ? 'auto'
                         : 'none'};"
                     ondblclick={() => onCardDoubleClick(item.id)}
                 >
-                    <PersonNode
-                        {person}
-                        selected={selectedId === item.id}
-                        level={0}
-                        onselect={onCardSelect}
-                    />
+                    <div style="transform: scale({item.scale}); transform-origin: center;">
+                        <PersonNode
+                            {person}
+                            selected={selectedId === item.id}
+                            level={0}
+                            onselect={onCardSelect}
+                        />
+                    </div>
                 </div>
             {/if}
         {/each}
@@ -527,6 +586,82 @@
         >
             hyperbolic engine — proband: {probandName}
         </div>
+
+        <!-- Tuning panel. Live-adjusts the four geometric/clustering knobs
+             that meaningfully change how the disk reads. Persisted to
+             localStorage so reloads keep your settings. -->
+        <div class="hyp-tuning absolute bottom-3 right-3 text-xs">
+            <button
+                type="button"
+                class="text-fg-muted rounded bg-canvas-elev/80 px-2 py-1 backdrop-blur hover:text-fg"
+                onclick={() => (isTuningOpen = !isTuningOpen)}
+                aria-expanded={isTuningOpen}
+                aria-label="toggle tuning panel"
+            >
+                {isTuningOpen ? "▾ tuning" : "▸ tuning"}
+            </button>
+            {#if isTuningOpen}
+                <div
+                    class="mt-1 w-64 rounded bg-canvas-elev/95 p-3 text-fg shadow-lg backdrop-blur"
+                >
+                    <div class="hyp-tuning-row">
+                        <label for="hyp-step">step distance</label>
+                        <input
+                            id="hyp-step"
+                            type="range"
+                            min="0.3"
+                            max="1.5"
+                            step="0.05"
+                            bind:value={tuning.stepDistance}
+                        />
+                        <span class="hyp-tuning-value">{tuning.stepDistance.toFixed(2)}</span>
+                    </div>
+                    <div class="hyp-tuning-row">
+                        <label for="hyp-spouse">spouse angle (rad)</label>
+                        <input
+                            id="hyp-spouse"
+                            type="range"
+                            min="0.1"
+                            max="1.0"
+                            step="0.05"
+                            bind:value={tuning.spouseAngle}
+                        />
+                        <span class="hyp-tuning-value">{tuning.spouseAngle.toFixed(2)}</span>
+                    </div>
+                    <div class="hyp-tuning-row">
+                        <label for="hyp-card">base card px</label>
+                        <input
+                            id="hyp-card"
+                            type="range"
+                            min="40"
+                            max="200"
+                            step="5"
+                            bind:value={tuning.baseCardPx}
+                        />
+                        <span class="hyp-tuning-value">{tuning.baseCardPx}</span>
+                    </div>
+                    <div class="hyp-tuning-row">
+                        <label for="hyp-cluster">cluster threshold px</label>
+                        <input
+                            id="hyp-cluster"
+                            type="range"
+                            min="4"
+                            max="60"
+                            step="2"
+                            bind:value={tuning.clusterThresholdPx}
+                        />
+                        <span class="hyp-tuning-value">{tuning.clusterThresholdPx}</span>
+                    </div>
+                    <button
+                        type="button"
+                        class="text-fg-muted mt-2 w-full rounded border border-fg-muted/30 px-2 py-1 hover:text-fg"
+                        onclick={() => (tuning = { ...DEFAULT_TUNING })}
+                    >
+                        reset to defaults
+                    </button>
+                </div>
+            {/if}
+        </div>
     {/if}
 </div>
 
@@ -557,5 +692,25 @@
         pointer-events: none;
         user-select: none;
         fill: var(--color-fg-muted);
+    }
+    .hyp-tuning-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr auto;
+        gap: 0.5rem;
+        align-items: center;
+        margin: 0.25rem 0;
+    }
+    .hyp-tuning-row label {
+        color: var(--color-fg-muted);
+        font-size: 11px;
+    }
+    .hyp-tuning-row input[type="range"] {
+        width: 100%;
+    }
+    .hyp-tuning-value {
+        font-variant-numeric: tabular-nums;
+        font-size: 11px;
+        min-width: 2.5em;
+        text-align: right;
     }
 </style>

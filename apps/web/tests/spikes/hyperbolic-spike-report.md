@@ -1,7 +1,7 @@
 # Hyperbolic Lamping-Rao Phase 2 spike
 
-Captured: 2026-05-10T23:07:46.449Z
-Proband: HLXJZ (Solurak Garvak)
+Captured: 2026-05-14T04:06:10.418Z
+Proband: EZ5OI (Solurak Garvak)
 
 ## DoD checklist
 

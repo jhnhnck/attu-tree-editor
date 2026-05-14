@@ -157,6 +157,39 @@ export function translationFromTo(from: Complex, to: Complex): (z: Complex) => C
     };
 }
 
+/**
+ * Recover the canonical (a, θ) parameters of a disk-preserving Möbius from
+ * a function that implements it. Used to bake the composition of two
+ * Möbius transforms — viewBase ∘ dragLive — back into a single Mobius
+ * record. Composition of two pure (θ = 0) translations is not itself a
+ * pure translation: it picks up a rotation. Sampling captures both.
+ *
+ * Derivation: for T(z) = e^{iθ}(z − a)/(1 − ā z),
+ *   T(0)  = −e^{iθ}·a
+ *   T'(0) = e^{iθ}(1 − |a|²)
+ * so e^{iθ} = T'(0) / (1 − |T(0)|²) and a = −T(0)·conj(e^{iθ}).
+ */
+export function mobiusFromFn(fn: (z: Complex) => Complex): Mobius {
+    const T0 = fn(ZERO);
+    // Central difference for T'(0); ε small but well clear of float64 noise.
+    const eps = 1e-6;
+    const Tp = fn({ re: eps, im: 0 });
+    const Tm = fn({ re: -eps, im: 0 });
+    const dT: Complex = {
+        re: (Tp.re - Tm.re) / (2 * eps),
+        im: (Tp.im - Tm.im) / (2 * eps),
+    };
+    const k = 1 - (T0.re * T0.re + T0.im * T0.im);
+    if (k <= 1e-12) return ID;
+    const eit: Complex = { re: dT.re / k, im: dT.im / k };
+    const theta = Math.atan2(eit.im, eit.re);
+    const a: Complex = {
+        re: -(T0.re * eit.re + T0.im * eit.im),
+        im: -(T0.im * eit.re - T0.re * eit.im),
+    };
+    return { a, theta };
+}
+
 // ---------------------------------------------------------------------------
 // Hyperbolic measurement
 // ---------------------------------------------------------------------------

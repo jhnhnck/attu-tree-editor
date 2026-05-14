@@ -26,6 +26,7 @@ import {
     applyInverse,
     translate,
     translationFromTo,
+    mobiusFromFn,
     hDistance,
     placeChild,
     geodesic,
@@ -172,5 +173,39 @@ describe("geodesic", () => {
         // Sanity ping so the exported ONE actually points where we expect.
         expect(ONE.re).toBe(1);
         expect(ONE.im).toBe(0);
+    });
+});
+
+describe("mobiusFromFn", () => {
+    it("recovers the identity transform", () => {
+        const m = mobiusFromFn((z) => z);
+        closeC(m.a, ZERO, 1e-6);
+        close(m.theta, 0, 1e-6);
+    });
+
+    it("recovers a pure translation", () => {
+        const orig = translate({ re: 0.3, im: -0.2 });
+        const m = mobiusFromFn((z) => apply(orig, z));
+        closeC(m.a, orig.a, 1e-6);
+        close(m.theta, 0, 1e-6);
+    });
+
+    it("recovers a translation+rotation composition", () => {
+        // Compose two pure translations: result picks up a rotation (Berry-
+        // like). The composed function must round-trip through mobiusFromFn
+        // with sample points matching the original on more than just z=0.
+        const t1 = translate({ re: 0.2, im: 0.1 });
+        const t2 = translate({ re: -0.1, im: 0.3 });
+        const composed = (z: Complex) => apply(t2, apply(t1, z));
+        const m = mobiusFromFn(composed);
+        const samples: Complex[] = [
+            { re: 0.0, im: 0.0 },
+            { re: 0.25, im: 0.0 },
+            { re: -0.1, im: 0.4 },
+            { re: 0.3, im: -0.2 },
+        ];
+        for (const z of samples) {
+            closeC(apply(m, z), composed(z), 1e-5);
+        }
     });
 });
