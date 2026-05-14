@@ -26,7 +26,7 @@
         PersonId,
         Tree,
     } from "$lib/domain/types";
-    import type { CouplePatch, PersonPatch } from "$lib/domain/tree";
+    import type { CouplePatch, PersonPatch, UnionPatch } from "$lib/domain/tree";
     import type { PortraitUrlCache } from "$lib/state/portraitUrls.svelte";
     import PersonalTab from "./PersonalTab.svelte";
     import ConnectionsTab from "./ConnectionsTab.svelte";
@@ -66,6 +66,18 @@
         oncreateAndLink: (forPersonId: PersonId, slot: Slot) => void;
         onselect: (id: PersonId) => void;
         onpatchCouple: (aId: PersonId, bId: PersonId, patch: CouplePatch) => void;
+        /** Phase 3c follow-up: append a partner to an existing union (N-partner). */
+        onaddUnionPartner?: ((unionId: string, personId: PersonId) => void) | undefined;
+        /** remove a partner from a union; empty unions are deleted by the domain op. */
+        onremoveUnionPartner?: ((unionId: string, personId: PersonId) => void) | undefined;
+        /** patch union metadata (kind / closed / name / preferredBy / etc.). */
+        onpatchUnion?: ((unionId: string, patch: UnionPatch) => void) | undefined;
+        /** set or clear `personId`'s preferred union; enforces one-per-person. */
+        onsetPreferredUnion?:
+            | ((unionId: string, personId: PersonId, preferred: boolean) => void)
+            | undefined;
+        /** create a fresh person and append them as a new partner of the union. */
+        oncreateAndLinkUnionPartner?: ((unionId: string) => void) | undefined;
         onduplicate: (id: PersonId) => void;
         onsetRoot: (id: PersonId) => void;
         ondelete: (id: PersonId) => void;
@@ -100,6 +112,11 @@
         oncreateAndLink,
         onselect,
         onpatchCouple,
+        onaddUnionPartner,
+        onremoveUnionPartner,
+        onpatchUnion,
+        onsetPreferredUnion,
+        oncreateAndLinkUnionPartner,
         onduplicate,
         onsetRoot,
         ondelete,
@@ -362,6 +379,11 @@
                     oncreateAndLink={(slot: Slot) => oncreateAndLink(person.id, slot)}
                     {onselect}
                     {onpatchCouple}
+                    {onaddUnionPartner}
+                    {onremoveUnionPartner}
+                    {onpatchUnion}
+                    {onsetPreferredUnion}
+                    {oncreateAndLinkUnionPartner}
                     {traceTargetId}
                     {onsetTraceTarget}
                 />

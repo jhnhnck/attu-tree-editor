@@ -9,6 +9,8 @@
         ArrowRightLeft,
         Eye,
         Plus,
+        Star,
+        Users,
         X,
         XCircle,
         UserPlus,
@@ -23,8 +25,19 @@
         Person,
         PersonId,
         Tree,
+        UnionKind,
+        UnionRecord,
     } from "$lib/domain/types";
-    import { getParents, type CouplePatch } from "$lib/domain/tree";
+    import { getUnions, getParents, type CouplePatch, type UnionPatch } from "$lib/domain/tree";
+
+    const UNION_KIND_OPTIONS: readonly UnionKind[] = [
+        "romantic",
+        "civil",
+        "religious",
+        "ritual",
+        "cohabit",
+        "sworn",
+    ];
 
     const ROLE_OPTIONS: readonly ParentRole[] = [
         "mother",
@@ -57,6 +70,10 @@
         | { kind: "parent-extra" }
         | { kind: "partner" }
         | { kind: "child" };
+    // local-only slot kind for the "add partner to union" affordance; never
+    // forwarded to oncreateAndLink (oncreateAndLinkUnionPartner is the
+    // dedicated handler instead).
+    type UnionAddSlot = { kind: "union-add"; unionId: string };
 
     interface Props {
         tree: Tree;
@@ -82,6 +99,15 @@
         oncreateAndLink: (slot: Slot) => void;
         onselect: (id: PersonId) => void;
         onpatchCouple: (aId: PersonId, bId: PersonId, patch: CouplePatch) => void;
+        /** Phase 3c follow-up: union-aware ops. all optional so the inspector
+         * keeps rendering against trees that haven't migrated yet. */
+        onaddUnionPartner?: ((unionId: string, personId: PersonId) => void) | undefined;
+        onremoveUnionPartner?: ((unionId: string, personId: PersonId) => void) | undefined;
+        onpatchUnion?: ((unionId: string, patch: UnionPatch) => void) | undefined;
+        onsetPreferredUnion?:
+            | ((unionId: string, personId: PersonId, preferred: boolean) => void)
+            | undefined;
+        oncreateAndLinkUnionPartner?: ((unionId: string) => void) | undefined;
         /** currently selected trace target, if any */
         traceTargetId?: PersonId | undefined;
         /** callback to set the trace target (path will be drawn on canvas) */
@@ -103,11 +129,16 @@
         oncreateAndLink,
         onselect,
         onpatchCouple,
+        onaddUnionPartner,
+        onremoveUnionPartner,
+        onpatchUnion,
+        onsetPreferredUnion,
+        oncreateAndLinkUnionPartner,
         traceTargetId,
         onsetTraceTarget,
     }: Props = $props();
 
-    let chooserSlot = $state<Slot | undefined>();
+    let chooserSlot = $state<Slot | UnionAddSlot | undefined>();
     let traceMode = $state(false);
 
     const allPeople = $derived(Object.values(tree.people));
@@ -150,6 +181,29 @@
         );
     }
 
+    // unions this person is part of, sourced from tree.unions[] (Phase 3a/b
+    // migration target). The pair-row UI above still drives the common 2-
+    // partner case; this section surfaces N>2 unions and the per-union
+    // metadata (kind / closed / name / preferred) that pair-rows don't host.
+    const myUnions = $derived(getUnions(tree).filter((u) => u.partnerIds.includes(person.id)));
+    const multiUnions = $derived(myUnions.filter((u) => u.partnerIds.length > 2));
+    function unionByPair(otherId: PersonId): UnionRecord | undefined {
+        return myUnions.find(
+            (u) =>
+                u.partnerIds.length === 2 &&
+                u.partnerIds.includes(person.id) &&
+                u.partnerIds.includes(otherId),
+        );
+    }
+    function unionLabel(u: UnionRecord): string {
+        if (u.name && u.name.trim() !== "") return u.name;
+        const otherNames = u.partnerIds
+            .filter((pid) => pid !== person.id)
+            .map((pid) => fullName(tree.people[pid]))
+            .filter(Boolean);
+        return otherNames.length > 0 ? otherNames.join(", ") : "(union)";
+    }
+
     function toggleCurrent(couple: CoupleRecord, partnerId: PersonId): void {
         const ended = couple.isCurrent === false;
         onpatchCouple(person.id, partnerId, { isCurrent: ended ? undefined : false });
@@ -160,19 +214,24 @@
         onpatchCouple(person.id, partnerId, { isPrimary: secondary ? undefined : false });
     }
 
-    function chooserExcludes(slot: Slot): PersonId[] {
+    function chooserExcludes(slot: Slot | UnionAddSlot): PersonId[] {
         // exclude self always, plus the existing fillers for this slot
         const ex: PersonId[] = [person.id];
         if (slot.kind === "partner") ex.push(...person.spouseIds);
         if (slot.kind === "child") ex.push(...children.map((c) => c.id));
+        if (slot.kind === "union-add") {
+            const u = myUnions.find((x) => x.id === slot.unionId);
+            if (u) ex.push(...u.partnerIds);
+        }
         return ex;
     }
 
-    function chooserTitle(slot: Slot | "trace"): string {
+    function chooserTitle(slot: Slot | UnionAddSlot | "trace"): string {
         if (slot === "trace") return "trace path to…";
         if (slot.kind === "parent") return slot.role === "mother" ? "set mother" : "set father";
         if (slot.kind === "parent-extra") return "add parent";
         if (slot.kind === "partner") return "add partner";
+        if (slot.kind === "union-add") return "add partner to union";
         return "add child";
     }
 
@@ -188,6 +247,7 @@
         else if (slot.kind === "parent-extra")
             onaddParentRef?.(person.id, { personId: id, role: "parent", pedi: "birth" });
         else if (slot.kind === "partner") onaddPartner(person.id, id);
+        else if (slot.kind === "union-add") onaddUnionPartner?.(slot.unionId, id);
         else onaddChild(person.id, id);
         chooserSlot = undefined;
     }
@@ -195,7 +255,11 @@
     function oncreateFromChooser(): void {
         const slot = chooserSlot;
         if (!slot) return;
-        oncreateAndLink(slot);
+        if (slot.kind === "union-add") {
+            oncreateAndLinkUnionPartner?.(slot.unionId);
+        } else {
+            oncreateAndLink(slot);
+        }
         chooserSlot = undefined;
     }
 
@@ -387,6 +451,7 @@
         </h3>
         {#each partners as p (p.id)}
             {@const couple = coupleWith(p)}
+            {@const pairUnion = unionByPair(p.id)}
             <div class={rowCls}>
                 <button
                     type="button"
@@ -395,6 +460,17 @@
                 >
                     {fullName(p)}
                 </button>
+                {#if pairUnion && onaddUnionPartner}
+                    <button
+                        type="button"
+                        class={iconBtnCls}
+                        title="add a third partner to this union (make it N-partner)"
+                        aria-label="add partner to union with {fullName(p)}"
+                        onclick={() => (chooserSlot = { kind: "union-add", unionId: pairUnion.id })}
+                    >
+                        <UserPlus size={12} />
+                    </button>
+                {/if}
                 <button
                     type="button"
                     class={iconBtnCls}
@@ -449,6 +525,124 @@
             </button>
         </div>
     </section>
+
+    <!-- N-partner unions (Phase 3c follow-up). 2-partner unions stay in the
+         pair-row section above; this surface adds metadata (kind / closed /
+         name / preferred) and the chip-based partner roster. -->
+    {#if multiUnions.length > 0}
+        <section class="space-y-1" data-testid="multi-unions-section">
+            <h3 class={sectionH}>
+                <Users size={11} />
+                unions ({multiUnions.length})
+            </h3>
+            {#each multiUnions as u (u.id)}
+                {@const others = u.partnerIds.filter((pid) => pid !== person.id)}
+                {@const isPreferred = u.preferredBy?.[person.id] === true}
+                <div class="border-line space-y-1.5 rounded border px-2 py-1.5">
+                    <!-- header: name + preferred toggle -->
+                    <div class="flex items-center gap-1">
+                        <input
+                            type="text"
+                            class="border-line bg-canvas focus:border-accent flex-1 rounded border px-1.5 py-0.5 text-xs"
+                            value={u.name ?? ""}
+                            placeholder={unionLabel(u)}
+                            aria-label="union name"
+                            onchange={(e: Event & { currentTarget: HTMLInputElement }) =>
+                                onpatchUnion?.(u.id, {
+                                    name: e.currentTarget.value || undefined,
+                                })}
+                        />
+                        {#if onsetPreferredUnion}
+                            <button
+                                type="button"
+                                class={iconBtnCls}
+                                title={isPreferred
+                                    ? "clear preferred-union flag"
+                                    : "mark as preferred union"}
+                                aria-label={isPreferred
+                                    ? "clear preferred union"
+                                    : "set preferred union"}
+                                class:text-accent={isPreferred}
+                                onclick={() => onsetPreferredUnion?.(u.id, person.id, !isPreferred)}
+                            >
+                                <Star size={12} />
+                            </button>
+                        {/if}
+                    </div>
+                    <!-- partner chips -->
+                    <div class="flex flex-wrap gap-1">
+                        {#each others as pid (pid)}
+                            {@const op = tree.people[pid]}
+                            {#if op}
+                                <span
+                                    class="border-line bg-canvas flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px]"
+                                >
+                                    <button
+                                        type="button"
+                                        class="hover:underline"
+                                        onclick={() => onselect(op.id)}
+                                    >
+                                        {fullName(op)}
+                                    </button>
+                                    {#if onremoveUnionPartner}
+                                        <button
+                                            type="button"
+                                            class="text-fg-muted hover:text-accent"
+                                            title="remove from union"
+                                            aria-label="remove {fullName(op)} from union"
+                                            onclick={() => onremoveUnionPartner?.(u.id, op.id)}
+                                        >
+                                            <X size={10} />
+                                        </button>
+                                    {/if}
+                                </span>
+                            {/if}
+                        {/each}
+                        {#if onaddUnionPartner}
+                            <button
+                                type="button"
+                                class="text-accent hover:bg-canvas border-line flex items-center gap-1 rounded-full border border-dashed px-2 py-0.5 text-[11px]"
+                                onclick={() => (chooserSlot = { kind: "union-add", unionId: u.id })}
+                                aria-label="add partner to union"
+                            >
+                                <Plus size={10} />
+                                add
+                            </button>
+                        {/if}
+                    </div>
+                    <!-- kind + closed -->
+                    <div class="flex items-center gap-2 text-[11px]">
+                        <select
+                            class="border-line bg-canvas text-fg-muted hover:text-fg rounded border px-1 py-0.5"
+                            title="union kind"
+                            aria-label="union kind"
+                            value={u.kind ?? "romantic"}
+                            onchange={(e: Event & { currentTarget: HTMLSelectElement }) =>
+                                onpatchUnion?.(u.id, {
+                                    kind: e.currentTarget.value as UnionKind,
+                                })}
+                        >
+                            {#each UNION_KIND_OPTIONS as opt (opt)}
+                                <option value={opt}>{opt}</option>
+                            {/each}
+                        </select>
+                        <button
+                            type="button"
+                            onclick={() =>
+                                onpatchUnion?.(u.id, {
+                                    closed: u.closed === true ? undefined : true,
+                                })}
+                            class="border-line text-fg-muted hover:text-fg rounded border px-1.5 py-0.5"
+                            class:text-accent={u.closed === true}
+                            class:border-accent={u.closed === true}
+                        >
+                            {u.closed === true ? "closed" : "open"}
+                        </button>
+                    </div>
+                </div>
+            {/each}
+        </section>
+    {/if}
 
     <!-- children -->
     <section class="space-y-1">

@@ -46,21 +46,27 @@
 
     import {
         addPerson,
+        addUnionPartner,
         createTree,
         getParents,
         linkParent,
         linkParentRef,
         linkSpouse,
         removePerson,
+        removeUnionPartner,
+        setPreferredUnion,
         unlinkParent,
         unlinkParentByPersonId,
         unlinkSpouse,
         updateCouple,
         updateParentRef,
         updatePerson,
+        updateUnion,
         type CouplePatch,
         type PersonPatch,
+        type UnionPatch,
     } from "$lib/domain/tree";
+    import { migratePreferredUnion } from "$lib/state/preferredUnionMigration";
     import { createTreeStore } from "$lib/state/tree.svelte";
     import { createSelectionStore } from "$lib/state/selection.svelte";
     import { createToastsStore } from "$lib/state/toasts.svelte";
@@ -247,6 +253,21 @@
     }
     let pathHighlightEnabled = $state(readPathHighlightPref());
 
+    // Visual fix-up plan phase 0: generation-badge overlay master switch.
+    // Default true preserves current behaviour; phase 4 adds the View-menu
+    // command and flips the default to false. Mirrors path-highlight.
+    const GEN_BADGE_LS_KEY = "fte.overlays.generationBadge";
+    function readGenerationBadgePref(): boolean {
+        try {
+            const raw =
+                typeof localStorage === "undefined" ? null : localStorage.getItem(GEN_BADGE_LS_KEY);
+            return raw !== "false";
+        } catch {
+            return true;
+        }
+    }
+    let generationBadgeEnabled = $state(readGenerationBadgePref());
+
     // save-pill state
     let lastSavedAt = $state<number | undefined>(undefined);
     let lastError = $state<string | undefined>(undefined);
@@ -330,7 +351,7 @@
             const lastId = await getSetting<string>(SETTING_KEYS.lastOpenedTreeId);
             if (lastId) {
                 const r = await loadTree(lastId);
-                if (r.ok) treeStore.hydrate(r.value);
+                if (r.ok) treeStore.hydrate(migratePreferredUnion(r.value));
             }
             await refreshRecents();
         } catch (e) {
@@ -349,7 +370,7 @@
         }
         try {
             const r = await treesApi.get(treeId);
-            treeStore.hydrate(r.blob as ReturnType<typeof createTree>);
+            treeStore.hydrate(migratePreferredUnion(r.blob as ReturnType<typeof createTree>));
             syncStore.setRevision(r.revision);
             toasts.push(`viewing: ${r.name || "untitled"} (read-only)`, "info", 5000);
         } catch {
@@ -386,7 +407,7 @@
         }
         portraitUrls.clear();
         readOnly = false;
-        treeStore.hydrate(r.value);
+        treeStore.hydrate(migratePreferredUnion(r.value));
         // drop any save the autosave $effect may have queued for the previous
         // tree while loadTree was awaiting; hydrate sets dirty=false so the
         // effect won't re-fire, but a debounced timer from before the load
@@ -591,6 +612,39 @@
 
     function patchCouple(aId: PersonId, bId: PersonId, patch: CouplePatch): void {
         treeStore.update((t) => updateCouple(t, aId, bId, patch));
+    }
+
+    function addUnionPartnerLink(unionId: string, personId: PersonId): void {
+        const r = addUnionPartner(treeStore.tree, unionId, personId);
+        if (!r.ok) {
+            toasts.push(r.error, "error");
+            return;
+        }
+        treeStore.set(r.value);
+    }
+
+    function removeUnionPartnerLink(unionId: string, personId: PersonId): void {
+        treeStore.update((t) => removeUnionPartner(t, unionId, personId));
+    }
+
+    function patchUnion(unionId: string, patch: UnionPatch): void {
+        treeStore.update((t) => updateUnion(t, unionId, patch));
+    }
+
+    function setPreferredUnionLink(unionId: string, personId: PersonId, preferred: boolean): void {
+        treeStore.update((t) => setPreferredUnion(t, unionId, personId, preferred));
+    }
+
+    function createAndLinkUnionPartner(unionId: string): void {
+        const t = treeStore.tree;
+        const { tree: t1, id: newId } = addPerson(t, blankPerson());
+        const r = addUnionPartner(t1, unionId, newId);
+        if (!r.ok) {
+            toasts.push(r.error, "error");
+            return;
+        }
+        treeStore.set(r.value);
+        focusPerson(newId);
     }
 
     function createAndLink(forPersonId: PersonId, slot: ConnectionSlot): void {
@@ -1329,6 +1383,7 @@
                     tree={treeStore.tree}
                     selectedId={selection.selectedPersonId}
                     pathHighlight={pathHighlightEnabled}
+                    showGenerationBadge={generationBadgeEnabled}
                     onselect={(id: string) => selection.select(id)}
                     ondeselect={() => selection.select(undefined)}
                     onedit={(id: string) => focusPerson(id, "personal")}
@@ -1650,6 +1705,11 @@
                 oncreateAndLink={createAndLink}
                 onselect={(id: string) => focusPerson(id, "personal")}
                 onpatchCouple={patchCouple}
+                onaddUnionPartner={addUnionPartnerLink}
+                onremoveUnionPartner={removeUnionPartnerLink}
+                onpatchUnion={patchUnion}
+                onsetPreferredUnion={setPreferredUnionLink}
+                oncreateAndLinkUnionPartner={createAndLinkUnionPartner}
                 onduplicate={duplicatePerson}
                 onsetRoot={setRootAction}
                 ondelete={deletePerson}
