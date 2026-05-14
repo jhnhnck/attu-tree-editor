@@ -10,6 +10,7 @@ import {
     ancestorsOf,
     createTree,
     descendantsOf,
+    getParents,
     linkParent,
     linkSpouse,
     removePerson,
@@ -242,5 +243,89 @@ describe("traversal iterators", () => {
         const { tree, ids } = fixtureFamily();
         const siblings = [...siblingsOf(tree, ids.a ?? "")].map((p) => p.given);
         expect(siblings).toEqual(["B"]);
+    });
+});
+
+describe("getParents (Phase 2a relationship-vocabulary helper)", () => {
+    it("returns parentIds when populated", () => {
+        const { tree, ids } = fixtureFamily();
+        // After linkParent, child A should have parentIds populated.
+        const a = tree.people[ids.a ?? ""];
+        if (!a) throw new Error("fixture missing A");
+        const parents = getParents(a);
+        expect(parents.length).toBeGreaterThan(0);
+        // Every entry has a personId and either role=mother or role=father.
+        for (const p of parents) {
+            expect(typeof p.personId).toBe("string");
+            expect(["mother", "father"]).toContain(p.role);
+            expect(p.pedi).toBe("birth");
+        }
+    });
+
+    it("derives from legacy motherId/fatherId when parentIds is missing", () => {
+        // Simulate pre-Phase-2a data: a Person with only the legacy
+        // fields set, no parentIds. getParents should still return both.
+        const person: Person = {
+            id: "test-id",
+            given: "Test",
+            surname: "Person",
+            gender: "u",
+            motherId: "mom-id",
+            fatherId: "dad-id",
+            spouseIds: [],
+            display: "z1",
+            // parentIds intentionally absent — legacy shape.
+        };
+        const parents = getParents(person);
+        expect(parents).toHaveLength(2);
+        expect(parents[0]).toEqual({ personId: "mom-id", role: "mother", pedi: "birth" });
+        expect(parents[1]).toEqual({ personId: "dad-id", role: "father", pedi: "birth" });
+    });
+
+    it("returns empty array when neither parentIds nor legacy fields are set", () => {
+        const person: Person = {
+            id: "test-id",
+            given: "Lonely",
+            surname: "Founder",
+            gender: "u",
+            spouseIds: [],
+            display: "z1",
+        };
+        expect(getParents(person)).toEqual([]);
+    });
+});
+
+describe("linkParent / unlinkParent (Phase 2a parentIds sync)", () => {
+    it("writes to BOTH legacy fields AND parentIds[]", () => {
+        let t = createTree("x", { ...bareRoot(), given: "Kid" });
+        const kid = ROOT_ID;
+        const addMom = addPerson(t, bareChild("Mom", "f"));
+        t = addMom.tree;
+        const linked = linkParent(t, kid, addMom.id);
+        if (!linked.ok) throw new Error(linked.error);
+        const child = linked.value.people[kid];
+        if (!child) throw new Error("missing child");
+        // Legacy field still set (Phase 2a back-compat).
+        expect(child.motherId).toBe(addMom.id);
+        // New field populated.
+        expect(child.parentIds).toBeDefined();
+        expect(child.parentIds).toEqual([
+            { personId: addMom.id, role: "mother", pedi: "birth" },
+        ]);
+    });
+
+    it("unlinkParent drops from BOTH legacy field AND parentIds[]", () => {
+        let t = createTree("x", { ...bareRoot(), given: "Kid" });
+        const kid = ROOT_ID;
+        const addMom = addPerson(t, bareChild("Mom", "f"));
+        t = addMom.tree;
+        const linked = linkParent(t, kid, addMom.id);
+        if (!linked.ok) throw new Error(linked.error);
+        t = linked.value;
+        const stripped = unlinkParent(t, kid, "mother");
+        const child = stripped.people[kid];
+        if (!child) throw new Error("missing child");
+        expect(child.motherId).toBeUndefined();
+        expect(child.parentIds).toEqual([]);
     });
 });

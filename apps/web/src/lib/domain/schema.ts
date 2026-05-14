@@ -22,7 +22,7 @@ export type SchemaVersion = string;
  * of `Tree` changes in a way that needs migration. Each bump is paired with
  * a `Migration` in the registry below.
  */
-export const CURRENT_SCHEMA_VERSION: SchemaVersion = "1.0.0";
+export const CURRENT_SCHEMA_VERSION: SchemaVersion = "2.0.0";
 
 export interface Migration {
     from: SchemaVersion;
@@ -32,6 +32,42 @@ export interface Migration {
 }
 
 const identity = (raw: unknown): unknown => raw;
+
+/**
+ * 1.0.0 → 2.0.0 migration body (Phase 2a of the relationship-vocabulary
+ * plan). Walks every person and populates `parentIds` from the legacy
+ * `motherId` / `fatherId` fields:
+ *   - `motherId` (if set) → ParentRef with role=mother, pedi=birth
+ *   - `fatherId` (if set) → ParentRef with role=father, pedi=birth
+ * Persons that already carry a `parentIds` array (e.g. written by a
+ * newer build that round-tripped through this build) are left alone so
+ * we don't clobber data we don't understand.
+ * The legacy fields are KEPT in the tree shape so Phase 2a code that
+ * still reads them keeps working; Phase 2b deletes them entirely.
+ */
+function migrateParentIdsV1ToV2(raw: unknown): unknown {
+    if (!raw || typeof raw !== "object") return raw;
+    const tree = raw as { people?: Record<string, unknown> };
+    if (!tree.people || typeof tree.people !== "object") return raw;
+    for (const person of Object.values(tree.people)) {
+        if (!person || typeof person !== "object") continue;
+        const p = person as {
+            motherId?: string;
+            fatherId?: string;
+            parentIds?: { personId: string; role?: string; pedi?: string }[];
+        };
+        if (Array.isArray(p.parentIds) && p.parentIds.length > 0) continue;
+        const newParents: { personId: string; role: string; pedi: string }[] = [];
+        if (typeof p.motherId === "string" && p.motherId.length > 0) {
+            newParents.push({ personId: p.motherId, role: "mother", pedi: "birth" });
+        }
+        if (typeof p.fatherId === "string" && p.fatherId.length > 0) {
+            newParents.push({ personId: p.fatherId, role: "father", pedi: "birth" });
+        }
+        p.parentIds = newParents;
+    }
+    return raw;
+}
 
 /**
  * Phase 0 of the relationship-vocabulary plan registers identity stubs for
@@ -44,8 +80,8 @@ export const migrations: Migration[] = [
     {
         from: "1.0.0",
         to: "2.0.0",
-        description: "parentIds[] replaces motherId/fatherId (Phase 2)",
-        migrate: identity,
+        description: "parentIds[] coexists with motherId/fatherId (Phase 2a)",
+        migrate: migrateParentIdsV1ToV2,
     },
     {
         from: "2.0.0",

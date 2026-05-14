@@ -4,8 +4,31 @@
  */
 
 import { generateId, ROOT_ID } from "$lib/domain/ids";
-import type { CoupleRecord, Person, PersonId, Tree } from "$lib/domain/types";
+import type { CoupleRecord, ParentRef, Person, PersonId, Tree } from "$lib/domain/types";
 import { err, ok, type Result } from "$lib/utils/result";
+
+/**
+ * Canonical parent-list reader (Phase 2a of the relationship-vocabulary
+ * plan). Returns `person.parentIds` if it's populated; otherwise derives
+ * from the legacy `motherId` / `fatherId` fields so pre-migration data
+ * still resolves cleanly.
+ *
+ * Use this everywhere a consumer needs to enumerate a person's parents.
+ * Reading the legacy fields directly is OK in Phase 2a (the migration
+ * keeps both in sync) but breaks in Phase 2b when the legacy fields are
+ * removed from the `Person` type entirely.
+ */
+export function getParents(person: Person): readonly ParentRef[] {
+    if (person.parentIds && person.parentIds.length > 0) return person.parentIds;
+    const derived: ParentRef[] = [];
+    if (person.motherId !== undefined) {
+        derived.push({ personId: person.motherId, role: "mother", pedi: "birth" });
+    }
+    if (person.fatherId !== undefined) {
+        derived.push({ personId: person.fatherId, role: "father", pedi: "birth" });
+    }
+    return derived;
+}
 
 /**
  * Patch type for `updatePerson`. Required `Person` fields stay set (you can
@@ -112,15 +135,30 @@ export function linkParent(
     // self-parent and ancestral cycles are allowed (time travel, recursive
     // lineage, asexual self-reproduction); validate.ts flags them as findings
     // so the editor can surface the loop without blocking the operation
-    const role: "motherId" | "fatherId" =
-        roleOverride === "mother"
-            ? "motherId"
-            : roleOverride === "father"
-              ? "fatherId"
-              : parent.gender === "f"
-                ? "motherId"
-                : "fatherId";
-    const next: Person = { ...child, [role]: parentId };
+    const role: "mother" | "father" =
+        roleOverride === "mother" || roleOverride === "father"
+            ? roleOverride
+            : parent.gender === "f"
+              ? "mother"
+              : "father";
+
+    // Phase 2a: write to BOTH the legacy field and `parentIds[]`. Phase
+    // 2b removes the legacy write.
+    const legacyKey = role === "mother" ? "motherId" : "fatherId";
+    const existingParents = getParents(child);
+    // Drop any existing entry for the same slot (mother/father), then
+    // append the new one. For non-mother/father roles (Phase 2b), this
+    // collapses to "append if not present".
+    const filtered = existingParents.filter((p) => p.role !== role);
+    const updatedParents: ParentRef[] = [
+        ...filtered,
+        { personId: parentId, role, pedi: "birth" },
+    ];
+    const next: Person = {
+        ...child,
+        [legacyKey]: parentId,
+        parentIds: updatedParents,
+    };
     return ok({ ...t, people: { ...t.people, [childId]: next } });
 }
 
@@ -130,6 +168,10 @@ export function unlinkParent(t: Tree, childId: PersonId, role: "mother" | "fathe
     const next: Person = { ...child };
     if (role === "mother") delete next.motherId;
     else delete next.fatherId;
+    // Phase 2a: also drop the matching entry from `parentIds`. Phase 2b
+    // removes the legacy `delete` above.
+    const existingParents = getParents(child);
+    next.parentIds = existingParents.filter((p) => p.role !== role);
     return { ...t, people: { ...t.people, [childId]: next } };
 }
 
@@ -214,8 +256,7 @@ export function* ancestorsOf(t: Tree, id: PersonId): Iterable<Person> {
     const queue: PersonId[] = [];
     const start = t.people[id];
     if (!start) return;
-    if (start.motherId) queue.push(start.motherId);
-    if (start.fatherId) queue.push(start.fatherId);
+    for (const p of getParents(start)) queue.push(p.personId);
     while (queue.length > 0) {
         const next = queue.shift();
         if (next === undefined || seen.has(next)) continue;
@@ -223,8 +264,7 @@ export function* ancestorsOf(t: Tree, id: PersonId): Iterable<Person> {
         const p = t.people[next];
         if (!p) continue;
         yield p;
-        if (p.motherId) queue.push(p.motherId);
-        if (p.fatherId) queue.push(p.fatherId);
+        for (const parent of getParents(p)) queue.push(parent.personId);
     }
 }
 
@@ -246,19 +286,22 @@ export function* descendantsOf(t: Tree, id: PersonId): Iterable<Person> {
 export function* siblingsOf(t: Tree, id: PersonId): Iterable<Person> {
     const me = t.people[id];
     if (!me) return;
-    if (!me.motherId && !me.fatherId) return;
+    const myParents = getParents(me);
+    if (myParents.length === 0) return;
+    const myParentIds = new Set(myParents.map((p) => p.personId));
     for (const p of Object.values(t.people)) {
         if (p.id === id) continue;
-        const sharesMother = me.motherId !== undefined && p.motherId === me.motherId;
-        const sharesFather = me.fatherId !== undefined && p.fatherId === me.fatherId;
-        if (sharesMother || sharesFather) yield p;
+        const theirParents = getParents(p);
+        const sharesAny = theirParents.some((parent) => myParentIds.has(parent.personId));
+        if (sharesAny) yield p;
     }
 }
 
 export function directChildren(t: Tree, id: PersonId): PersonId[] {
     const out: PersonId[] = [];
     for (const p of Object.values(t.people)) {
-        if (p.motherId === id || p.fatherId === id) out.push(p.id);
+        const parents = getParents(p);
+        if (parents.some((parent) => parent.personId === id)) out.push(p.id);
     }
     return out;
 }
