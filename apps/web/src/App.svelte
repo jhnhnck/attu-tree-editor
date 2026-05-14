@@ -795,16 +795,28 @@
             toasts.push("sworn bonds — coming with relationship-vocabulary phase 4", "info", 1500);
         },
         viewOverlayTransformationsStub: () => {
-            toasts.push("transformations — coming with relationship-vocabulary phase 4", "info", 1500);
+            toasts.push(
+                "transformations — coming with relationship-vocabulary phase 4",
+                "info",
+                1500,
+            );
         },
         viewOverlaySeverancesStub: () => {
             toasts.push("severances — coming with relationship-vocabulary phase 4", "info", 1500);
         },
         viewOverlayGroupFramesStub: () => {
-            toasts.push("group frames — coming with relationship-vocabulary phase 6a", "info", 1500);
+            toasts.push(
+                "group frames — coming with relationship-vocabulary phase 6a",
+                "info",
+                1500,
+            );
         },
         viewOverlayConsanguinityStub: () => {
-            toasts.push("consanguinity — coming with relationship-vocabulary phase 6b", "info", 1500);
+            toasts.push(
+                "consanguinity — coming with relationship-vocabulary phase 6b",
+                "info",
+                1500,
+            );
         },
         selectClear: () => selection.select(undefined),
         selectEdit: () => withSelected((id) => focusPerson(id, "personal")),
@@ -1181,12 +1193,19 @@
                 />
             {/if}
             {#if debugOpen}
+                <!-- Phase 0d (layered-and-tooling plan): relocated from top-center
+                     to bottom-left, anchored above the people-count stats pill
+                     that TreeCanvas renders at bottom-3 left-3. Phase 3 will fill
+                     this shell with toggle switches, sectioned layout, new overlay
+                     options, and corner readouts. Pure relocation for now -
+                     existing checkboxes and `Ctrl+Shift+D` toggle behavior unchanged. -->
                 <div
-                    class="pointer-events-auto absolute top-2 left-1/2 z-40 -translate-x-1/2
+                    class="pointer-events-auto absolute bottom-14 left-3 z-40
                            rounded-lg border border-line bg-canvas-elev/95 px-3 py-2
                            shadow-xl backdrop-blur text-fg text-xs font-mono"
                     role="dialog"
                     aria-label="debug overlay controls"
+                    data-testid="debug-panel"
                 >
                     <div class="mb-1.5 flex items-center justify-between gap-4">
                         <span
@@ -1211,6 +1230,7 @@
                                     onchange={() => {
                                         debugLayers[key] = !debugLayers[key];
                                     }}
+                                    data-testid={`debug-toggle-${key}`}
                                 />
                                 {label}
                             </label>
@@ -1225,6 +1245,7 @@
                                 onchange={() => {
                                     debugLayers.exposeTreeDebug = !debugLayers.exposeTreeDebug;
                                 }}
+                                data-testid="debug-toggle-exposeTreeDebug"
                             />
                             Expose window.__treeDebug
                         </label>
