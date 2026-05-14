@@ -16,6 +16,8 @@
  */
 
 import type { PersonId } from "$lib/domain/types";
+import type { OverlaySegment } from "$lib/layout/engines/family-view/overlays";
+import type { GroupFrame } from "$lib/layout/engines/family-view/groups";
 
 /** Generation rank relative to focus: 0 = focus, -1 = parents, +1 = children. */
 export type Rank = number;
@@ -62,11 +64,62 @@ export interface FamilyViewEdge {
     readonly points: readonly { readonly x: number; readonly y: number }[];
 }
 
+/**
+ * A "+N FirstName" badge node that stands in for a collapsed sibling /
+ * descendant block. Auto-collapse and user-driven `−` both produce
+ * badges. Clicking a badge re-expands its members back into person
+ * cards.
+ *
+ * `sourceId` is the person whose children block was collapsed (the
+ * parent / ancestor). `parentId` is the upstream rank's anchor that
+ * the badge hangs from in the drawing; today they're the same, but
+ * the field stays separate for future single-parent / multi-anchor
+ * cases.
+ */
+export interface BadgeNode {
+    readonly id: string;
+    /** Rank where the badge appears (one below the source). */
+    readonly rank: Rank;
+    readonly x: number;
+    readonly y: number;
+    /** Person whose adjacent generation was collapsed. */
+    readonly sourceId: PersonId;
+    /** Members hidden behind this badge. */
+    readonly members: readonly PersonId[];
+    /** Sample name shown on the badge (highest-DOI member). */
+    readonly sampleName: string;
+    /** "auto" = capped by the visible-count budget; "manual" = user click. */
+    readonly origin: "auto" | "manual";
+}
+
 /** Result of one family-view layout pass. */
 export interface FamilyViewLayout {
     readonly focus: PersonId;
     readonly nodes: ReadonlyMap<PersonId, FamilyViewNode>;
     readonly anchors: readonly UnionAnchor[];
     readonly edges: readonly FamilyViewEdge[];
+    readonly badges: readonly BadgeNode[];
     readonly bbox: { readonly width: number; readonly height: number };
+    /** Persons whose `+` should appear (un-shown children). */
+    readonly hasMoreChildren: ReadonlySet<PersonId>;
+    /** Persons whose `+` should appear (un-shown parents; topmost rank). */
+    readonly hasMoreParents: ReadonlySet<PersonId>;
+    /** Persons whose `−` should appear (explicitly expanded by the user). */
+    readonly canCollapse: ReadonlySet<PersonId>;
+    /** Persons whose children block was demoted by auto-collapse this pass. */
+    readonly autoCollapsed: ReadonlySet<PersonId>;
+    /**
+     * Overlay segments (sworn bonds, transformations, severances).
+     * Optional; empty/absent in v1 (Phase 0 of the relationship-vocabulary
+     * plan). Phase 4 populates this from `tree.relationships[]` once schema
+     * 3.1.0 lands. Renderers treat `undefined` and `[]` identically.
+     */
+    readonly overlays?: readonly OverlaySegment[];
+    /**
+     * Group frames (dynasties, houses, factions, etc.).
+     * Optional; empty/absent in v1 (Phase 0 of the relationship-vocabulary
+     * plan). Phase 6a populates this from `tree.groups[]` once schema
+     * 3.3.0 lands. Renderers treat `undefined` and `[]` identically.
+     */
+    readonly groups?: readonly GroupFrame[];
 }

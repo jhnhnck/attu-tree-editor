@@ -39,6 +39,19 @@ export type Finding =
           fromFamilyScript: unknown;
           fromGedcom: unknown;
           chosen: "familyscript" | "gedcom";
+      }
+    // relationship-vocabulary plan: emitted whenever a domain op touches a
+    // field that the active schema version doesn't yet support (e.g. setting
+    // a 3rd parent while still on schema 1.0.0, marking a union as a polycule
+    // before 3.0.0 lands). Phase 0 declares the kind so client-side guards
+    // and Phase 4's server validator emit a consistent finding shape.
+    | {
+          kind: "unsupported-by-schema-version";
+          person: PersonId;
+          /** Free-form description, e.g. "3rd parent requires schema 2.0.0". */
+          detail: string;
+          /** The schema version that would support the operation. */
+          requiredVersion: string;
       };
 
 export function validate(t: Tree): Finding[] {
