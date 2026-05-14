@@ -26,7 +26,7 @@
 -->
 <script lang="ts">
     import { onDestroy, onMount, untrack } from "svelte";
-    import { Plus, Minus, ChevronDown } from "@lucide/svelte";
+    import { Plus, Minus, ChevronDown, UserPlus } from "@lucide/svelte";
     import { PERSON_W } from "$lib/layout/constants";
     import PersonNode from "$lib/components/tree/PersonNode.svelte";
     import { FamilyViewEngine, CARD_H } from "$lib/layout/engines/family-view";
@@ -51,10 +51,43 @@
         onedit?: ((id: PersonId) => void) | undefined;
         oncontextmenu?: ((id: PersonId, x: number, y: number) => void) | undefined;
         oncontroller?: ((c: CanvasController) => void) | undefined;
+        /**
+         * Reports total / visible counts up to the shell's bottom-left bar
+         * (the same stats pill the layered engine uses). `components` /
+         * `isolated` aren't computed by family-view — we report `1`/`0` so
+         * the pill stays compact and matches the shape `TreeCanvas` emits.
+         */
+        onlayoutstats?:
+            | ((stats: {
+                  totalPeople: number;
+                  components: number;
+                  isolated: number;
+              }) => void)
+            | undefined;
+        /**
+         * Phase 4 add-relative affordance. Fires with the anchor person
+         * (always the focus today, but the callback is shape-stable so a
+         * future "add to any visible card" variant doesn't break callers)
+         * and the kind of relationship to create. App.svelte wires this to
+         * the existing `addParent` / `addPartner` / `addChild` mutations,
+         * which auto-select the newly-created person via `focusPerson`.
+         */
+        onaddRelative?:
+            | ((anchorId: PersonId, kind: "parent" | "partner" | "child") => void)
+            | undefined;
     }
 
-    let { tree, selectedId, onselect, ondeselect, onedit, oncontextmenu, oncontroller }: Props =
-        $props();
+    let {
+        tree,
+        selectedId,
+        onselect,
+        ondeselect,
+        onedit,
+        oncontextmenu,
+        oncontroller,
+        onlayoutstats,
+        onaddRelative,
+    }: Props = $props();
 
     /** pixels per unit; matches TreeCanvas so card sizes feel consistent */
     const UNIT = 80;
@@ -74,18 +107,39 @@
     let panX = $state(0);
     let panY = $state(0);
 
-    // Phase 1 expansion state — localStorage-backed per (treeId, focusId).
-    // Recreated when (tree.id, rootId) changes (recentering on a new focus
-    // resets the expanded set per the Phase 1 spec, since the new key
-    // misses the old localStorage row).
-    let expansion = $derived(useExpansionState(tree.id, tree.rootId));
-    // Phase 2 primary-union override — same per-(treeId, focusId) lifecycle.
-    let primaryUnion = $derived(usePrimaryUnionState(tree.id, tree.rootId));
+    /**
+     * Active focus — the centre of the bounded subset. `undefined` means
+     * "follow the tree's root"; `centerOnPerson(id)` sets it explicitly
+     * when the target isn't already in the visible subset. Reset to
+     * `undefined` whenever the tree's identity or root changes so a
+     * freshly-loaded tree starts at its root instead of inheriting the
+     * prior tree's focus. State is `undefined`-init (not `tree.rootId`-
+     * init) so `tree.*` is only read inside reactive scopes — keeps
+     * svelte's state_referenced_locally check quiet.
+     */
+    let focusOverride = $state<PersonId | undefined>(undefined);
+    let lastTreeKey = $state<string | undefined>(undefined);
+    let activeFocus = $derived<PersonId>(focusOverride ?? tree.rootId);
+    $effect(() => {
+        const key = `${tree.id}::${tree.rootId}`;
+        if (key !== lastTreeKey) {
+            lastTreeKey = key;
+            focusOverride = undefined;
+        }
+    });
 
-    let pathHl = $derived(usePath(tree, tree.rootId, selectedId));
+    // Phase 1 expansion state — localStorage-backed per (treeId, focusId).
+    // Recreated when (tree.id, activeFocus) changes (recentering on a new
+    // focus resets the expanded set per the Phase 1 spec, since the new
+    // key misses the old localStorage row).
+    let expansion = $derived(useExpansionState(tree.id, activeFocus));
+    // Phase 2 primary-union override — same per-(treeId, focusId) lifecycle.
+    let primaryUnion = $derived(usePrimaryUnionState(tree.id, activeFocus));
+
+    let pathHl = $derived(usePath(tree, activeFocus, selectedId));
 
     /**
-     * Family-view layout. Re-runs when the tree, root, expansion set, or
+     * Family-view layout. Re-runs when the tree, focus, expansion set, or
      * primary-union overrides change. Cheap enough that we recompute on
      * every reactive tick. Bumping `expansionRev` / `primaryRev` is the
      * reactivity trigger because the underlying Maps/Sets reassign rather
@@ -96,7 +150,7 @@
     let layout = $derived<FamilyViewLayout>(
         engine.layout({
             tree,
-            focus: tree.rootId,
+            focus: activeFocus,
             options: {
                 expanded: (void expansionRev, expansion.expanded),
                 primaryUnionOverrides: (void primaryRev, primaryUnion.overrides),
@@ -106,6 +160,26 @@
 
     /** Open picker state — only one `˅` menu open at a time. */
     let pickerOpenFor = $state<PersonId | null>(null);
+
+    /**
+     * Phase 4 add-relative menu open state. Distinct from `pickerOpenFor`
+     * because the `˅` (primary-union swap) and `+ person` (add relative)
+     * affordances are independent and could in principle both be open on
+     * the same card; today only one menu is open at a time but the state
+     * is separate so they don't fight for the same slot.
+     */
+    let addOpenFor = $state<PersonId | null>(null);
+
+    // Mirror people-count up to the shell's bottom-left stats pill (same
+    // contract TreeCanvas uses). Family-view doesn't compute connected
+    // components, so report `1`/`0` to keep the pill compact.
+    $effect(() => {
+        onlayoutstats?.({
+            totalPeople: Object.keys(tree.people).length,
+            components: 1,
+            isolated: 0,
+        });
+    });
 
     // Resize observer to keep host dims in sync.
     $effect(() => {
@@ -120,13 +194,16 @@
         return () => obs.disconnect();
     });
 
-    /** Auto-fit on first paint and on layout changes that resize the chart. */
+    /** Auto-fit on first paint, on layout changes that resize the chart,
+     *  and whenever `activeFocus` shifts (so palette-jump / centerOnPerson
+     *  always lands the new focus at the host's centre even when two
+     *  subsets happen to share a bbox). */
     let lastFitKey = "";
     $effect(() => {
         const w = layout.bbox.width;
         const h = layout.bbox.height;
         if (hostW <= 0 || hostH <= 0) return;
-        const key = `${tree.id}:${String(w.toFixed(3))}:${String(h.toFixed(3))}`;
+        const key = `${tree.id}:${activeFocus}:${String(w.toFixed(3))}:${String(h.toFixed(3))}`;
         if (key === lastFitKey) return;
         lastFitKey = key;
         untrack(() => fitToView());
@@ -178,8 +255,10 @@
         if (target?.closest("[data-expand-toggle]")) return;
         if (target?.closest("[data-badge-id]")) return;
         if (target?.closest("[data-union-picker]")) return;
+        if (target?.closest("[data-add-toggle]")) return;
         // Click outside any picker closes it.
         if (pickerOpenFor !== null) pickerOpenFor = null;
+        if (addOpenFor !== null) addOpenFor = null;
         dragStart = { x: e.clientX, y: e.clientY, pX: panX, pY: panY };
         (e.target as Element).setPointerCapture?.(e.pointerId);
     }
@@ -214,11 +293,26 @@
 
     // ---------- imperative controller ----------
 
+    /**
+     * Pan the visible card for `id` to the host's centre. If `id` isn't
+     * in the current bounded subset, shift `activeFocus` to that person
+     * first — family-view's layout is a bounded window around the focus,
+     * so the only way to "jump to" someone off-window is to re-centre the
+     * window itself. Pan settles on the next layout tick via the fit-key
+     * effect (which sees the new focus, runs `fitToView`, and the new
+     * focus card lands at host centre).
+     */
     function recenterOn(id: PersonId): void {
+        if (!tree.people[id]) return;
         const node = layout.nodes.get(id);
-        if (!node) return;
-        panX = hostW / 2 - (node.x + PERSON_W / 2) * UNIT * scale;
-        panY = hostH / 2 - (node.y + CARD_H / 2) * UNIT * scale;
+        if (node) {
+            panX = hostW / 2 - (node.x + PERSON_W / 2) * UNIT * scale;
+            panY = hostH / 2 - (node.y + CARD_H / 2) * UNIT * scale;
+            return;
+        }
+        // Off-subset target — shift focus; the auto-fit effect re-centres
+        // once the new layout lands.
+        focusOverride = id;
     }
 
     onMount(() => {
@@ -242,7 +336,9 @@
             },
             centerOnPerson: (id: PersonId) => recenterOn(id),
             centerAt: () => undefined,
-            centerOnRoot: () => recenterOn(tree.rootId),
+            centerOnRoot: () => {
+                focusOverride = undefined;
+            },
             getMode: () => "select",
             setMode: () => undefined,
         });
@@ -281,6 +377,25 @@
         primaryUnion.setPrimary(mateId, coupleIndex);
         primaryRev += 1;
         pickerOpenFor = null;
+    }
+
+    function onAddToggle(cardId: PersonId, e: MouseEvent): void {
+        e.stopPropagation();
+        addOpenFor = addOpenFor === cardId ? null : cardId;
+    }
+
+    function onAddPick(
+        anchorId: PersonId,
+        kind: "parent" | "partner" | "child",
+        e: MouseEvent,
+    ): void {
+        e.stopPropagation();
+        addOpenFor = null;
+        // App.svelte's addParent/addPartner/addChild handlers create a
+        // blank person, link, and auto-focus via `focusPerson(newId)`. The
+        // family-view's `recenterOn` shifts `activeFocus` if the new card
+        // is off-subset, so a freshly-added relative always lands visible.
+        onaddRelative?.(anchorId, kind);
     }
 
     function multiUnionMate(id: PersonId): MultiUnionMate | undefined {
@@ -426,31 +541,92 @@
                         <button
                             type="button"
                             data-expand-toggle="expand"
-                            class="border-line bg-canvas-elev text-fg-muted hover:text-accent
-                                   absolute -bottom-3 left-1/2 hidden h-5 w-5 -translate-x-1/2
-                                   items-center justify-center rounded-full border opacity-0
-                                   shadow-sm transition-opacity group-hover/card:flex
+                            class="card-affordance border-line bg-canvas-elev text-fg
+                                   hover:border-accent hover:bg-canvas hover:text-accent
+                                   absolute -bottom-3 left-1/2 z-30 flex h-6 w-6 -translate-x-1/2
+                                   items-center justify-center rounded-full border
+                                   opacity-80 shadow transition-opacity
                                    group-hover/card:opacity-100"
                             aria-label="expand branch"
                             title="show more of this branch"
                             onclick={(e) => onExpandClick(node.personId, true, e)}
                         >
-                            <Plus size={10} />
+                            <Plus size={14} strokeWidth={2.5} />
                         </button>
                     {/if}
                     {#if canCollapse(node.personId)}
                         <button
                             type="button"
                             data-expand-toggle="collapse"
-                            class="border-line bg-canvas-elev text-fg-muted hover:text-accent
-                                   absolute -top-3 -right-3 flex h-5 w-5 items-center
-                                   justify-center rounded-full border shadow-sm"
+                            class="card-affordance border-line bg-canvas-elev text-fg
+                                   hover:border-accent hover:bg-canvas hover:text-accent
+                                   absolute -top-3 -right-3 z-30 flex h-6 w-6 items-center
+                                   justify-center rounded-full border opacity-80 shadow
+                                   transition-opacity group-hover/card:opacity-100"
                             aria-label="collapse branch"
                             title="hide expanded branch"
                             onclick={(e) => onExpandClick(node.personId, false, e)}
                         >
-                            <Minus size={10} />
+                            <Minus size={14} strokeWidth={2.5} />
                         </button>
+                    {/if}
+                    {#if node.personId === activeFocus}
+                        <button
+                            type="button"
+                            data-add-toggle="open"
+                            data-add-toggle-for={node.personId}
+                            class="card-affordance border-line bg-canvas-elev text-fg
+                                   hover:border-accent hover:bg-canvas hover:text-accent
+                                   absolute -top-3 -left-3 z-30 flex h-6 w-6 items-center
+                                   justify-center rounded-full border opacity-80 shadow
+                                   transition-opacity group-hover/card:opacity-100"
+                            aria-label={`add a relative for ${partnerLabel(node.personId)}`}
+                            aria-haspopup="menu"
+                            aria-expanded={addOpenFor === node.personId}
+                            title="add relative (parent / partner / child)"
+                            onclick={(e) => onAddToggle(node.personId, e)}
+                        >
+                            <UserPlus size={14} strokeWidth={2.5} />
+                        </button>
+                        {#if addOpenFor === node.personId}
+                            <div
+                                data-add-toggle="menu"
+                                role="menu"
+                                class="border-line bg-canvas-elev absolute top-full left-0 z-40 mt-1
+                                       min-w-32 rounded border py-1 text-xs shadow-md"
+                            >
+                                <button
+                                    type="button"
+                                    role="menuitem"
+                                    data-add-kind="parent"
+                                    class="text-fg hover:bg-canvas-hover block w-full
+                                           px-2 py-1 text-left"
+                                    onclick={(e) => onAddPick(node.personId, "parent", e)}
+                                >
+                                    add parent
+                                </button>
+                                <button
+                                    type="button"
+                                    role="menuitem"
+                                    data-add-kind="partner"
+                                    class="text-fg hover:bg-canvas-hover block w-full
+                                           px-2 py-1 text-left"
+                                    onclick={(e) => onAddPick(node.personId, "partner", e)}
+                                >
+                                    add partner
+                                </button>
+                                <button
+                                    type="button"
+                                    role="menuitem"
+                                    data-add-kind="child"
+                                    class="text-fg hover:bg-canvas-hover block w-full
+                                           px-2 py-1 text-left"
+                                    onclick={(e) => onAddPick(node.personId, "child", e)}
+                                >
+                                    add child
+                                </button>
+                            </div>
+                        {/if}
                     {/if}
                     {#if multiUnionMate(node.personId)}
                         {@const m = multiUnionMate(node.personId)!}
@@ -458,22 +634,24 @@
                             type="button"
                             data-union-picker="toggle"
                             data-union-picker-for={node.personId}
-                            class="border-line bg-canvas-elev text-fg-muted hover:text-accent
-                                   absolute -bottom-3 -right-3 flex h-5 w-5 items-center
-                                   justify-center rounded-full border shadow-sm"
+                            class="card-affordance border-line bg-canvas-elev text-fg
+                                   hover:border-accent hover:bg-canvas hover:text-accent
+                                   absolute -bottom-3 -right-3 z-30 flex h-6 w-6 items-center
+                                   justify-center rounded-full border opacity-80 shadow
+                                   transition-opacity group-hover/card:opacity-100"
                             aria-label={`switch shown union for ${partnerLabel(m.mateId)} (session-only preference, doesn't change record)`}
                             aria-haspopup="menu"
                             aria-expanded={pickerOpenFor === node.personId}
                             title={`switch primary union for ${partnerLabel(m.mateId)} (session-only; doesn't change record)`}
                             onclick={(e) => onPickerToggle(node.personId, e)}
                         >
-                            <ChevronDown size={10} />
+                            <ChevronDown size={14} strokeWidth={2.5} />
                         </button>
                         {#if pickerOpenFor === node.personId}
                             <div
                                 data-union-picker="menu"
                                 role="menu"
-                                class="border-line bg-canvas-elev absolute top-full right-0 z-10 mt-1
+                                class="border-line bg-canvas-elev absolute top-full right-0 z-40 mt-1
                                        min-w-32 rounded border py-1 text-xs shadow-md"
                             >
                                 {#each m.alternates as alt (alt.coupleIndex)}

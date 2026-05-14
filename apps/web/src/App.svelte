@@ -47,6 +47,7 @@
     import {
         addPerson,
         createTree,
+        getParents,
         linkParent,
         linkSpouse,
         removePerson,
@@ -522,11 +523,10 @@
     function removeChildLink(parentId: PersonId, childId: PersonId): void {
         const child = treeStore.tree.people[childId];
         if (!child) return;
-        treeStore.update((t) => {
-            if (child.motherId === parentId) return unlinkParent(t, childId, "mother");
-            if (child.fatherId === parentId) return unlinkParent(t, childId, "father");
-            return t;
-        });
+        const ref = getParents(child).find((r) => r.personId === parentId);
+        if (!ref) return;
+        const role: "mother" | "father" = ref.role === "father" ? "father" : "mother";
+        treeStore.update((t) => unlinkParent(t, childId, role));
     }
 
     function patchCouple(aId: PersonId, bId: PersonId, patch: CouplePatch): void {
@@ -617,6 +617,13 @@
                 return;
             }
             treeStore.reset(r.value.tree);
+            // Phase 4 / bug-log #9: a fresh import must update
+            // lastOpenedTreeId so a reload restores the imported tree
+            // instead of falling back to the previously-opened one.
+            // Without this, every imported tree is silently lost on
+            // reload because `getSetting(lastOpenedTreeId)` returns
+            // stale state.
+            await setSetting(SETTING_KEYS.lastOpenedTreeId, r.value.tree.id);
             toasts.push(`loaded ${String(r.value.count)} people from ${file.name}`, "success");
         } catch (err) {
             toasts.push(`import error: ${String(err)}`, "error");
@@ -1253,7 +1260,16 @@
                         canvasScale = c.getScale();
                         canvasMode = c.getMode();
                     }}
-                    onlayoutstats={(s) => (layoutStats = s)}
+                    onlayoutstats={(s: {
+                        totalPeople: number;
+                        components: number;
+                        isolated: number;
+                    }) => (layoutStats = s)}
+                    onaddRelative={(anchorId: PersonId, kind: "parent" | "partner" | "child") => {
+                        if (kind === "parent") addParent(anchorId);
+                        else if (kind === "partner") addPartner(anchorId);
+                        else addChild(anchorId);
+                    }}
                 />
             {:else}
                 <TreeCanvas
