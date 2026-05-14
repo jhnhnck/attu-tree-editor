@@ -1,0 +1,104 @@
+0 HEAD
+1 GEDC
+2 VERS 7.0
+1 SOUR FamilyTreeEditor
+2 VERS relationship-vocabulary-probe
+1 CHAR UTF-8
+1 SCHMA
+2 TAG _TREES_PARENT_REF https://attuproject.org/trees/schema/v1#parent-ref
+2 TAG _TREES_UNION https://attuproject.org/trees/schema/v1#union
+2 TAG _TREES_KIND https://attuproject.org/trees/schema/v1#union-kind
+2 TAG _TREES_CLOSED https://attuproject.org/trees/schema/v1#union-closed
+2 TAG _TREES_REL https://attuproject.org/trees/schema/v1#relationship
+2 TAG _TREES_SEVERANCE https://attuproject.org/trees/schema/v1#severance
+2 TAG _TREES_GENDER_IDENTITY https://attuproject.org/trees/schema/v1#gender-identity
+2 TAG _TREES_PRONOUNS https://attuproject.org/trees/schema/v1#pronouns
+2 TAG _TREES_ASSIGNED_SEX https://attuproject.org/trees/schema/v1#assigned-sex
+2 TAG _TREES_GENDER_FLUID https://attuproject.org/trees/schema/v1#gender-fluid
+2 TAG _TREES_SPECIES https://attuproject.org/trees/schema/v1#species
+2 TAG _TREES_PERSON_KIND https://attuproject.org/trees/schema/v1#person-kind
+2 TAG _TREES_ORIGIN_KIND https://attuproject.org/trees/schema/v1#origin-kind
+2 TAG _TREES_GROUP https://attuproject.org/trees/schema/v1#group
+2 TAG _TREES_SIBSHIP https://attuproject.org/trees/schema/v1#sibship
+2 TAG _TREES_BIRTH_ORDER https://attuproject.org/trees/schema/v1#birth-order
+0 @I1@ INDI
+1 NAME Andra /Veylan/
+2 GIVN Andra
+2 SURN Veylan
+1 SEX F
+1 BIRT
+2 DATE 1820
+1 DEAT
+2 DATE 1895
+1 FAMS @F1@
+1 _TREES_SPECIES dragon
+1 _TREES_PERSON_KIND biological
+1 _TREES_GENDER_IDENTITY female
+1 _TREES_PRONOUNS she/her
+0 @I2@ INDI
+1 NAME Marek /Veylan/
+2 GIVN Marek
+2 SURN Veylan
+1 SEX M
+1 BIRT
+2 DATE 1818
+1 DEAT
+2 DATE 1880
+1 FAMS @F1@
+1 _TREES_GENDER_IDENTITY male
+0 @I3@ INDI
+1 NAME Sylth /Veylan/
+2 GIVN Sylth
+2 SURN Veylan
+1 SEX U
+1 BIRT
+2 DATE 1850
+1 FAMC @F1@
+1 _TREES_GENDER_IDENTITY agender
+1 _TREES_PRONOUNS they/them
+1 _TREES_GENDER_FLUID Y
+1 _TREES_SPECIES half-dragon
+0 @I4@ INDI
+1 NAME Korin /Veylan/
+2 GIVN Korin
+2 SURN Veylan
+1 SEX M
+1 BIRT
+2 DATE 1853
+1 FAMC @F1@
+0 @I5@ INDI
+1 NAME Wisp /Veylan/
+2 GIVN Wisp
+2 SURN Veylan
+1 SEX U
+1 BIRT
+2 DATE 1855
+1 FAMC @F1@
+1 _TREES_PERSON_KIND spirit
+0 @F1@ FAM
+1 HUSB @I2@
+1 WIFE @I1@
+1 CHIL @I3@
+1 CHIL @I4@
+1 CHIL @I5@
+1 MARR
+2 DATE 1845
+2 TYPE civil
+1 _TREES_KIND civil
+1 _TREES_CLOSED Y
+0 @TREES_REL_1@ _TREES_REL
+1 _SOURCE @I3@
+1 _TARGET @I4@
+1 _KIND oath-sibling
+1 _DATE 1870
+1 _CAUSE blood pact at the Veylan stone
+0 @TREES_GROUP_1@ _TREES_GROUP
+1 _NAME House Veylan
+1 _KIND house
+1 _FOUNDER @I2@
+1 _MEMBER @I1@
+1 _MEMBER @I2@
+1 _MEMBER @I3@
+1 _MEMBER @I4@
+1 _MEMBER @I5@
+0 TRLR
