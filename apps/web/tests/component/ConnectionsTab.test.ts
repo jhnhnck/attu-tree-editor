@@ -54,7 +54,10 @@ describe("ConnectionsTab", () => {
 
     it("renders the linked mother with a change + unlink button", async () => {
         const cb = callbacks();
-        const subject = person({ id: "AAAAA", motherId: "MMMMM" });
+        const subject = person({
+            id: "AAAAA",
+            parentIds: [{ personId: "MMMMM", role: "mother", pedi: "birth" }],
+        });
         const mother = person({ id: "MMMMM", given: "Mum", surname: "X", gender: "f" });
         const t: Tree = {
             id: "t",
@@ -123,8 +126,10 @@ describe("ConnectionsTab", () => {
         const child = person({
             id: "CCCCC",
             given: "Gamma",
-            motherId: "BBBBB",
-            fatherId: "AAAAA",
+            parentIds: [
+                { personId: "BBBBB", role: "mother", pedi: "birth" },
+                { personId: "AAAAA", role: "father", pedi: "birth" },
+            ],
         });
         const t: Tree = {
             id: "t",

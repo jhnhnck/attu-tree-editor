@@ -86,7 +86,7 @@ export interface LayeredGraph {
      * within rank — ordering is the job of the next pass).
      */
     readonly ranks: readonly (readonly LayoutNodeId[])[];
-    /** Parent → child edges derived from the domain tree's motherId/fatherId links. */
+    /** Parent → child edges derived from the domain tree's parentIds links. */
     readonly parentEdges: readonly {
         readonly parent: LayoutNodeId;
         readonly child: LayoutNodeId;

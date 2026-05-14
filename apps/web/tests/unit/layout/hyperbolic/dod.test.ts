@@ -22,6 +22,7 @@ import { parseGedcom } from "$lib/io/gedcom/parse";
 import { layoutHourglass } from "$lib/layout/engines/hyperbolic-lr/layout";
 import { abs, RHO_MAX } from "$lib/layout/hyperbolic/poincare";
 import { aggregateClusters, computeDoiScores } from "$lib/layout/doi";
+import { getParents } from "$lib/domain/tree";
 
 const FIXTURE = resolve(process.cwd(), "tests/fixtures/Akarians.ged");
 
@@ -83,9 +84,8 @@ describe("Phase 5 DoD — hyperbolic on Akarians", () => {
         // proband's parents, if placed, should land in that half.
         const probandPerson = cached.tree.people[cached.tree.rootId];
         if (!probandPerson) return;
-        for (const parentId of [probandPerson.motherId, probandPerson.fatherId]) {
-            if (!parentId) continue;
-            const pos = cached.out.positions.get(parentId);
+        for (const ref of getParents(probandPerson)) {
+            const pos = cached.out.positions.get(ref.personId);
             if (!pos || pos.space !== "hyperbolic") continue;
             expect(pos.z.im).toBeLessThan(0);
         }
@@ -132,13 +132,18 @@ describe("Phase 6 DoD — DOI scoring + cluster aggregation on Akarians", () => 
     it("anchors prevent collapse of their ancestor chain", () => {
         const probandPerson = cached.tree.people[cached.tree.rootId];
         if (!probandPerson) return;
-        // Pick a deep ancestor (motherId.motherId.motherId) as the anchor
+        // Pick a deep ancestor (mother of mother of mother) as the anchor
         // and verify it stays out of any cluster.
-        const m1 = probandPerson.motherId;
+        const motherOf = (pid: string): string | undefined => {
+            const p = cached.tree.people[pid];
+            if (!p) return undefined;
+            return getParents(p).find((r) => r.role === "mother")?.personId;
+        };
+        const m1 = motherOf(cached.tree.rootId);
         if (!m1) return;
-        const m2 = cached.tree.people[m1]?.motherId;
+        const m2 = motherOf(m1);
         if (!m2) return;
-        const m3 = cached.tree.people[m2]?.motherId;
+        const m3 = motherOf(m2);
         if (!m3) return;
         const anchors = new Set([m3]);
         const clusters = aggregateClusters(

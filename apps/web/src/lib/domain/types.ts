@@ -26,9 +26,9 @@ export type ParentRole =
 
 /**
  * Pedigree kind on a parent linkage. `birth` is the default for legacy
- * tree data (every entry created from `motherId` / `fatherId` gets this).
- * The non-`birth` variants drive the relationship-vocabulary stroke
- * palette in Phase 2b+ (dashed = adopted/sealed, dotted = foster, etc.).
+ * tree data (every entry populated by the 1.0.0 → 2.0.0 migration gets
+ * this). The non-`birth` variants drive the relationship-vocabulary
+ * stroke palette (dashed = adopted/sealed, dotted = foster, etc.).
  */
 export type ParentPedi =
     | "birth"
@@ -44,10 +44,9 @@ export type ParentPedi =
 
 /**
  * One entry in `Person.parentIds`. The schema bump 1.0.0 → 2.0.0
- * replaces the binary `motherId` / `fatherId` fields with an unbounded
- * array of these. Phase 2a (this turn) ships `parentIds` as a
- * coexisting field; legacy fields stay readable. Phase 2b migrates
- * every consumer and removes the legacy fields.
+ * replaced the binary mother/father slots with an unbounded array of
+ * these to support non-traditional families (single-parent, adoption,
+ * surrogacy, multi-parent, polycule unions).
  */
 export interface ParentRef {
     personId: PersonId;
@@ -67,24 +66,12 @@ export interface Person {
     location?: string;
     locationOrigin?: string;
     /**
-     * @deprecated Phase 2a of the relationship-vocabulary plan introduces
-     * `parentIds` as the canonical parent linkage. Legacy reads still
-     * resolve `motherId` via `getParents(person)`. Phase 2b removes this
-     * field from the type entirely.
-     */
-    motherId?: PersonId;
-    /**
-     * @deprecated See `motherId`. Phase 2b removes.
-     */
-    fatherId?: PersonId;
-    /**
-     * Canonical parent list (Phase 2a +). Populated from legacy
-     * `motherId` / `fatherId` by the 1.0.0 → 2.0.0 migration. New tree
-     * mutations populate this AND keep the legacy fields in sync until
-     * Phase 2b drops them. Optional in 2a so existing Person literals
-     * (test fixtures, importers) don't need a `parentIds: []` line yet;
-     * Phase 2b promotes to required and removes the legacy fields.
-     * Use `getParents(person)` to read in a forward-compatible way.
+     * Canonical parent list. Populated by the 1.0.0 → 2.0.0 schema
+     * migration from the now-removed `motherId` / `fatherId` fields.
+     * Optional so existing Person literals without parents (test
+     * fixtures, freshly-imported orphans) don't need a `parentIds: []`
+     * line. Use `getParents(person)` to read in a forward-compatible
+     * way (the helper still returns an empty array for missing values).
      */
     parentIds?: ParentRef[];
     spouseIds: PersonId[];

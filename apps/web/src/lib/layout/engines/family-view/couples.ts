@@ -18,6 +18,7 @@
  */
 
 import type { CoupleRecord, PersonId, Tree } from "$lib/domain/types";
+import { getParents } from "$lib/domain/tree";
 import { emitFinding } from "$lib/domain/findings";
 import { defaultPrimaryUnion, unionsOf } from "$lib/layout/engines/family-view/primaryUnion";
 
@@ -120,10 +121,10 @@ export function primaryChildrenOf(
     }
     // Single-parent children: this person is the sole listed parent.
     for (const person of Object.values(tree.people)) {
-        if (person.motherId === personId || person.fatherId === personId) {
-            const other = person.motherId === personId ? person.fatherId : person.motherId;
-            if (!other) out.add(person.id);
-        }
+        const refs = getParents(person);
+        if (!refs.some((r) => r.personId === personId)) continue;
+        const others = refs.map((r) => r.personId).filter((pid) => pid !== personId);
+        if (others.length === 0) out.add(person.id);
     }
     return Array.from(out);
 }

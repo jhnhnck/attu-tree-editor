@@ -28,6 +28,7 @@
 import { PERSON_W, ROW_H, SIBLING_GAP, SUBTREE_GAP } from "$lib/layout/constants";
 import { computeDoiScores } from "$lib/layout/doi";
 import type { CoupleRecord, PersonId, Tree } from "$lib/domain/types";
+import { getParents } from "$lib/domain/tree";
 import {
     orientCouple,
     otherUnionsOf,
@@ -50,8 +51,24 @@ export const CARD_H = 1.2;
 /** Past this many visible cards, auto-collapse kicks in (Phase 1 plan). */
 export const AUTO_COLLAPSE_THRESHOLD = 50;
 
-function roleFor(_tree: Tree, _childId: PersonId, _parentId: PersonId): FamilyViewEdgeRole {
-    return "blood";
+function roleFor(tree: Tree, childId: PersonId, parentId: PersonId): FamilyViewEdgeRole {
+    const child = tree.people[childId];
+    if (!child) return "blood";
+    const ref = getParents(child).find((r) => r.personId === parentId);
+    if (!ref) return "blood";
+    switch (ref.pedi) {
+        case "adopted":
+        case "sealed":
+            return "adopted";
+        case "birth":
+        case undefined:
+            return "blood";
+        // foster / chosen / magical / cloned / hatched / summoned / manufactured fall
+        // through; Phase 4 of the relationship-vocabulary plan adds dedicated
+        // edge roles for these. For now they render as "blood" (solid).
+        default:
+            return "blood";
+    }
 }
 
 type RankSlot =
@@ -346,11 +363,22 @@ function emitAnchorsAndEdges(
         for (const kid of visibleKids) {
             const kidNode = nodes.get(kid);
             if (!kidNode) continue;
+            const kidPerson = tree.people[kid];
+            const kidParentIds = kidPerson
+                ? new Set(getParents(kidPerson).map((r) => r.personId))
+                : new Set<PersonId>();
+            // half-sibling: child is in CoupleRecord.childIds but its
+            // own parentIds list doesn't include both partners. Render
+            // with the "half" stroke role rather than "blood".
+            const sharesBoth = kidParentIds.has(couple.leftId) && kidParentIds.has(couple.rightId);
+            const role: FamilyViewEdgeRole = sharesBoth
+                ? roleFor(tree, kid, leftNode.personId)
+                : "half";
             edges.push(
                 drop(
                     `drop:${anchor.id}|${kid}`,
                     [leftNode.personId, rightNode.personId, kid],
-                    roleFor(tree, kid, leftNode.personId),
+                    role,
                     anchorCenterX,
                     anchorY,
                     midX(kidNode),
@@ -361,37 +389,91 @@ function emitAnchorsAndEdges(
         }
     }
 
-    // Single-parent children.
+    // Single-parent and multi-parent (>2) children. Two-parent unions are
+    // covered by the for-couples loop above via couple.childIds; anything
+    // still uncovered falls into one of these two paths.
     for (const child of Object.values(tree.people)) {
         if (!nodes.has(child.id)) continue;
         if (childCovered.has(child.id)) continue;
         const knownParents: PersonId[] = [];
-        if (child.motherId && nodes.has(child.motherId)) knownParents.push(child.motherId);
-        if (child.fatherId && nodes.has(child.fatherId)) knownParents.push(child.fatherId);
-        if (knownParents.length !== 1) continue;
-        const parentId = knownParents[0]!;
-        const parentNode = nodes.get(parentId);
+        for (const ref of getParents(child)) {
+            if (nodes.has(ref.personId)) knownParents.push(ref.personId);
+        }
+        if (knownParents.length === 0) continue;
         const kidNode = nodes.get(child.id);
-        if (!parentNode || !kidNode) continue;
-        const anchorRank = (parentNode.rank + kidNode.rank) / 2;
+        if (!kidNode) continue;
+
+        if (knownParents.length === 1) {
+            const parentId = knownParents[0]!;
+            const parentNode = nodes.get(parentId);
+            if (!parentNode) continue;
+            const anchorRank = (parentNode.rank + kidNode.rank) / 2;
+            const anchor: UnionAnchor = {
+                id: `union:solo:${parentId}|${child.id}`,
+                partnerIds: [parentId],
+                childIds: [child.id],
+                rank: anchorRank,
+            };
+            anchors.push(anchor);
+            edges.push(
+                drop(
+                    `drop:${anchor.id}`,
+                    [parentId, child.id],
+                    roleFor(tree, child.id, parentId),
+                    midX(parentNode),
+                    parentNode.y + CARD_H,
+                    midX(kidNode),
+                    kidNode.y,
+                ),
+            );
+            continue;
+        }
+
+        // Multi-parent (>=2 parents, but not covered by a known couple).
+        // Each parent contributes a drop to a parent-gather pill at the
+        // x-centroid of the parents' centers, located in the gutter
+        // between the parent rank and the child rank. The pill→child drop
+        // uses the highest-rank parent as the rank anchor.
+        const parentNodes = knownParents
+            .map((pid) => nodes.get(pid))
+            .filter((n): n is FamilyViewNode => n !== undefined);
+        const parentXs = parentNodes.map((n) => midX(n));
+        const centroidX = parentXs.reduce((s, x) => s + x, 0) / parentXs.length;
+        const maxParentY = Math.max(...parentNodes.map((n) => n.y + CARD_H));
+        const minParentRank = Math.min(...parentNodes.map((n) => n.rank));
+        const pillY = (maxParentY + kidNode.y) / 2;
+        const anchorRank = (minParentRank + kidNode.rank) / 2;
         const anchor: UnionAnchor = {
-            id: `union:solo:${parentId}|${child.id}`,
-            partnerIds: [parentId],
+            id: `union:multi:${knownParents.slice().sort().join("|")}|${child.id}`,
+            partnerIds: knownParents,
             childIds: [child.id],
             rank: anchorRank,
         };
         anchors.push(anchor);
-        edges.push(
-            drop(
-                `drop:${anchor.id}`,
-                [parentId, child.id],
-                roleFor(tree, child.id, parentId),
-                midX(parentNode),
-                parentNode.y + CARD_H,
-                midX(kidNode),
-                kidNode.y,
-            ),
-        );
+        // parent → pill drops
+        for (const parentNode of parentNodes) {
+            edges.push({
+                id: `drop:${anchor.id}|${parentNode.personId}-pill`,
+                persons: [parentNode.personId, child.id],
+                role: roleFor(tree, child.id, parentNode.personId),
+                points: [
+                    { x: midX(parentNode), y: parentNode.y + CARD_H },
+                    { x: midX(parentNode), y: pillY },
+                    { x: centroidX, y: pillY },
+                ],
+            });
+        }
+        // pill → child drop
+        edges.push({
+            id: `drop:${anchor.id}|pill-child`,
+            persons: [...knownParents, child.id],
+            role: "blood",
+            points: [
+                { x: centroidX, y: pillY },
+                { x: midX(kidNode), y: pillY },
+                { x: midX(kidNode), y: kidNode.y },
+            ],
+        });
     }
 
     // Badge drops: each auto-collapsed source needs a drop into its badge.
@@ -519,9 +601,8 @@ function recomputeAfterCollapse(
         for (const id of Array.from(visible)) {
             const p = tree.people[id];
             if (!p) continue;
-            const m = p.motherId;
-            const f = p.fatherId;
-            if ((m && hidden.has(m)) || (f && hidden.has(f))) {
+            const anyParentHidden = getParents(p).some((r) => hidden.has(r.personId));
+            if (anyParentHidden) {
                 if (!hidden.has(id)) {
                     hidden.add(id);
                     changed = true;
@@ -549,7 +630,7 @@ function directChildrenOfInSubset(
     const out: PersonId[] = [];
     for (const person of Object.values(tree.people)) {
         if (!visible.has(person.id)) continue;
-        if (person.motherId === parentId || person.fatherId === parentId) {
+        if (getParents(person).some((r) => r.personId === parentId)) {
             out.push(person.id);
         }
     }
@@ -574,7 +655,7 @@ function buildBadge(
     // working subset has already removed them).
     const members: PersonId[] = [];
     for (const person of Object.values(tree.people)) {
-        if (person.motherId === sourceId || person.fatherId === sourceId) {
+        if (getParents(person).some((r) => r.personId === sourceId)) {
             members.push(person.id);
         }
     }

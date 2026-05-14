@@ -9,8 +9,8 @@
  *   - 7-hop synthetic chain renders 7 highlighted persons,
  *   - selection through a multi-union threads through the spouse
  *     edge (path crosses a marriage),
- *   - single-parent path coverage: BFS still walks via motherId XOR
- *     fatherId without needing the partner card,
+ *   - single-parent path coverage: BFS still walks via a single
+ *     parentIds entry without needing the partner card,
  *   - badgeOnPath: a path member hidden inside a collapsed badge
  *     surfaces as on-path on the badge itself.
  *
@@ -94,7 +94,7 @@ describe("bfsPath", () => {
         expect(p).toEqual([ROOT_ID, parent.id, step.id]);
     });
 
-    it("walks single-parent (motherId XOR fatherId) paths cleanly", () => {
+    it("walks single-parent paths cleanly", () => {
         // Focus has one parent only; that parent has a parent.
         let t = createTree("sp", blank("Focus"));
         const mom = addPerson(t, blank("Mom", "f"));

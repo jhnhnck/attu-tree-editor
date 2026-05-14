@@ -24,6 +24,7 @@ import { describe, expect, it } from "vitest";
 import { parseGedcom } from "$lib/io/gedcom/parse";
 import { computeDoiScores } from "$lib/layout/doi";
 import type { PersonId, Tree } from "$lib/domain/types";
+import { getParents } from "$lib/domain/tree";
 
 const FIXTURE = resolve(process.cwd(), "tests/fixtures/Akarians.ged");
 
@@ -45,9 +46,8 @@ function pickMidTree(tree: Tree): PersonId {
     let bestKids = 0;
     const childCount = new Map<PersonId, number>();
     for (const p of Object.values(tree.people)) {
-        for (const parentId of [p.motherId, p.fatherId]) {
-            if (!parentId) continue;
-            childCount.set(parentId, (childCount.get(parentId) ?? 0) + 1);
+        for (const ref of getParents(p)) {
+            childCount.set(ref.personId, (childCount.get(ref.personId) ?? 0) + 1);
         }
     }
     for (const [id, n] of childCount) {
@@ -63,12 +63,11 @@ function pickLeaf(tree: Tree): PersonId {
     // Heuristic: someone with no children and at least one named parent.
     const hasKids = new Set<PersonId>();
     for (const p of Object.values(tree.people)) {
-        if (p.motherId) hasKids.add(p.motherId);
-        if (p.fatherId) hasKids.add(p.fatherId);
+        for (const ref of getParents(p)) hasKids.add(ref.personId);
     }
     for (const p of Object.values(tree.people)) {
         if (hasKids.has(p.id)) continue;
-        if (!p.motherId && !p.fatherId) continue;
+        if (getParents(p).length === 0) continue;
         return p.id;
     }
     return tree.rootId;

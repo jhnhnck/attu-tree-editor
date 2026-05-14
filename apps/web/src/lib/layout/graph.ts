@@ -6,6 +6,7 @@
  */
 
 import type { PersonId, Tree } from "$lib/domain/types";
+import { getParents } from "$lib/domain/tree";
 
 /**
  * Direction of a single hop in a path. `parent` means we walked from a
@@ -30,7 +31,7 @@ export interface Path {
 }
 
 export interface Adjacency {
-    /** for each person, their parent ids (0–2 entries; orphan refs filtered) */
+    /** for each person, their parent ids (orphan refs filtered) */
     readonly parentsOf: ReadonlyMap<PersonId, readonly PersonId[]>;
     /** for each person, their child ids (derived from parent links) */
     readonly childrenOf: ReadonlyMap<PersonId, readonly PersonId[]>;
@@ -68,13 +69,10 @@ export function buildAdjacency(tree: Tree): Adjacency {
     }
 
     for (const person of Object.values(tree.people)) {
-        if (person.motherId && ids.has(person.motherId)) {
-            pushUnique(parentsOf, person.id, person.motherId);
-            pushUnique(childrenOf, person.motherId, person.id);
-        }
-        if (person.fatherId && ids.has(person.fatherId)) {
-            pushUnique(parentsOf, person.id, person.fatherId);
-            pushUnique(childrenOf, person.fatherId, person.id);
+        for (const ref of getParents(person)) {
+            if (!ids.has(ref.personId)) continue;
+            pushUnique(parentsOf, person.id, ref.personId);
+            pushUnique(childrenOf, ref.personId, person.id);
         }
         for (const sid of person.spouseIds) {
             if (sid === person.id) continue;

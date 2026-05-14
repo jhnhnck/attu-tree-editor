@@ -28,6 +28,7 @@
  */
 
 import type { PersonId, Tree } from "$lib/domain/types";
+import { getParents } from "$lib/domain/tree";
 import { buildLcaIndex } from "$lib/layout/probandTree";
 
 /** Per-person DOI breakdown. `score = aPriori − distance` unless anchored. */
@@ -202,9 +203,8 @@ function isNamed(person: { given: string; surname: string }): boolean {
 function findBranchPoints(tree: Tree, threshold: number): ReadonlySet<PersonId> {
     const counts = new Map<PersonId, number>();
     for (const p of Object.values(tree.people)) {
-        for (const parentId of [p.motherId, p.fatherId]) {
-            if (!parentId) continue;
-            counts.set(parentId, (counts.get(parentId) ?? 0) + 1);
+        for (const ref of getParents(p)) {
+            counts.set(ref.personId, (counts.get(ref.personId) ?? 0) + 1);
         }
     }
     const out = new Set<PersonId>();
@@ -233,11 +233,10 @@ export function bfsPath(tree: Tree, source: PersonId, target: PersonId): readonl
 
     const childrenOf = new Map<PersonId, PersonId[]>();
     for (const p of Object.values(tree.people)) {
-        for (const parentId of [p.motherId, p.fatherId]) {
-            if (!parentId) continue;
-            const arr = childrenOf.get(parentId);
+        for (const ref of getParents(p)) {
+            const arr = childrenOf.get(ref.personId);
             if (arr) arr.push(p.id);
-            else childrenOf.set(parentId, [p.id]);
+            else childrenOf.set(ref.personId, [p.id]);
         }
     }
     // BFS with predecessors so we can reconstruct one shortest path.
@@ -255,8 +254,7 @@ export function bfsPath(tree: Tree, source: PersonId, target: PersonId): readonl
         const person = tree.people[id];
         if (!person) continue;
         const neighbours: PersonId[] = [];
-        if (person.motherId) neighbours.push(person.motherId);
-        if (person.fatherId) neighbours.push(person.fatherId);
+        for (const ref of getParents(person)) neighbours.push(ref.personId);
         const kids = childrenOf.get(id);
         if (kids) neighbours.push(...kids);
         for (const sId of person.spouseIds) neighbours.push(sId);
@@ -293,11 +291,10 @@ function bfsDistances(tree: Tree, focus: PersonId): ReadonlyMap<PersonId, number
 
     const childrenOf = new Map<PersonId, PersonId[]>();
     for (const p of Object.values(tree.people)) {
-        for (const parentId of [p.motherId, p.fatherId]) {
-            if (!parentId) continue;
-            const arr = childrenOf.get(parentId);
+        for (const ref of getParents(p)) {
+            const arr = childrenOf.get(ref.personId);
             if (arr) arr.push(p.id);
-            else childrenOf.set(parentId, [p.id]);
+            else childrenOf.set(ref.personId, [p.id]);
         }
     }
     const queue: PersonId[] = [focus];
@@ -308,8 +305,7 @@ function bfsDistances(tree: Tree, focus: PersonId): ReadonlyMap<PersonId, number
         const person = tree.people[id];
         if (!person) continue;
         const neighbours: PersonId[] = [];
-        if (person.motherId) neighbours.push(person.motherId);
-        if (person.fatherId) neighbours.push(person.fatherId);
+        for (const ref of getParents(person)) neighbours.push(ref.personId);
         const kids = childrenOf.get(id);
         if (kids) neighbours.push(...kids);
         for (const sId of person.spouseIds) neighbours.push(sId);

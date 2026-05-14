@@ -7,6 +7,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parseGedcom } from "$lib/io/gedcom/parse";
+import { getParents } from "$lib/domain/tree";
 
 const FIXTURE = resolve(process.cwd(), "tests/fixtures/Akarians.ged");
 
@@ -114,8 +115,9 @@ describe("parseGedcom - synthetic", () => {
         if (!dad || !mom || !kid) return;
         expect(dad.spouseIds).toContain(mom.id);
         expect(mom.spouseIds).toContain(dad.id);
-        expect(kid.fatherId).toBe(dad.id);
-        expect(kid.motherId).toBe(mom.id);
+        const parents = getParents(kid);
+        expect(parents.find((p) => p.role === "father")?.personId).toBe(dad.id);
+        expect(parents.find((p) => p.role === "mother")?.personId).toBe(mom.id);
     });
 
     it("accepts duplicate HUSB tags (same-sex marriage)", () => {
@@ -168,9 +170,11 @@ describe("parseGedcom - synthetic", () => {
         expect(r.tree.couples).toHaveLength(1);
         const persons = Object.values(r.tree.people);
         const kid = persons.find((p) => p.given === "Kid");
-        // bi-parent schema means only the first WIFE becomes the kid's mother
-        expect(kid?.motherId).toBeDefined();
-        expect(kid?.fatherId).toBeUndefined();
+        if (!kid) throw new Error("missing Kid");
+        const parents = getParents(kid);
+        // first WIFE → mother slot; second WIFE → "parent" role (same-sex co-mother)
+        expect(parents.find((p) => p.role === "mother")).toBeDefined();
+        expect(parents.find((p) => p.role === "father")).toBeUndefined();
     });
 
     it("MARR with DATE populates CoupleRecord.marriageDate", () => {
@@ -303,9 +307,7 @@ describe("parseGedcom - example file", () => {
     it("stitches single-parent FAMs onto children's father/mother", () => {
         // at least one person should have a father or mother set even if the
         // GEDCOM did not list a spouse for that parent
-        const linked = Object.values(r.tree.people).filter(
-            (p) => p.fatherId !== undefined || p.motherId !== undefined,
-        );
+        const linked = Object.values(r.tree.people).filter((p) => getParents(p).length > 0);
         expect(linked.length).toBeGreaterThan(1000);
     });
 

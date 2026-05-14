@@ -40,6 +40,7 @@
  */
 
 import type { CoupleRecord, PersonId, Tree } from "$lib/domain/types";
+import { getParents } from "$lib/domain/tree";
 import type { LayoutEdge, LayoutObstacle, LayoutPosition } from "$lib/layout/engine";
 import type { LayoutNode, LayoutNodeId } from "$lib/layout/ir";
 import {
@@ -182,11 +183,11 @@ function buildChildrenMap(tree: Tree, visible: ReadonlySet<PersonId>): Map<Perso
         if (!visible.has(id)) continue;
         const p = tree.people[id];
         if (!p) continue;
-        for (const parentId of [p.motherId, p.fatherId]) {
-            if (!parentId || !visible.has(parentId)) continue;
-            const arr = out.get(parentId);
+        for (const ref of getParents(p)) {
+            if (!visible.has(ref.personId)) continue;
+            const arr = out.get(ref.personId);
             if (arr) arr.push(id);
-            else out.set(parentId, [id]);
+            else out.set(ref.personId, [id]);
         }
     }
     return out;
@@ -208,8 +209,9 @@ function buildAncestorSpine(
             const p = tree.people[id];
             if (!p) continue;
             const parents: PersonId[] = [];
-            for (const pid of [p.motherId, p.fatherId]) {
-                if (!pid || visited.has(pid) || !visible.has(pid)) continue;
+            for (const ref of getParents(p)) {
+                const pid = ref.personId;
+                if (visited.has(pid) || !visible.has(pid)) continue;
                 visited.add(pid);
                 parents.push(pid);
                 included.add(pid);
@@ -425,11 +427,16 @@ function emitParentChildEdges(
         if (!visible.has(p.id)) continue;
         const childPos = positions.get(p.id);
         if (!childPos || childPos.space !== "hyperbolic") continue;
-        for (const parentId of [p.motherId, p.fatherId]) {
-            if (!parentId || !visible.has(parentId)) continue;
+        const refs = getParents(p);
+        const visibleParentIds = refs
+            .map((r) => r.personId)
+            .filter((pid) => visible.has(pid));
+        // pick first two as the "couple" anchor for bundling
+        const [m, f] = visibleParentIds;
+        for (const parentId of visibleParentIds) {
             const parentPos = positions.get(parentId);
             if (!parentPos || parentPos.space !== "hyperbolic") continue;
-            const bundle = jointKey(p.motherId, p.fatherId);
+            const bundle = jointKey(m, f);
             out.push({
                 id: `parent:${parentId}→${p.id}`,
                 persons: [parentId, p.id],

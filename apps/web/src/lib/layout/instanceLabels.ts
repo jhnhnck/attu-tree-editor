@@ -6,7 +6,7 @@
  */
 
 import type { PersonId, Tree } from "$lib/domain/types";
-import { directChildren } from "$lib/domain/tree";
+import { directChildren, getParents } from "$lib/domain/tree";
 import { displayName } from "$lib/layout/kinship";
 import type { HvLayoutResult } from "$lib/components/tree/canvasLayout";
 
@@ -62,8 +62,7 @@ function primarySublabel(tree: Tree, personId: PersonId): string {
     const p = tree.people[personId];
     if (!p) return "";
     const parents: string[] = [];
-    if (p.motherId) parents.push(displayName(tree, p.motherId));
-    if (p.fatherId) parents.push(displayName(tree, p.fatherId));
+    for (const ref of getParents(p)) parents.push(displayName(tree, ref.personId));
     if (parents.length > 0) return `child of ${parents.join(", ")}`;
     if (p.spouseIds.length > 0) {
         const names = p.spouseIds.map((id) => displayName(tree, id));
@@ -77,7 +76,7 @@ function ghostSublabel(tree: Tree, personId: PersonId, nearId: PersonId): string
     const shared = directChildren(tree, personId).filter((cid) => {
         const c = tree.people[cid];
         if (!c) return false;
-        return c.motherId === nearId || c.fatherId === nearId;
+        return getParents(c).some((ref) => ref.personId === nearId);
     });
     if (shared.length === 0) return base;
     const names = shared.map((cid) => displayName(tree, cid));

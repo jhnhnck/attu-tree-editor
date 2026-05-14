@@ -24,6 +24,7 @@ import { parseGhostNodeId } from "$lib/layout/ir";
 import type { EdgeRole, Segment } from "$lib/layout/edgeRouter";
 import { buildLcaIndex, lca, type LcaIndex } from "$lib/layout/probandTree";
 import type { PersonId, Tree } from "$lib/domain/types";
+import { getParents } from "$lib/domain/tree";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -330,19 +331,39 @@ function buildSegments(
         if (p) ghostByKey.set(`${p.ghostOf}|${p.nearId}`, nodeId);
     }
 
-    // Joint children by sorted couple key
+    // Joint children by sorted couple key (any pair of visible parents that
+    // matches a known couple's two members)
+    const couplePairs = new Set<string>();
+    for (const couple of tree.couples) {
+        const key =
+            couple.leftId < couple.rightId
+                ? `${couple.leftId}|${couple.rightId}`
+                : `${couple.rightId}|${couple.leftId}`;
+        couplePairs.add(key);
+    }
     const jointKids = new Map<string, PersonId[]>();
     for (const person of Object.values(tree.people)) {
-        const m = person.motherId;
-        const f = person.fatherId;
-        if (!m || !f) continue;
-        if (placed.nodes.get(m)?.kind !== "person") continue;
-        if (placed.nodes.get(f)?.kind !== "person") continue;
         if (placed.nodes.get(person.id)?.kind !== "person") continue;
-        const key = m < f ? `${m}|${f}` : `${f}|${m}`;
-        const list = jointKids.get(key);
-        if (list) list.push(person.id);
-        else jointKids.set(key, [person.id]);
+        const refs = getParents(person);
+        if (refs.length < 2) continue;
+        const visibleParents = refs
+            .map((r) => r.personId)
+            .filter((pid) => placed.nodes.get(pid)?.kind === "person");
+        if (visibleParents.length < 2) continue;
+        // pick the first parent pair that matches a known couple
+        for (let i = 0; i < visibleParents.length; i++) {
+            for (let j = i + 1; j < visibleParents.length; j++) {
+                const a = visibleParents[i]!;
+                const b = visibleParents[j]!;
+                const key = a < b ? `${a}|${b}` : `${b}|${a}`;
+                if (!couplePairs.has(key)) continue;
+                const list = jointKids.get(key);
+                if (list) list.push(person.id);
+                else jointKids.set(key, [person.id]);
+                i = visibleParents.length;
+                break;
+            }
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -613,13 +634,16 @@ function buildSegments(
         if (handled.has(person.id)) continue;
         const cPos = getPos(placed, person.id);
         if (!cPos) continue;
-        for (const parentId of [person.motherId, person.fatherId]) {
-            if (!parentId) continue;
-            const pPos = getPos(placed, parentId);
+        for (const ref of getParents(person)) {
+            const pPos = getPos(placed, ref.personId);
             if (!pPos) continue;
-            const entry = byParent.get(parentId);
+            const entry = byParent.get(ref.personId);
             if (entry) entry.kids.push({ id: person.id, pos: cPos });
-            else byParent.set(parentId, { parentPos: pPos, kids: [{ id: person.id, pos: cPos }] });
+            else
+                byParent.set(ref.personId, {
+                    parentPos: pPos,
+                    kids: [{ id: person.id, pos: cPos }],
+                });
         }
     }
 

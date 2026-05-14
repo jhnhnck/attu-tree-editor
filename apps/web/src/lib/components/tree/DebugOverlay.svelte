@@ -4,6 +4,7 @@
 -->
 <script lang="ts">
     import type { DebugOverlayProps } from "./debugTypes";
+    import { getParents } from "$lib/domain/tree";
 
     let {
         layout,
@@ -71,15 +72,14 @@
             if (ly !== ry) continue;
             const bondMidX = (lp + rp) / 2 + CARD_W_U / 2;
             const bondY = ly + CARD_H_U / 2;
-            // Children centroid via tree.people.{motherId,fatherId}
+            // Children centroid via parentIds (via getParents)
             const kids: number[] = [];
             for (const p of Object.values(tree.people)) {
-                const a = p.motherId;
-                const b = p.fatherId;
-                const matches =
-                    (a === couple.leftId && b === couple.rightId) ||
-                    (a === couple.rightId && b === couple.leftId);
-                if (!matches) continue;
+                const refs = getParents(p);
+                const ids = refs.map((r) => r.personId);
+                const hasLeft = ids.includes(couple.leftId);
+                const hasRight = ids.includes(couple.rightId);
+                if (!hasLeft || !hasRight) continue;
                 const cx = placedGraph.x.get(p.id);
                 if (cx !== undefined) kids.push(cx + CARD_W_U / 2);
             }
@@ -101,12 +101,13 @@
         if (!tree) return [] as string[];
         const childCount = new Map<string, number>();
         for (const p of Object.values(tree.people)) {
-            if (p.motherId) childCount.set(p.motherId, (childCount.get(p.motherId) ?? 0) + 1);
-            if (p.fatherId) childCount.set(p.fatherId, (childCount.get(p.fatherId) ?? 0) + 1);
+            for (const ref of getParents(p)) {
+                childCount.set(ref.personId, (childCount.get(ref.personId) ?? 0) + 1);
+            }
         }
         const out: string[] = [];
         for (const p of Object.values(tree.people)) {
-            const hasParent = (p.motherId ?? p.fatherId) !== undefined;
+            const hasParent = getParents(p).length > 0;
             const hasSpouse = p.spouseIds.length > 0;
             const hasChild = (childCount.get(p.id) ?? 0) > 0;
             if (!hasParent && !hasSpouse && !hasChild) out.push(p.id);

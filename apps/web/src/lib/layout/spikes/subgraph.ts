@@ -18,13 +18,14 @@
  */
 
 import type { Person, PersonId, Tree } from "$lib/domain/types";
+import { getParents } from "$lib/domain/tree";
 
 /**
  * Extract the N-hop neighbourhood around `proband` over the family
  * graph. Returns a fresh `Tree` whose `people` is the visited subset,
  * `couples` is the subset of couples with both members visited, and
  * `rootId` is the proband. Cross-edges to people outside the subtree
- * are pruned (motherId/fatherId set to undefined; spouseIds filtered).
+ * are pruned (parentIds filtered; spouseIds filtered).
  */
 export function nHopSubtree(tree: Tree, proband: PersonId, hops: number): Tree {
     if (!tree.people[proband]) {
@@ -37,15 +38,10 @@ export function nHopSubtree(tree: Tree, proband: PersonId, hops: number): Tree {
     for (const id of Object.keys(tree.people)) {
         const p = tree.people[id];
         if (!p) continue;
-        if (p.motherId) {
-            const arr = childrenOf.get(p.motherId);
+        for (const ref of getParents(p)) {
+            const arr = childrenOf.get(ref.personId);
             if (arr) arr.push(id);
-            else childrenOf.set(p.motherId, [id]);
-        }
-        if (p.fatherId) {
-            const arr = childrenOf.get(p.fatherId);
-            if (arr) arr.push(id);
-            else childrenOf.set(p.fatherId, [id]);
+            else childrenOf.set(ref.personId, [id]);
         }
     }
 
@@ -57,13 +53,11 @@ export function nHopSubtree(tree: Tree, proband: PersonId, hops: number): Tree {
             const p = tree.people[id];
             if (!p) continue;
             // Parents
-            if (p.motherId && !visited.has(p.motherId)) {
-                visited.add(p.motherId);
-                next.push(p.motherId);
-            }
-            if (p.fatherId && !visited.has(p.fatherId)) {
-                visited.add(p.fatherId);
-                next.push(p.fatherId);
+            for (const ref of getParents(p)) {
+                if (!visited.has(ref.personId)) {
+                    visited.add(ref.personId);
+                    next.push(ref.personId);
+                }
             }
             // Children
             for (const childId of childrenOf.get(id) ?? []) {
@@ -92,14 +86,10 @@ export function nHopSubtree(tree: Tree, proband: PersonId, hops: number): Tree {
             ...p,
             spouseIds: (p.spouseIds ?? []).filter((s) => visited.has(s)),
         };
-        // `delete` rather than `= undefined` — Person has
-        // exactOptionalPropertyTypes, so the optional fields cannot be
-        // assigned `undefined` directly.
-        if (sub.motherId !== undefined && !visited.has(sub.motherId)) {
-            delete sub.motherId;
-        }
-        if (sub.fatherId !== undefined && !visited.has(sub.fatherId)) {
-            delete sub.fatherId;
+        if (sub.parentIds) {
+            const filtered = sub.parentIds.filter((r) => visited.has(r.personId));
+            if (filtered.length === 0) delete sub.parentIds;
+            else sub.parentIds = filtered;
         }
         subPeople[id] = sub;
     }

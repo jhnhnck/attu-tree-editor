@@ -109,8 +109,8 @@ describe("migration chain (Phase 0 identity-stub round-trip)", () => {
     });
 });
 
-describe("Phase 2a migration: 1.0.0 → 2.0.0 populates parentIds from legacy", () => {
-    it("converts motherId / fatherId into parentIds entries", () => {
+describe("Phase 2b migration: 1.0.0 → 2.0.0 replaces legacy with parentIds", () => {
+    it("converts motherId / fatherId into parentIds entries and drops legacy keys", () => {
         const v1 = {
             name: "x",
             people: {
@@ -134,9 +134,9 @@ describe("Phase 2a migration: 1.0.0 → 2.0.0 populates parentIds from legacy", 
             fatherId?: string;
             parentIds?: { personId: string; role?: string; pedi?: string }[];
         };
-        // Legacy fields preserved (Phase 2a back-compat).
-        expect(kid.motherId).toBe("mom");
-        expect(kid.fatherId).toBe("dad");
+        // Legacy fields deleted after Phase 2b lands.
+        expect(kid.motherId).toBeUndefined();
+        expect(kid.fatherId).toBeUndefined();
         // parentIds populated.
         expect(kid.parentIds).toEqual([
             { personId: "mom", role: "mother", pedi: "birth" },

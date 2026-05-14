@@ -22,6 +22,7 @@
  */
 
 import type { PersonId, Tree } from "$lib/domain/types";
+import { getParents } from "$lib/domain/tree";
 import { primaryChildrenOf, primaryPartnerOf } from "$lib/layout/engines/family-view/couples";
 
 /** How many generations up from focus the default subset includes. */
@@ -96,10 +97,10 @@ export function selectBoundedSubset(
         for (const id of frontier) {
             const p = tree.people[id];
             if (!p) continue;
-            for (const parentId of [p.motherId, p.fatherId]) {
-                if (parentId && !visible.has(parentId)) {
-                    place(parentId, -depth);
-                    next.push(parentId);
+            for (const ref of getParents(p)) {
+                if (!visible.has(ref.personId)) {
+                    place(ref.personId, -depth);
+                    next.push(ref.personId);
                 }
             }
         }
@@ -124,9 +125,8 @@ export function selectBoundedSubset(
     // they're focus's siblings by blood, regardless of which union produced them.
     const focus = tree.people[focusId];
     if (focus) {
-        for (const parentId of [focus.motherId, focus.fatherId]) {
-            if (!parentId) continue;
-            for (const siblingId of directChildrenOf(tree, parentId)) {
+        for (const ref of getParents(focus)) {
+            for (const siblingId of directChildrenOf(tree, ref.personId)) {
                 if (!visible.has(siblingId)) place(siblingId, 0);
             }
         }
@@ -225,8 +225,8 @@ function revealChildren(
     for (const childId of placedChildren) {
         const child = tree.people[childId];
         if (!child) continue;
-        for (const other of [child.motherId, child.fatherId]) {
-            if (!other) continue;
+        for (const ref of getParents(child)) {
+            const other = ref.personId;
             if (other === id) continue;
             if (!visible.has(other)) place(other, parentRank);
         }
@@ -245,8 +245,8 @@ function revealParents(
     const p = tree.people[id];
     if (!p) return false;
     let any = false;
-    for (const parentId of [p.motherId, p.fatherId]) {
-        if (!parentId) continue;
+    for (const ref of getParents(p)) {
+        const parentId = ref.personId;
         if (!visible.has(parentId)) {
             place(parentId, childRank - 1);
             any = true;
@@ -262,7 +262,7 @@ function revealParents(
 function directChildrenOf(tree: Tree, parentId: PersonId): readonly PersonId[] {
     const out: PersonId[] = [];
     for (const person of Object.values(tree.people)) {
-        if (person.motherId === parentId || person.fatherId === parentId) {
+        if (getParents(person).some((r) => r.personId === parentId)) {
             out.push(person.id);
         }
     }
@@ -308,13 +308,11 @@ function collectHasMoreParents(
         if (rank.get(id) !== minR) continue;
         const p = tree.people[id];
         if (!p) continue;
-        if (p.motherId && !visible.has(p.motherId)) {
-            out.add(id);
-            continue;
-        }
-        if (p.fatherId && !visible.has(p.fatherId)) {
-            out.add(id);
-            continue;
+        for (const ref of getParents(p)) {
+            if (!visible.has(ref.personId)) {
+                out.add(id);
+                break;
+            }
         }
     }
     return out;

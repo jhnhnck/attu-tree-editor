@@ -8,26 +8,12 @@ import type { CoupleRecord, ParentRef, Person, PersonId, Tree } from "$lib/domai
 import { err, ok, type Result } from "$lib/utils/result";
 
 /**
- * Canonical parent-list reader (Phase 2a of the relationship-vocabulary
- * plan). Returns `person.parentIds` if it's populated; otherwise derives
- * from the legacy `motherId` / `fatherId` fields so pre-migration data
- * still resolves cleanly.
- *
- * Use this everywhere a consumer needs to enumerate a person's parents.
- * Reading the legacy fields directly is OK in Phase 2a (the migration
- * keeps both in sync) but breaks in Phase 2b when the legacy fields are
- * removed from the `Person` type entirely.
+ * Canonical parent-list reader. Returns `person.parentIds` if it's
+ * populated, otherwise an empty array. Always use this rather than
+ * reading `parentIds` directly so a missing array reads as no parents.
  */
 export function getParents(person: Person): readonly ParentRef[] {
-    if (person.parentIds && person.parentIds.length > 0) return person.parentIds;
-    const derived: ParentRef[] = [];
-    if (person.motherId !== undefined) {
-        derived.push({ personId: person.motherId, role: "mother", pedi: "birth" });
-    }
-    if (person.fatherId !== undefined) {
-        derived.push({ personId: person.fatherId, role: "father", pedi: "birth" });
-    }
-    return derived;
+    return person.parentIds ?? [];
 }
 
 /**
@@ -115,8 +101,11 @@ export function removePerson(t: Tree, id: PersonId): Tree {
 
 function sweepReferences(p: Person, removedId: PersonId): Person {
     const next: Person = { ...p, spouseIds: p.spouseIds.filter((s) => s !== removedId) };
-    if (p.motherId === removedId) delete next.motherId;
-    if (p.fatherId === removedId) delete next.fatherId;
+    if (p.parentIds) {
+        const filtered = p.parentIds.filter((r) => r.personId !== removedId);
+        if (filtered.length === 0) delete next.parentIds;
+        else next.parentIds = filtered;
+    }
     if (p.anchorParentId === removedId) delete next.anchorParentId;
     return next;
 }
@@ -142,23 +131,13 @@ export function linkParent(
               ? "mother"
               : "father";
 
-    // Phase 2a: write to BOTH the legacy field and `parentIds[]`. Phase
-    // 2b removes the legacy write.
-    const legacyKey = role === "mother" ? "motherId" : "fatherId";
-    const existingParents = getParents(child);
     // Drop any existing entry for the same slot (mother/father), then
-    // append the new one. For non-mother/father roles (Phase 2b), this
-    // collapses to "append if not present".
+    // append the new one. For non-mother/father roles this collapses to
+    // "append if not present".
+    const existingParents = getParents(child);
     const filtered = existingParents.filter((p) => p.role !== role);
-    const updatedParents: ParentRef[] = [
-        ...filtered,
-        { personId: parentId, role, pedi: "birth" },
-    ];
-    const next: Person = {
-        ...child,
-        [legacyKey]: parentId,
-        parentIds: updatedParents,
-    };
+    const updatedParents: ParentRef[] = [...filtered, { personId: parentId, role, pedi: "birth" }];
+    const next: Person = { ...child, parentIds: updatedParents };
     return ok({ ...t, people: { ...t.people, [childId]: next } });
 }
 
@@ -166,12 +145,10 @@ export function unlinkParent(t: Tree, childId: PersonId, role: "mother" | "fathe
     const child = t.people[childId];
     if (!child) return t;
     const next: Person = { ...child };
-    if (role === "mother") delete next.motherId;
-    else delete next.fatherId;
-    // Phase 2a: also drop the matching entry from `parentIds`. Phase 2b
-    // removes the legacy `delete` above.
     const existingParents = getParents(child);
-    next.parentIds = existingParents.filter((p) => p.role !== role);
+    const filtered = existingParents.filter((p) => p.role !== role);
+    if (filtered.length === 0) delete next.parentIds;
+    else next.parentIds = filtered;
     return { ...t, people: { ...t.people, [childId]: next } };
 }
 

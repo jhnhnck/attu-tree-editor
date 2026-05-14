@@ -449,7 +449,7 @@ function centerUnderParents(
 
     // Build a per-cluster member index so we can drag ghost cluster mates
     // along when we centre the near. Ghost nodes have no parent edges of
-    // their own (parents come from real motherId/fatherId links only), so
+    // their own (parents come from real parentIds links only), so
     // they would otherwise be left behind by this pass and the cluster's
     // DELTA spacing from place()'s gap policy would be violated.
     const clusterMembers = new Map<string, LayoutNodeId[]>();

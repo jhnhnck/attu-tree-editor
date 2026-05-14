@@ -39,6 +39,7 @@ import {
 } from "$lib/layout/ir";
 import type { Segment } from "$lib/layout/edgeRouter";
 import type { Tree } from "$lib/domain/types";
+import { getParents } from "$lib/domain/tree";
 
 /** Engines we know how to dispatch to. Mirrors `EngineKind` in `state/engine.ts`. */
 type EngineId = "layered" | "hyperbolic";
@@ -79,11 +80,16 @@ function hashOverrides(w: LayoutOverridesWire | undefined): string {
 }
 
 function hashTreeContent(tree: Tree): string {
-    const peopleSig: [string, string | undefined, string | undefined][] = [];
+    const peopleSig: [string, string][] = [];
     for (const id of Object.keys(tree.people).sort()) {
         const p = tree.people[id];
         if (!p) continue;
-        peopleSig.push([id, p.motherId, p.fatherId]);
+        // parent signature: stable string of (personId, role?, pedi?) per ref, ordered by personId
+        const parentSig = getParents(p)
+            .map((r) => `${r.personId}:${r.role ?? ""}:${r.pedi ?? ""}`)
+            .sort()
+            .join(",");
+        peopleSig.push([id, parentSig]);
     }
     const couplesSig = tree.couples
         .map(

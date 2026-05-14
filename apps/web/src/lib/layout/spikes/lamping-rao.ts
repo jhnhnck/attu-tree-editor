@@ -23,6 +23,7 @@
  */
 
 import type { PersonId, Tree } from "$lib/domain/types";
+import { getParents } from "$lib/domain/tree";
 import { type Complex, ZERO, abs, placeChild } from "$lib/layout/spikes/hyperbolic";
 
 export interface HourglassOptions {
@@ -59,15 +60,10 @@ function buildChildrenMap(tree: Tree): Map<PersonId, PersonId[]> {
     for (const id of Object.keys(tree.people)) {
         const p = tree.people[id];
         if (!p) continue;
-        if (p.motherId) {
-            const arr = out.get(p.motherId);
+        for (const ref of getParents(p)) {
+            const arr = out.get(ref.personId);
             if (arr) arr.push(id);
-            else out.set(p.motherId, [id]);
-        }
-        if (p.fatherId) {
-            const arr = out.get(p.fatherId);
-            if (arr) arr.push(id);
-            else out.set(p.fatherId, [id]);
+            else out.set(ref.personId, [id]);
         }
     }
     return out;
@@ -89,15 +85,12 @@ function buildAncestorSubtree(tree: Tree, proband: PersonId): Map<PersonId, Pers
             const p = tree.people[id];
             if (!p) continue;
             const parents: PersonId[] = [];
-            if (p.motherId && !visited.has(p.motherId) && tree.people[p.motherId]) {
-                visited.add(p.motherId);
-                parents.push(p.motherId);
-                next.push(p.motherId);
-            }
-            if (p.fatherId && !visited.has(p.fatherId) && tree.people[p.fatherId]) {
-                visited.add(p.fatherId);
-                parents.push(p.fatherId);
-                next.push(p.fatherId);
+            for (const ref of getParents(p)) {
+                const pid = ref.personId;
+                if (visited.has(pid) || !tree.people[pid]) continue;
+                visited.add(pid);
+                parents.push(pid);
+                next.push(pid);
             }
             if (parents.length > 0) subtree.set(id, parents);
         }

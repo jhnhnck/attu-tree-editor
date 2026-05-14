@@ -17,6 +17,7 @@
  */
 
 import type { PersonId, Tree } from "$lib/domain/types";
+import { getParents } from "$lib/domain/tree";
 
 export interface LcaIndex {
     readonly depth: ReadonlyMap<PersonId, number>;
@@ -39,11 +40,10 @@ export function buildLcaIndex(tree: Tree, rootId: PersonId): LcaIndex {
 
     const childrenOf = new Map<PersonId, PersonId[]>();
     for (const p of Object.values(tree.people)) {
-        for (const parentId of [p.motherId, p.fatherId]) {
-            if (!parentId) continue;
-            const arr = childrenOf.get(parentId);
+        for (const ref of getParents(p)) {
+            const arr = childrenOf.get(ref.personId);
             if (arr) arr.push(p.id);
-            else childrenOf.set(parentId, [p.id]);
+            else childrenOf.set(ref.personId, [p.id]);
         }
     }
     const queue: PersonId[] = [rootId];
@@ -54,8 +54,7 @@ export function buildLcaIndex(tree: Tree, rootId: PersonId): LcaIndex {
         const person = tree.people[id];
         if (!person) continue;
         const neighbours: PersonId[] = [];
-        if (person.motherId) neighbours.push(person.motherId);
-        if (person.fatherId) neighbours.push(person.fatherId);
+        for (const ref of getParents(person)) neighbours.push(ref.personId);
         const kids = childrenOf.get(id);
         if (kids) neighbours.push(...kids);
         for (const n of neighbours) {

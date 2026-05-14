@@ -25,6 +25,7 @@ import { parseGedcom } from "$lib/io/gedcom/parse";
 import { type Complex, abs, geodesic } from "$lib/layout/spikes/hyperbolic";
 import { layoutHourglass, type HourglassLayout } from "$lib/layout/spikes/lamping-rao";
 import type { Tree } from "$lib/domain/types";
+import { getParents } from "$lib/domain/tree";
 
 const AKARIANS_GED = readFileSync(resolve(process.cwd(), "tests/fixtures/Akarians.ged"), "utf-8");
 
@@ -89,13 +90,10 @@ function ancestorDepth(tree: Tree, start: string): number {
         for (const id of frontier) {
             const p = tree.people[id];
             if (!p) continue;
-            if (p.motherId && !visited.has(p.motherId)) {
-                visited.add(p.motherId);
-                next.push(p.motherId);
-            }
-            if (p.fatherId && !visited.has(p.fatherId)) {
-                visited.add(p.fatherId);
-                next.push(p.fatherId);
+            for (const ref of getParents(p)) {
+                if (visited.has(ref.personId)) continue;
+                visited.add(ref.personId);
+                next.push(ref.personId);
             }
         }
         frontier = next;
@@ -270,7 +268,7 @@ function writeReport(rows: readonly SchemeResult[]): void {
         "Phase 5's full implementation will lift this directly.",
         "",
         "1. **Build two subtrees from the proband.** Ancestors via BFS up",
-        "   parent-chain (motherId, fatherId at each step); descendants via BFS",
+        "   parent-chain (parentIds at each step); descendants via BFS",
         "   down the inverted children-of map. Each subtree is treated as",
         "   unidirectional for the recursive Lamping-Rao step.",
         "2. **Place the proband at z = 0** with no outward direction (it's",
@@ -420,9 +418,7 @@ function ancestorChildrenOf(tree: Tree): Map<string, string[]> {
     for (const id of Object.keys(tree.people)) {
         const p = tree.people[id];
         if (!p) continue;
-        const parents: string[] = [];
-        if (p.motherId) parents.push(p.motherId);
-        if (p.fatherId) parents.push(p.fatherId);
+        const parents: string[] = getParents(p).map((r) => r.personId);
         if (parents.length > 0) out.set(id, parents);
     }
     return out;
@@ -433,15 +429,10 @@ function descendantChildrenOf(tree: Tree): Map<string, string[]> {
     for (const id of Object.keys(tree.people)) {
         const p = tree.people[id];
         if (!p) continue;
-        if (p.motherId) {
-            const arr = out.get(p.motherId);
+        for (const ref of getParents(p)) {
+            const arr = out.get(ref.personId);
             if (arr) arr.push(id);
-            else out.set(p.motherId, [id]);
-        }
-        if (p.fatherId) {
-            const arr = out.get(p.fatherId);
-            if (arr) arr.push(id);
-            else out.set(p.fatherId, [id]);
+            else out.set(ref.personId, [id]);
         }
     }
     return out;

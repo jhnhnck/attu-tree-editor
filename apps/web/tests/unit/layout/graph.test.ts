@@ -104,7 +104,11 @@ describe("buildAdjacency", () => {
             ...t0,
             people: {
                 ...t0.people,
-                AAAAA: { ...blank("orphan", "u"), id: "AAAAA", motherId: "ZZZZZ" },
+                AAAAA: {
+                    ...blank("orphan", "u"),
+                    id: "AAAAA",
+                    parentIds: [{ personId: "ZZZZZ", role: "mother", pedi: "birth" }],
+                },
             },
         };
         const a = buildAdjacency(t);

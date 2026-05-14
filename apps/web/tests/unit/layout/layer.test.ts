@@ -369,7 +369,7 @@ describe("layer — siblingBlockId", () => {
 
     it("person with single known parent has no siblingBlockId", () => {
         const { tree, ids } = lineage();
-        // kid has motherId=root but no father; no couple record with joint children
+        // kid has only one parent (root, as mother); no couple record with joint children
         const g = layer(tree, visAll(tree), ids.root!);
         expect(g.nodes.get(ids.kid!)!.siblingBlockId).toBeUndefined();
     });

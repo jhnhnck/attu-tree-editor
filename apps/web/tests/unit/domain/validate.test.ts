@@ -44,7 +44,7 @@ describe("validate (structural problems)", () => {
         const t = withMutated((tree) => {
             const root = tree.people[ROOT_ID];
             if (!root) throw new Error("missing root");
-            root.motherId = "GHOST";
+            root.parentIds = [{ personId: "GHOST", role: "mother", pedi: "birth" }];
         });
         const findings = validate(t);
         expect(findings).toContainEqual({
@@ -82,7 +82,7 @@ describe("validate (structural problems)", () => {
         // sneak the cycle in by direct mutation (linkParent would refuse it)
         const aPerson = t.people[a];
         if (!aPerson) throw new Error("missing A");
-        aPerson.fatherId = addB.id;
+        aPerson.parentIds = [{ personId: addB.id, role: "father", pedi: "birth" }];
 
         const findings = validate(t);
         const cycle = findings.find((f) => f.kind === "cycle");

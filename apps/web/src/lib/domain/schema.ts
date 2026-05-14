@@ -34,16 +34,15 @@ export interface Migration {
 const identity = (raw: unknown): unknown => raw;
 
 /**
- * 1.0.0 → 2.0.0 migration body (Phase 2a of the relationship-vocabulary
- * plan). Walks every person and populates `parentIds` from the legacy
- * `motherId` / `fatherId` fields:
+ * 1.0.0 → 2.0.0 migration body. Walks every person and populates
+ * `parentIds` from the legacy `motherId` / `fatherId` fields:
  *   - `motherId` (if set) → ParentRef with role=mother, pedi=birth
  *   - `fatherId` (if set) → ParentRef with role=father, pedi=birth
  * Persons that already carry a `parentIds` array (e.g. written by a
  * newer build that round-tripped through this build) are left alone so
  * we don't clobber data we don't understand.
- * The legacy fields are KEPT in the tree shape so Phase 2a code that
- * still reads them keeps working; Phase 2b deletes them entirely.
+ * Phase 2b: legacy fields are deleted from the in-memory record after
+ * the array is populated; readers must use `getParents(person)`.
  */
 function migrateParentIdsV1ToV2(raw: unknown): unknown {
     if (!raw || typeof raw !== "object") return raw;
@@ -56,15 +55,18 @@ function migrateParentIdsV1ToV2(raw: unknown): unknown {
             fatherId?: string;
             parentIds?: { personId: string; role?: string; pedi?: string }[];
         };
-        if (Array.isArray(p.parentIds) && p.parentIds.length > 0) continue;
-        const newParents: { personId: string; role: string; pedi: string }[] = [];
-        if (typeof p.motherId === "string" && p.motherId.length > 0) {
-            newParents.push({ personId: p.motherId, role: "mother", pedi: "birth" });
+        if (!Array.isArray(p.parentIds) || p.parentIds.length === 0) {
+            const newParents: { personId: string; role: string; pedi: string }[] = [];
+            if (typeof p.motherId === "string" && p.motherId.length > 0) {
+                newParents.push({ personId: p.motherId, role: "mother", pedi: "birth" });
+            }
+            if (typeof p.fatherId === "string" && p.fatherId.length > 0) {
+                newParents.push({ personId: p.fatherId, role: "father", pedi: "birth" });
+            }
+            p.parentIds = newParents;
         }
-        if (typeof p.fatherId === "string" && p.fatherId.length > 0) {
-            newParents.push({ personId: p.fatherId, role: "father", pedi: "birth" });
-        }
-        p.parentIds = newParents;
+        delete p.motherId;
+        delete p.fatherId;
     }
     return raw;
 }
@@ -80,7 +82,7 @@ export const migrations: Migration[] = [
     {
         from: "1.0.0",
         to: "2.0.0",
-        description: "parentIds[] coexists with motherId/fatherId (Phase 2a)",
+        description: "parentIds[] replaces motherId/fatherId (Phase 2b)",
         migrate: migrateParentIdsV1ToV2,
     },
     {

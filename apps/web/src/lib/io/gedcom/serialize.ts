@@ -6,6 +6,7 @@
 import type { TreeNode } from "read-gedcom";
 import { HaracalndeDate } from "$lib/date/HaracalndeDate";
 import type { CoupleRecord, Person, PersonId, Tree } from "$lib/domain/types";
+import { getParents } from "$lib/domain/tree";
 import type { GedHead } from "$lib/io/gedcom/parse";
 
 export interface GedSerializeOptions {
@@ -128,12 +129,23 @@ function deriveFamilies(tree: Tree, xrefByPerson: Map<PersonId, string>): Derive
     const groupKey = (husbIds: PersonId[], wifeIds: PersonId[]): string =>
         `${[...husbIds].sort().join(",")}|${[...wifeIds].sort().join(",")}`;
 
-    // group children by (fatherId, motherId) tuple - bi-parent schema means
-    // each child contributes at most one HUSB and one WIFE
+    // group children by parent set - each ParentRef maps to a HUSB or WIFE
+    // slot using role hint, falling back to the parent's gender. Multi-parent
+    // children (>2 refs) still produce one FAM here; Phase 2b.3 adds the
+    // _TREES_PARENT_REF extension and per-parent FAMC fallbacks for the
+    // non-traditional cases.
     for (const person of Object.values(tree.people)) {
-        if (!person.motherId && !person.fatherId) continue;
-        const husbIds = person.fatherId ? [person.fatherId] : [];
-        const wifeIds = person.motherId ? [person.motherId] : [];
+        const refs = getParents(person);
+        if (refs.length === 0) continue;
+        const husbIds: PersonId[] = [];
+        const wifeIds: PersonId[] = [];
+        for (const ref of refs) {
+            const parent = tree.people[ref.personId];
+            if (ref.role === "mother") wifeIds.push(ref.personId);
+            else if (ref.role === "father") husbIds.push(ref.personId);
+            else if (parent?.gender === "f") wifeIds.push(ref.personId);
+            else husbIds.push(ref.personId);
+        }
         const key = groupKey(husbIds, wifeIds);
         let group = groups.get(key);
         if (!group) {

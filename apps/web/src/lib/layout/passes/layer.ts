@@ -33,6 +33,7 @@
  */
 
 import type { PersonId, Tree } from "$lib/domain/types";
+import { getParents } from "$lib/domain/tree";
 import type { Adjacency } from "$lib/layout/graph";
 import { buildAdjacency } from "$lib/layout/graph";
 import { ghostNodeId } from "$lib/layout/ir";
@@ -104,7 +105,7 @@ export function layer(
 
     // -----------------------------------------------------------------------
     // 2. Precompute joint visible children for each couple.
-    //    Uses person.motherId / person.fatherId rather than couple.childIds
+    //    Uses person.parentIds (via getParents) rather than couple.childIds
     //    because linkParent() populates the person record but does not back-
     //    fill the CoupleRecord.childIds array.
     // -----------------------------------------------------------------------
@@ -270,11 +271,10 @@ export function layer(
     for (const id of vis) {
         const person = tree.people[id];
         if (!person) continue;
-        if (person.motherId && vis.has(person.motherId)) {
-            parentEdges.push({ parent: person.motherId, child: id });
-        }
-        if (person.fatherId && vis.has(person.fatherId)) {
-            parentEdges.push({ parent: person.fatherId, child: id });
+        for (const ref of getParents(person)) {
+            if (vis.has(ref.personId)) {
+                parentEdges.push({ parent: ref.personId, child: id });
+            }
         }
     }
 
@@ -438,7 +438,7 @@ function equalizeCoupleRanks(
 
 /**
  * Build a map from couple key ("leftId|rightId") to visible joint children,
- * using person.motherId / person.fatherId rather than couple.childIds because
+ * walking person.parentIds via getParents rather than couple.childIds because
  * linkParent() populates person records but not CoupleRecord.childIds.
  */
 function buildVisChildrenMap(tree: Tree, vis: ReadonlySet<PersonId>): Map<string, PersonId[]> {
@@ -454,11 +454,24 @@ function buildVisChildrenMap(tree: Tree, vis: ReadonlySet<PersonId>): Map<string
     const result = new Map<string, PersonId[]>();
     for (const id of vis) {
         const person = tree.people[id];
-        if (!person?.motherId || !person?.fatherId) continue;
-        if (!vis.has(person.motherId) || !vis.has(person.fatherId)) continue;
-        const coupleKey =
-            coupleKeyByParents.get(`${person.motherId}|${person.fatherId}`) ??
-            coupleKeyByParents.get(`${person.fatherId}|${person.motherId}`);
+        if (!person) continue;
+        const parents = getParents(person);
+        // need at least two visible parents to map onto a couple key
+        const visibleParents = parents.map((r) => r.personId).filter((pid) => vis.has(pid));
+        if (visibleParents.length < 2) continue;
+        // try every unordered pair to find one that matches a known couple
+        let coupleKey: string | undefined;
+        outer: for (let i = 0; i < visibleParents.length; i++) {
+            for (let j = i + 1; j < visibleParents.length; j++) {
+                const key =
+                    coupleKeyByParents.get(`${visibleParents[i]}|${visibleParents[j]}`) ??
+                    coupleKeyByParents.get(`${visibleParents[j]}|${visibleParents[i]}`);
+                if (key) {
+                    coupleKey = key;
+                    break outer;
+                }
+            }
+        }
         if (!coupleKey) continue;
         const list = result.get(coupleKey);
         if (list) list.push(id);

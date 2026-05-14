@@ -16,7 +16,7 @@
         Baby,
     } from "@lucide/svelte";
     import type { CoupleRecord, Person, PersonId, Tree } from "$lib/domain/types";
-    import type { CouplePatch } from "$lib/domain/tree";
+    import { getParents, type CouplePatch } from "$lib/domain/tree";
     import type { HaracalndeDateData } from "$lib/date/HaracalndeDate";
     import DateInput from "$lib/components/form/DateInput.svelte";
     import PersonChooser from "./PersonChooser.svelte";
@@ -63,14 +63,16 @@
 
     const allPeople = $derived(Object.values(tree.people));
 
-    const mother = $derived(person.motherId ? tree.people[person.motherId] : undefined);
-    const father = $derived(person.fatherId ? tree.people[person.fatherId] : undefined);
+    const motherRef = $derived(getParents(person).find((r) => r.role === "mother"));
+    const fatherRef = $derived(getParents(person).find((r) => r.role === "father"));
+    const mother = $derived(motherRef ? tree.people[motherRef.personId] : undefined);
+    const father = $derived(fatherRef ? tree.people[fatherRef.personId] : undefined);
     const partners = $derived(
         person.spouseIds.map((id) => tree.people[id]).filter((p): p is Person => p !== undefined),
     );
     const children = $derived(
         allPeople
-            .filter((p) => p.motherId === person.id || p.fatherId === person.id)
+            .filter((p) => getParents(p).some((r) => r.personId === person.id))
             .sort((a, b) => (a.birth?.year ?? 0) - (b.birth?.year ?? 0)),
     );
 
@@ -80,9 +82,10 @@
     }
 
     function partnerLabelFor(c: Person): string {
-        const otherParentId = c.motherId === person.id ? c.fatherId : c.motherId;
-        if (!otherParentId) return "(alone)";
-        const op = tree.people[otherParentId];
+        const refs = getParents(c);
+        const others = refs.map((r) => r.personId).filter((pid) => pid !== person.id);
+        if (others.length === 0) return "(alone)";
+        const op = tree.people[others[0]!];
         return op ? `with ${fullName(op)}` : "(alone)";
     }
 

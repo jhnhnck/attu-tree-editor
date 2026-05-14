@@ -5,7 +5,7 @@
 
 import { HaracalndeDate } from "$lib/date/HaracalndeDate";
 import { ROOT_ID } from "$lib/domain/ids";
-import type { CoupleRecord, Gender, Person, PersonId, Tree } from "$lib/domain/types";
+import type { CoupleRecord, Gender, ParentRef, Person, PersonId, Tree } from "$lib/domain/types";
 import { validate, type Finding } from "$lib/domain/validate";
 import {
     FS_DISPLAY_FROM_CODE,
@@ -179,12 +179,20 @@ function parsePerson(
                 break;
             }
             case "m":
-                if (ID_RE.test(value)) person.motherId = value;
-                else findings.push({ kind: "unknown-tag", from: id, tag, value });
+                if (ID_RE.test(value)) {
+                    const refs: ParentRef[] = person.parentIds ?? [];
+                    if (!refs.some((r) => r.personId === value)) {
+                        person.parentIds = [...refs, { personId: value, role: "mother", pedi: "birth" }];
+                    }
+                } else findings.push({ kind: "unknown-tag", from: id, tag, value });
                 break;
             case "f":
-                if (ID_RE.test(value)) person.fatherId = value;
-                else findings.push({ kind: "unknown-tag", from: id, tag, value });
+                if (ID_RE.test(value)) {
+                    const refs: ParentRef[] = person.parentIds ?? [];
+                    if (!refs.some((r) => r.personId === value)) {
+                        person.parentIds = [...refs, { personId: value, role: "father", pedi: "birth" }];
+                    }
+                } else findings.push({ kind: "unknown-tag", from: id, tag, value });
                 break;
             case "s":
                 if (ID_RE.test(value)) person.spouseIds.push(value);

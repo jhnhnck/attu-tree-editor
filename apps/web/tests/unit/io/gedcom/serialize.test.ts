@@ -46,8 +46,10 @@ function tinyTree(): Tree {
                 given: "Kid",
                 surname: "X",
                 gender: "f",
-                fatherId: "AAAAA",
-                motherId: "BBBBB",
+                parentIds: [
+                    { personId: "AAAAA", role: "father", pedi: "birth" },
+                    { personId: "BBBBB", role: "mother", pedi: "birth" },
+                ],
                 spouseIds: [],
                 display: "z1",
             },
@@ -141,11 +143,11 @@ describe("serializeGedcom - synthetic", () => {
         expect(out).not.toContain("1 HUSB");
     });
 
-    it("derives single-parent FAM from a child with only a fatherId", () => {
+    it("derives single-parent FAM from a child with only a father parent ref", () => {
         const base = tinyTree();
         const kid = base.people.CCCCC;
         if (!kid) throw new Error("fixture missing CCCCC");
-        delete kid.motherId;
+        kid.parentIds = (kid.parentIds ?? []).filter((r) => r.role !== "mother");
         base.couples = [];
         const out = serializeGedcom(base);
         expect(out).toContain("0 @F1@ FAM");
@@ -176,7 +178,7 @@ describe("serializeGedcom - synthetic", () => {
     it("does not emit MARR / _CURRENT / _PRIMARY for FAMs synthesized purely from child links", () => {
         const base = tinyTree();
         // wipe the explicit couple; the FAM is then derived purely from the
-        // (motherId, fatherId) on CCCCC
+        // parentIds on CCCCC
         base.couples = [];
         const out = serializeGedcom(base);
         expect(out).not.toContain("1 MARR");

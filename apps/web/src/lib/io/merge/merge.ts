@@ -5,7 +5,7 @@
 
 import type { HaracalndeDateData } from "$lib/date/HaracalndeDate";
 import { ROOT_ID } from "$lib/domain/ids";
-import type { CoupleRecord, Person, PersonId, Tree } from "$lib/domain/types";
+import type { CoupleRecord, ParentRef, Person, PersonId, Tree } from "$lib/domain/types";
 import { validate, type Finding } from "$lib/domain/validate";
 
 export type MergeSource = "familyscript" | "gedcom";
@@ -87,8 +87,12 @@ export function mergeTrees(a: MergeInput, b: MergeInput, opts: MergeOptions = {}
     for (const [oldId, newId] of Object.entries(bIdMap)) {
         const person = people[newId];
         if (!person) continue;
-        if (person.motherId) person.motherId = bIdMap[person.motherId] ?? person.motherId;
-        if (person.fatherId) person.fatherId = bIdMap[person.fatherId] ?? person.fatherId;
+        if (person.parentIds) {
+            person.parentIds = person.parentIds.map((r) => ({
+                ...r,
+                personId: bIdMap[r.personId] ?? r.personId,
+            }));
+        }
         if (person.anchorParentId)
             person.anchorParentId = bIdMap[person.anchorParentId] ?? person.anchorParentId;
         person.spouseIds = person.spouseIds.map((sid) => bIdMap[sid] ?? sid);
@@ -144,7 +148,9 @@ export function mergeTrees(a: MergeInput, b: MergeInput, opts: MergeOptions = {}
 }
 
 function clonePerson(p: Person): Person {
-    return { ...p, spouseIds: [...p.spouseIds] };
+    const next: Person = { ...p, spouseIds: [...p.spouseIds] };
+    if (p.parentIds) next.parentIds = p.parentIds.map((r) => ({ ...r }));
+    return next;
 }
 
 function cloneCouple(c: CoupleRecord): CoupleRecord {
@@ -306,33 +312,17 @@ function mergeFields(
         pickDate(target.death, source.death, targetSource, prefer, target.id, "death", findings),
     );
 
-    // parent ids: prefer existing; if both set and differ, preference
-    setOptional(
-        target,
-        "motherId",
-        pickOptional(
-            target.motherId,
-            source.motherId,
-            targetSource,
-            prefer,
-            target.id,
-            "motherId",
-            findings,
-        ),
+    // parent refs: union by personId; preference wins on role/pedi conflict
+    const merged = mergeParentRefs(
+        target.parentIds ?? [],
+        source.parentIds ?? [],
+        targetSource,
+        prefer,
+        target.id,
+        findings,
     );
-    setOptional(
-        target,
-        "fatherId",
-        pickOptional(
-            target.fatherId,
-            source.fatherId,
-            targetSource,
-            prefer,
-            target.id,
-            "fatherId",
-            findings,
-        ),
-    );
+    if (merged.length === 0) delete target.parentIds;
+    else target.parentIds = merged;
     setOptional(
         target,
         "anchorParentId",
@@ -432,6 +422,42 @@ function dateSpecificity(d: HaracalndeDateData): number {
     if (d.day !== undefined) return 3;
     if (d.month !== undefined) return 2;
     return 1;
+}
+
+function mergeParentRefs(
+    aRefs: readonly ParentRef[],
+    bRefs: readonly ParentRef[],
+    aSrc: MergeSource,
+    prefer: MergeSource,
+    pid: PersonId,
+    findings: Finding[],
+): ParentRef[] {
+    const byId = new Map<PersonId, ParentRef>();
+    for (const ref of aRefs) byId.set(ref.personId, { ...ref });
+    for (const ref of bRefs) {
+        const existing = byId.get(ref.personId);
+        if (!existing) {
+            byId.set(ref.personId, { ...ref });
+            continue;
+        }
+        if (existing.role !== ref.role && existing.role !== undefined && ref.role !== undefined) {
+            findings.push(
+                makeConflict(pid, `parentRef[${ref.personId}].role`, existing.role, ref.role, aSrc, prefer),
+            );
+            if (prefer !== aSrc) existing.role = ref.role;
+        } else if (existing.role === undefined && ref.role !== undefined) {
+            existing.role = ref.role;
+        }
+        if (existing.pedi !== ref.pedi && existing.pedi !== undefined && ref.pedi !== undefined) {
+            findings.push(
+                makeConflict(pid, `parentRef[${ref.personId}].pedi`, existing.pedi, ref.pedi, aSrc, prefer),
+            );
+            if (prefer !== aSrc) existing.pedi = ref.pedi;
+        } else if (existing.pedi === undefined && ref.pedi !== undefined) {
+            existing.pedi = ref.pedi;
+        }
+    }
+    return Array.from(byId.values());
 }
 
 function makeConflict(

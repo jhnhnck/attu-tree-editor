@@ -4,6 +4,7 @@
  */
 
 import type { PersonId, Tree } from "$lib/domain/types";
+import { getParents } from "$lib/domain/tree";
 
 /*
  * Only export targets the editor actually offers; bare GEDCOM and bare
@@ -32,12 +33,10 @@ export function fieldsDroppedFor(tree: Tree, target: ExportTarget): ExportWarnin
             });
         }
         const anchored = persons
-            .filter(
-                (p) =>
-                    p.anchorParentId !== undefined &&
-                    p.anchorParentId !== p.fatherId &&
-                    p.anchorParentId !== p.motherId,
-            )
+            .filter((p) => {
+                if (p.anchorParentId === undefined) return false;
+                return !getParents(p).some((r) => r.personId === p.anchorParentId);
+            })
             .map((p) => p.id);
         if (anchored.length > 0) {
             warnings.push({

@@ -5,12 +5,13 @@
 
 import { isValidId, ROOT_ID } from "$lib/domain/ids";
 import type { PersonId, Tree } from "$lib/domain/types";
+import { getParents } from "$lib/domain/tree";
 
 export type Finding =
     | {
           kind: "orphan-reference";
           from: PersonId;
-          field: "mother" | "father" | "spouse" | "anchor";
+          field: "mother" | "father" | "parent" | "spouse" | "anchor";
           missing: PersonId;
       }
     | { kind: "cycle"; path: PersonId[] }
@@ -67,20 +68,15 @@ export function validate(t: Tree): Finding[] {
             findings.push({ kind: "invalid-id", id: person.id });
         }
 
-        if (person.motherId !== undefined && !ids.has(person.motherId)) {
+        for (const ref of getParents(person)) {
+            if (ids.has(ref.personId)) continue;
+            const field: "mother" | "father" | "parent" =
+                ref.role === "mother" ? "mother" : ref.role === "father" ? "father" : "parent";
             findings.push({
                 kind: "orphan-reference",
                 from: person.id,
-                field: "mother",
-                missing: person.motherId,
-            });
-        }
-        if (person.fatherId !== undefined && !ids.has(person.fatherId)) {
-            findings.push({
-                kind: "orphan-reference",
-                from: person.id,
-                field: "father",
-                missing: person.fatherId,
+                field,
+                missing: ref.personId,
             });
         }
         if (person.anchorParentId !== undefined && !ids.has(person.anchorParentId)) {
@@ -123,8 +119,8 @@ const BLACK = 2;
 
 /**
  * Iterative DFS over the parent edges to find lineage cycles. We walk from each
- * person upward through motherId / fatherId; a back-edge to a gray (in-progress)
- * node identifies a cycle and we emit the path.
+ * person upward through parentIds (via getParents); a back-edge to a gray
+ * (in-progress) node identifies a cycle and we emit the path.
  */
 function detectAncestorCycles(t: Tree): Finding[] {
     const findings: Finding[] = [];
@@ -144,9 +140,7 @@ function detectAncestorCycles(t: Tree): Finding[] {
             if (!frame) break;
             const [current, parentIdx] = frame;
             const person = t.people[current];
-            const parents: PersonId[] = [];
-            if (person?.motherId) parents.push(person.motherId);
-            if (person?.fatherId) parents.push(person.fatherId);
+            const parents: PersonId[] = person ? getParents(person).map((r) => r.personId) : [];
 
             if (parentIdx >= parents.length) {
                 color.set(current, BLACK);

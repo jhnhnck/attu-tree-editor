@@ -8,7 +8,7 @@ import type { TreeNode, TreeNodeRoot } from "read-gedcom";
 
 import { HaracalndeDate } from "$lib/date/HaracalndeDate";
 import { generateId } from "$lib/domain/ids";
-import type { CoupleRecord, Person, PersonId, Tree } from "$lib/domain/types";
+import type { CoupleRecord, ParentRef, Person, PersonId, Tree } from "$lib/domain/types";
 
 const ID_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
@@ -336,16 +336,33 @@ function applyFam(
         }
     }
 
-    // stitch parent links on every child. With multiple HUSB / WIFE (same-sex
-    // co-parents) the bi-parent schema can only hold one of each role, so the
-    // first HUSB becomes father and the first WIFE becomes mother.
+    // stitch parent links on every child via parentIds[]. The first HUSB
+    // becomes the father slot and the first WIFE becomes the mother slot for
+    // canonical role labelling; additional HUSB/WIFE entries (same-sex
+    // co-parents) get role 'parent'. Phase 2b.3 will wire `_TREES_PARENT_REF`
+    // import to capture richer role/pedi fidelity.
     const primaryHusb = husbIds[0];
     const primaryWife = wifeIds[0];
     for (const cid of childIds) {
         const child = people[cid];
         if (!child) continue;
-        if (primaryHusb && child.fatherId === undefined) child.fatherId = primaryHusb;
-        if (primaryWife && child.motherId === undefined) child.motherId = primaryWife;
+        const existing = child.parentIds ?? [];
+        const seen = new Set(existing.map((r) => `${r.personId}|${r.role ?? ""}`));
+        const additions: ParentRef[] = [];
+        const pushRef = (ref: ParentRef) => {
+            const key = `${ref.personId}|${ref.role ?? ""}`;
+            if (seen.has(key)) return;
+            // also skip if this personId already present with a different role
+            if (existing.some((r) => r.personId === ref.personId)) return;
+            if (additions.some((r) => r.personId === ref.personId)) return;
+            seen.add(key);
+            additions.push(ref);
+        };
+        if (primaryHusb) pushRef({ personId: primaryHusb, role: "father", pedi: "birth" });
+        if (primaryWife) pushRef({ personId: primaryWife, role: "mother", pedi: "birth" });
+        for (const hid of husbIds.slice(1)) pushRef({ personId: hid, role: "parent", pedi: "birth" });
+        for (const wid of wifeIds.slice(1)) pushRef({ personId: wid, role: "parent", pedi: "birth" });
+        if (additions.length > 0) child.parentIds = [...existing, ...additions];
     }
 
     const allSpouseIds = [...husbIds, ...wifeIds];
