@@ -52,12 +52,13 @@ export interface CardDecoration {
 const DEFAULT_FRAME: CardFrame = "solid";
 
 /**
- * Phase 0 stub. Returns a hardcoded decoration derived from gender
- * alone; the five relationship-vocabulary extension fields default to
- * `undefined`. Phase 5 of relationship-vocabulary extends this function
- * (not the record shape — the record is the long-term contract). The
- * function is pure so the renderer can memoise on `person`'s identity
- * if needed.
+ * Phase 5 (family-view): real decorator. Gender drives shape + tone,
+ * birth-year drives a subtle century-banded underline so era reads at
+ * a glance. The relationship-vocabulary extension fields (species, kind,
+ * origin, identityFluid, assignedAtBirth) remain `undefined` until the
+ * relationship-vocabulary workstream populates them from the new
+ * Person fields. The function is pure so the renderer can memoise on
+ * `person`'s identity if needed.
  */
 export function decorate(person: Person): CardDecoration {
     return {
@@ -65,7 +66,7 @@ export function decorate(person: Person): CardDecoration {
         frame: DEFAULT_FRAME,
         fillTone: toneFor(person.gender),
         cornerGlyphs: [],
-        underlineColour: null,
+        underlineColour: underlineForBirthYear(person.birth?.year),
         // species, kind, origin, identityFluid, assignedAtBirth all default
         // to `undefined` by omission. Phase 5 of relationship-vocabulary
         // populates them from the new Person fields.
@@ -82,4 +83,27 @@ function toneFor(g: Gender): "sky" | "rose" | "amber" {
     if (g === "m") return "sky";
     if (g === "f") return "rose";
     return "amber";
+}
+
+/**
+ * Pick a century-banded hue for the bottom-of-card era underline. The
+ * intent is "era reads at a glance" — adjacent centuries get adjacent
+ * hues so generations within the same era look related, but a few
+ * centuries' span produces visible drift. Uses an HSL hue rotation
+ * indexed by `floor(year / 100)`; the saturation/lightness stay flat
+ * so the underline never competes with selection (yellow ring) or
+ * path-highlight (accent) for attention.
+ *
+ * Returns `null` for unknown birth years so PersonNode can drop the
+ * underline element entirely (avoid a stray 1-px line on
+ * dateless cards).
+ */
+function underlineForBirthYear(year: number | undefined): string | null {
+    if (year === undefined) return null;
+    const century = Math.floor(year / 100);
+    // 360° / 12 centuries ≈ 30° per step; modulo wraps so very-far-future
+    // and very-far-past years still get a hue rather than collapsing to
+    // the same colour for everyone.
+    const hue = (century * 30) % 360;
+    return `hsl(${String(hue)} 55% 55%)`;
 }

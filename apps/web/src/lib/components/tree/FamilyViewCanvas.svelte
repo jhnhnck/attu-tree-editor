@@ -422,6 +422,20 @@
         return Array.from(layout.nodes.values());
     }
 
+    /**
+     * Phase 5 generation badge. Cards whose rank differs from the focus
+     * get a small `g+N` / `g-N` pill at top-left so the user can read
+     * "this person is two generations up from focus" without counting
+     * rows. Focus + same-rank siblings get no badge (rank 0 = no marker
+     * needed). The focus card always has `+ person` at top-left from
+     * Phase 4; non-focus cards have rank ≠ 0, so the two affordances
+     * never appear on the same card.
+     */
+    function generationLabel(node: FamilyViewNode): string | null {
+        if (node.rank === 0) return null;
+        return node.rank > 0 ? `g+${String(node.rank)}` : `g${String(node.rank)}`;
+    }
+
     function edgePath(e: FamilyViewEdge): string {
         const pts = e.points;
         if (pts.length === 0) return "";
@@ -569,6 +583,15 @@
                         >
                             <Minus size={14} strokeWidth={2.5} />
                         </button>
+                    {/if}
+                    {#if generationLabel(node)}
+                        <span
+                            class="border-line bg-canvas-elev/90 text-fg-muted
+                                   pointer-events-none absolute -top-2 -left-2 z-20
+                                   rounded-full border px-1 font-mono text-[10px]
+                                   leading-tight shadow-sm"
+                            data-generation-badge={generationLabel(node)}
+                            aria-hidden="true">{generationLabel(node)}</span>
                     {/if}
                     {#if node.personId === activeFocus}
                         <button

@@ -4,10 +4,11 @@
     licensed under the MIT license; see LICENSE.md for full text
 -->
 <script lang="ts">
-    import { Link2 } from "@lucide/svelte";
+    import { Link2, User } from "@lucide/svelte";
     import { HaracalndeDate, type HaracalndeDateData } from "$lib/date/HaracalndeDate";
     import type { Person } from "$lib/domain/types";
     import type { PersonNodeLevel } from "$lib/components/tree/edges";
+    import { decorate } from "$lib/layout/engines/family-view/cardDecorator";
 
     interface Props {
         person: Person;
@@ -44,6 +45,18 @@
     let initials = $derived(((firstName[0] ?? "") + (lastName[0] ?? "")).toUpperCase() || "?");
     let dateRange = $derived(formatRange(person.birth, person.death));
 
+    /**
+     * Phase 5 decorator pass. All visual hints (shape, tone, frame,
+     * underline) come from `cardDecorator.ts` — PersonNode contains zero
+     * gender-conditional branches of its own. Phase 5 of the
+     * relationship-vocabulary plan will extend `decorate(person)` to
+     * read `species` / `kind` / `origin` etc.; PersonNode picks the
+     * new fields up automatically.
+     */
+    let decoration = $derived(decorate(person));
+    let toneClass = $derived(toneClassFor(decoration.fillTone, level));
+    let isDeceased = $derived(person.death !== undefined);
+
     function formatRange(
         birth: HaracalndeDateData | undefined,
         death: HaracalndeDateData | undefined,
@@ -63,26 +76,32 @@
         return "";
     }
 
-    // at level 5 (dot) use a solid opaque fill so the tiny shape reads clearly
-    let genderClass = $derived(
-        level >= 5
-            ? person.gender === "m"
-                ? "bg-sky-500"
-                : person.gender === "f"
-                  ? "bg-rose-500"
-                  : "bg-amber-400"
-            : person.gender === "m"
-              ? "bg-sky-700/35 border-sky-400/70"
-              : person.gender === "f"
-                ? "bg-rose-700/35 border-rose-400/70"
-                : "bg-amber-600/30 border-amber-400/70",
-    );
+    /**
+     * Tone-to-Tailwind mapper. Branches on the decorator's abstract
+     * `fillTone` ("sky" | "rose" | "amber"), not on `person.gender`,
+     * so the decorator stays the single source of gender-driven
+     * choices. Level 5 (dot) uses an opaque fill so the tiny shape
+     * reads at distance; lower levels use the muted bg+border pair.
+     */
+    function toneClassFor(
+        tone: "sky" | "rose" | "amber",
+        lvl: PersonNodeLevel,
+    ): string {
+        if (lvl >= 5) {
+            if (tone === "sky") return "bg-sky-500";
+            if (tone === "rose") return "bg-rose-500";
+            return "bg-amber-400";
+        }
+        if (tone === "sky") return "bg-sky-700/35 border-sky-400/70";
+        if (tone === "rose") return "bg-rose-700/35 border-rose-400/70";
+        return "bg-amber-600/30 border-amber-400/70";
+    }
 </script>
 
 <button
     type="button"
     role="treeitem"
-    class="text-fg person-card group relative flex h-full w-full cursor-pointer flex-col items-stretch overflow-hidden px-2 py-1 text-center outline-none hover:z-10 focus:outline-none focus-visible:outline-none {genderClass}"
+    class="text-fg person-card group relative flex h-full w-full cursor-pointer flex-col items-stretch overflow-hidden px-2 py-1 text-center outline-none hover:z-10 focus:outline-none focus-visible:outline-none {toneClass}"
     class:is-faded={person.display === "z0"}
     class:is-selected={selected}
     data-person-id={person.id}
@@ -107,6 +126,22 @@
         {#if portraitUrl}
             <div class="border-line/40 mb-1 h-10 w-full overflow-hidden rounded border">
                 <img src={portraitUrl} alt="" class="h-full w-full object-cover object-top" />
+            </div>
+        {:else}
+            <!-- Phase 5 silhouette fallback: no portrait → render a User
+                 icon scaled to the same slot. Deceased people (death date
+                 present) get a greyscale tint so a face on the canvas
+                 always means "alive or unknown"; greyscale always means
+                 "deceased." Reads at fit-zoom even though the icon itself
+                 is small (the slot is ~40% of the card height). -->
+            <div
+                class="border-line/40 bg-canvas/40 mb-1 flex h-10 w-full items-center
+                       justify-center overflow-hidden rounded border text-fg/70"
+                class:is-deceased={isDeceased}
+                aria-hidden="true"
+                data-silhouette="true"
+            >
+                <User size={24} strokeWidth={1.5} />
             </div>
         {/if}
         <span class="line-clamp-2 text-sm leading-tight font-semibold">
@@ -140,6 +175,21 @@
         <span class="m-auto text-6xl leading-none font-bold tracking-tight">{initials}</span>
     </div>
     <!-- level 5: empty box, no text -->
+
+    {#if decoration.underlineColour}
+        <!-- Phase 5 era underline: a subtle 1-px band at the bottom of
+             the card, hue derived from the birth-year's century by
+             cardDecorator. Cards without a birth-year have
+             `underlineColour: null` so this block doesn't render and
+             no stray pixel-row appears. Positioned absolutely so it
+             doesn't push the existing flex layout. -->
+        <span
+            class="pointer-events-none absolute right-0 bottom-0 left-0 h-px"
+            style:background-color={decoration.underlineColour}
+            aria-hidden="true"
+            data-era-underline="true"
+        ></span>
+    {/if}
 
     {#if hasMultipleInstances}
         <div
@@ -199,6 +249,13 @@
     }
     .is-faded {
         opacity: 0.45;
+    }
+    /* Phase 5 silhouette fallback: deceased people render with a
+       greyscale tint so a colour-on-the-face always means alive-or-
+       unknown and greyscale always means deceased. Tint is light
+       enough to keep the icon readable at fit-zoom. */
+    .is-deceased {
+        filter: grayscale(1) brightness(0.85);
     }
     /* selection ring as an inset box-shadow rather than `outline`. outline
        was being beaten by the UA's `:focus-visible { outline: ... }` rule
