@@ -119,11 +119,14 @@ describe("Phase 2b.2 family-view multi-parent + half-sibling", () => {
                 u.partnerIds.length === 2 && u.partnerIds.includes(f) && u.partnerIds.includes(m),
         );
         expect(fmAnchor).toBeDefined();
-        // K1 drop is "blood" (shares both parents).
-        const k1Drop = out.edges.find((e) => e.id === `drop:${fmAnchor!.id}|${k1}`);
-        expect(k1Drop?.role).toBe("blood");
-        // K2 drop is "half" (K2's parentIds only include F, not M).
-        const k2Drop = out.edges.find((e) => e.id === `drop:${fmAnchor!.id}|${k2}`);
-        expect(k2Drop?.role).toBe("half");
+        // visual-fixup phase 2 #5 collapsed per-child L-drops into one
+        // sibling-bus + per-kid stubs. The stub edge carries the
+        // per-child role (blood vs half), same as the old drop did.
+        // K1 stub is "blood" (shares both parents).
+        const k1Stub = out.edges.find((e) => e.id === `stub:${fmAnchor!.id}|${k1}`);
+        expect(k1Stub?.role).toBe("blood");
+        // K2 stub is "half" (K2's parentIds only include F, not M).
+        const k2Stub = out.edges.find((e) => e.id === `stub:${fmAnchor!.id}|${k2}`);
+        expect(k2Stub?.role).toBe("half");
     });
 });

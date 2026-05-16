@@ -31,6 +31,7 @@
     import PersonNode from "$lib/components/tree/PersonNode.svelte";
     import type { PortraitUrlCache } from "$lib/state/portraitUrls.svelte";
     import { FamilyViewEngine, CARD_H } from "$lib/layout/engines/family-view";
+    import { edgePath as buildEdgePath } from "$lib/layout/engines/family-view/edgePath";
     import type {
         BadgeNode,
         FamilyViewEdge,
@@ -475,15 +476,7 @@
     }
 
     function edgePath(e: FamilyViewEdge): string {
-        const pts = e.points;
-        if (pts.length === 0) return "";
-        const head = pts[0]!;
-        let d = `M ${String(head.x * UNIT)} ${String(head.y * UNIT)}`;
-        for (let i = 1; i < pts.length; i += 1) {
-            const p = pts[i]!;
-            d += ` L ${String(p.x * UNIT)} ${String(p.y * UNIT)}`;
-        }
-        return d;
+        return buildEdgePath(e.points, UNIT);
     }
 
     function edgeClass(e: FamilyViewEdge): string {

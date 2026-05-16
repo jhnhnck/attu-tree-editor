@@ -58,6 +58,16 @@ export const CARD_H_WITH_PORTRAIT = 1.6;
 export const CARD_H_COMPACT = 0.9;
 /** Above this name length, fall back to the default card height even without a portrait. */
 const NAME_COMPACT_THRESHOLD = 14;
+/**
+ * Phase-2 visual-fixup: distance (unit space) the card's selection-ring
+ * boundary sits inside the card rect. Connectors terminate at the visible
+ * edge (rect minus this inset), not the rect itself, so the line ends
+ * cleanly at the card boundary instead of overrunning into the rounded
+ * corner. Matches the 3 px `box-shadow: inset 0 0 0 3px` used in
+ * `PersonNode.svelte` (FamilyViewCanvas's UNIT scale = 80, so 3 / 80).
+ * Used by `coupleConnector` (#4) and the per-couple sibling bus (#5).
+ */
+export const CARD_VISIBLE_INSET_U = 3 / 80;
 /** Past this many visible cards, auto-collapse kicks in (Phase 1 plan). */
 export const AUTO_COLLAPSE_THRESHOLD = 50;
 
@@ -417,32 +427,67 @@ function emitAnchorsAndEdges(
         const anchorCenterX = (midX(leftNode) + midX(rightNode)) / 2;
         // anchor at the shorter card's midline so the couple-bus passes through both cards
         const anchorY = leftNode.y + Math.min(leftNode.h ?? CARD_H, rightNode.h ?? CARD_H) / 2;
-        for (const kid of visibleKids) {
-            const kidNode = nodes.get(kid);
-            if (!kidNode) continue;
-            const kidPerson = tree.people[kid];
-            const kidParentIds = kidPerson
-                ? new Set(getParents(kidPerson).map((r) => r.personId))
-                : new Set<PersonId>();
-            // half-sibling: child is in CoupleRecord.childIds but its
-            // own parentIds list doesn't include both partners. Render
-            // with the "half" stroke role rather than "blood".
-            const sharesBoth = kidParentIds.has(couple.leftId) && kidParentIds.has(couple.rightId);
-            const role: FamilyViewEdgeRole = sharesBoth
-                ? roleFor(tree, kid, leftNode.personId)
-                : "half";
-            edges.push(
-                drop(
-                    `drop:${anchor.id}|${kid}`,
-                    [leftNode.personId, rightNode.personId, kid],
+        // visual-fixup #5: emit one explicit sibling-bus segment + N child
+        // stubs instead of N L-drops whose horizontal segments overlapped
+        // into an emergent bus. Bus extent spans the parents' midpoint and
+        // every child's midX so the parent stem always lands on the bus.
+        // Bus Y = midpoint between parent rank midline and child top.
+        const visibleKidNodes = visibleKids
+            .map((id) => nodes.get(id))
+            .filter((n): n is FamilyViewNode => n !== undefined);
+        if (visibleKidNodes.length > 0) {
+            const kidRowY = visibleKidNodes[0]!.y;
+            const busY = (anchorY + kidRowY) / 2;
+            const kidXs = visibleKidNodes.map(midX);
+            const busLeftX = Math.min(anchorCenterX, ...kidXs);
+            const busRightX = Math.max(anchorCenterX, ...kidXs);
+            const partnerPair: readonly PersonId[] = [leftNode.personId, rightNode.personId];
+            // parent stem — vertical line from couple-bus midpoint down to the sibling bus
+            edges.push({
+                id: `stem:${anchor.id}`,
+                persons: partnerPair,
+                role: "blood",
+                points: [
+                    { x: anchorCenterX, y: anchorY },
+                    { x: anchorCenterX, y: busY },
+                ],
+            });
+            // sibling bus — single horizontal segment across the parents' midpoint and all kids
+            edges.push({
+                id: `bus:${anchor.id}`,
+                persons: [...partnerPair, ...visibleKidNodes.map((n) => n.personId)],
+                role: "blood",
+                points: [
+                    { x: busLeftX, y: busY },
+                    { x: busRightX, y: busY },
+                ],
+            });
+            // per-child stubs — short verticals from bus down into each kid
+            for (const kidNode of visibleKidNodes) {
+                const kid = kidNode.personId;
+                const kidPerson = tree.people[kid];
+                const kidParentIds = kidPerson
+                    ? new Set(getParents(kidPerson).map((r) => r.personId))
+                    : new Set<PersonId>();
+                // half-sibling: child is in CoupleRecord.childIds but its
+                // own parentIds list doesn't include both partners. Render
+                // the stub with the "half" stroke role rather than "blood".
+                const sharesBoth =
+                    kidParentIds.has(couple.leftId) && kidParentIds.has(couple.rightId);
+                const role: FamilyViewEdgeRole = sharesBoth
+                    ? roleFor(tree, kid, leftNode.personId)
+                    : "half";
+                edges.push({
+                    id: `stub:${anchor.id}|${kid}`,
+                    persons: [...partnerPair, kid],
                     role,
-                    anchorCenterX,
-                    anchorY,
-                    midX(kidNode),
-                    kidNode.y,
-                ),
-            );
-            childCovered.add(kid);
+                    points: [
+                        { x: midX(kidNode), y: busY },
+                        { x: midX(kidNode), y: kidNode.y },
+                    ],
+                });
+                childCovered.add(kid);
+            }
         }
     }
 
@@ -637,13 +682,16 @@ function coupleConnector(
 ): FamilyViewEdge {
     // anchor at the shorter card's midline so the bond passes through both cards
     const y = left.y + Math.min(left.h ?? CARD_H, right.h ?? CARD_H) / 2;
+    // visual-fixup #4: terminate at the visible card edge (selection-ring
+    // boundary), not the rect, so the connector doesn't overrun into the
+    // rounded corner.
     return {
         id: `bond:${couple.leftId}|${couple.rightId}|${String(couple.unionIndex)}`,
         persons: [couple.leftId, couple.rightId],
         role: "married",
         points: [
-            { x: left.x + PERSON_W, y },
-            { x: right.x, y },
+            { x: left.x + PERSON_W - CARD_VISIBLE_INSET_U, y },
+            { x: right.x + CARD_VISIBLE_INSET_U, y },
         ],
     };
 }

@@ -119,16 +119,19 @@ describe("mixed-height row geometry", () => {
         expect(expectedY).toBeLessThanOrEqual(rightNode.y + (rightNode.h ?? CARD_H));
     });
 
-    it("child drop starts from the couple-bus midline (mixed heights stay consistent)", () => {
+    it("parent stem starts from the couple-bus midline (mixed heights stay consistent)", () => {
+        // visual-fixup phase 2 #5: the per-child L-drops collapsed into a
+        // single parent-stem + sibling-bus + per-kid stubs. The stem's
+        // first point is the same anchor (anchorCenterX, anchorY) the
+        // old drop used, so the mixed-height invariant carries over.
         const { tree, ids } = makeMixedHeightCouple();
         const layout = computeLayout(tree, ids.child!, {});
         const leftNode = layout.nodes.get(ids.left!)!;
         const rightNode = layout.nodes.get(ids.right!)!;
-        const dropEdge = layout.edges.find((e) => e.id.startsWith("drop:union:"));
-        expect(dropEdge).toBeDefined();
+        const stemEdge = layout.edges.find((e) => e.id.startsWith("stem:union:"));
+        expect(stemEdge).toBeDefined();
         const minH = Math.min(leftNode.h ?? CARD_H, rightNode.h ?? CARD_H);
         const expectedY = leftNode.y + minH / 2;
-        // Drop's first point is (anchorCenterX, anchorY) where anchorY is the bus midline.
-        expect(dropEdge!.points[0]!.y).toBeCloseTo(expectedY);
+        expect(stemEdge!.points[0]!.y).toBeCloseTo(expectedY);
     });
 });

@@ -6,15 +6,15 @@ tracker for the 10-item visual cleanup plan ([wise-skipping-meerkat](../../../ho
 
 | # | issue | phase | status |
 |---|---|---|---|
-| 1 | two-line name clipped at card bottom | 1 | open |
+| 1 | two-line name clipped at card bottom | 1 | closed in phase 1 (`9f8a784`) |
 | 2 | empty date row leaves empty band | 3 | open (decision: vertically center) |
-| 3 | card height grows with photo presence | 1 | open (decision: 2:3 portrait when photo present) |
-| 4 | couple connector overruns card edge | 2 | open |
-| 5 | sibling bus not centered between parents | 2 | open (post-probe: rescope, see below) |
-| 6 | sub-pixel stroke artifacts on T-junctions | 2 | open |
+| 3 | card height grows with photo presence | 1 | closed in phase 1 (`9f8a784`) |
+| 4 | couple connector overruns card edge | 2 | code-complete pending visual e2e + commit |
+| 5 | sibling bus not centered between parents | 2 | code-complete pending visual e2e + commit (rescoped: explicit bus segment) |
+| 6 | sub-pixel stroke artifacts on T-junctions | 2 | code-complete pending visual e2e + commit |
 | 7 | selection ring radius doesn't match card | 3 | open |
 | 9 | generation badge togglable in view menu | 4 | open (decision: default off; phase-0 wiring landed) |
-| 11 | avatar slot too large for placeholder | 1 (or 3) | open |
+| 11 | avatar slot too large for placeholder | 1 (or 3) | provisionally closed in phase 1 (`9f8a784`); revisit in phase 3 if eyeball check fails |
 | 12 | bug icon contrast | 5 | open |
 
 dropped: #8 (defer), #10 (skip — zoom levels broken on family-view, separate concern), #13 (not-a-bug).
@@ -51,3 +51,17 @@ walking-skeleton wiring landed:
 - layered + hyperbolic engines untouched (they don't consume `FamilyViewNode`).
 
 phase 1 replaces `h: CARD_H` with a content-driven heuristic; phase 4 flips the badge default + adds the view-menu command.
+
+## phase 2 implementation summary (pending visual e2e + commit)
+
+closes connector-geometry items #4, #5, #6.
+
+- [layout.ts](../../apps/web/src/lib/layout/engines/family-view/layout.ts): added `CARD_VISIBLE_INSET_U = 3 / 80` (matches the 3 px selection-ring inset in `PersonNode.svelte`); `coupleConnector` now terminates at `left.x + PERSON_W - CARD_VISIBLE_INSET_U` and `right.x + CARD_VISIBLE_INSET_U` (#4); the per-couple sibling block emits one `stem:union:…` (parent stem) + one `bus:union:…` (explicit horizontal sibling bus) + N `stub:union:…|kid` (per-child verticals), replacing the old N `drop:union:…|kid` L-drops whose horizontal segments overlapped into an emergent bus (#5). Bus extent = `[min(anchorCenterX, kidsMinX), max(anchorCenterX, kidsMaxX)]` so the parent stem always lands on the bus. Bus Y = midpoint between parent rank midline (anchorY) and child top.
+- new [edgePath.ts](../../apps/web/src/lib/layout/engines/family-view/edgePath.ts): pulled `edgePath` out of `FamilyViewCanvas.svelte` into a worker-safe pure module so the integer-pixel rounding (#6) is unit-testable. Every coordinate snaps to the nearest pixel via `Math.round` after the UNIT scale.
+- [FamilyViewCanvas.svelte](../../apps/web/src/lib/components/tree/FamilyViewCanvas.svelte): inline `edgePath` replaced with import from the new module; behavior identical except for the integer rounding.
+- new test file [connector-geometry.test.ts](../../apps/web/tests/unit/engines/family-view/connector-geometry.test.ts): 5 assertions across the 3 issues — couple-bus endpoint inset (#4); explicit bus + stem + stubs emitted, no old drops, bus extent covers parents' midpoint + every kid (#5); edgePath rounds non-integer coords, returns "" for empty polyline, uses M+L tokens (#6).
+- existing tests adjusted to new edge ids: `card-height.test.ts:122` (`drop:union:` → `stem:union:`); `multi-parent.test.ts:122-127` (half-sibling assertion: `drop:` → `stub:`).
+
+verify: `pnpm typecheck` clean; `pnpm lint` clean; `pnpm test:unit` 759/759 + 2 todo (was 757/757 + 2 todo before phase 2). visual e2e (`visual-akarians-family-view`, `visual-akarians`, `family-view-continuity`) needs to be run to update baselines + confirm layered diff stays ≤2% — the integer-rounding in edgePath will move every family-view path coordinate by ≤0.5 px so a baseline update is expected. layered baseline must NOT move (the layered engine's edge emitter is separate and unchanged in this phase).
+
+next: visual e2e regen + commit-split (phase 2 changes are independent of any in-flight work; should be a single feat commit).
