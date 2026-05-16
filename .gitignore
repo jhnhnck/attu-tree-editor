@@ -52,7 +52,6 @@ test-results/
 .playwright-mcp/
 
 ### Notes ###
-notes/plans/
 notes/examples/
 notes/design-issues.md
 
