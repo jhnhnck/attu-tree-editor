@@ -44,6 +44,11 @@
     let fullName = $derived([firstName, lastName].filter(Boolean).join(" ").trim());
     let initials = $derived(((firstName[0] ?? "") + (lastName[0] ?? "")).toUpperCase() || "?");
     let dateRange = $derived(formatRange(person.birth, person.death));
+    // the card is sized tall by `cardHeight()` whenever portraitBlobId is set,
+    // regardless of whether the blob URL has been resolved yet. render the
+    // slot in both cases so the tall card never shows an empty top band; the
+    // slot stays blank (no img) until portraitUrl arrives.
+    let hasPortraitSlot = $derived(Boolean(portraitUrl || person.portraitBlobId));
 
     /**
      * Phase 5 decorator pass. All visual hints (shape, tone, frame,
@@ -103,7 +108,7 @@
     class:is-selected={selected}
     data-person-id={person.id}
     data-level={level}
-    data-portrait={portraitUrl ? "1" : "0"}
+    data-portrait={hasPortraitSlot ? "1" : "0"}
     tabindex={selected ? 0 : -1}
     aria-selected={selected}
     aria-label={fullName || initials}
@@ -120,20 +125,27 @@
          contents on each zoom-level threshold (was the top SetNeedStyleFlush
          source via Svelte's compiled {#if} branch ContentRangeInserted). -->
     <div class="lvl" data-lvl="0">
-        {#if portraitUrl}
+        {#if hasPortraitSlot}
             <!-- Visual fix-up plan: portrait slot uses a true portrait
                  aspect (3:4, taller than wide) and centers horizontally.
                  The card itself is sized double-height by `cardHeight()`
                  in family-view layout when `portraitBlobId` is present,
                  so the slot has room to render the photo prominently.
-                 No-portrait cards intentionally render no slot at all
-                 (no silhouette placeholder). -->
+                 No-portrait cards intentionally render no slot at all.
+                 When portraitBlobId is set but the URL hasn't resolved
+                 yet (blob still loading), the slot still renders so the
+                 tall card doesn't show an empty top band; the img is
+                 omitted and the slot's bg/border serves as a placeholder. -->
             <div
                 class="border-line/40 portrait-slot mx-auto mb-1 overflow-hidden rounded border"
                 class:is-deceased={isDeceased}
+                class:is-portrait-pending={!portraitUrl}
                 data-portrait-slot="true"
+                data-portrait-pending={!portraitUrl ? "true" : undefined}
             >
-                <img src={portraitUrl} alt="" class="h-full w-full object-cover object-top" />
+                {#if portraitUrl}
+                    <img src={portraitUrl} alt="" class="h-full w-full object-cover object-top" />
+                {/if}
             </div>
         {/if}
         <span class="line-clamp-2 text-sm leading-tight font-semibold">
@@ -252,12 +264,20 @@
     .is-faded {
         opacity: 0.45;
     }
-    /* Phase 5 silhouette fallback: deceased people render with a
-       greyscale tint so a colour-on-the-face always means alive-or-
-       unknown and greyscale always means deceased. Tint is light
-       enough to keep the icon readable at fit-zoom. */
+    /* deceased people's portrait photos render greyscale + slightly
+       dimmed so a face-with-colour always means alive-or-unknown and
+       greyscale always means deceased. applied to the portrait slot
+       container; tint is light enough to keep the photo readable at
+       fit-zoom. */
     .is-deceased {
         filter: grayscale(1) brightness(0.85);
+    }
+    /* portraitBlobId is set but the resolved URL hasn't arrived yet.
+       the slot keeps its 3:4 footprint so the tall card doesn't show
+       an empty top band; a subtle background fills the area until the
+       img mounts. */
+    .is-portrait-pending {
+        background-color: hsl(0 0% 50% / 0.08);
     }
     /* selection ring as an inset box-shadow rather than `outline`. outline
        was being beaten by the UA's `:focus-visible { outline: ... }` rule

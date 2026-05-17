@@ -8,13 +8,13 @@ tracker for the 10-item visual cleanup plan ([wise-skipping-meerkat](../../../ho
 |---|---|---|---|
 | 1 | two-line name clipped at card bottom | 1 | closed in phase 1 (`9f8a784`) |
 | 2 | empty date row leaves empty band | 3 | open (decision: vertically center) |
-| 3 | card height grows with photo presence | 1 | closed in phase 1 (`9f8a784`) |
+| 3 | card height grows with photo presence | 1 -> 3 | re-opened in phase 3 to fix cross-rank overlap; portrait card now `CARD_H * 2` with cumulative rank spacing so portrait rows expand the row pitch instead of overlapping the next rank |
 | 4 | couple connector overruns card edge | 2 | code-complete pending visual e2e + commit |
 | 5 | sibling bus not centered between parents | 2 | code-complete pending visual e2e + commit (rescoped: explicit bus segment) |
 | 6 | sub-pixel stroke artifacts on T-junctions | 2 | code-complete pending visual e2e + commit |
 | 7 | selection ring radius doesn't match card | 3 | open |
 | 9 | generation badge togglable in view menu | 4 | open (decision: default off; phase-0 wiring landed) |
-| 11 | avatar slot too large for placeholder | 1 (or 3) | provisionally closed in phase 1 (`9f8a784`); revisit in phase 3 if eyeball check fails |
+| 11 | avatar slot too large for placeholder | 1 -> 3 | superseded in phase 3: silhouette placeholder removed entirely; no-portrait cards render only name + date. portrait-blob-loading state shows a neutral slot bg so the tall card never shows an empty top band |
 | 12 | bug icon contrast | 5 | open |
 
 dropped: #8 (defer), #10 (skip — zoom levels broken on family-view, separate concern), #13 (not-a-bug).
@@ -65,3 +65,16 @@ closes connector-geometry items #4, #5, #6.
 verify (phase 2 close, 2026-05-16): `pnpm typecheck` clean; `pnpm lint` clean; `pnpm test:unit` 759/759 + 2 todo (was 757/757 + 2 todo before phase 2). Playwright visual e2e ran clean — `visual-akarians-family-view` and `visual-akarians` (layered) both passed without baseline regen, the family-view connector-geometry change came in below the existing `maxDiffPixelRatio: 0.02` on the 1802-card fixture. `family-view-continuity` desktop green; the 2 mobile failures are the pre-existing **B4** bug (empty-state overlay intercepts click during engine swap on Pixel 7), confirmed pre-existing on phase-2 commit `7744dcd` — not a regression. Layered baseline unchanged ✓.
 
 closed: phase 2 work landed in commit [7744dcd](../../) (`feat(tree/family-view): phase 2 connector geometry — couple-bus inset, explicit sibling bus, integer-rounded paths`). retro + plan revision are in the canonical plan at `~/.claude/plans/wise-skipping-meerkat.md`.
+
+## phase 3 implementation summary (pending verify + commit)
+
+re-opens #3 and supersedes the phase-1 silhouette resolution for #11, fixing the cross-rank overlap that surfaced when `CARD_H_WITH_PORTRAIT` was bumped to `CARD_H * 2` (= 2.4u) to make the 3:4 portrait slot read as a portrait.
+
+- [layout.ts](../../apps/web/src/lib/layout/engines/family-view/layout.ts): `CARD_H_WITH_PORTRAIT = CARD_H * 2` (= 2.4u) exceeds `ROW_H = 2`, so the pre-fix `y = rank * ROW_H` placed portrait cards 0.4u into the next rank. New cumulative rank-y pass walks ranks in sorted order, accumulating `max(CARD_H, maxHByRank[r]) + RANK_GUTTER` where `RANK_GUTTER = ROW_H - CARD_H = 0.8`. Default-height rows keep the old `rank * ROW_H` spacing exactly; portrait rows push every subsequent rank down by the height delta. `bbox.height` switched to the same cumulative formula so a tall card on the bottom rank is included in the bbox.
+- [layout.ts](../../apps/web/src/lib/layout/engines/family-view/layout.ts): sibling-bus + parent-stem `busY` now clamps to `max(midpoint, parentRowBottom + 0.05)` so the bus + stem + stub-tops stay outside the parent card. SVG edges render behind cards, so a bus inside the parent card was invisible; the clamp moves it 0.05u into the gutter. Same clamp applied to the N>2 multi-union manifold drops (`dropFromY`).
+- [layout.ts](../../apps/web/src/lib/layout/engines/family-view/layout.ts): `emitAnchorsAndEdges` now takes a `RowGeometry` lookup (`topY` / `bottomY` per rank) instead of reading per-node y inside the loops; kid-rank top derives from `rowGeometry.topY(kid.rank)` rather than `visibleKidNodes[0].y` (the latter shifts under per-row centering when sibling cards have mixed heights).
+- [PersonNode.svelte](../../apps/web/src/lib/components/tree/PersonNode.svelte): renders the portrait slot whenever `portraitBlobId` is set, not just when `portraitUrl` is resolved. While the blob URL is pending, the slot is empty and gets an `.is-portrait-pending` neutral background, so the tall card never shows an empty top band during blob load.
+- [card-height.test.ts](../../apps/web/tests/unit/engines/family-view/card-height.test.ts): new assertions for cross-rank clearance (rank-bottom to next-rank-top = `RANK_GUTTER`), bus / stem / stub Y > parent row bottom, and `bbox.height` covering a portrait card on the bottom rank. Updated the per-row centering assertion to be robust against `orientCouple` swapping left / right by personId order.
+- [PersonNode.test.ts](../../apps/web/tests/component/PersonNode.test.ts): new assertion that `portraitBlobId` without `portraitUrl` renders the slot (no img) with `data-portrait-pending="true"`.
+
+verify (phase 3 close, pending): `pnpm typecheck` / `pnpm lint` / `pnpm test:unit` runs, plus a visual e2e if any baseline drift is suspected. Akarians fixture has no portraits, so the canonical layered + family-view snapshots should be unchanged.

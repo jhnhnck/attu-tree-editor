@@ -16,6 +16,7 @@ import {
     CARD_H,
     CARD_H_WITH_PORTRAIT,
     computeLayout,
+    RANK_GUTTER,
 } from "$lib/layout/engines/family-view/layout";
 import type { Person, Tree } from "$lib/domain/types";
 
@@ -43,10 +44,11 @@ describe("cardHeight heuristic", () => {
 
 describe("mixed-height row geometry", () => {
     function makeMixedHeightCouple(): { tree: Tree; ids: Record<string, string> } {
-        // Left parent has a portrait (tall card, h=1.6), right parent has a
-        // very short name (compact card, h=0.9), one child with a long name
-        // (default card, h=1.2). The child is added to the couple's
-        // childIds so the layout emits the couple-bus + per-child drops.
+        // Left parent has a portrait (tall card, h = CARD_H_WITH_PORTRAIT),
+        // right parent has none (default card, h = CARD_H), one child with
+        // no portrait (default card, h = CARD_H). The child is added to
+        // the couple's childIds so the layout emits the couple-bus + per-
+        // child drops.
         let t = createTree("test", blank("ChildLongerName"));
         const ids: Record<string, string> = { child: ROOT_ID };
         const left = addPerson(t, blank("MotherLongName"));
@@ -122,13 +124,94 @@ describe("mixed-height row geometry", () => {
         const layout = computeLayout(tree, ids.child!, {});
         const leftNode = layout.nodes.get(ids.left!)!;
         const rightNode = layout.nodes.get(ids.right!)!;
-        // left has portrait (h=CARD_H_WITH_PORTRAIT), right doesn't (h=CARD_H).
-        // Row top = min of both card tops; the shorter card sits with equal
-        // padding above and below to center within the taller row.
-        expect(leftNode.h).toBe(CARD_H_WITH_PORTRAIT);
-        expect(rightNode.h).toBe(CARD_H);
-        const rowH = CARD_H_WITH_PORTRAIT;
-        const expectedRightY = leftNode.y + (rowH - CARD_H) / 2;
-        expect(rightNode.y).toBeCloseTo(expectedRightY);
+        // tall card holds row top; shorter card sits with equal padding
+        // above and below to share the row midline. Robust against
+        // `orientCouple` swapping left/right under personId order.
+        const tallNode = (leftNode.h ?? CARD_H) >= (rightNode.h ?? CARD_H) ? leftNode : rightNode;
+        const shortNode = tallNode === leftNode ? rightNode : leftNode;
+        const rowH = Math.max(leftNode.h ?? CARD_H, rightNode.h ?? CARD_H);
+        const shortH = shortNode.h ?? CARD_H;
+        expect(rowH).toBe(CARD_H_WITH_PORTRAIT);
+        expect(shortNode.y).toBeCloseTo(tallNode.y + (rowH - shortH) / 2);
+    });
+
+    it("no card extends past its rank's allotted slot (cross-rank clearance)", () => {
+        // The blocker fix: a portrait parent at rank R must not overlap
+        // the rank R+1 child card. Cumulative rank-y means each rank's
+        // bottom is at least RANK_GUTTER above the next rank's top.
+        const { tree, ids } = makeMixedHeightCouple();
+        const layout = computeLayout(tree, ids.child!, {});
+        // Group nodes by rank, derive per-rank top from min y, bottom from
+        // max (y + h). Adjacent ranks must clear by at least RANK_GUTTER.
+        const byRank = new Map<number, { top: number; bottom: number }>();
+        for (const n of layout.nodes.values()) {
+            const top = n.y;
+            const bottom = n.y + (n.h ?? CARD_H);
+            const cur = byRank.get(n.rank);
+            if (cur === undefined) byRank.set(n.rank, { top, bottom });
+            else
+                byRank.set(n.rank, {
+                    top: Math.min(cur.top, top),
+                    bottom: Math.max(cur.bottom, bottom),
+                });
+        }
+        const ranks = [...byRank.keys()].sort((a, b) => a - b);
+        for (let i = 0; i < ranks.length - 1; i += 1) {
+            const a = byRank.get(ranks[i]!)!;
+            const b = byRank.get(ranks[i + 1]!)!;
+            expect(b.top - a.bottom).toBeCloseTo(RANK_GUTTER);
+        }
+    });
+
+    it("sibling bus runs in the gutter, below the parent row's bottom edge", () => {
+        // The other half of the blocker fix: bus + stem + stub tops must
+        // sit *outside* the parent card so they aren't hidden by the SVG/
+        // card paint order (cards mount on top of the SVG layer).
+        const { tree, ids } = makeMixedHeightCouple();
+        const layout = computeLayout(tree, ids.child!, {});
+        const leftNode = layout.nodes.get(ids.left!)!;
+        const rightNode = layout.nodes.get(ids.right!)!;
+        const parentRowBottom = Math.max(
+            leftNode.y + (leftNode.h ?? CARD_H),
+            rightNode.y + (rightNode.h ?? CARD_H),
+        );
+        const busEdge = layout.edges.find((e) => e.id.startsWith("bus:union:"));
+        const stemEdge = layout.edges.find((e) => e.id.startsWith("stem:union:"));
+        const stubEdge = layout.edges.find((e) => e.id.startsWith("stub:union:"));
+        expect(busEdge).toBeDefined();
+        expect(stemEdge).toBeDefined();
+        expect(stubEdge).toBeDefined();
+        expect(busEdge!.points[0]!.y).toBeGreaterThan(parentRowBottom);
+        // stem ends at the bus; its tail must clear the parent row too
+        expect(stemEdge!.points[1]!.y).toBeGreaterThan(parentRowBottom);
+        // stubs start at the bus and end at the kid card top
+        expect(stubEdge!.points[0]!.y).toBeGreaterThan(parentRowBottom);
+    });
+
+    it("bbox.height covers a tall portrait card on the bottom rank", () => {
+        // Pre-fix bbox.height used `ranks * ROW_H`, which under-counted
+        // by (CARD_H_WITH_PORTRAIT - CARD_H) when the lowest rank carried
+        // a portrait. New cumulative formula must include the full last-
+        // row height.
+        let t = createTree("test", blank("Parent"));
+        const kid = addPerson(t, blank("Kid"));
+        t = kid.tree;
+        // portrait on the child so the bottom rank carries the tall card
+        t = updatePerson(t, kid.id, { portraitBlobId: "blob:test" });
+        const link = linkParent(t, kid.id, ROOT_ID);
+        if (!link.ok) throw new Error(link.error);
+        t = link.value;
+        const layout = computeLayout(t, ROOT_ID, {});
+        const allNodes = [...layout.nodes.values()];
+        const bottomRank = Math.max(...allNodes.map((n) => n.rank));
+        const bottomNode = allNodes.find(
+            (n) => n.rank === bottomRank && (n.h ?? CARD_H) === CARD_H_WITH_PORTRAIT,
+        );
+        expect(bottomNode).toBeDefined();
+        // bbox.height is measured from the topmost rank's top, so the
+        // bottom-row card's bottom-y (relative to that) must fit inside it.
+        const topRankY = Math.min(...allNodes.map((n) => n.y));
+        const bottomY = bottomNode!.y + (bottomNode!.h ?? CARD_H);
+        expect(layout.bbox.height).toBeGreaterThanOrEqual(bottomY - topRankY);
     });
 });

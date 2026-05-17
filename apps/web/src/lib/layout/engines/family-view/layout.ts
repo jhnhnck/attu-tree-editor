@@ -12,7 +12,10 @@
  * User-explicit expands are never auto-collapsed.
  *
  * Geometry:
- *   - One row per rank, rows separated by ROW_H.
+ *   - One row per rank. Default-height rows are separated by ROW_H
+ *     (1.2 card + 0.8 gutter); a row containing a portrait card pushes
+ *     every subsequent rank down by the height delta via the cumulative
+ *     rank-y pass in `computeLayout`.
  *   - Couples render as two cards joined by a horizontal connector at
  *     the row midline. Children hang from the connector midpoint via a
  *     vertical drop into a horizontal bus on the children's row.
@@ -51,10 +54,18 @@ import type {
 } from "$lib/layout/engines/family-view/types";
 import { selectBoundedSubset, type RankedSubset } from "$lib/layout/engines/family-view/subset";
 
-/** Default card height in unit space — used as the fallback when a node carries no explicit `h`. */
+/** Default card height in unit space - used as the fallback when a node carries no explicit `h`. */
 export const CARD_H = 1.2;
-/** Card height when a portrait is present — exactly double the default, so a 3:4 portrait slot reads as a portrait, not a strip. */
+/** Card height when a portrait is present - exactly double the default, so a 3:4 portrait slot reads as a portrait, not a strip. */
 export const CARD_H_WITH_PORTRAIT = CARD_H * 2;
+/**
+ * Vertical gap between the bottom of one rank and the top of the next,
+ * matching the default-card spacing ROW_H - CARD_H = 0.8. Used by the
+ * cumulative-rank-y pass so non-portrait rows stay spaced exactly like
+ * `rank * ROW_H` and portrait rows expand downstream ranks by the
+ * height delta instead of overlapping them.
+ */
+export const RANK_GUTTER = ROW_H - CARD_H;
 /**
  * Phase-2 visual-fixup: distance (unit space) the card's selection-ring
  * boundary sits inside the card rect. Connectors terminate at the visible
@@ -65,12 +76,20 @@ export const CARD_H_WITH_PORTRAIT = CARD_H * 2;
  * Used by `coupleConnector` (#4) and the per-couple sibling bus (#5).
  */
 export const CARD_VISIBLE_INSET_U = 3 / 80;
+/**
+ * How far below the parent row's bottom edge the sibling bus / multi-union
+ * drop-anchor lands when the natural midpoint would otherwise fall inside
+ * the parent card (e.g. when the parent has a portrait and the card is
+ * taller than the default). 0.05u = 4 px at UNIT=80, just enough clearance
+ * to make the bus visible without changing default-row geometry.
+ */
+const BUS_BELOW_ROW_CLEAR_U = 0.05;
 /** Past this many visible cards, auto-collapse kicks in (Phase 1 plan). */
 export const AUTO_COLLAPSE_THRESHOLD = 50;
 
 /**
  * Content-driven card height. Deterministic from the person record
- * alone — worker-safe. Portrait present → tall; otherwise default.
+ * alone - worker-safe. Portrait present -> tall; otherwise default.
  * The silhouette/compact path was removed: no-portrait cards render
  * name+date only, with no avatar slot.
  */
@@ -231,16 +250,57 @@ export function computeLayout(
         widthByRank.set(r, cursor);
     }
 
-    // Vertically center cards within each rank: a portrait card forces
-    // the row to be `CARD_H_WITH_PORTRAIT` tall, and any shorter cards
-    // in the same rank get pushed down by half the height delta so
-    // every card's vertical midpoint lines up. The shared midline is
-    // what couple connectors and parent stems anchor to.
+    // Cumulative rank-y pass. `placeAt` and the badge placement loop
+    // above set y = rank * ROW_H as a placeholder; that breaks the
+    // moment any rank contains a taller-than-default card, because
+    // CARD_H_WITH_PORTRAIT (2.4) > ROW_H (2) overlaps the next rank
+    // by 0.4 u. Instead, walk ranks in order and accumulate
+    // `max(CARD_H, maxHByRank[r]) + RANK_GUTTER`; ranks containing
+    // only default-height cards keep the old `rank * ROW_H` spacing
+    // exactly, while a portrait row pushes every subsequent rank down
+    // by the height delta. Anchored to `sortedRanks[0] * ROW_H` so
+    // the topmost rank's y matches the pre-fix coordinate.
     const maxHByRank = new Map<number, number>();
     for (const node of nodes.values()) {
         const cur = maxHByRank.get(node.rank) ?? 0;
         if ((node.h ?? CARD_H) > cur) maxHByRank.set(node.rank, node.h ?? CARD_H);
     }
+    for (const badge of placedBadges.values()) {
+        const cur = maxHByRank.get(badge.rank) ?? 0;
+        if (CARD_H > cur) maxHByRank.set(badge.rank, CARD_H);
+    }
+    const ranksPresent = new Set<number>();
+    for (const node of nodes.values()) ranksPresent.add(node.rank);
+    for (const badge of placedBadges.values()) ranksPresent.add(badge.rank);
+    const sortedRanks = [...ranksPresent].sort((a, b) => a - b);
+    const rankStartY = new Map<number, number>();
+    // `cumulativeEndY` is the y-coord just past the last rank's bottom edge,
+    // including a trailing gutter to match the old `(rankCount) * ROW_H`
+    // bbox formula. Used by the bbox.height computation below.
+    let cumulativeEndY = 0;
+    if (sortedRanks.length > 0) {
+        let cursor = sortedRanks[0]! * ROW_H;
+        for (const r of sortedRanks) {
+            rankStartY.set(r, cursor);
+            const rowH = Math.max(CARD_H, maxHByRank.get(r) ?? CARD_H);
+            cursor += rowH + RANK_GUTTER;
+        }
+        cumulativeEndY = cursor;
+    }
+    for (const [id, node] of nodes) {
+        const y = rankStartY.get(node.rank);
+        if (y !== undefined && y !== node.y) nodes.set(id, { ...node, y });
+    }
+    for (const [id, badge] of placedBadges) {
+        const y = rankStartY.get(badge.rank);
+        if (y !== undefined && y !== badge.y) placedBadges.set(id, { ...badge, y });
+    }
+
+    // Vertically center cards within each rank: a portrait card forces
+    // the row to be `CARD_H_WITH_PORTRAIT` tall, and any shorter cards
+    // in the same rank get pushed down by half the height delta so
+    // every card's vertical midpoint lines up. The shared midline is
+    // what couple connectors and parent stems anchor to.
     for (const [id, node] of nodes) {
         const rowH = maxHByRank.get(node.rank) ?? CARD_H;
         const dy = (rowH - (node.h ?? CARD_H)) / 2;
@@ -262,15 +322,29 @@ export function computeLayout(
     }
 
     const finalBadges = Array.from(placedBadges.values());
-    const { anchors, edges } = emitAnchorsAndEdges(tree, nodes, finalBadges, autoCollapsed);
+    const rowGeometry: RowGeometry = {
+        topY: (rank) => rankStartY.get(rank) ?? rank * ROW_H,
+        bottomY: (rank) => {
+            const top = rankStartY.get(rank) ?? rank * ROW_H;
+            return top + Math.max(CARD_H, maxHByRank.get(rank) ?? CARD_H);
+        },
+    };
+    const { anchors, edges } = emitAnchorsAndEdges(
+        tree,
+        nodes,
+        finalBadges,
+        autoCollapsed,
+        rowGeometry,
+    );
 
-    const ranks = Array.from(byRank.keys());
-    const badgeRanks = Array.from(badgesByRank.keys());
-    const allRanksArr = [...ranks, ...badgeRanks];
-    const height =
-        allRanksArr.length > 0
-            ? (Math.max(...allRanksArr) - Math.min(...allRanksArr) + 1) * ROW_H
-            : 0;
+    // Cumulative height: top of the lowest-numbered rank to a point one
+    // gutter past the highest-numbered rank's bottom, matching the legacy
+    // `rankCount * ROW_H` formula on all-default trees while also covering
+    // a portrait card overhang on the bottom rank.
+    let height = 0;
+    if (sortedRanks.length > 0) {
+        height = cumulativeEndY - rowGeometry.topY(sortedRanks[0]!);
+    }
 
     // `canCollapse` = persons the user can `−`-click. That's every id in
     // `expanded` that is currently visible (auto-collapse doesn't remove
@@ -342,6 +416,9 @@ function placeAt(
     rank: number,
     x: number,
 ): void {
+    // y is a placeholder (rank * ROW_H); the cumulative-rank-y pass in
+    // `computeLayout` rewrites it after every node and badge is placed,
+    // so portrait-row expansion can push downstream ranks down.
     const h = cardHeight(tree.people[personId]);
     nodes.set(personId, { personId, rank, x, y: rank * ROW_H, h });
 }
@@ -403,11 +480,17 @@ function badgeMidX(badge: BadgeNode): number {
     return badge.x + PERSON_W / 2;
 }
 
+interface RowGeometry {
+    readonly topY: (rank: number) => number;
+    readonly bottomY: (rank: number) => number;
+}
+
 function emitAnchorsAndEdges(
     tree: Tree,
     nodes: ReadonlyMap<PersonId, FamilyViewNode>,
     badges: readonly BadgeNode[],
     autoCollapsed: ReadonlySet<PersonId>,
+    rowGeometry: RowGeometry,
 ): { readonly anchors: readonly UnionAnchor[]; readonly edges: readonly FamilyViewEdge[] } {
     const anchors: UnionAnchor[] = [];
     const edges: FamilyViewEdge[] = [];
@@ -446,8 +529,15 @@ function emitAnchorsAndEdges(
             .map((id) => nodes.get(id))
             .filter((n): n is FamilyViewNode => n !== undefined);
         if (visibleKidNodes.length > 0) {
-            const kidRowY = visibleKidNodes[0]!.y;
-            const busY = (anchorY + kidRowY) / 2;
+            // Kid rank's row top - stable across mixed-height siblings
+            // (unlike `visibleKidNodes[0].y`, which shifts under per-row
+            // centering when only some kids in the rank are tall).
+            const kidRowY = rowGeometry.topY(visibleKidNodes[0]!.rank);
+            // Clamp the bus below the parent row's bottom edge so it stays
+            // visible when a partner has a portrait (otherwise the bus
+            // would render inside the parent card and be hidden by it).
+            const parentRowBottom = rowGeometry.bottomY(leftNode.rank);
+            const busY = Math.max((anchorY + kidRowY) / 2, parentRowBottom + BUS_BELOW_ROW_CLEAR_U);
             const kidXs = visibleKidNodes.map(midX);
             const busLeftX = Math.min(anchorCenterX, ...kidXs);
             const busRightX = Math.max(anchorCenterX, ...kidXs);
@@ -544,7 +634,15 @@ function emitAnchorsAndEdges(
                 ],
             });
         }
-        // Child drops from the manifold's centroid down to each kid.
+        // Child drops normally hang from the manifold's centroid y (the
+        // partner-bus midline). The L-drop's horizontal segment sits at
+        // `midY = (centroid.y + kidY) / 2` - that already lands in the
+        // inter-rank gutter for default-height partner rows, so leave
+        // those untouched. Only when the partner row is tall enough to
+        // pull `midY` back inside the parent cards (e.g. a portrait in
+        // the union) do we raise the drop origin so the horizontal
+        // clears the row bottom.
+        const partnerRowBottom = rowGeometry.bottomY(rank);
         for (const kid of visibleKids) {
             const kidNode = nodes.get(kid);
             if (!kidNode) continue;
@@ -563,13 +661,22 @@ function emitAnchorsAndEdges(
             const role: FamilyViewEdgeRole = sharesAll
                 ? roleFor(tree, kid, u.partnerIds[0]!)
                 : "half";
+            // Raise the drop origin only when the natural midpoint would
+            // sit inside the partner cards (= partner row is taller than
+            // the natural gutter allows). Default-height multi-unions are
+            // unaffected and keep their pre-fix midpoint geometry.
+            const naiveMidY = (manifold.childAnchor.y + kidNode.y) / 2;
+            const dropFromY =
+                naiveMidY > partnerRowBottom
+                    ? manifold.childAnchor.y
+                    : 2 * (partnerRowBottom + BUS_BELOW_ROW_CLEAR_U) - kidNode.y;
             edges.push(
                 drop(
                     `drop:${anchor.id}|${kid}`,
                     [...u.partnerIds, kid],
                     role,
                     manifold.childAnchor.x,
-                    manifold.childAnchor.y,
+                    dropFromY,
                     midX(kidNode),
                     kidNode.y,
                 ),

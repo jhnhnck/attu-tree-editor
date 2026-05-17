@@ -161,10 +161,22 @@ describe("PersonNode", () => {
 
     it("issue #11: no avatar slot rendered when no portrait is present", () => {
         render(PersonNode, { person: person() });
-        // Silhouette placeholder removed entirely — cards without a
+        // Silhouette placeholder removed entirely - cards without a
         // portrait render only name + date, no avatar slot.
         expect(document.querySelector('[data-silhouette="true"]')).toBeNull();
         expect(document.querySelector('[data-portrait-slot="true"]')).toBeNull();
+    });
+
+    it("renders an empty portrait slot when portraitBlobId is set but the URL is not yet resolved", () => {
+        // The layout engine sizes the card as `CARD_H_WITH_PORTRAIT`
+        // whenever `portraitBlobId` is set; if the blob URL hasn't
+        // arrived yet, the slot must still render (without an img)
+        // so the tall card doesn't show an empty top band.
+        render(PersonNode, { person: person({ portraitBlobId: "blob:pending" }) });
+        const slot = document.querySelector('[data-portrait-slot="true"]');
+        expect(slot).not.toBeNull();
+        expect(slot?.getAttribute("data-portrait-pending")).toBe("true");
+        expect(slot?.querySelector("img")).toBeNull();
     });
 
     it.todo("issue #2: name+avatar block is vertically centered when no date is present");
