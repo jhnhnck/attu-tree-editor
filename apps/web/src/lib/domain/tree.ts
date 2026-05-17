@@ -4,6 +4,7 @@
  */
 
 import { generateId, ROOT_ID } from "$lib/domain/ids";
+import type { HaracalndeDateData } from "$lib/date/HaracalndeDate";
 import type {
     CoupleRecord,
     ParentPedi,
@@ -11,6 +12,8 @@ import type {
     ParentRole,
     Person,
     PersonId,
+    Relationship,
+    RelationshipKind,
     Tree,
     UnionKind,
     UnionRecord,
@@ -608,6 +611,95 @@ export function setPreferredUnion(
         return nextU;
     });
     return { ...t, unions: nextUnions };
+}
+
+/**
+ * Patch shape for `updateRelationship`. Every field optional; passing
+ * `undefined` clears that field on the record. Domain layer does not
+ * validate kind / source / target combinations — the schema is permissive
+ * (CLAUDE.md hard rule 4).
+ */
+export type RelationshipPatch = {
+    kind?: RelationshipKind;
+    sourceIds?: readonly PersonId[];
+    targetIds?: readonly PersonId[];
+    cause?: string | undefined;
+    date?: HaracalndeDateData | undefined;
+    notes?: string | undefined;
+};
+
+/**
+ * Append a Relationship to `tree.relationships[]`. Generates a stable id
+ * `rel-<kind>-<sourceIds...>-<targetIds...>` so reconstruction from
+ * GEDCOM produces the same id when the xref-derived id isn't available.
+ * Initialises `relationships` to `[]` if absent.
+ */
+export function addRelationship(
+    t: Tree,
+    rel: Omit<Relationship, "id"> & { id?: string },
+): { tree: Tree; id: string } {
+    const id = rel.id ?? defaultRelationshipId(rel);
+    const next: Relationship = {
+        id,
+        kind: rel.kind,
+        sourceIds: [...rel.sourceIds],
+        targetIds: [...rel.targetIds],
+    };
+    if (rel.cause !== undefined) next.cause = rel.cause;
+    if (rel.date !== undefined) next.date = rel.date;
+    if (rel.notes !== undefined) next.notes = rel.notes;
+    const list = t.relationships ?? [];
+    return { tree: { ...t, relationships: [...list, next] }, id };
+}
+
+/**
+ * Remove a Relationship by id. No-op if the id is unknown (consistent
+ * with the rest of the domain layer's permissive style).
+ */
+export function removeRelationship(t: Tree, relId: string): Tree {
+    const list = t.relationships ?? [];
+    const next = list.filter((r) => r.id !== relId);
+    if (next.length === list.length) return t;
+    return { ...t, relationships: next };
+}
+
+/**
+ * Patch a Relationship in place. `undefined` in the patch clears the
+ * corresponding optional field; arrays are replaced wholesale (no
+ * append semantics). Returns the tree unchanged if the id is unknown.
+ */
+export function updateRelationship(t: Tree, relId: string, patch: RelationshipPatch): Tree {
+    const list = t.relationships ?? [];
+    const idx = list.findIndex((r) => r.id === relId);
+    if (idx < 0) return t;
+    const r = list[idx];
+    if (!r) return t;
+    const next: Relationship = { ...r };
+    if (patch.kind !== undefined) next.kind = patch.kind;
+    if (patch.sourceIds !== undefined) next.sourceIds = [...patch.sourceIds];
+    if (patch.targetIds !== undefined) next.targetIds = [...patch.targetIds];
+    if ("cause" in patch) {
+        if (patch.cause === undefined) delete next.cause;
+        else next.cause = patch.cause;
+    }
+    if ("date" in patch) {
+        if (patch.date === undefined) delete next.date;
+        else next.date = patch.date;
+    }
+    if ("notes" in patch) {
+        if (patch.notes === undefined) delete next.notes;
+        else next.notes = patch.notes;
+    }
+    return { ...t, relationships: [...list.slice(0, idx), next, ...list.slice(idx + 1)] };
+}
+
+function defaultRelationshipId(rel: {
+    kind: RelationshipKind;
+    sourceIds: readonly PersonId[];
+    targetIds: readonly PersonId[];
+}): string {
+    const parts = [...rel.sourceIds, ...rel.targetIds];
+    return `rel-${rel.kind}-${parts.join("-")}`;
 }
 
 export function* ancestorsOf(t: Tree, id: PersonId): Iterable<Person> {

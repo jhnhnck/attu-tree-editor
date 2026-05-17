@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import { ROOT_ID } from "$lib/domain/ids";
 import {
     addPerson,
+    addRelationship,
     addUnionPartner,
     ancestorsOf,
     createTree,
@@ -18,6 +19,7 @@ import {
     linkSpouse,
     linkUnion,
     removePerson,
+    removeRelationship,
     removeUnionPartner,
     setPreferredUnion,
     siblingsOf,
@@ -26,6 +28,7 @@ import {
     unlinkSpouse,
     updateParentRef,
     updatePerson,
+    updateRelationship,
     updateUnion,
 } from "$lib/domain/tree";
 import type { Person, Tree } from "$lib/domain/types";
@@ -621,5 +624,100 @@ describe("linkUnion / addUnionPartner / removeUnionPartner (Phase 3a N-partner o
         const after = removePerson(linked.value, ids.c ?? "");
         expect(after.unions?.[0]?.partnerIds.sort()).toEqual([ids.a, ids.b].sort());
         expect(after.unions?.[0]?.partnerIds).not.toContain(ids.c);
+    });
+});
+
+describe("addRelationship / removeRelationship / updateRelationship (Phase 4 follow-up)", () => {
+    function buildPair(): { tree: Tree; aId: string; bId: string } {
+        let t = createTree("rel-fix", bareRoot());
+        const addA = addPerson(t, bareChild("A", "f"));
+        t = addA.tree;
+        const addB = addPerson(t, bareChild("B", "m"));
+        t = addB.tree;
+        return { tree: t, aId: addA.id, bId: addB.id };
+    }
+
+    it("addRelationship appends to relationships[] and returns the id", () => {
+        const { tree, aId, bId } = buildPair();
+        const out = addRelationship(tree, {
+            kind: "sworn-bond",
+            sourceIds: [aId],
+            targetIds: [bId],
+        });
+        expect(out.tree.relationships).toHaveLength(1);
+        expect(out.tree.relationships?.[0]?.kind).toBe("sworn-bond");
+        expect(out.tree.relationships?.[0]?.sourceIds).toEqual([aId]);
+        expect(out.tree.relationships?.[0]?.targetIds).toEqual([bId]);
+        expect(out.id).toBe(out.tree.relationships?.[0]?.id);
+        // default id pattern is rel-<kind>-<sources...>-<targets...>
+        expect(out.id).toBe(`rel-sworn-bond-${aId}-${bId}`);
+    });
+
+    it("addRelationship preserves explicit id and optional fields", () => {
+        const { tree, aId, bId } = buildPair();
+        const out = addRelationship(tree, {
+            id: "custom-rel-id",
+            kind: "transformed-from",
+            sourceIds: [aId],
+            targetIds: [bId],
+            cause: "ritual",
+            notes: "long-form note",
+        });
+        expect(out.id).toBe("custom-rel-id");
+        expect(out.tree.relationships?.[0]?.cause).toBe("ritual");
+        expect(out.tree.relationships?.[0]?.notes).toBe("long-form note");
+    });
+
+    it("removeRelationship deletes by id and is no-op for unknown ids", () => {
+        const { tree, aId, bId } = buildPair();
+        const t1 = addRelationship(tree, {
+            kind: "sworn-bond",
+            sourceIds: [aId],
+            targetIds: [bId],
+        }).tree;
+        const t2 = removeRelationship(t1, "nope");
+        expect(t2).toBe(t1); // no-op: same reference
+        const t3 = removeRelationship(t1, t1.relationships?.[0]?.id ?? "");
+        expect(t3.relationships).toEqual([]);
+    });
+
+    it("updateRelationship patches fields and clears optional ones with undefined", () => {
+        const { tree, aId, bId } = buildPair();
+        const added = addRelationship(tree, {
+            kind: "sworn-bond",
+            sourceIds: [aId],
+            targetIds: [bId],
+            cause: "old cause",
+        });
+        const relId = added.id;
+        const t1 = updateRelationship(added.tree, relId, {
+            kind: "covenant",
+            cause: "new cause",
+            notes: "added notes",
+        });
+        expect(t1.relationships?.[0]?.kind).toBe("covenant");
+        expect(t1.relationships?.[0]?.cause).toBe("new cause");
+        expect(t1.relationships?.[0]?.notes).toBe("added notes");
+        // clearing cause via undefined
+        const t2 = updateRelationship(t1, relId, { cause: undefined });
+        expect(t2.relationships?.[0]?.cause).toBeUndefined();
+    });
+
+    it("updateRelationship replaces sourceIds / targetIds wholesale", () => {
+        const { tree, aId, bId } = buildPair();
+        const cAdd = addPerson(tree, bareChild("C", "u"));
+        const t0 = cAdd.tree;
+        const cId = cAdd.id;
+        const added = addRelationship(t0, {
+            kind: "sworn-bond",
+            sourceIds: [aId],
+            targetIds: [bId],
+        });
+        const t1 = updateRelationship(added.tree, added.id, {
+            targetIds: [bId, cId],
+        });
+        expect(t1.relationships?.[0]?.targetIds).toEqual([bId, cId]);
+        // updating one of source/target leaves the other untouched
+        expect(t1.relationships?.[0]?.sourceIds).toEqual([aId]);
     });
 });

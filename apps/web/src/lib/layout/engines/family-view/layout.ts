@@ -39,6 +39,7 @@ import {
     computeManifold,
     PRIMARY_PRIMITIVE,
 } from "$lib/layout/engines/family-view/nPartnerGeometry";
+import { buildOverlays } from "$lib/layout/engines/family-view/overlays";
 import type {
     BadgeNode,
     FamilyViewEdge,
@@ -272,6 +273,7 @@ export function computeLayout(
     for (const id of expanded) if (working.visible.has(id)) canCollapse.add(id);
 
     const multiUnionMates = collectMultiUnionMates(tree, anchors, primaryOverrides);
+    const overlays = buildOverlays(tree, nodes, edges, { width: maxWidth, height });
 
     return {
         focus: focusId,
@@ -285,6 +287,7 @@ export function computeLayout(
         canCollapse,
         autoCollapsed,
         multiUnionMates,
+        overlays,
     };
 }
 
