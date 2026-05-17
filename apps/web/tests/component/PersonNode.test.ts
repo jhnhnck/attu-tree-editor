@@ -159,13 +159,12 @@ describe("PersonNode", () => {
         expect(slot?.classList.contains("portrait-slot")).toBe(true);
     });
 
-    it("issue #11: silhouette slot is compact (h-8) when no portrait is present", () => {
+    it("issue #11: no avatar slot rendered when no portrait is present", () => {
         render(PersonNode, { person: person() });
-        const silhouette = document.querySelector('[data-silhouette="true"]');
-        expect(silhouette).not.toBeNull();
-        // tailwind h-8 = 2rem (32 px) — reduced from the pre-phase-1 h-10
-        // so short-name no-photo cards aren't visually top-heavy.
-        expect(silhouette?.classList.contains("h-8")).toBe(true);
+        // Silhouette placeholder removed entirely — cards without a
+        // portrait render only name + date, no avatar slot.
+        expect(document.querySelector('[data-silhouette="true"]')).toBeNull();
+        expect(document.querySelector('[data-portrait-slot="true"]')).toBeNull();
     });
 
     it.todo("issue #2: name+avatar block is vertically centered when no date is present");

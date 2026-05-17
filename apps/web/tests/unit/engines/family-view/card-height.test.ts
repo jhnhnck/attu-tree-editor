@@ -14,7 +14,6 @@ import { addPerson, createTree, linkParent, linkSpouse, updatePerson } from "$li
 import {
     cardHeight,
     CARD_H,
-    CARD_H_COMPACT,
     CARD_H_WITH_PORTRAIT,
     computeLayout,
 } from "$lib/layout/engines/family-view/layout";
@@ -26,27 +25,19 @@ function blank(name: string, gender: Person["gender"] = "u"): Omit<Person, "id">
 
 describe("cardHeight heuristic", () => {
     it("returns CARD_H_WITH_PORTRAIT when portraitBlobId is set", () => {
-        expect(cardHeight({ portraitBlobId: "blob:abc", given: "Ann" })).toBe(CARD_H_WITH_PORTRAIT);
+        expect(cardHeight({ portraitBlobId: "blob:abc" })).toBe(CARD_H_WITH_PORTRAIT);
     });
 
-    it("returns CARD_H_COMPACT for short names without a portrait", () => {
-        // "Ann Lee" → 7 chars, well under 14
-        expect(cardHeight({ given: "Ann", surname: "Lee" })).toBe(CARD_H_COMPACT);
-    });
-
-    it("returns the default CARD_H for long names without a portrait", () => {
-        // 20 chars, above the 14 threshold
-        expect(cardHeight({ given: "Alexandra", surname: "Williamson" })).toBe(CARD_H);
+    it("returns the default CARD_H without a portrait (no silhouette path)", () => {
+        expect(cardHeight({})).toBe(CARD_H);
     });
 
     it("returns CARD_H when person is undefined", () => {
         expect(cardHeight(undefined)).toBe(CARD_H);
     });
 
-    it("portrait wins over short name", () => {
-        expect(cardHeight({ portraitBlobId: "blob:x", given: "A", surname: "B" })).toBe(
-            CARD_H_WITH_PORTRAIT,
-        );
+    it("portrait card height is exactly double the default", () => {
+        expect(CARD_H_WITH_PORTRAIT).toBe(CARD_H * 2);
     });
 });
 
@@ -95,43 +86,49 @@ describe("mixed-height row geometry", () => {
         const rightNode = layout.nodes.get(ids.right!);
         const childNode = layout.nodes.get(ids.child!);
         expect(leftNode?.h).toBe(CARD_H_WITH_PORTRAIT);
-        expect(rightNode?.h).toBe(CARD_H_COMPACT);
-        // "ChildLongerName" is 15+1+0 = 16 chars effective → above the 14-char
-        // compact threshold, so the child gets the default CARD_H.
+        // No-portrait cards always get CARD_H now (compact path removed).
+        expect(rightNode?.h).toBe(CARD_H);
         expect(childNode?.h).toBe(CARD_H);
     });
 
-    it("couple connector anchors at the shorter card's midline so it passes through both", () => {
+    it("couple connector anchors at the row midline (every card's midpoint aligns)", () => {
         const { tree, ids } = makeMixedHeightCouple();
         const layout = computeLayout(tree, ids.child!, {});
         const leftNode = layout.nodes.get(ids.left!)!;
         const rightNode = layout.nodes.get(ids.right!)!;
         const bondEdge = layout.edges.find((e) => e.role === "married");
         expect(bondEdge).toBeDefined();
-        const minH = Math.min(leftNode.h ?? CARD_H, rightNode.h ?? CARD_H);
-        const expectedY = leftNode.y + minH / 2;
-        expect(bondEdge!.points[0]!.y).toBeCloseTo(expectedY);
-        expect(bondEdge!.points[1]!.y).toBeCloseTo(expectedY);
-        // The bus midline must lie within both cards' vertical extents.
-        expect(expectedY).toBeGreaterThanOrEqual(leftNode.y);
-        expect(expectedY).toBeLessThanOrEqual(leftNode.y + (leftNode.h ?? CARD_H));
-        expect(expectedY).toBeGreaterThanOrEqual(rightNode.y);
-        expect(expectedY).toBeLessThanOrEqual(rightNode.y + (rightNode.h ?? CARD_H));
+        // Per-row vertical centering: leftNode.y + leftNode.h/2 ===
+        // rightNode.y + rightNode.h/2. The bond runs at that shared midline.
+        const leftMid = leftNode.y + (leftNode.h ?? CARD_H) / 2;
+        const rightMid = rightNode.y + (rightNode.h ?? CARD_H) / 2;
+        expect(leftMid).toBeCloseTo(rightMid);
+        expect(bondEdge!.points[0]!.y).toBeCloseTo(leftMid);
+        expect(bondEdge!.points[1]!.y).toBeCloseTo(leftMid);
     });
 
-    it("parent stem starts from the couple-bus midline (mixed heights stay consistent)", () => {
-        // visual-fixup phase 2 #5: the per-child L-drops collapsed into a
-        // single parent-stem + sibling-bus + per-kid stubs. The stem's
-        // first point is the same anchor (anchorCenterX, anchorY) the
-        // old drop used, so the mixed-height invariant carries over.
+    it("parent stem starts from the couple-bus midline", () => {
+        const { tree, ids } = makeMixedHeightCouple();
+        const layout = computeLayout(tree, ids.child!, {});
+        const leftNode = layout.nodes.get(ids.left!)!;
+        const stemEdge = layout.edges.find((e) => e.id.startsWith("stem:union:"));
+        expect(stemEdge).toBeDefined();
+        const expectedY = leftNode.y + (leftNode.h ?? CARD_H) / 2;
+        expect(stemEdge!.points[0]!.y).toBeCloseTo(expectedY);
+    });
+
+    it("shorter cards are vertically centered within a tall portrait row", () => {
         const { tree, ids } = makeMixedHeightCouple();
         const layout = computeLayout(tree, ids.child!, {});
         const leftNode = layout.nodes.get(ids.left!)!;
         const rightNode = layout.nodes.get(ids.right!)!;
-        const stemEdge = layout.edges.find((e) => e.id.startsWith("stem:union:"));
-        expect(stemEdge).toBeDefined();
-        const minH = Math.min(leftNode.h ?? CARD_H, rightNode.h ?? CARD_H);
-        const expectedY = leftNode.y + minH / 2;
-        expect(stemEdge!.points[0]!.y).toBeCloseTo(expectedY);
+        // left has portrait (h=CARD_H_WITH_PORTRAIT), right doesn't (h=CARD_H).
+        // Row top = min of both card tops; the shorter card sits with equal
+        // padding above and below to center within the taller row.
+        expect(leftNode.h).toBe(CARD_H_WITH_PORTRAIT);
+        expect(rightNode.h).toBe(CARD_H);
+        const rowH = CARD_H_WITH_PORTRAIT;
+        const expectedRightY = leftNode.y + (rowH - CARD_H) / 2;
+        expect(rightNode.y).toBeCloseTo(expectedRightY);
     });
 });

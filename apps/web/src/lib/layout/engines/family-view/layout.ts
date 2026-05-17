@@ -53,12 +53,8 @@ import { selectBoundedSubset, type RankedSubset } from "$lib/layout/engines/fami
 
 /** Default card height in unit space — used as the fallback when a node carries no explicit `h`. */
 export const CARD_H = 1.2;
-/** Card height when a portrait is present — taller to render a 2:3 portrait visibly. ROW_H=2 caps this at 1.6. */
-export const CARD_H_WITH_PORTRAIT = 1.6;
-/** Card height for short-name no-portrait cards — shrunken to reduce visual weight from the silhouette avatar. */
-export const CARD_H_COMPACT = 0.9;
-/** Above this name length, fall back to the default card height even without a portrait. */
-const NAME_COMPACT_THRESHOLD = 14;
+/** Card height when a portrait is present — exactly double the default, so a 3:4 portrait slot reads as a portrait, not a strip. */
+export const CARD_H_WITH_PORTRAIT = CARD_H * 2;
 /**
  * Phase-2 visual-fixup: distance (unit space) the card's selection-ring
  * boundary sits inside the card rect. Connectors terminate at the visible
@@ -73,20 +69,14 @@ export const CARD_VISIBLE_INSET_U = 3 / 80;
 export const AUTO_COLLAPSE_THRESHOLD = 50;
 
 /**
- * Content-driven card height (Phase 1 of the visual fix-up plan).
- *
- * Deterministic from the person record alone — worker-safe.
- * Heuristic: portrait blob present → tall (renders the photo at ~2:3);
- * short name with no portrait → compact (avoids top-heavy silhouette);
- * default otherwise.
+ * Content-driven card height. Deterministic from the person record
+ * alone — worker-safe. Portrait present → tall; otherwise default.
+ * The silhouette/compact path was removed: no-portrait cards render
+ * name+date only, with no avatar slot.
  */
-export function cardHeight(
-    person: { portraitBlobId?: string; given?: string; surname?: string } | undefined,
-): number {
+export function cardHeight(person: { portraitBlobId?: string } | undefined): number {
     if (!person) return CARD_H;
     if (person.portraitBlobId) return CARD_H_WITH_PORTRAIT;
-    const nameLen = (person.given ?? "").length + 1 + (person.surname ?? "").length;
-    if (nameLen <= NAME_COMPACT_THRESHOLD) return CARD_H_COMPACT;
     return CARD_H;
 }
 
@@ -239,6 +229,22 @@ export function computeLayout(
             }
         }
         widthByRank.set(r, cursor);
+    }
+
+    // Vertically center cards within each rank: a portrait card forces
+    // the row to be `CARD_H_WITH_PORTRAIT` tall, and any shorter cards
+    // in the same rank get pushed down by half the height delta so
+    // every card's vertical midpoint lines up. The shared midline is
+    // what couple connectors and parent stems anchor to.
+    const maxHByRank = new Map<number, number>();
+    for (const node of nodes.values()) {
+        const cur = maxHByRank.get(node.rank) ?? 0;
+        if ((node.h ?? CARD_H) > cur) maxHByRank.set(node.rank, node.h ?? CARD_H);
+    }
+    for (const [id, node] of nodes) {
+        const rowH = maxHByRank.get(node.rank) ?? CARD_H;
+        const dy = (rowH - (node.h ?? CARD_H)) / 2;
+        if (dy !== 0) nodes.set(id, { ...node, y: node.y + dy });
     }
 
     // Centre each rank under the widest rank.
@@ -428,8 +434,9 @@ function emitAnchorsAndEdges(
         anchors.push(anchor);
         edges.push(coupleConnector(couple, leftNode, rightNode));
         const anchorCenterX = (midX(leftNode) + midX(rightNode)) / 2;
-        // anchor at the shorter card's midline so the couple-bus passes through both cards
-        const anchorY = leftNode.y + Math.min(leftNode.h ?? CARD_H, rightNode.h ?? CARD_H) / 2;
+        // both partners are vertically centered to the same row midline,
+        // so either card's midpoint works as the bus anchor.
+        const anchorY = leftNode.y + (leftNode.h ?? CARD_H) / 2;
         // visual-fixup #5: emit one explicit sibling-bus segment + N child
         // stubs instead of N L-drops whose horizontal segments overlapped
         // into an emergent bus. Bus extent spans the parents' midpoint and
@@ -515,13 +522,14 @@ function emitAnchorsAndEdges(
         };
         anchors.push(anchor);
         // Connector edges from the bus primitive (one bar across all
-        // partners + zero-length tails on-rank).
-        // multi-partner bus runs at the shortest partner's midline so it passes through every card
-        const busHalfH = Math.min(...partnerNodes.map((n) => (n.h ?? CARD_H) / 2));
+        // partners + zero-length tails on-rank). Per-row vertical
+        // centering puts every partner's midpoint at the same y, so
+        // any partner's midline serves as the shared bus y.
+        const busY = partnerNodes[0]!.y + (partnerNodes[0]!.h ?? CARD_H) / 2;
         const partnerPositions = partnerNodes.map((n) => ({
             personId: n.personId,
             x: midX(n),
-            y: n.y + busHalfH,
+            y: busY,
         }));
         const manifold = computeManifold(PRIMARY_PRIMITIVE, partnerPositions);
         for (let ei = 0; ei < manifold.edges.length; ei += 1) {
@@ -683,8 +691,9 @@ function coupleConnector(
     left: FamilyViewNode,
     right: FamilyViewNode,
 ): FamilyViewEdge {
-    // anchor at the shorter card's midline so the bond passes through both cards
-    const y = left.y + Math.min(left.h ?? CARD_H, right.h ?? CARD_H) / 2;
+    // both cards share a row midline after per-row vertical centering,
+    // so either side's midpoint anchors the bond cleanly.
+    const y = left.y + (left.h ?? CARD_H) / 2;
     // visual-fixup #4: terminate at the visible card edge (selection-ring
     // boundary), not the rect, so the connector doesn't overrun into the
     // rounded corner.

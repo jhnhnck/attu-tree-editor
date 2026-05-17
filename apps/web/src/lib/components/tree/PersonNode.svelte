@@ -4,7 +4,7 @@
     licensed under the MIT license; see LICENSE.md for full text
 -->
 <script lang="ts">
-    import { Link2, User } from "@lucide/svelte";
+    import { Link2 } from "@lucide/svelte";
     import { HaracalndeDate, type HaracalndeDateData } from "$lib/date/HaracalndeDate";
     import type { Person } from "$lib/domain/types";
     import type { PersonNodeLevel } from "$lib/components/tree/edges";
@@ -121,31 +121,19 @@
          source via Svelte's compiled {#if} branch ContentRangeInserted). -->
     <div class="lvl" data-lvl="0">
         {#if portraitUrl}
-            <!-- Visual fix-up plan phase 1: portrait slot grows with the
-                 card so the 2:3 image is visible. Canvas-side card height
-                 is driven by `cardHeight()` in family-view layout, which
-                 returns the taller value when `portraitBlobId` is set. -->
+            <!-- Visual fix-up plan: portrait slot uses a true portrait
+                 aspect (3:4, taller than wide) and centers horizontally.
+                 The card itself is sized double-height by `cardHeight()`
+                 in family-view layout when `portraitBlobId` is present,
+                 so the slot has room to render the photo prominently.
+                 No-portrait cards intentionally render no slot at all
+                 (no silhouette placeholder). -->
             <div
-                class="border-line/40 portrait-slot mb-1 w-full overflow-hidden rounded border"
+                class="border-line/40 portrait-slot mx-auto mb-1 overflow-hidden rounded border"
+                class:is-deceased={isDeceased}
                 data-portrait-slot="true"
             >
                 <img src={portraitUrl} alt="" class="h-full w-full object-cover object-top" />
-            </div>
-        {:else}
-            <!-- Phase 5 silhouette fallback: no portrait → render a User
-                 icon scaled to the same slot. Deceased people (death date
-                 present) get a greyscale tint so a face on the canvas
-                 always means "alive or unknown"; greyscale always means
-                 "deceased." Visual fix-up plan phase 1: silhouette stays
-                 compact (h-8) so short-name cards don't feel top-heavy. -->
-            <div
-                class="border-line/40 bg-canvas/40 mb-1 flex h-8 w-full items-center
-                       justify-center overflow-hidden rounded border text-fg/70"
-                class:is-deceased={isDeceased}
-                aria-hidden="true"
-                data-silhouette="true"
-            >
-                <User size={20} strokeWidth={1.5} />
             </div>
         {/if}
         <span class="line-clamp-2 text-sm leading-tight font-semibold">
@@ -232,14 +220,15 @@
     .person-card[data-level="0"][data-portrait="0"] {
         justify-content: center;
     }
-    /* Visual fix-up plan phase 1: when a portrait is present the card is
-       sized taller by the layout engine (CARD_H_WITH_PORTRAIT = 1.6 units).
-       The portrait slot grows to fill the available space above the name
-       + date row so the 2:3 image is actually visible, rather than being
-       capped at the old fixed h-10. */
+    /* Visual fix-up plan: portrait slot uses a true portrait aspect ratio
+       (3:4, taller than wide) and occupies ~70% of the card width so it
+       reads as a portrait photo, not a landscape strip. Card itself is
+       sized double-height by `cardHeight()` in family-view layout when a
+       portrait is present, giving the slot room. The slot centers
+       horizontally via `mx-auto` on the element. */
     .portrait-slot {
-        flex: 1 1 auto;
-        min-height: 2.5rem;
+        width: 70%;
+        aspect-ratio: 3 / 4;
     }
     /* hide every level variant by default; the matching one is revealed below.
        `display: contents` keeps the variant's children as direct flex children
