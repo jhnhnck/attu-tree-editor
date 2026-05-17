@@ -46,6 +46,7 @@
 
     import {
         addPerson,
+        addRelationship,
         addUnionPartner,
         createTree,
         getParents,
@@ -53,6 +54,7 @@
         linkParentRef,
         linkSpouse,
         removePerson,
+        removeRelationship,
         removeUnionPartner,
         setPreferredUnion,
         unlinkParent,
@@ -61,9 +63,11 @@
         updateCouple,
         updateParentRef,
         updatePerson,
+        updateRelationship,
         updateUnion,
         type CouplePatch,
         type PersonPatch,
+        type RelationshipPatch,
         type UnionPatch,
     } from "$lib/domain/tree";
     import { migratePreferredUnion } from "$lib/state/preferredUnionMigration";
@@ -267,6 +271,33 @@
         }
     }
     let generationBadgeEnabled = $state(readGenerationBadgePref());
+
+    // relationship-vocabulary phase 4: per-overlay-kind toggles. each
+    // localStorage key defaults on (`null` → on); anything but `"false"`
+    // reads as on. mirrors PATH_HIGHLIGHT_LS_KEY's defensive shape.
+    const SWORN_BONDS_LS_KEY = "fte.overlays.swornBonds";
+    const TRANSFORMATIONS_LS_KEY = "fte.overlays.transformations";
+    const SEVERANCES_LS_KEY = "fte.overlays.severances";
+    function readBoolPref(key: string): boolean {
+        try {
+            const raw = typeof localStorage === "undefined" ? null : localStorage.getItem(key);
+            return raw !== "false";
+        } catch {
+            return true;
+        }
+    }
+    function writeBoolPref(key: string, on: boolean): void {
+        try {
+            if (typeof localStorage !== "undefined") {
+                localStorage.setItem(key, on ? "true" : "false");
+            }
+        } catch {
+            // quota / disabled storage non-fatal
+        }
+    }
+    let swornBondsEnabled = $state(readBoolPref(SWORN_BONDS_LS_KEY));
+    let transformationsEnabled = $state(readBoolPref(TRANSFORMATIONS_LS_KEY));
+    let severancesEnabled = $state(readBoolPref(SEVERANCES_LS_KEY));
 
     // save-pill state
     let lastSavedAt = $state<number | undefined>(undefined);
@@ -633,6 +664,20 @@
 
     function setPreferredUnionLink(unionId: string, personId: PersonId, preferred: boolean): void {
         treeStore.update((t) => setPreferredUnion(t, unionId, personId, preferred));
+    }
+
+    function addRelationshipLink(
+        rel: Omit<import("$lib/domain/types").Relationship, "id"> & { id?: string },
+    ): void {
+        treeStore.update((t) => addRelationship(t, rel).tree);
+    }
+
+    function removeRelationshipLink(relId: string): void {
+        treeStore.update((t) => removeRelationship(t, relId));
+    }
+
+    function patchRelationship(relId: string, patch: RelationshipPatch): void {
+        treeStore.update((t) => updateRelationship(t, relId, patch));
     }
 
     function createAndLinkUnionPartner(unionId: string): void {
@@ -1024,21 +1069,20 @@
             pathHighlightEnabled = !pathHighlightEnabled;
             writePathHighlightPref(pathHighlightEnabled);
         },
-        // Relationship-vocabulary plan Phase 0 stub placeholders. Each
-        // overlay's real wiring lands in the absorbing phase.
-        viewOverlaySwornBondsStub: () => {
-            toasts.push("sworn bonds — coming with relationship-vocabulary phase 4", "info", 1500);
+        // Phase 4 overlay toggles — flip + persist + show toast.
+        viewOverlaySwornBondsToggle: () => {
+            swornBondsEnabled = !swornBondsEnabled;
+            writeBoolPref(SWORN_BONDS_LS_KEY, swornBondsEnabled);
         },
-        viewOverlayTransformationsStub: () => {
-            toasts.push(
-                "transformations — coming with relationship-vocabulary phase 4",
-                "info",
-                1500,
-            );
+        viewOverlayTransformationsToggle: () => {
+            transformationsEnabled = !transformationsEnabled;
+            writeBoolPref(TRANSFORMATIONS_LS_KEY, transformationsEnabled);
         },
-        viewOverlaySeverancesStub: () => {
-            toasts.push("severances — coming with relationship-vocabulary phase 4", "info", 1500);
+        viewOverlaySeverancesToggle: () => {
+            severancesEnabled = !severancesEnabled;
+            writeBoolPref(SEVERANCES_LS_KEY, severancesEnabled);
         },
+        // remaining Phase 6a / 6b stubs stay as placeholders for now.
         viewOverlayGroupFramesStub: () => {
             toasts.push(
                 "group frames — coming with relationship-vocabulary phase 6a",
@@ -1113,6 +1157,9 @@
             engineFamilyViewActive: () => selectedEngine === "family-view",
             engineLayeredActive: () => selectedEngine === "layered",
             overlayPathHighlightActive: () => pathHighlightEnabled,
+            overlaySwornBondsActive: () => swornBondsEnabled,
+            overlayTransformationsActive: () => transformationsEnabled,
+            overlaySeverancesActive: () => severancesEnabled,
             engineHyperbolicActive: () => selectedEngine === "hyperbolic",
         }),
     );
@@ -1384,6 +1431,9 @@
                     selectedId={selection.selectedPersonId}
                     pathHighlight={pathHighlightEnabled}
                     showGenerationBadge={generationBadgeEnabled}
+                    showOverlaySwornBonds={swornBondsEnabled}
+                    showOverlayTransformations={transformationsEnabled}
+                    showOverlaySeverances={severancesEnabled}
                     {portraitUrls}
                     onselect={(id: string) => selection.select(id)}
                     ondeselect={() => selection.select(undefined)}
@@ -1711,6 +1761,9 @@
                 onpatchUnion={patchUnion}
                 onsetPreferredUnion={setPreferredUnionLink}
                 oncreateAndLinkUnionPartner={createAndLinkUnionPartner}
+                onaddRelationship={addRelationshipLink}
+                onremoveRelationship={removeRelationshipLink}
+                onpatchRelationship={patchRelationship}
                 onduplicate={duplicatePerson}
                 onsetRoot={setRootAction}
                 ondelete={deletePerson}

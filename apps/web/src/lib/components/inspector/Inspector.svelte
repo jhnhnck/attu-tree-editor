@@ -12,6 +12,7 @@
         Crown,
         Crosshair,
         FileText,
+        Link2,
         MoreHorizontal,
         Trash2,
         User,
@@ -24,20 +25,22 @@
         ParentRole,
         Person,
         PersonId,
+        Relationship,
         Tree,
     } from "$lib/domain/types";
-    import type { CouplePatch, PersonPatch, UnionPatch } from "$lib/domain/tree";
+    import type { CouplePatch, PersonPatch, RelationshipPatch, UnionPatch } from "$lib/domain/tree";
     import type { PortraitUrlCache } from "$lib/state/portraitUrls.svelte";
     import PersonalTab from "./PersonalTab.svelte";
     import ConnectionsTab from "./ConnectionsTab.svelte";
     import DetailsTab from "./DetailsTab.svelte";
+    import RelationshipsTab from "./RelationshipsTab.svelte";
 
     type Slot =
         | { kind: "parent"; role: "mother" | "father" }
         | { kind: "parent-extra" }
         | { kind: "partner" }
         | { kind: "child" };
-    type Tab = "personal" | "connections" | "details" | "bio";
+    type Tab = "personal" | "connections" | "relationships" | "details" | "bio";
 
     interface Props {
         tree: Tree;
@@ -78,6 +81,12 @@
             | undefined;
         /** create a fresh person and append them as a new partner of the union. */
         oncreateAndLinkUnionPartner?: ((unionId: string) => void) | undefined;
+        /** Phase 4 (relationship-vocabulary): add a Relationship to tree.relationships[]. */
+        onaddRelationship?: ((rel: Omit<Relationship, "id"> & { id?: string }) => void) | undefined;
+        /** remove a Relationship by id. */
+        onremoveRelationship?: ((relId: string) => void) | undefined;
+        /** patch a Relationship (kind / sourceIds / targetIds / cause / date / notes). */
+        onpatchRelationship?: ((relId: string, patch: RelationshipPatch) => void) | undefined;
         onduplicate: (id: PersonId) => void;
         onsetRoot: (id: PersonId) => void;
         ondelete: (id: PersonId) => void;
@@ -117,6 +126,9 @@
         onpatchUnion,
         onsetPreferredUnion,
         oncreateAndLinkUnionPartner,
+        onaddRelationship,
+        onremoveRelationship,
+        onpatchRelationship,
         onduplicate,
         onsetRoot,
         ondelete,
@@ -217,6 +229,7 @@
     const tabs: { id: Tab; label: string; icon: typeof User }[] = [
         { id: "personal", label: "personal", icon: User },
         { id: "connections", label: "connections", icon: Users },
+        { id: "relationships", label: "bonds", icon: Link2 },
         { id: "details", label: "details", icon: FileText },
         { id: "bio", label: "bio", icon: BookOpen },
     ];
@@ -386,6 +399,15 @@
                     {oncreateAndLinkUnionPartner}
                     {traceTargetId}
                     {onsetTraceTarget}
+                />
+            {:else if activeTab === "relationships"}
+                <RelationshipsTab
+                    {tree}
+                    {person}
+                    {onaddRelationship}
+                    {onremoveRelationship}
+                    {onpatchRelationship}
+                    {onselect}
                 />
             {:else if activeTab === "details"}
                 <DetailsTab {person} onpatch={(p: PersonPatch) => onpatch(person.id, p)} />

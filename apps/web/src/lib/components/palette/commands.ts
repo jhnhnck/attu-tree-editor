@@ -78,12 +78,12 @@ export interface CommandHandlers {
      * default of `true` (the Phase 3 path highlight ships on-by-default).
      */
     viewOverlayPathHighlightToggle: () => void;
-    /** relationship-vocabulary Phase 4 wires this; today shows "coming soon" */
-    viewOverlaySwornBondsStub: () => void;
-    /** relationship-vocabulary Phase 4 wires this; today shows "coming soon" */
-    viewOverlayTransformationsStub: () => void;
-    /** relationship-vocabulary Phase 4 wires this; today shows "coming soon" */
-    viewOverlaySeverancesStub: () => void;
+    /** Phase 4 (relationship-vocabulary): toggle the sworn-bond / oath / ritual overlay. */
+    viewOverlaySwornBondsToggle: () => void;
+    /** Phase 4: toggle transformation / identity-arc / alias overlays. */
+    viewOverlayTransformationsToggle: () => void;
+    /** Phase 4: toggle severance overlays (severed / estranged / disowned / exiled). */
+    viewOverlaySeverancesToggle: () => void;
     /** relationship-vocabulary Phase 6a wires this; today shows "coming soon" */
     viewOverlayGroupFramesStub: () => void;
     /** relationship-vocabulary Phase 6b wires this; today shows "coming soon" */
@@ -120,6 +120,12 @@ export interface CommandEnabledFlags {
      * `fte.overlays.pathHighlight` preference is true.
      */
     overlayPathHighlightActive?: () => boolean;
+    /** Phase 4: is the sworn-bond overlay currently enabled? */
+    overlaySwornBondsActive?: () => boolean;
+    /** Phase 4: are transformation / identity-arc overlays currently enabled? */
+    overlayTransformationsActive?: () => boolean;
+    /** Phase 4: are severance overlays currently enabled? */
+    overlaySeverancesActive?: () => boolean;
 }
 
 export function buildCommands(
@@ -326,24 +332,24 @@ export function buildCommands(
         },
         {
             id: "view.overlay.swornBonds",
-            label: "Overlay: sworn bonds (coming in phase 4)",
+            label: "Overlay: sworn bonds",
             group: "View",
-            enabled: () => false,
-            run: h.viewOverlaySwornBondsStub,
+            checked: enabled.overlaySwornBondsActive,
+            run: h.viewOverlaySwornBondsToggle,
         },
         {
             id: "view.overlay.transformations",
-            label: "Overlay: transformations (coming in phase 4)",
+            label: "Overlay: transformations",
             group: "View",
-            enabled: () => false,
-            run: h.viewOverlayTransformationsStub,
+            checked: enabled.overlayTransformationsActive,
+            run: h.viewOverlayTransformationsToggle,
         },
         {
             id: "view.overlay.severances",
-            label: "Overlay: severances (coming in phase 4)",
+            label: "Overlay: severances",
             group: "View",
-            enabled: () => false,
-            run: h.viewOverlaySeverancesStub,
+            checked: enabled.overlaySeverancesActive,
+            run: h.viewOverlaySeverancesToggle,
         },
         {
             id: "view.overlay.groupFrames",

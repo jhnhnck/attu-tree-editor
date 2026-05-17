@@ -80,3 +80,89 @@ body {
         animation-duration: 0ms !important;
     }
 }
+
+/* relationship-vocabulary phase 4 overlay stroke palette.
+ * applied to <path> elements rendered above the skeleton edges in
+ * `FamilyViewCanvas`. each class encodes a visual idiom from the design
+ * study (chained = sworn / oath / ritual; wavy = transformation /
+ * reincarnation / merge / split; doubled-slash = severance; alias is a
+ * wavy variant rendered with a thinner stroke).
+ *
+ * dasharray values pick visually distinct rhythms at the canvas's
+ * default UNIT (80 px). vector-effect="non-scaling-stroke" on the path
+ * keeps the dash pattern readable across the pan/zoom range.
+ */
+.family-view-overlay {
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    pointer-events: none;
+}
+
+/*
+ * On-path edge halo: when a card is selected, every edge along the BFS
+ * path between focus and selection lights up. The visual is a thick,
+ * translucent stroke with a soft accent-colored glow underneath, so the
+ * connection reads as energised rather than as a thin marked line.
+ *
+ * Applied via `class:family-view-onpath-edge={onPath}` on the <path>
+ * element in `FamilyViewCanvas.svelte`. The drop-shadow is the glow;
+ * `stroke-width` and translucent stroke are set inline by the Tailwind
+ * `stroke-[5]` + `/55` modifiers in `edgeClass()`.
+ */
+.family-view-onpath-edge {
+    filter: drop-shadow(0 0 4px var(--color-accent)) drop-shadow(0 0 2px var(--color-accent));
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.family-view-overlay-sworn {
+    /* chained line — short dash, short gap */
+    stroke: var(--color-accent);
+    stroke-width: 2.25;
+    stroke-dasharray: 4 3;
+    opacity: 0.85;
+}
+
+.family-view-overlay-transformation {
+    /* identity-arc — long dash with a tight gap so it reads as wavy */
+    stroke: hsl(280 80% 70%); /* purple — distinct from accent / married rose */
+    stroke-width: 2;
+    stroke-dasharray: 6 2 2 2;
+    opacity: 0.85;
+}
+
+.family-view-overlay-alias {
+    /* alias-of — wavy variant, thinner stroke, dashed differently */
+    stroke: hsl(180 70% 60%); /* teal — fictional-bond family */
+    stroke-width: 1.75;
+    stroke-dasharray: 3 2;
+    opacity: 0.7;
+}
+
+.family-view-overlay-severance {
+    /* severance line — base stroke is invisible; the doubled-slash
+     * marker is a separate <text> the renderer drops at the midpoint */
+    stroke: hsl(0 80% 60%); /* red */
+    stroke-width: 1.5;
+    stroke-dasharray: 2 4;
+    opacity: 0.55;
+}
+
+.family-view-overlay-severance-mark {
+    fill: hsl(0 80% 60%);
+    font-family: ui-monospace, monospace;
+    font-weight: 700;
+    paint-order: stroke;
+    stroke: var(--color-canvas);
+    stroke-width: 4px;
+}
+
+.family-view-overlay-glyph {
+    fill: hsl(280 80% 70%);
+    font-family: ui-sans-serif, system-ui, sans-serif;
+    paint-order: stroke;
+    stroke: var(--color-canvas);
+    stroke-width: 4px;
+    pointer-events: none;
+}

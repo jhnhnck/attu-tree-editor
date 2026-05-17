@@ -28,6 +28,10 @@ _known defects with reproducible misbehavior. feature work, deployment plumbing,
 - ⭕ `low priority` `low effort` smooth-diff animation absent - switching focus in family-view is a jump-cut; a FLIP-style transition or opacity fade would help users maintain orientation after recenter. Deferred every phase from Phase 1 through Phase 6 🎯 *planned in [family-view-w2.md](../plans/family-view-w2.md)*
 - ⭕ `low priority` `no effort` Akarians visual-golden specs duplicate the mask shape — both `visual-akarians-family-view.spec.ts` and `visual-akarians.spec.ts` specify the same toast/save-pill/people-badge mask. a shared `maskAkariansOverlays(page)` helper would centralise the shape 🎯 *planned in [family-view-w2.md](../plans/family-view-w2.md)*
 
+### tests
+
+- ⭕ `medium priority` `no effort` `card-height.test.ts` references `CARD_H_COMPACT` after the `cardHeight()` heuristic was simplified to portrait-only ([engines/family-view/layout.ts:83](../apps/web/src/lib/layout/engines/family-view/layout.ts#L83)). The constant is still exported but `cardHeight()` no longer returns it for short-name no-portrait cards — they now resolve to `CARD_H`. Two stale assertions: [card-height.test.ts:33](../apps/web/tests/unit/engines/family-view/card-height.test.ts#L33) `cardHeight({ given: "Ann", surname: "Lee" }) === CARD_H_COMPACT` (now `=== CARD_H`); [card-height.test.ts:97](../apps/web/tests/unit/engines/family-view/card-height.test.ts#L97) `rightNode.h === CARD_H_COMPACT` in the mixed-height fixture (now `=== CARD_H`). Next `pnpm test:unit` run fails. Fix: rewrite the assertions to match the portrait-only heuristic (drop the short-name branch); decide whether `CARD_H_COMPACT` stays exported as an unused constant or gets removed too.
+
 ---
 
 ## fixed
@@ -76,6 +80,6 @@ if a feature in `to-do.md` turns up a defect during implementation, file the def
 ### metadata
 
 ```yaml
-last_updated: 14 May 2026
+last_updated: 16 May 2026
 total_fixed: 5
 ```

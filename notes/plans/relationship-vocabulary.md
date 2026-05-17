@@ -1097,6 +1097,80 @@ in the bug log is guidance, not a block.
 
 ---
 
+## Revision after Phase 4 follow-up — 16 May 2026
+
+**Trigger**: Phase 4 follow-up closed (overlay renderer for
+`tree.relationships[]` + A\* obstacle-avoidance router + stroke
+palette CSS classes + Inspector "bonds" tab + View menu overlay
+toggles wired to real state). Retro + triage ran. All
+relationship-vocabulary UI payoffs are now user-visible; remaining
+phases are additive (identity / groups / sibship), one
+consolidation phase (8), and one conditional engine-parity phase
+(9).
+
+**What changed**:
+
+- **Phase 5 (identity / species / origin)**: valid — independent of
+  overlay rendering.
+- **Phase 6a (Groups + group frames)**: valid — independent. The
+  Phase 4 follow-up's engine-private overlay-walker pattern
+  (`buildOverlays(tree, nodes, edges, bbox)` plugged into
+  `FamilyViewLayout.overlays`) is the prototype for Phase 6a's
+  `buildGroups(tree, nodes, bbox)`. The CSS-class palette pattern +
+  the View menu toggle pattern carry over verbatim. No spec drift;
+  noting the reuse opportunity here so Phase 6a doesn't re-invent
+  the wiring.
+- **Phase 6b (sibship decorators + consanguinity)**: valid —
+  independent. Same prototype as 6a.
+- **Phase 8 (single-tier GEDZIP export + ship polish)**: revise —
+  scope grows by three bullets in "Ship polish":
+  (a) `Relationship.date` input field in the Inspector "bonds"
+  tab (domain ops + serialize/parse already handle it; only the
+  UI input is missing).
+  (b) Severance `//` marker becomes scale-aware (currently fixed
+  at 14px, which dominates / vanishes at extreme zoom levels).
+  (c) E2E visual test for overlay rendering (Akarians + 1 sworn-
+  bond), added once the visual fix-up baseline regen is done.
+  These are nits + one important; bullets inlined into Phase 8's
+  spec below. Phase 8 header + DoD + day budget unchanged
+  (still ~2 days; the additions are small).
+- **Phase 9 (Wave 2 hyperbolic-engine parity; may be cut)**: valid
+  — independent. One note added inline: if launched, the
+  `OverlayKind` type and `mapKind()` function need promotion out
+  of `engines/family-view/` into a shared module so the hyperbolic
+  engine can consume the same palette without re-implementing the
+  mapping.
+
+**Triage actions folded in**:
+
+- Closed in bug log: none. Phase 4's foundation retro debt items
+  all delivered (overlay walker, A\* router, stroke palette,
+  Inspector tab, View toggles).
+- Added to bug log: 8 items routed (3 fix-in-phase-8, 5 defer).
+  Inline in the bug log section above.
+
+**Cross-workstream dependency surfaced**: the Akarians visual
+baseline gate is currently broken by user in-flight visual fix-up
+work (cardHeight refactor + per-row max-height pass), which is
+externally owned (not part of the relationship-vocabulary plan).
+Phase 4 follow-up confirmed by isolated stash + rerun that its
+code is independently clean. Phases 6a / 6b will inherit the
+same dependency until the visual fix-up workstream regenerates
+baselines. Not blocking forward progress, but worth flagging so
+later phases don't mis-attribute baseline failures to their own
+changes.
+
+**Process note**: fourth successive phase to wrap in a single
+shippable unit. The cadence is holding even on a phase whose
+original ~4.5-day estimate would have been the largest single
+shippable unit so far — sized to one autonomous turn because the
+foundation already shipped (Phase 4a in 14 May session). Lesson:
+"big" estimates that have already been pre-decomposed into a
+foundation + a follow-up are routinely smaller than they look,
+and don't need re-splitting.
+
+---
+
 ## Revision after Phase 3c follow-up — 14 May 2026
 
 **Trigger**: Phase 3c follow-up closed (inspector union-row UI +
@@ -1751,6 +1825,23 @@ format, no user choice). Project ship gate.**
     `fte.migrations.preferred-union.v1:{treeId}` sentinel is
     set. Retires the two-source-of-truth flagged in Phase 3c
     follow-up's bug-log triage.
+  - **`Relationship.date` Inspector input** (added after
+    Phase 4 follow-up): add a date input field in
+    `RelationshipsTab.svelte` alongside cause / notes. Domain
+    ops + GEDCOM serialize / parse already round-trip the
+    `HaracalndeDateData` field; only the UI is missing.
+  - **Severance marker scale-aware sizing** (added after
+    Phase 4 follow-up): the `//` SVG `<text>` decoration at
+    the severance overlay midpoint uses a fixed `14px` font
+    size. Make it `vector-effect`-aware (or compute relative
+    to the current zoom scale) so the marker reads correctly
+    at extreme zoom levels.
+  - **E2E visual test for overlay rendering** (added after
+    Phase 4 follow-up): add a Playwright visual baseline
+    spec covering Akarians + 1 sworn-bond + 1 transformation
+    + 1 severance. Blocked until the user's in-flight visual
+    fix-up workstream regenerates the existing Akarians
+    family-view baseline.
   - `ship-readiness` skill walks the project's bug log,
     classifies blocker / follow-up, emits cut-line.
   - Documentation updates: `notes/agents.md` §8 entries for the
@@ -2440,6 +2531,64 @@ old marker (retained):
 
 starting phase 3b: N-partner unions first-class everywhere (14 May 2026). first commit landed `treeDiff` awareness of `unions[]` (was briefly labelled 3b.1; the sub-sub-phase nomenclature has been retired per the 14 May plan-revise — see Phase 3 header). The remaining 3b scope continues in the next turn: renderer via the Phase 1 bus primitive, `createTree` + writers atomic flip to unconditional sync, reader migration in `couples.ts` / `layout.ts` / `primaryUnion.ts`, place/order pass extensions, Akarians regression check.
 
+phase 4 follow-up retro — 16 May 2026 (overlay renderer + A\* + stroke palette + Inspector "bonds" tab + View toggles)
+
+**Status: shipped.** All DoD items deliverable on this branch landed; the only DoD gate not green (Akarians visual baseline) is a pre-existing failure caused by the user's in-flight visual fix-up work (cardHeight refactor + per-row max-height pass), not by this phase. Confirmed by stashing the in-flight files and running `pnpm verify` against the isolated state: 0 typecheck errors, lint clean, 774 unit tests pass (15 new), build clean, 69 server tests pass.
+
+### spec delta
+
+**Delivered (matches DoD)**:
+- `engines/family-view/overlayRouter.ts` (NEW, ~240 lines): grid-based A\* with octile heuristic, card-AABB obstacles + 0.25-unit margin, diagonal-corner-blocker check, MAX_NODES_VISITED bail-out, collinear-point simplifier. Owner-aware: source/target cards aren't obstacles for their own overlay.
+- `engines/family-view/overlays.ts`: stub replaced with real walker. Reads `tree.relationships[]`, maps the 14 `RelationshipKind`s to 4 `OverlayKind`s (`sworn-bond` / `transformation` / `alias` / `severance`), fans out per source × target pair, routes non-severance segments via A\*, decorates severances on existing skeleton edges at the polyline midpoint. New signature: `buildOverlays(tree, nodes, edges, bbox)`.
+- `engines/family-view/layout.ts`: `computeLayout` calls `buildOverlays` and returns `overlays: OverlaySegment[]` in `FamilyViewLayout` (field already existed as optional from Phase 0).
+- `app.css`: 6 new CSS classes — `.family-view-overlay` base, `.family-view-overlay-sworn` (chained, accent-blue), `.family-view-overlay-transformation` (dashed, purple), `.family-view-overlay-alias` (dashed thin, teal), `.family-view-overlay-severance` (dashed red, low-opacity), `.family-view-overlay-severance-mark` + `.family-view-overlay-glyph` for the SVG text decorations.
+- `FamilyViewCanvas.svelte`: 3 new props (`showOverlaySwornBonds`, `showOverlayTransformations`, `showOverlaySeverances`) gating per-kind visibility. SVG renders overlay paths above skeleton edges; transformation/alias segments get a midpoint glyph (☼ ∞ ⊕ ⊖ ≡); severance segments get a `//` midpoint marker.
+- `App.svelte`: 3 new localStorage keys (`fte.overlays.swornBonds` / `transformations` / `severances`) with read-on-mount + write-on-toggle, mirroring the path-highlight pattern. 3 new handlers (`addRelationshipLink`, `removeRelationshipLink`, `patchRelationship`) routing through Inspector. 3 new `commands.ts` handlers replacing the "coming in phase 4" stubs with real toggles whose `checked` state tracks live.
+- `Inspector.svelte`: 5th tab "bonds" (`Link2` icon), wired to RelationshipsTab via 3 new optional props.
+- `RelationshipsTab.svelte` (NEW, ~280 lines): per-person view of `tree.relationships[]` that mention the selected person. Per-relationship card with kind picker (14 RelationshipKinds), source / target chip rosters with click-to-remove + "+ source" / "+ target" affordances via PersonChooser, inline cause / notes inputs, trash to delete. "Add relationship" panel with kind picker + chooser at the bottom.
+- `domain/tree.ts`: `addRelationship`, `removeRelationship`, `updateRelationship`, `RelationshipPatch` type. addRelationship synthesizes a deterministic id (`rel-<kind>-<sources...>-<targets...>`) when none is supplied so GEDCOM round-trip and programmatic creation produce stable identifiers.
+- 15 new unit tests: 5 in `tree.test.ts` (Relationship CRUD round-trip + id generation + patch semantics + bulk targetIds replacement), 10 in `overlays.test.ts` (walker: no-rels → []; one-per-pair; kind mapping for all 4 OverlayKinds; severance midpoint; visibility filter for hidden endpoints; N×M fan-out / A\* router: clear-path; routes-around-blocker; null when both endpoints in foreign cards; simplifyPath collinear pruning).
+
+**Missed / deferred (routed to bug log)**:
+- 30-overlay stress fixture not added. The A\* router was unit-tested at 3-card resolution; not exercised at Akarians scale with synthetic dense overlays. Defer: routing fanout > 10 overlays would benefit from a dedicated stress test.
+- Visual e2e for overlay rendering (Akarians + 1 sworn-bond) not added. Adding the baseline now would bake in the still-in-flight cardHeight refactor's geometry. Defer until visual fix-up wraps.
+- `Relationship.date` field has no input UI in RelationshipsTab. Kind + source + target + cause + notes are all wired; `date` is the missing 6th field. The serialize/parse foundation already round-trips it.
+- Self-loops (sourceId === targetId, e.g. self-couple time-loop) are skipped by the walker (`continue`). Design study §4.3 calls for a side-arc rendering; deferred. Skip is acceptable for v1.
+
+**Extra (not in DoD)**:
+- `OverlayKind = "alias"` carved out as its own visual family (thinner teal stroke, ≡ glyph) instead of being folded into "transformation". Justified: alias-of is structurally different from transformation/reincarnation (no temporal arrow), so it gets a distinct dasharray.
+- `simplifyPath()` exported from `overlayRouter.ts` as a standalone helper. Tested independently; cheap improvement to SVG-path size.
+
+### surprises
+
+- assumed → reality → delta:
+  - assumed the plan's `passes/overlay.ts` was an existing seam → engine-private `engines/family-view/overlays.ts` is the actual call site (Phase 0 stub plugs into `FamilyViewLayout.overlays`) → plan wording was documentation drift; no new pass file created. Doc-only.
+  - assumed `buildOverlays()` could keep its zero-arg signature → needs `tree`, `nodes`, `edges`, AND `bbox` so it can route via A\* and find skeleton edges to decorate for severances → signature widened, no caller needs the type-change.
+  - assumed severances would route through A\* like other overlays → they're decorations on existing skeleton edges (parental drops, couple connectors), not standalone segments → walker grew a `buildSeveranceSegment` branch that finds the skeleton edge by `persons` set intersection and computes a polyline midpoint via length-walking.
+  - assumed I'd need a separate "spike" file with synthetic 30-overlay data to test A\* → unit-test with one explicit 3-card blocker plus the existing Akarians fixture (which has no overlays) was enough to prove the router does the right thing → no stress fixture added in this turn; routed as residual debt.
+  - assumed Inspector tab labels were single-word → "relationships" doesn't fit the tab strip width on mobile; renamed display label to "bonds" (id stays `relationships`) to match the rest of the project's lowercase microcopy → no spec impact.
+  - assumed user's in-flight cardHeight refactor would integrate cleanly when I touched layout.ts → my buildOverlays additions and their cardHeight/per-row-height changes are non-overlapping but layout.ts is touched by both → required isolated stash + reconstruction to confirm my work is independently verifiable. Pre-existing in-flight broken state did not change; my work is clean against an isolated build.
+  - assumed the A\* obstacle-avoidance routing would be the biggest implementation risk → it took ~150 lines and one round of unit testing; the bigger time sink was RelationshipsTab's chooser narrowing (TypeScript type narrowing on `ChooserSlot` discriminated union required `{@const c = chooser}` + `{@const editingRel = ...}` blocks to keep svelte-check happy).
+  - assumed `paint-order: stroke` on SVG `<text>` would be the right way to give the severance `//` and identity-glyph a halo against any background → works on Chromium and matches the existing visual encoding pattern. No surprise; flagged because it's now precedent for future glyph overlays in Phase 6a / 6b.
+
+### residual debt
+
+- **No e2e visual test for overlay rendering.** Unit tests cover the walker + router; the SVG `<path>` rendering itself is unverified end-to-end. **Disposition: route to bug log — desirable but blocked by the in-flight visual fix-up baseline regen.**
+- **30-overlay stress fixture not added.** The A\* router's `MAX_NODES_VISITED = 8000` bail-out is unexercised. **Disposition: route to bug log — defer; revisit if a real tree pushes the budget.**
+- **`Relationship.date` field has no input UI** in RelationshipsTab. Domain ops + serialize/parse already handle it; only the Inspector input is missing. **Disposition: route to bug log — small nit, ship-polish candidate for Phase 8.**
+- **Severance marker `//` font size is fixed at 14px** (not `vector-effect`-aware). At extreme zoom levels the mark either dominates or vanishes. **Disposition: route to bug log — visual fix-up parity issue.**
+- **A\* router rebuilds the obstacle grid every layout pass.** For Akarians-scale (~30 nodes) this is sub-millisecond; for >100 visible nodes it would be wasted work. The grid is fully determined by the visible nodes' positions. **Disposition: route to bug log — defer; only relevant once card counts grow.**
+- **`OverlayKind` type is engine-internal.** If a second engine ever renders overlays (e.g. the hyperbolic engine in Wave 2), the type + the kind mapper need to be promoted to a shared module. **Disposition: route to bug log — pre-emptive note for Phase 9.**
+- **Akarians visual baseline is currently failing.** Caused by the user's in-flight visual fix-up work (cardHeight + per-row max-height pass), not by this phase. Verified by isolated test. **Disposition: route to bug log — externally owned; resolves when the visual fix-up plan closes.**
+
+### implications for downstream phases
+
+- **Phase 5 (identity / species / origin extensions)** unchanged. Independent of overlay rendering.
+- **Phase 6a (Groups + group frames)** unchanged. The Phase 4 follow-up's engine-private overlay-walker pattern is the prototype for Phase 6a's `buildGroups(tree, nodes, bbox)` walker. Wiring through `FamilyViewLayout.groups` is identical to the overlay wiring; the CSS-class palette + View menu toggle pattern carries over.
+- **Phase 6b (sibship decorators + consanguinity)** unchanged. Same prototype as Phase 6a.
+- **Phase 8 (single-tier GEDZIP export + ship polish)** picks up four new ship-polish bullets: (a) e2e visual test for overlay rendering once the visual fix-up baseline regen is done; (b) `Relationship.date` Inspector input; (c) severance marker scale-aware sizing; (d) A\* obstacle-grid memoization. All small.
+- **Phase 9 (Wave 2 hyperbolic-engine parity; may be cut)** gains one note: if launched, the `OverlayKind` type and `mapKind()` function need to move out of `engines/family-view/` into a shared module so the hyperbolic engine can consume the same palette without re-implementing the mapping. Not blocking; documented for the conditional Phase 9 spec.
+
 phase 3c follow-up retro — 14 May 2026 (inspector union UI + preferred-union migration)
 
 **Status: shipped.** All cross-phase DoD items pass. Phase 3c is closed.
@@ -2952,6 +3101,51 @@ it between phases.
   and "fallback-only" probes. **Disposition: defer**; the test still
   serves its byte-stability purpose. The Phase 0 HEAD.SCHMA probe
   follow-up (per-tool stripping toggle) is the natural home.
+
+#### Phase 4 follow-up triage items (16 May 2026)
+
+- **No e2e visual test for overlay rendering.** Unit tests cover the
+  walker + A\* router; the SVG path rendering itself is unverified
+  end-to-end on the Akarians fixture + 1 sworn-bond. Adding a baseline
+  now would bake in the user's still-in-flight cardHeight refactor's
+  geometry. **Severity: important. Disposition: fix-in-phase-8** —
+  added to Phase 8's ship-polish bullets; lands after the visual fix-
+  up sweep regenerates baselines.
+- **30-overlay stress fixture not added.** The A\* router's
+  `MAX_NODES_VISITED = 8000` bail-out is unexercised. Akarians-scale
+  (~30 nodes) runs sub-millisecond; pathological large trees with
+  dense overlays haven't been profiled. **Severity: nit. Disposition:
+  defer** — revisit if a real fixture pushes the budget.
+- **`Relationship.date` field has no input UI** in RelationshipsTab.
+  Domain ops + GEDCOM serialize/parse already handle it; only the
+  Inspector input is missing. **Severity: nit. Disposition: fix-in-
+  phase-8** — added to Phase 8's ship-polish bullets.
+- **Severance marker `//` font size is fixed at 14px** rather than
+  scale-aware. At extreme zoom levels the mark either dominates or
+  vanishes. **Severity: nit. Disposition: fix-in-phase-8** — visual
+  fix-up parity issue; added to Phase 8's ship-polish bullets.
+- **A\* router rebuilds the obstacle grid every layout pass.** Fully
+  determined by visible nodes' positions; could memoize. Sub-
+  millisecond at Akarians scale. **Severity: nit. Disposition:
+  defer** — revisit only if >100-card layouts surface perf issues.
+- **`OverlayKind` type is engine-internal.** If the hyperbolic engine
+  ever renders overlays (Wave 2 / Phase 9), the type + `mapKind()`
+  need promotion to a shared module. **Severity: nit. Disposition:
+  defer** — pre-emptive note; lands during Phase 9 spec if launched.
+- **Akarians visual baseline currently failing.** Caused by the user's
+  in-flight visual fix-up work (cardHeight refactor + per-row max-
+  height pass in `layout.ts`, `PersonNode.svelte` slot height
+  changes), not by this phase. Verified by isolated stash + rerun:
+  Phase 4 follow-up code is independently clean. **Severity:
+  important** (the baseline gate is the project's primary visual
+  regression detector). **Disposition: defer** — externally owned by
+  the visual fix-up workstream, not the relationship-vocabulary plan.
+  Resolves when that workstream regenerates the baselines.
+- **Self-loop overlays (sourceId === targetId) silently skipped.** The
+  design study §4.3 calls for a side-arc rendering for self-couples /
+  time-loops. Walker currently `continue`s past them. **Severity:
+  nit. Disposition: defer** — surface in the wild before designing
+  the arc geometry.
 
 #### Phase 3c follow-up triage items (14 May 2026)
 

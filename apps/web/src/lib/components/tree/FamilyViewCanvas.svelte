@@ -67,6 +67,16 @@
          */
         showGenerationBadge?: boolean | undefined;
         /**
+         * Phase 4 (relationship-vocabulary): toggle for sworn-bond /
+         * oath / ritual overlays. Default `true`. Wired through View
+         * menu; persisted as `fte.overlays.swornBonds`.
+         */
+        showOverlaySwornBonds?: boolean | undefined;
+        /** Phase 4: toggle for transformation / alias overlays. Persisted as `fte.overlays.transformations`. */
+        showOverlayTransformations?: boolean | undefined;
+        /** Phase 4: toggle for severance overlays. Persisted as `fte.overlays.severances`. */
+        showOverlaySeverances?: boolean | undefined;
+        /**
          * Portrait blob -> object-URL cache shared with the layered engine.
          * Phase 1 of the visual fix-up plan: family-view now renders
          * portraits at the larger card height when `person.portraitBlobId`
@@ -106,6 +116,9 @@
         selectedId,
         pathHighlight = true,
         showGenerationBadge = true,
+        showOverlaySwornBonds = true,
+        showOverlayTransformations = true,
+        showOverlaySeverances = true,
         portraitUrls,
         onselect,
         ondeselect,
@@ -479,11 +492,96 @@
         return buildEdgePath(e.points, UNIT);
     }
 
+    function overlayPath(points: readonly { x: number; y: number }[]): string {
+        return buildEdgePath(points, UNIT);
+    }
+
+    /**
+     * Glyph for an identity-arc overlay (transformation / alias family).
+     * Mirrors the design study: ☼ transform, ∞ reincarnate, ⊕ merge,
+     * ⊖ split, ≡ alias.
+     */
+    function overlayGlyph(rk: string): string {
+        switch (rk) {
+            case "transformed-from":
+                return "☼";
+            case "reincarnated-as":
+                return "∞";
+            case "merged-from":
+                return "⊕";
+            case "split-into":
+                return "⊖";
+            case "alias-of":
+                return "≡";
+            default:
+                return "";
+        }
+    }
+
+    function overlayClass(o: { kind: string }): string {
+        switch (o.kind) {
+            case "sworn-bond":
+                return "family-view-overlay family-view-overlay-sworn";
+            case "transformation":
+                return "family-view-overlay family-view-overlay-transformation";
+            case "alias":
+                return "family-view-overlay family-view-overlay-alias";
+            case "severance":
+                return "family-view-overlay family-view-overlay-severance";
+            default:
+                return "family-view-overlay";
+        }
+    }
+
+    function isOverlayVisible(kind: string): boolean {
+        switch (kind) {
+            case "sworn-bond":
+                return showOverlaySwornBonds !== false;
+            case "transformation":
+            case "alias":
+                return showOverlayTransformations !== false;
+            case "severance":
+                return showOverlaySeverances !== false;
+            default:
+                return true;
+        }
+    }
+
+    function midpointOfPolyline(points: readonly { x: number; y: number }[]): {
+        x: number;
+        y: number;
+    } {
+        if (points.length === 0) return { x: 0, y: 0 };
+        if (points.length === 1) return points[0]!;
+        let total = 0;
+        const segs: number[] = [];
+        for (let i = 0; i < points.length - 1; i += 1) {
+            const a = points[i]!;
+            const b = points[i + 1]!;
+            const len = Math.hypot(b.x - a.x, b.y - a.y);
+            segs.push(len);
+            total += len;
+        }
+        const half = total / 2;
+        let acc = 0;
+        for (let i = 0; i < segs.length; i += 1) {
+            const len = segs[i]!;
+            if (acc + len >= half) {
+                const t = len === 0 ? 0 : (half - acc) / len;
+                const a = points[i]!;
+                const b = points[i + 1]!;
+                return { x: a.x + t * (b.x - a.x), y: a.y + t * (b.y - a.y) };
+            }
+            acc += len;
+        }
+        return points[points.length - 1]!;
+    }
+
     function edgeClass(e: FamilyViewEdge): string {
         const hasPath = pathHl.pathSet.size > 0;
-        // An edge is on-path iff every implicated person is on the path
-        // (couple connector: both partners; drop: parent + child).
-        const onPath = hasPath && e.persons.every((id) => pathHl.onPath(id));
+        // An edge is on-path if every implicated person is on the path
+        // (stem/bus include all parents; stub includes parents + the kid).
+        const onPath = hasPath && edgeOnPath(e);
         if (!hasPath) {
             return e.role === "married"
                 ? "stroke-rose-400/70 stroke-1"
@@ -492,11 +590,13 @@
                   : "stroke-fg-muted/70 stroke-1";
         }
         if (onPath) {
+            // thick translucent stroke; the .family-view-onpath-edge class adds
+            // the accent-colored drop-shadow glow that makes the line look lit
             return e.role === "married"
-                ? "stroke-rose-400 stroke-[2.5]"
+                ? "family-view-onpath-edge stroke-rose-400/55 stroke-[5]"
                 : e.role === "divorced"
-                  ? "stroke-rose-400/70 stroke-[2.5]"
-                  : "stroke-accent stroke-[2.5]";
+                  ? "family-view-onpath-edge stroke-rose-400/45 stroke-[5]"
+                  : "family-view-onpath-edge stroke-accent/60 stroke-[5]";
         }
         // Off-path while a path is active: dim.
         return e.role === "married"
@@ -504,6 +604,21 @@
             : e.role === "divorced"
               ? "stroke-rose-400/15 stroke-1"
               : "stroke-fg-muted/25 stroke-1";
+    }
+
+    // Phase-2 split each couple-drop into stem + bus + per-child stubs,
+    // each with its own `persons` set. A simple `.every(persons in path)`
+    // misses the bus (whose persons union both parents + every kid) and
+    // the stem (parents only). Treat the family as on-path when at least
+    // one kid in the subtree is on-path AND at least one parent is too.
+    function edgeOnPath(e: FamilyViewEdge): boolean {
+        const onPath = e.persons.filter((id) => pathHl.onPath(id));
+        if (onPath.length === 0) return false;
+        // Stub edges only emit if the kid (last person) is on-path.
+        if (e.id.startsWith("stub:")) return pathHl.onPath(e.persons[e.persons.length - 1]!);
+        // Stem + bus + couple-bond + single-parent drops: any-implicated-on-path
+        // matches the legacy pre-phase-2 behaviour the user remembers.
+        return onPath.length > 0;
     }
 
     function cardOnPath(id: PersonId): boolean {
@@ -558,6 +673,43 @@
                     vector-effect="non-scaling-stroke"
                 />
             {/each}
+            {#if layout.overlays}
+                {#each layout.overlays as overlay (overlay.id)}
+                    {#if isOverlayVisible(overlay.kind) && overlay.points.length >= 2}
+                        <path
+                            d={overlayPath(overlay.points)}
+                            class={overlayClass(overlay)}
+                            data-overlay-kind={overlay.kind}
+                            data-overlay-id={overlay.id}
+                            vector-effect="non-scaling-stroke"
+                        />
+                        {#if overlay.kind === "transformation" || overlay.kind === "alias"}
+                            {@const mid = midpointOfPolyline(overlay.points)}
+                            {@const glyph = overlayGlyph(overlay.relationshipKind)}
+                            {#if glyph}
+                                <text
+                                    class="family-view-overlay-glyph"
+                                    x={mid.x * UNIT}
+                                    y={mid.y * UNIT}
+                                    text-anchor="middle"
+                                    dominant-baseline="central"
+                                    font-size="14">{glyph}</text
+                                >
+                            {/if}
+                        {/if}
+                        {#if overlay.kind === "severance" && overlay.severanceMark}
+                            <text
+                                class="family-view-overlay-severance-mark"
+                                x={overlay.severanceMark.x * UNIT}
+                                y={overlay.severanceMark.y * UNIT}
+                                text-anchor="middle"
+                                dominant-baseline="central"
+                                font-size="14">//</text
+                            >
+                        {/if}
+                    {/if}
+                {/each}
+            {/if}
         </svg>
 
         {#each nodes() as node (node.personId)}
