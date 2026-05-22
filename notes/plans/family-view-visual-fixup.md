@@ -7,14 +7,14 @@ tracker for the 10-item visual cleanup plan ([wise-skipping-meerkat](../../../ho
 | # | issue | phase | status |
 |---|---|---|---|
 | 1 | two-line name clipped at card bottom | 1 | closed in phase 1 (`9f8a784`) |
-| 2 | empty date row leaves empty band | 3 | open (decision: vertically center) |
-| 3 | card height grows with photo presence | 1 -> 3 | re-opened in phase 3 to fix cross-rank overlap; portrait card now `CARD_H * 2` with cumulative rank spacing so portrait rows expand the row pitch instead of overlapping the next rank |
-| 4 | couple connector overruns card edge | 2 | code-complete pending visual e2e + commit |
-| 5 | sibling bus not centered between parents | 2 | code-complete pending visual e2e + commit (rescoped: explicit bus segment) |
-| 6 | sub-pixel stroke artifacts on T-junctions | 2 | code-complete pending visual e2e + commit |
-| 7 | selection ring radius doesn't match card | 3 | open |
+| 2 | empty date row leaves empty band | 3 -> 5 | not delivered in phase 3 (scope absorbed by cross-rank overlap fix); rolled into phase 5 as B8 (decision: vertically center) |
+| 3 | card height grows with photo presence | 1 -> 3 | closed in phase 3 (`e59edc9` + `4a0578b`) — portrait card now `CARD_H * 2 = 2.4u` with cumulative rank spacing so portrait rows expand the row pitch instead of overlapping the next rank |
+| 4 | couple connector overruns card edge | 2 | closed in phase 2 (`7744dcd`) |
+| 5 | sibling bus not centered between parents | 2 | closed in phase 2 (`7744dcd`) — explicit bus + stem + stubs |
+| 6 | sub-pixel stroke artifacts on T-junctions | 2 | closed in phase 2 (`7744dcd`) — integer-rounded path coords |
+| 7 | selection ring radius doesn't match card | 3 -> 5 | not delivered in phase 3 (scope absorbed by cross-rank overlap fix); rolled into phase 5 as B9 |
 | 9 | generation badge togglable in view menu | 4 | open (decision: default off; phase-0 wiring landed) |
-| 11 | avatar slot too large for placeholder | 1 -> 3 | superseded in phase 3: silhouette placeholder removed entirely; no-portrait cards render only name + date. portrait-blob-loading state shows a neutral slot bg so the tall card never shows an empty top band |
+| 11 | avatar slot too large for placeholder | 1 -> 3 | closed in phase 3 (`e59edc9`): silhouette placeholder removed entirely; no-portrait cards render only name + date. portrait-blob-loading state shows a neutral slot bg so the tall card never shows an empty top band |
 | 12 | bug icon contrast | 5 | open |
 
 dropped: #8 (defer), #10 (skip — zoom levels broken on family-view, separate concern), #13 (not-a-bug).
@@ -66,9 +66,9 @@ verify (phase 2 close, 2026-05-16): `pnpm typecheck` clean; `pnpm lint` clean; `
 
 closed: phase 2 work landed in commit [7744dcd](../../) (`feat(tree/family-view): phase 2 connector geometry — couple-bus inset, explicit sibling bus, integer-rounded paths`). retro + plan revision are in the canonical plan at `~/.claude/plans/wise-skipping-meerkat.md`.
 
-## phase 3 implementation summary (pending verify + commit)
+## phase 3 implementation summary
 
-re-opens #3 and supersedes the phase-1 silhouette resolution for #11, fixing the cross-rank overlap that surfaced when `CARD_H_WITH_PORTRAIT` was bumped to `CARD_H * 2` (= 2.4u) to make the 3:4 portrait slot read as a portrait.
+closes #3 (re-opened) and #11 (silhouette removed). **DoD items #2 and #7 not delivered** — scope was consumed by the cross-rank overlap regression triggered by bumping `CARD_H_WITH_PORTRAIT` to `CARD_H * 2` (= 2.4u). Both rolled into phase 5 as bug-log entries B8 / B9 (see `~/.claude/plans/wise-skipping-meerkat.md` revision after phase 3 — 2026-05-17).
 
 - [layout.ts](../../apps/web/src/lib/layout/engines/family-view/layout.ts): `CARD_H_WITH_PORTRAIT = CARD_H * 2` (= 2.4u) exceeds `ROW_H = 2`, so the pre-fix `y = rank * ROW_H` placed portrait cards 0.4u into the next rank. New cumulative rank-y pass walks ranks in sorted order, accumulating `max(CARD_H, maxHByRank[r]) + RANK_GUTTER` where `RANK_GUTTER = ROW_H - CARD_H = 0.8`. Default-height rows keep the old `rank * ROW_H` spacing exactly; portrait rows push every subsequent rank down by the height delta. `bbox.height` switched to the same cumulative formula so a tall card on the bottom rank is included in the bbox.
 - [layout.ts](../../apps/web/src/lib/layout/engines/family-view/layout.ts): sibling-bus + parent-stem `busY` now clamps to `max(midpoint, parentRowBottom + 0.05)` so the bus + stem + stub-tops stay outside the parent card. SVG edges render behind cards, so a bus inside the parent card was invisible; the clamp moves it 0.05u into the gutter. Same clamp applied to the N>2 multi-union manifold drops (`dropFromY`).
@@ -77,4 +77,4 @@ re-opens #3 and supersedes the phase-1 silhouette resolution for #11, fixing the
 - [card-height.test.ts](../../apps/web/tests/unit/engines/family-view/card-height.test.ts): new assertions for cross-rank clearance (rank-bottom to next-rank-top = `RANK_GUTTER`), bus / stem / stub Y > parent row bottom, and `bbox.height` covering a portrait card on the bottom rank. Updated the per-row centering assertion to be robust against `orientCouple` swapping left / right by personId order.
 - [PersonNode.test.ts](../../apps/web/tests/component/PersonNode.test.ts): new assertion that `portraitBlobId` without `portraitUrl` renders the slot (no img) with `data-portrait-pending="true"`.
 
-verify (phase 3 close, pending): `pnpm typecheck` / `pnpm lint` / `pnpm test:unit` runs, plus a visual e2e if any baseline drift is suspected. Akarians fixture has no portraits, so the canonical layered + family-view snapshots should be unchanged.
+verify (phase 3 close, 2026-05-22): `pnpm typecheck` clean (4308 files, 0 errors, 0 warnings); `pnpm lint` clean; `pnpm test:unit` 778/778 + 2 todo (was 759 + 2 todo entering the phase, +19 assertions). Visual e2e (`visual-akarians`, `visual-akarians-family-view`, `visual-multi-union`, `visual-add-relative`, `visual-path-highlight`, desktop `family-view-continuity`): all green; 3 snapshots intentionally updated in `4a0578b` for fixtures with portraits (`add-relative-menu-open`, `multi-union-family-view`, `path-highlight-multi-union`); Akarians + layered baselines unchanged. Mobile `family-view-continuity` 2 failures: pre-existing B4 (empty-state overlay intercepts click during engine swap on Pixel 7), confirmed pre-existing on phase-3 commits — not a regression. Server tests 69/69. Closed: phase 3 work landed in commits [e59edc9](../../) (`feat(tree/family-view): drop silhouette path, double-height portrait, per-row centering`) + [4a0578b](../../) (`fix(tree/family-view): cumulative rank y so portrait rows stop overlapping the next rank`). Retro + plan revision are in the canonical plan at `~/.claude/plans/wise-skipping-meerkat.md`.
