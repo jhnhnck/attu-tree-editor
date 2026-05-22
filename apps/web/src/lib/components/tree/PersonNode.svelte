@@ -109,6 +109,7 @@
     data-person-id={person.id}
     data-level={level}
     data-portrait={hasPortraitSlot ? "1" : "0"}
+    data-has-date={dateRange ? "true" : "false"}
     tabindex={selected ? 0 : -1}
     aria-selected={selected}
     aria-label={fullName || initials}
@@ -221,15 +222,23 @@
     button {
         border-width: var(--node-border-width, 2px);
         border-style: solid;
-        border-radius: 0.375rem;
+        /* phase 5: bumped 0.375rem → 0.5rem (6→8px). with border-width 2px the
+           padding-box inner radius becomes 6px (was 4px), so the inset selection
+           ring at spread=3px has enough arc to render flush against the border's
+           inner corner — closes the visible corner-gap from #7/B9. */
+        border-radius: 0.5rem;
     }
     /* level 5 is a tiny dot - circular */
     .person-card[data-level="5"] {
         border-radius: 9999px;
     }
     /* level 0 with no portrait centers the name+date vertically;
-       with a portrait, default flex-start lets the portrait sit at the top */
-    .person-card[data-level="0"][data-portrait="0"] {
+       with a portrait, default flex-start lets the portrait sit at the top.
+       phase 5 adds: any level-0 card without a date is centered too, so the
+       portrait+name block doesn't leave an empty band at the bottom of a
+       tall portrait card. */
+    .person-card[data-level="0"][data-portrait="0"],
+    .person-card[data-level="0"][data-has-date="false"] {
         justify-content: center;
     }
     /* Visual fix-up plan: portrait slot uses a true portrait aspect ratio

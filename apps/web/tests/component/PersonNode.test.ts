@@ -179,6 +179,35 @@ describe("PersonNode", () => {
         expect(slot?.querySelector("img")).toBeNull();
     });
 
-    it.todo("issue #2: name+avatar block is vertically centered when no date is present");
-    it.todo("issue #7: selection ring renders without a visible gap at card corners");
+    it("issue #2: card carries data-has-date='false' when birth + death are both absent", () => {
+        // Phase 5: the CSS hook for centering the name+avatar block when
+        // there is no date row. The `[data-level='0'][data-has-date='false']`
+        // selector adds `justify-content: center` so the empty bottom band
+        // disappears on portrait cards without dates. jsdom won't compute
+        // the CSS rule itself; assert the data attribute the rule relies on.
+        const p = person();
+        delete p.birth;
+        delete p.death;
+        render(PersonNode, { person: p });
+        const btn = screen.getByRole("treeitem");
+        expect(btn.dataset.hasDate).toBe("false");
+    });
+
+    it("issue #2: card carries data-has-date='true' when at least one date is present", () => {
+        render(PersonNode, { person: person() });
+        const btn = screen.getByRole("treeitem");
+        expect(btn.dataset.hasDate).toBe("true");
+    });
+
+    it("issue #7: selected card adds is-selected class so the selection-ring CSS applies", () => {
+        // Phase 5: the selection ring is `box-shadow: inset 0 0 0 3px`
+        // attached to `.is-selected`; the visible-corner-gap fix is the
+        // `border-radius: 0.5rem` bump (6→8px) in the same stylesheet,
+        // not a class-level change. This test guards the class hook;
+        // the visual e2e snapshot guards the geometry.
+        render(PersonNode, { person: person(), selected: true });
+        const btn = screen.getByRole("treeitem");
+        expect(btn.classList.contains("is-selected")).toBe(true);
+        expect(btn.getAttribute("aria-selected")).toBe("true");
+    });
 });

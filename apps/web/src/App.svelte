@@ -1547,7 +1547,7 @@
                     {#if !debugPillHidden}
                         <button
                             type="button"
-                            class="text-fg-muted hover:text-accent bg-canvas-elev/80 border-line pointer-events-auto flex h-6 w-6 items-center justify-center rounded-md border"
+                            class="text-fg hover:text-accent bg-canvas-elev/80 border-line pointer-events-auto flex h-6 w-6 items-center justify-center rounded-md border"
                             aria-label="toggle debug panel"
                             title="debug panel (Ctrl+Shift+D)"
                             data-testid="debug-pill"
