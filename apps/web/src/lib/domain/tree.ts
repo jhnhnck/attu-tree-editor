@@ -4,6 +4,7 @@
  */
 
 import { generateId, ROOT_ID } from "$lib/domain/ids";
+import { legacyGenderCode } from "$lib/domain/personIdentity";
 import type { HaracalndeDateData } from "$lib/date/HaracalndeDate";
 import type {
     CoupleRecord,
@@ -205,7 +206,7 @@ export function linkParent(
     const role: "mother" | "father" =
         roleOverride === "mother" || roleOverride === "father"
             ? roleOverride
-            : parent.gender === "f"
+            : legacyGenderCode(parent) === "f"
               ? "mother"
               : "father";
 

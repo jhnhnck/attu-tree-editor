@@ -255,9 +255,37 @@ function buildPerson(
                 break;
             case "SEX": {
                 const v = sub.value?.toUpperCase() ?? "";
-                person.gender = v === "M" ? "m" : v === "F" ? "f" : "u";
+                // SEX X (GEDCOM 7 non-binary): identity is not one of the
+                // canonical three. We seed a struct with identity = "unknown"
+                // here; if a `_TREES_GENDER_IDENTITY` extension follows on
+                // this same INDI it overwrites the verbatim identity below.
+                if (v === "M") person.gender = "m";
+                else if (v === "F") person.gender = "f";
+                else if (v === "X") person.gender = { identity: "unknown" };
+                else person.gender = "u";
                 break;
             }
+            case "_TREES_GENDER_IDENTITY":
+                if (sub.value != null) applyIdentityExtension(person, sub.value);
+                break;
+            case "_PRONOUNS":
+                if (sub.value != null) applyPronounsExtension(person, sub.value);
+                break;
+            case "_ASSIGNED_SEX":
+                if (sub.value != null) applyAssignedAtBirthExtension(person, sub.value);
+                break;
+            case "_GENDER_FLUID":
+                applyFluidExtension(person, sub.value ?? undefined);
+                break;
+            case "_TREES_SPECIES":
+                if (sub.value != null) person.species = sub.value;
+                break;
+            case "_TREES_PERSON_KIND":
+                if (sub.value != null) person.kind = sub.value;
+                break;
+            case "_TREES_ORIGIN":
+                if (sub.value != null) applyOriginExtension(person, sub);
+                break;
             case "BIRT":
                 applyEvent(person, "birth", sub, findings);
                 break;
@@ -299,6 +327,67 @@ function buildPerson(
     }
 
     return person;
+}
+
+/**
+ * Phase 5: write the verbatim identity string onto `Person.gender`,
+ * promoting the field to a struct if it was still a legacy code from a
+ * preceding SEX line. Canonical identities (male/female/unknown) align
+ * the struct with what the SEX line would have produced; non-canonical
+ * strings (e.g. "agender") land verbatim alongside the SEX X marker.
+ */
+function applyIdentityExtension(person: Person, identity: string): void {
+    if (typeof person.gender === "object" && person.gender !== null) {
+        person.gender = { ...person.gender, identity };
+    } else {
+        person.gender = { identity };
+    }
+}
+
+function applyPronounsExtension(person: Person, pronouns: string): void {
+    const g = person.gender;
+    if (typeof g === "object" && g !== null) person.gender = { ...g, pronouns };
+    else person.gender = { identity: legacyIdentityFromCode(g), pronouns };
+}
+
+function applyAssignedAtBirthExtension(person: Person, raw: string): void {
+    const v = raw.toUpperCase();
+    if (v === "AMAB" || v === "AFAB" || v === "UAAB") {
+        const g = person.gender;
+        if (typeof g === "object" && g !== null) person.gender = { ...g, assignedAtBirth: v };
+        else person.gender = { identity: legacyIdentityFromCode(g), assignedAtBirth: v };
+    }
+}
+
+function applyFluidExtension(person: Person, raw: string | undefined): void {
+    const fluid = raw === undefined || raw.toUpperCase() === "Y";
+    const g = person.gender;
+    if (typeof g === "object" && g !== null) person.gender = { ...g, fluid };
+    else person.gender = { identity: legacyIdentityFromCode(g), fluid };
+}
+
+function applyOriginExtension(person: Person, node: TreeNode): void {
+    const kind = node.value;
+    if (kind == null) return;
+    const origin: NonNullable<Person["origin"]> = { kind };
+    for (const sub of node.children) {
+        if (sub.tag === "_CAUSE" && sub.value != null) origin.cause = sub.value;
+        if (sub.tag === "DATE") {
+            for (const grand of sub.children) {
+                if (grand.tag === "DATE" && grand.value != null) {
+                    const parsed = HaracalndeDate.parseGedcom(grand.value);
+                    if (parsed.ok) origin.date = parsed.value.toJSON();
+                }
+            }
+        }
+    }
+    person.origin = origin;
+}
+
+function legacyIdentityFromCode(code: "m" | "f" | "u"): string {
+    if (code === "m") return "male";
+    if (code === "f") return "female";
+    return "unknown";
 }
 
 function applyName(person: Person, name: TreeNode): void {

@@ -334,6 +334,116 @@ describe("serializeGedcom - synthetic", () => {
     });
 });
 
+describe("serializeGedcom - Phase 5 identity / species / kind / origin extensions", () => {
+    it("emits SEX X for a non-canonical identity string", () => {
+        const base = tinyTree();
+        base.people["AAAAA"]!.gender = { identity: "agender" };
+        const out = serializeGedcom(base);
+        const indiA = out.split("0 @I1@ INDI")[1]?.split("0 @")[0] ?? "";
+        expect(indiA).toContain("1 SEX X");
+        expect(indiA).toContain("1 _TREES_GENDER_IDENTITY agender");
+    });
+
+    it("emits SEX M / F / U for canonical identities, NO extension line", () => {
+        const base = tinyTree();
+        base.people["AAAAA"]!.gender = { identity: "male" };
+        base.people["BBBBB"]!.gender = { identity: "female" };
+        const out = serializeGedcom(base);
+        const indiA = out.split("0 @I1@ INDI")[1]?.split("0 @")[0] ?? "";
+        const indiB = out.split("0 @I2@ INDI")[1]?.split("0 @")[0] ?? "";
+        expect(indiA).toContain("1 SEX M");
+        expect(indiB).toContain("1 SEX F");
+        // canonical identities (male / female / unknown) skip
+        // `_TREES_GENDER_IDENTITY` — SEX M/F/U already conveys them and
+        // emitting the extension would just bloat byte-stable round-trips
+        // on legacy trees with no real struct data.
+        expect(indiA).not.toContain("_TREES_GENDER_IDENTITY");
+        expect(indiB).not.toContain("_TREES_GENDER_IDENTITY");
+    });
+
+    it("emits pronouns / assignedAtBirth / fluid extensions when set", () => {
+        const base = tinyTree();
+        base.people["AAAAA"]!.gender = {
+            identity: "male",
+            pronouns: "he/they",
+            assignedAtBirth: "AFAB",
+            fluid: true,
+        };
+        const out = serializeGedcom(base);
+        const indiA = out.split("0 @I1@ INDI")[1]?.split("0 @")[0] ?? "";
+        expect(indiA).toContain("1 _PRONOUNS he/they");
+        expect(indiA).toContain("1 _ASSIGNED_SEX AFAB");
+        expect(indiA).toContain("1 _GENDER_FLUID Y");
+    });
+
+    it("emits species / kind / origin extensions when set", () => {
+        const base = tinyTree();
+        base.people["AAAAA"]!.species = "dragon";
+        base.people["AAAAA"]!.kind = "spirit";
+        base.people["AAAAA"]!.origin = { kind: "summoned", cause: "ritual of binding" };
+        const out = serializeGedcom(base);
+        const indiA = out.split("0 @I1@ INDI")[1]?.split("0 @")[0] ?? "";
+        expect(indiA).toContain("1 _TREES_SPECIES dragon");
+        expect(indiA).toContain("1 _TREES_PERSON_KIND spirit");
+        expect(indiA).toContain("1 _TREES_ORIGIN summoned");
+        expect(indiA).toContain("2 _CAUSE ritual of binding");
+    });
+
+    it("emits a structured NOTE fallback alongside the _TREES_* extensions", () => {
+        const base = tinyTree();
+        base.people["AAAAA"]!.gender = { identity: "agender", fluid: true };
+        base.people["AAAAA"]!.species = "dragon";
+        const out = serializeGedcom(base);
+        const indiA = out.split("0 @I1@ INDI")[1]?.split("0 @")[0] ?? "";
+        expect(indiA).toContain("1 NOTE # trees: identity=agender");
+        expect(indiA).toContain("# trees: fluid=true");
+        expect(indiA).toContain("# trees: species=dragon");
+    });
+
+    it("round-trips a full identity payload through serialize → parse", () => {
+        const base = tinyTree();
+        base.people["AAAAA"]!.gender = {
+            identity: "agender",
+            pronouns: "they/them",
+            assignedAtBirth: "AMAB",
+            fluid: true,
+        };
+        base.people["AAAAA"]!.species = "dragon";
+        base.people["AAAAA"]!.kind = "spirit";
+        base.people["AAAAA"]!.origin = { kind: "summoned" };
+        const out = serializeGedcom(base);
+        const r = unwrap(parseGedcom(out));
+        const p = Object.values(r.tree.people).find((x) => x.given === "Dad");
+        expect(p).toBeDefined();
+        if (!p) return;
+        expect(p.gender).toEqual({
+            identity: "agender",
+            pronouns: "they/them",
+            assignedAtBirth: "AMAB",
+            fluid: true,
+        });
+        expect(p.species).toBe("dragon");
+        expect(p.kind).toBe("spirit");
+        expect(p.origin?.kind).toBe("summoned");
+    });
+
+    it("legacy m/f/u gender survives a round-trip as the same legacy code", () => {
+        const base = tinyTree();
+        // tinyTree() ships AAAAA = "m"; with no _TREES_GENDER_IDENTITY in
+        // the round-trip (canonical identities skip the extension), the
+        // file carries only SEX M and re-parse produces legacy "m". Trees
+        // edited through the inspector to a non-canonical identity DO get
+        // the extension and round-trip to a struct (see the "full identity
+        // payload" test above).
+        const out = serializeGedcom(base);
+        const r = unwrap(parseGedcom(out));
+        const p = Object.values(r.tree.people).find((x) => x.given === "Dad");
+        expect(p).toBeDefined();
+        if (!p) return;
+        expect(p.gender).toBe("m");
+    });
+});
+
 describe("serializeGedcom - golden snapshot", () => {
     it("parse-then-serialize is byte-stable through a second round-trip", async () => {
         const input = readFileSync(FIXTURE, "utf-8");

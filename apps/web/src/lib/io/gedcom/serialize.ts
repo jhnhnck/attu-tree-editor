@@ -7,6 +7,13 @@ import type { TreeNode } from "read-gedcom";
 import { HaracalndeDate } from "$lib/date/HaracalndeDate";
 import type { CoupleRecord, Person, PersonId, Tree } from "$lib/domain/types";
 import { getParents } from "$lib/domain/tree";
+import {
+    getAssignedAtBirth,
+    getFluid,
+    getIdentity,
+    getPronouns,
+    legacyGenderCode,
+} from "$lib/domain/personIdentity";
 import type { GedHead } from "$lib/io/gedcom/parse";
 
 export interface GedSerializeOptions {
@@ -238,7 +245,7 @@ function buildFamByChildId(
             const parent = tree.people[ref.personId];
             if (ref.role === "mother") wifeIds.push(ref.personId);
             else if (ref.role === "father") husbIds.push(ref.personId);
-            else if (parent?.gender === "f") wifeIds.push(ref.personId);
+            else if (parent && legacyGenderCode(parent) === "f") wifeIds.push(ref.personId);
             else husbIds.push(ref.personId);
         }
         const x = famXrefByKey.get(famGroupKey(husbIds, wifeIds));
@@ -266,7 +273,7 @@ function deriveFamilies(tree: Tree, xrefByPerson: Map<PersonId, string>): Derive
             const parent = tree.people[ref.personId];
             if (ref.role === "mother") wifeIds.push(ref.personId);
             else if (ref.role === "father") husbIds.push(ref.personId);
-            else if (parent?.gender === "f") wifeIds.push(ref.personId);
+            else if (parent && legacyGenderCode(parent) === "f") wifeIds.push(ref.personId);
             else husbIds.push(ref.personId);
         }
         const key = groupKey(husbIds, wifeIds);
@@ -287,9 +294,9 @@ function deriveFamilies(tree: Tree, xrefByPerson: Map<PersonId, string>): Derive
 
         const { husbIds, wifeIds } = assignSpouseRoles(
             couple.leftId,
-            left.gender,
+            legacyGenderCode(left),
             couple.rightId,
-            right.gender,
+            legacyGenderCode(right),
         );
         const key = groupKey(husbIds, wifeIds);
         let group = groups.get(key);
@@ -371,12 +378,17 @@ function appendIndi(
     if (person.surname.length > 0) lines.push(`2 SURN ${person.surname}`);
     if (person.title !== undefined) lines.push(`2 NPFX ${person.title}`);
 
-    // SEX (GEDCOM 7 vocabulary: M/F/X/U; today's 3-enum maps to M/F/U.
-    // Proper SEX X for non-binary identity lands with the gender struct in
-    // relationship-vocabulary Phase 5.)
-    if (person.gender === "m") lines.push("1 SEX M");
-    else if (person.gender === "f") lines.push("1 SEX F");
-    else lines.push("1 SEX U");
+    // SEX (GEDCOM 7 vocabulary: M/F/X/U). Phase 5: non-canonical identity
+    // strings (anything other than male/female/unknown) emit `SEX X` so the
+    // standard tag carries a non-binary signal; the `_TREES_GENDER_IDENTITY`
+    // extension below preserves the verbatim identity.
+    appendSexLine(lines, person);
+
+    // Phase 5: identity / pronouns / assignedAtBirth / fluid / species /
+    // kind / origin extensions. Each emits a `_TREES_*` line for full
+    // fidelity AND a structured NOTE so tools that strip extensions can
+    // still surface the values on import.
+    appendIdentityExtensions(lines, person);
 
     // BIRT / DEAT
     if (person.birth) {
@@ -423,6 +435,77 @@ function appendIndi(
         lines.push(`1 _TREES_PARENT_REF ${px}`);
         if (ref.role !== undefined) lines.push(`2 _ROLE ${ref.role}`);
         if (ref.pedi !== undefined) lines.push(`2 _PEDI ${ref.pedi}`);
+    }
+}
+
+/**
+ * Emit the GEDCOM 7 SEX line. Canonical identities map directly
+ * (male → M, female → F, unknown → U); anything else emits `SEX X`
+ * (GEDCOM 7's non-binary marker) so other tools surface the right
+ * signal. The verbatim identity string round-trips through
+ * `_TREES_GENDER_IDENTITY` below.
+ */
+function appendSexLine(lines: string[], person: Person): void {
+    const identity = getIdentity(person);
+    if (identity === "male") lines.push("1 SEX M");
+    else if (identity === "female") lines.push("1 SEX F");
+    else if (identity === "unknown") lines.push("1 SEX U");
+    else lines.push("1 SEX X");
+}
+
+/**
+ * Phase 5: emit identity / pronouns / assignedAtBirth / fluid / species /
+ * kind / origin extensions on an INDI record. The `_TREES_*` lines carry
+ * full fidelity; a structured NOTE block ("# trees: species=dragon")
+ * mirrors the same values so tools that strip extensions still surface
+ * them when re-reading the file by hand.
+ */
+function appendIdentityExtensions(lines: string[], person: Person): void {
+    const identity = getIdentity(person);
+    // Only emit the identity extension for non-canonical strings; canonical
+    // male/female/unknown are already conveyed by the SEX M/F/U line above,
+    // so emitting them again would just bloat the file and break byte-stable
+    // round-trips on legacy trees that have no struct data to preserve.
+    const isCanonical = identity === "male" || identity === "female" || identity === "unknown";
+    if (!isCanonical) {
+        lines.push(`1 _TREES_GENDER_IDENTITY ${identity}`);
+    }
+    const pronouns = getPronouns(person);
+    if (pronouns !== undefined) lines.push(`1 _PRONOUNS ${pronouns}`);
+    const aab = getAssignedAtBirth(person);
+    if (aab !== undefined) lines.push(`1 _ASSIGNED_SEX ${aab}`);
+    if (getFluid(person)) lines.push("1 _GENDER_FLUID Y");
+    if (person.species !== undefined) lines.push(`1 _TREES_SPECIES ${person.species}`);
+    if (person.kind !== undefined) lines.push(`1 _TREES_PERSON_KIND ${person.kind}`);
+    if (person.origin?.kind !== undefined) {
+        lines.push(`1 _TREES_ORIGIN ${person.origin.kind}`);
+        if (person.origin.cause !== undefined) lines.push(`2 _CAUSE ${person.origin.cause}`);
+        if (person.origin.date !== undefined) {
+            lines.push("2 DATE");
+            lines.push(`3 DATE ${HaracalndeDate.of(person.origin.date).toGedcom()}`);
+        }
+    }
+
+    // structured NOTE fallback: stripping tools can still read these
+    // `# trees:` prefixed lines on a manual re-read; they're skipped on
+    // re-import because the `_TREES_*` extensions above are preferred.
+    // Canonical identities don't appear here either — same reasoning as
+    // the extension above (SEX already conveys them).
+    const noteLines: string[] = [];
+    if (!isCanonical) noteLines.push(`# trees: identity=${identity}`);
+    if (pronouns !== undefined) noteLines.push(`# trees: pronouns=${pronouns}`);
+    if (aab !== undefined) noteLines.push(`# trees: assignedAtBirth=${aab}`);
+    if (getFluid(person)) noteLines.push("# trees: fluid=true");
+    if (person.species !== undefined) noteLines.push(`# trees: species=${person.species}`);
+    if (person.kind !== undefined) noteLines.push(`# trees: kind=${person.kind}`);
+    if (person.origin?.kind !== undefined) {
+        noteLines.push(`# trees: origin=${person.origin.kind}`);
+    }
+    if (noteLines.length > 0) {
+        lines.push(`1 NOTE ${noteLines[0]}`);
+        for (let i = 1; i < noteLines.length; i += 1) {
+            lines.push(`2 CONT ${noteLines[i]}`);
+        }
     }
 }
 

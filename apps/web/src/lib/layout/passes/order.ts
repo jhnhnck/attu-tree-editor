@@ -32,6 +32,7 @@ import type {
     OrderedGraph,
 } from "$lib/layout/ir";
 import type { Tree } from "$lib/domain/types";
+import { legacyGenderCode } from "$lib/domain/personIdentity";
 
 // ---------------------------------------------------------------------------
 // Tuning constants
@@ -365,13 +366,15 @@ function buildPreferredLeftMap(
         const aPerson = tree.people[nodes.get(aId)?.personId ?? ""];
         const bPerson = tree.people[nodes.get(bId)?.personId ?? ""];
         if (!aPerson || !bPerson) continue;
-        const aMale = aPerson.gender === "m";
-        const bMale = bPerson.gender === "m";
+        const aCode = legacyGenderCode(aPerson);
+        const bCode = legacyGenderCode(bPerson);
+        const aMale = aCode === "m";
+        const bMale = bCode === "m";
         // Only fire when exactly one is male. Same-sex couples (both "m" or
         // both "f") and unknown-gender pairs (any "u") fall through to
         // position-based ordering, preserving today's behavior.
         if (aMale === bMale) continue;
-        if (aPerson.gender === "u" || bPerson.gender === "u") continue;
+        if (aCode === "u" || bCode === "u") continue;
         out.set(sg, aMale ? aId : bId);
     }
     return out;

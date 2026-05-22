@@ -22,7 +22,7 @@ export type SchemaVersion = string;
  * of `Tree` changes in a way that needs migration. Each bump is paired with
  * a `Migration` in the registry below.
  */
-export const CURRENT_SCHEMA_VERSION: SchemaVersion = "3.1.0";
+export const CURRENT_SCHEMA_VERSION: SchemaVersion = "3.2.0";
 
 export interface Migration {
     from: SchemaVersion;
@@ -107,6 +107,35 @@ function migrateUnionRecordV2ToV3(raw: unknown): unknown {
     return raw;
 }
 
+/**
+ * 3.1.0 → 3.2.0 migration body. Walks every person and normalises the
+ * legacy single-character `gender` code to a `GenderStruct`:
+ *   - "m" → { identity: "male" }
+ *   - "f" → { identity: "female" }
+ *   - "u" → { identity: "unknown" }
+ * Persons that already carry a struct (e.g. written by a newer build that
+ * round-tripped through this build) are left alone. species / kind /
+ * origin are net-new and absent on pre-3.2.0 data — they emerge from
+ * `cardDecorator` + PersonalTab in Phase 5. Cisgender is the implicit
+ * default: only `identity` is populated; assignedAtBirth, pronouns, and
+ * fluid stay undefined so PersonalTab can flag them as inferred.
+ */
+function migrateGenderStructV3_1ToV3_2(raw: unknown): unknown {
+    if (!raw || typeof raw !== "object") return raw;
+    const tree = raw as { people?: Record<string, unknown> };
+    if (!tree.people || typeof tree.people !== "object") return raw;
+    for (const person of Object.values(tree.people)) {
+        if (!person || typeof person !== "object") continue;
+        const p = person as { gender?: unknown };
+        const g = p.gender;
+        if (g === "m") p.gender = { identity: "male" };
+        else if (g === "f") p.gender = { identity: "female" };
+        else if (g === "u") p.gender = { identity: "unknown" };
+        // existing struct or anything else: leave as-is
+    }
+    return raw;
+}
+
 function migrateParentIdsV1ToV2(raw: unknown): unknown {
     if (!raw || typeof raw !== "object") return raw;
     const tree = raw as { people?: Record<string, unknown> };
@@ -167,7 +196,7 @@ export const migrations: Migration[] = [
         from: "3.1.0",
         to: "3.2.0",
         description: "gender struct + species + kind + origin (Phase 5)",
-        migrate: identity,
+        migrate: migrateGenderStructV3_1ToV3_2,
     },
     {
         from: "3.2.0",

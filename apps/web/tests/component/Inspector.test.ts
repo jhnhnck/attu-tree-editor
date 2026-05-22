@@ -95,15 +95,21 @@ describe("Inspector", () => {
         expect(props.onpatch).toHaveBeenCalledWith("AAAAA", { given: "Renamed" });
     });
 
-    it("commits gender change immediately on select", async () => {
+    it("commits gender identity change immediately on blur", async () => {
+        // Phase 5 (relationship-vocabulary): PersonalTab replaced the legacy
+        // gender select with a struct-driven identity input. The patch
+        // carries a GenderStruct now, not a single-character code.
         const props = baseProps();
         const t = tree();
         render(Inspector, { ...props, tree: t, selectedId: "AAAAA" });
 
-        const gender = screen.getByLabelText<HTMLSelectElement>("gender");
-        await fireEvent.change(gender, { target: { value: "f" } });
+        const identity = screen.getByLabelText<HTMLInputElement>("gender identity");
+        await fireEvent.input(identity, { target: { value: "female" } });
+        await fireEvent.blur(identity);
 
-        expect(props.onpatch).toHaveBeenCalledWith("AAAAA", { gender: "f" });
+        expect(props.onpatch).toHaveBeenCalledWith("AAAAA", {
+            gender: { identity: "female" },
+        });
     });
 
     it("opens the Connections tab and shows mother / father slots empty", async () => {

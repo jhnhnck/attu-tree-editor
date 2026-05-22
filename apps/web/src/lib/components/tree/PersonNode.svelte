@@ -88,6 +88,30 @@
      * choices. Level 5 (dot) uses an opaque fill so the tiny shape
      * reads at distance; lower levels use the muted bg+border pair.
      */
+    /**
+     * Phase 5: origin / fluid glyph mapper. Single character so each glyph
+     * is one stacked row in the corner column. Glyphs are picked for high
+     * legibility at small sizes (avoid emoji that render colour-only).
+     */
+    function glyphFor(glyph: string): string {
+        switch (glyph) {
+            case "summoned":
+                return "✨";
+            case "manufactured":
+                return "⚙";
+            case "hatched":
+                return "◯";
+            case "awoken":
+                return "✦";
+            case "cloned":
+                return "⟲";
+            case "fluid":
+                return "≈";
+            default:
+                return "";
+        }
+    }
+
     function toneClassFor(tone: "sky" | "rose" | "amber", lvl: PersonNodeLevel): string {
         if (lvl >= 5) {
             if (tone === "sky") return "bg-sky-500";
@@ -110,6 +134,7 @@
     data-level={level}
     data-portrait={hasPortraitSlot ? "1" : "0"}
     data-has-date={dateRange ? "true" : "false"}
+    data-frame={decoration.frame}
     tabindex={selected ? 0 : -1}
     aria-selected={selected}
     aria-label={fullName || initials}
@@ -216,6 +241,34 @@
             <Link2 size={16} />
         </div>
     {/if}
+
+    {#if decoration.cornerGlyphs.length > 0 || decoration.identityFluid}
+        <!-- Phase 5: origin-glyph stack in the top-left corner. Each glyph
+             represents one decorator-axis hit (origin.kind, identity-fluid).
+             Stacked vertically so multiple glyphs read as a list rather than
+             colliding into a single chip. Pointer-events-none so they don't
+             steal clicks from the card. -->
+        <div
+            class="origin-glyphs pointer-events-none absolute top-0 left-0 flex flex-col gap-0.5 px-1 py-0.5 text-xs"
+            data-origin-glyphs="true"
+        >
+            {#each decoration.cornerGlyphs as glyph (glyph)}
+                <span class="origin-glyph" data-glyph={glyph}>{glyphFor(glyph)}</span>
+            {/each}
+        </div>
+    {/if}
+
+    {#if decoration.assignedAtBirth !== undefined}
+        <!-- Phase 5: AAB side-label at the bottom-left when set explicitly.
+             Inferred AAB is shown only in PersonalTab; on the card we only
+             expose it when the user has told us. -->
+        <span
+            class="aab-label pointer-events-none absolute bottom-0 left-0 font-mono text-[10px] opacity-70 px-1"
+            data-aab={decoration.assignedAtBirth}
+        >
+            {decoration.assignedAtBirth}
+        </span>
+    {/if}
 </button>
 
 <style>
@@ -227,6 +280,24 @@
            ring at spread=3px has enough arc to render flush against the border's
            inner corner — closes the visible corner-gap from #7/B9. */
         border-radius: 0.5rem;
+    }
+    /* relationship-vocabulary Phase 5: per-frame stroke style driven by the
+       cardDecorator's `frame` axis. The decorator maps species + kind →
+       frame; mechanical kinds get dashed, spirit gets double, collective /
+       concept get gradient. Solid is the default (no rule needed). */
+    .person-card[data-frame="dashed"] {
+        border-style: dashed;
+    }
+    .person-card[data-frame="dotted"] {
+        border-style: dotted;
+    }
+    .person-card[data-frame="double"] {
+        border-style: double;
+        border-width: 3px;
+    }
+    .person-card[data-frame="gradient"] {
+        border-style: solid;
+        border-image: linear-gradient(135deg, var(--accent, #60a5fa), transparent) 1;
     }
     /* level 5 is a tiny dot - circular */
     .person-card[data-level="5"] {

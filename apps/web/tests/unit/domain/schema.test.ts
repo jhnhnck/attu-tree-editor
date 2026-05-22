@@ -201,6 +201,59 @@ describe("Phase 3a migration: 2.0.0 → 3.0.0 populates unions[] from couples[]"
     });
 });
 
+describe("Phase 5 migration: 3.1.0 → 3.2.0 normalises gender code to a struct", () => {
+    it("maps every legacy m/f/u code to a GenderStruct identity", () => {
+        const v3_1 = {
+            name: "x",
+            people: {
+                a: { id: "a", gender: "m" },
+                b: { id: "b", gender: "f" },
+                c: { id: "c", gender: "u" },
+            },
+        };
+        const r = _migrateBetween(v3_1, "3.1.0", "3.2.0");
+        expect(r.ok).toBe(true);
+        if (!r.ok) return;
+        const migrated = r.value.value as typeof v3_1;
+        expect(migrated.people["a"]?.gender).toEqual({ identity: "male" });
+        expect(migrated.people["b"]?.gender).toEqual({ identity: "female" });
+        expect(migrated.people["c"]?.gender).toEqual({ identity: "unknown" });
+    });
+
+    it("leaves existing struct values alone (forward-compat)", () => {
+        const v3_1 = {
+            name: "x",
+            people: {
+                a: { id: "a", gender: { identity: "agender", fluid: true, pronouns: "they/them" } },
+            },
+        };
+        const r = _migrateBetween(v3_1, "3.1.0", "3.2.0");
+        expect(r.ok).toBe(true);
+        if (!r.ok) return;
+        const migrated = r.value.value as typeof v3_1;
+        expect(migrated.people["a"]?.gender).toEqual({
+            identity: "agender",
+            fluid: true,
+            pronouns: "they/them",
+        });
+    });
+
+    it("is idempotent — running the migration twice produces the same shape", () => {
+        const v3_1 = {
+            name: "x",
+            people: { a: { id: "a", gender: "m" } },
+        };
+        const once = _migrateBetween(v3_1, "3.1.0", "3.2.0");
+        expect(once.ok).toBe(true);
+        if (!once.ok) return;
+        const twice = _migrateBetween(once.value.value, "3.1.0", "3.2.0");
+        expect(twice.ok).toBe(true);
+        if (!twice.ok) return;
+        const migrated = twice.value.value as typeof v3_1;
+        expect(migrated.people["a"]?.gender).toEqual({ identity: "male" });
+    });
+});
+
 describe("Phase 2b migration: 1.0.0 → 2.0.0 replaces legacy with parentIds", () => {
     it("converts motherId / fatherId into parentIds entries and drops legacy keys", () => {
         const v1 = {

@@ -6,6 +6,7 @@
 import type { HaracalndeDateData } from "$lib/date/HaracalndeDate";
 import { ROOT_ID } from "$lib/domain/ids";
 import type { CoupleRecord, ParentRef, Person, PersonId, Tree } from "$lib/domain/types";
+import { legacyGenderCode } from "$lib/domain/personIdentity";
 import { validate, type Finding } from "$lib/domain/validate";
 
 export type MergeSource = "familyscript" | "gedcom";
@@ -284,8 +285,10 @@ function mergeFields(
     );
 
     // gender: 'u' loses to anything specific; otherwise preference
-    if (target.gender === "u" && source.gender !== "u") target.gender = source.gender;
-    else if (target.gender !== source.gender && source.gender !== "u") {
+    const tCode = legacyGenderCode(target);
+    const sCode = legacyGenderCode(source);
+    if (tCode === "u" && sCode !== "u") target.gender = source.gender;
+    else if (tCode !== sCode && sCode !== "u") {
         const winner = prefer === sourceSource ? source.gender : target.gender;
         if (winner !== target.gender) {
             findings.push({

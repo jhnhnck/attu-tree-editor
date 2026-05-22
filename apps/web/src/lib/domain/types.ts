@@ -6,8 +6,65 @@
 import type { HaracalndeDateData } from "$lib/date/HaracalndeDate";
 
 export type PersonId = string;
+/**
+ * Legacy single-character gender code. Pre-3.2.0 trees stored this directly
+ * on `Person.gender`; post-3.2.0 the canonical home is the `GenderStruct`
+ * but the legacy code is retained as a union member so test fixtures and
+ * old-format imports keep typechecking. Use `legacyGenderCode(person)` from
+ * `personIdentity.ts` to read it from a `Person` regardless of which form
+ * is in flight.
+ */
 export type Gender = "m" | "f" | "u";
 export type DisplayFlag = "z0" | "z1";
+
+/**
+ * Assigned sex at birth (Phase 5; schema 3.2.0). Open-ended for fictional
+ * cases (sealed envelopes, ritual ungendering, ambiguous magical origins);
+ * absence implies cisgender — see `getInferredAssignedAtBirth`.
+ */
+export type AssignedAtBirth = "AMAB" | "AFAB" | "UAAB";
+
+/**
+ * Gender record (Phase 5; schema 3.2.0). Replaces the legacy
+ * `Gender` single-character code. `identity` is the canonical user-set
+ * identity (open string — `male` / `female` / `unknown` are the canonical
+ * migration values, but the field accepts free-form text for fictional /
+ * non-binary identities); `assignedAtBirth` is independent of identity
+ * for trans / intersex records. `fluid` defaults to `false`. Cisgender
+ * is the inferred default when only `identity` or only `assignedAtBirth`
+ * is set — see `personIdentity.ts` helpers.
+ */
+export interface GenderStruct {
+    /** open string; canonical migration values are "male" | "female" | "unknown" */
+    identity: string;
+    pronouns?: string;
+    assignedAtBirth?: AssignedAtBirth;
+    fluid?: boolean;
+}
+
+/**
+ * `Person.kind` (Phase 5; schema 3.2.0). Open string drives card frame +
+ * tone in the cardDecorator. Canonical values consumed by `decorate` are
+ * `biological`, `mechanical`, `spirit`, `collective`, `concept`; other
+ * strings pass through verbatim (e.g. `chimera`, `golem`, `hive`).
+ */
+export type PersonKind = string;
+
+/**
+ * Origin record (Phase 5; schema 3.2.0). How a person came into being.
+ * `kind` drives the cardDecorator corner-glyph; `cause` and `date` are
+ * free-form context (e.g. "summoned by ritual X" + date of summoning).
+ * Canonical glyph-mapped values are `born`, `cloned`, `hatched`,
+ * `summoned`, `awoken`, `manufactured`; other strings have no glyph but
+ * round-trip through GEDCOM and the inspector.
+ */
+export type OriginKind = string;
+
+export interface Origin {
+    kind: OriginKind;
+    cause?: string;
+    date?: HaracalndeDateData;
+}
 
 /**
  * Role on a parent linkage. `mother` / `father` are the legacy gender-
@@ -59,12 +116,27 @@ export interface Person {
     given: string;
     surname: string;
     title?: string;
-    gender: Gender;
+    /**
+     * Schema 3.2.0 transitional union: accepts either the legacy
+     * single-character code (`'m' | 'f' | 'u'`) or the new `GenderStruct`.
+     * The migration normalises legacy codes to structs on read, but the
+     * type stays a union so pre-3.2.0 test fixtures and importer outputs
+     * continue to typecheck unchanged. Read through `legacyGenderCode` /
+     * `getIdentity` from `personIdentity.ts` — never branch on the field
+     * directly.
+     */
+    gender: Gender | GenderStruct;
     birth?: HaracalndeDateData;
     death?: HaracalndeDateData;
     occupation?: string;
     location?: string;
     locationOrigin?: string;
+    /** open string (e.g. "human", "dragon", "chimera"). Phase 5; schema 3.2.0. */
+    species?: string;
+    /** see `PersonKind`. Phase 5; schema 3.2.0. */
+    kind?: PersonKind;
+    /** see `Origin`. Phase 5; schema 3.2.0. */
+    origin?: Origin;
     /**
      * Canonical parent list. Populated by the 1.0.0 → 2.0.0 schema
      * migration from the now-removed `motherId` / `fatherId` fields.

@@ -19,6 +19,7 @@
 
 import type { CoupleRecord, PersonId, Tree } from "$lib/domain/types";
 import { getParents } from "$lib/domain/tree";
+import { legacyGenderCode } from "$lib/domain/personIdentity";
 import { emitFinding } from "$lib/domain/findings";
 import { defaultPrimaryUnion, unionsOf } from "$lib/layout/engines/family-view/primaryUnion";
 
@@ -55,8 +56,8 @@ export function orientByIds(
 ): { readonly leftId: PersonId; readonly rightId: PersonId } {
     const ap = tree.people[a];
     const bp = tree.people[b];
-    const aGender = ap?.gender ?? "u";
-    const bGender = bp?.gender ?? "u";
+    const aGender = ap ? legacyGenderCode(ap) : "u";
+    const bGender = bp ? legacyGenderCode(bp) : "u";
     if (aGender === "m" && bGender !== "m") return { leftId: a, rightId: b };
     if (bGender === "m" && aGender !== "m") return { leftId: b, rightId: a };
     if (aGender === "f" && bGender !== "f") return { leftId: b, rightId: a };

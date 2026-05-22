@@ -12,6 +12,7 @@
  */
 
 import type { PersonId, Tree } from "$lib/domain/types";
+import { legacyGenderCode } from "$lib/domain/personIdentity";
 import type { Path } from "$lib/layout/graph";
 
 /**
@@ -32,7 +33,8 @@ export function kinshipTerm(tree: Tree, path: Path): string {
     if (path.steps.length === 0) return "self";
 
     const last = path.ids[path.ids.length - 1];
-    const targetGender = last !== undefined ? tree.people[last]?.gender : "u";
+    const lastPerson = last !== undefined ? tree.people[last] : undefined;
+    const targetGender = lastPerson ? legacyGenderCode(lastPerson) : "u";
 
     // count spouse hops; locate them by index so we can detect "single hop at end"
     const spouseIdx: number[] = [];
