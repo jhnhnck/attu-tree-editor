@@ -78,6 +78,12 @@ export interface CommandHandlers {
      * default of `true` (the Phase 3 path highlight ships on-by-default).
      */
     viewOverlayPathHighlightToggle: () => void;
+    /**
+     * Visual fix-up phase 4: toggles the generation-badge overlay on/off.
+     * Persisted via `fte.overlays.generationBadge` localStorage key,
+     * default off (the badge is a power-user affordance).
+     */
+    viewOverlayGenerationBadgeToggle: () => void;
     /** Phase 4 (relationship-vocabulary): toggle the sworn-bond / oath / ritual overlay. */
     viewOverlaySwornBondsToggle: () => void;
     /** Phase 4: toggle transformation / identity-arc / alias overlays. */
@@ -120,6 +126,11 @@ export interface CommandEnabledFlags {
      * `fte.overlays.pathHighlight` preference is true.
      */
     overlayPathHighlightActive?: () => boolean;
+    /**
+     * Visual fix-up phase 4: is the generation-badge overlay currently
+     * enabled? Drives the menu's check state.
+     */
+    overlayGenerationBadgeActive?: () => boolean;
     /** Phase 4: is the sworn-bond overlay currently enabled? */
     overlaySwornBondsActive?: () => boolean;
     /** Phase 4: are transformation / identity-arc overlays currently enabled? */
@@ -329,6 +340,13 @@ export function buildCommands(
             dividerBefore: true,
             checked: enabled.overlayPathHighlightActive,
             run: h.viewOverlayPathHighlightToggle,
+        },
+        {
+            id: "view.overlay.generationBadge",
+            label: "Overlay: generation badges",
+            group: "View",
+            checked: enabled.overlayGenerationBadgeActive,
+            run: h.viewOverlayGenerationBadgeToggle,
         },
         {
             id: "view.overlay.swornBonds",

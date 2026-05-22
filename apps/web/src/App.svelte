@@ -257,17 +257,29 @@
     }
     let pathHighlightEnabled = $state(readPathHighlightPref());
 
-    // Visual fix-up plan phase 0: generation-badge overlay master switch.
-    // Default true preserves current behaviour; phase 4 adds the View-menu
-    // command and flips the default to false. Mirrors path-highlight.
+    // Visual fix-up plan phase 0/4: generation-badge overlay master switch.
+    // Phase 0 wired the prop + storage key with default true. Phase 4
+    // flipped the default to false and added the View-menu command.
+    // Mirrors path-highlight, except null reads as off.
     const GEN_BADGE_LS_KEY = "fte.overlays.generationBadge";
     function readGenerationBadgePref(): boolean {
         try {
             const raw =
                 typeof localStorage === "undefined" ? null : localStorage.getItem(GEN_BADGE_LS_KEY);
-            return raw !== "false";
+            // null → default off (no stored choice; phase 4 default)
+            // only "true" reads as on
+            return raw === "true";
         } catch {
-            return true;
+            return false;
+        }
+    }
+    function writeGenerationBadgePref(on: boolean): void {
+        try {
+            if (typeof localStorage !== "undefined") {
+                localStorage.setItem(GEN_BADGE_LS_KEY, on ? "true" : "false");
+            }
+        } catch {
+            // ignore — quota / disabled storage is non-fatal
         }
     }
     let generationBadgeEnabled = $state(readGenerationBadgePref());
@@ -1069,6 +1081,11 @@
             pathHighlightEnabled = !pathHighlightEnabled;
             writePathHighlightPref(pathHighlightEnabled);
         },
+        viewOverlayGenerationBadgeToggle: () => {
+            // Visual fix-up phase 4: flip + persist, mirrors path-highlight.
+            generationBadgeEnabled = !generationBadgeEnabled;
+            writeGenerationBadgePref(generationBadgeEnabled);
+        },
         // Phase 4 overlay toggles — flip + persist + show toast.
         viewOverlaySwornBondsToggle: () => {
             swornBondsEnabled = !swornBondsEnabled;
@@ -1157,6 +1174,7 @@
             engineFamilyViewActive: () => selectedEngine === "family-view",
             engineLayeredActive: () => selectedEngine === "layered",
             overlayPathHighlightActive: () => pathHighlightEnabled,
+            overlayGenerationBadgeActive: () => generationBadgeEnabled,
             overlaySwornBondsActive: () => swornBondsEnabled,
             overlayTransformationsActive: () => transformationsEnabled,
             overlaySeverancesActive: () => severancesEnabled,

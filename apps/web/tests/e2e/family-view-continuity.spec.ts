@@ -173,3 +173,62 @@ test.describe("family view — cross-engine continuity", () => {
         expect(givenValue).toBe("Gamma");
     });
 });
+
+test.describe("family view — generation-badge toggle (phase 4)", () => {
+    // Separate describe so the localStorage cleanup runs once via
+    // page.evaluate after the initial navigation rather than via
+    // addInitScript on every navigation. This lets the reload + tab
+    // close/reopen round-trips actually exercise the persisted choice.
+    test.beforeEach(async ({ page }) => {
+        await page.goto("/");
+        await page.evaluate(() => {
+            try {
+                for (const key of Object.keys(localStorage)) {
+                    if (key.startsWith("fte.")) localStorage.removeItem(key);
+                }
+            } catch {
+                /* localStorage may not be available in every context */
+            }
+        });
+    });
+
+    test("badge defaults off and round-trips through reload + tab close/reopen", async ({
+        page,
+        context,
+    }) => {
+        // (c) default-off on first load with cleared storage.
+        await page.locator('[data-testid="import-input"]').setInputFiles(TINY);
+        await expect(page.getByText(/loaded \d+ people/)).toBeVisible();
+        await expect(page.locator("[data-generation-badge]")).toHaveCount(0);
+
+        // Toggle on via the View menu; badge appears on at least one card.
+        await page.getByRole("button", { name: "View" }).click();
+        const overlay = page.getByRole("menuitem", { name: /overlay: generation badges/i });
+        await expect(overlay).toBeVisible();
+        await expect(overlay).toBeEnabled();
+        await overlay.click();
+        await expect(page.locator("[data-generation-badge]").first()).toBeVisible();
+
+        // Verify the write actually hit localStorage.
+        const stored = await page.evaluate(() =>
+            localStorage.getItem("fte.overlays.generationBadge"),
+        );
+        expect(stored).toBe("true");
+
+        // (a) reload — preference restored → badges still rendered.
+        await page.reload();
+        await page.locator('[data-testid="import-input"]').setInputFiles(TINY);
+        await expect(page.getByText(/loaded \d+ people/)).toBeVisible();
+        await expect(page.locator("[data-generation-badge]").first()).toBeVisible();
+
+        // (b) close the page, open a fresh page in the same browser
+        // context — localStorage persists across tab lifecycle.
+        const url = page.url();
+        await page.close();
+        const reopened = await context.newPage();
+        await reopened.goto(url);
+        await reopened.locator('[data-testid="import-input"]').setInputFiles(TINY);
+        await expect(reopened.getByText(/loaded \d+ people/)).toBeVisible();
+        await expect(reopened.locator("[data-generation-badge]").first()).toBeVisible();
+    });
+});
