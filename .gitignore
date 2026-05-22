@@ -49,6 +49,7 @@ test-results/
 
 ### Claude ###
 .claude/*.local.json
+.claude/worktrees/
 .playwright-mcp/
 
 ### Notes ###
