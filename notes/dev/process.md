@@ -1,6 +1,6 @@
 # development process
 
-The shape of work in this repo. One of these loops runs against every plan in `notes/plans/`. Replaces the older "programmer → qa → manager updates plan → repeat" loop, which stalled on bugs near the end of every project.
+The shape of work in this repo. One of these loops runs against every plan in `.claude/plans/`. Replaces the older "programmer → qa → manager updates plan → repeat" loop, which stalled on bugs near the end of every project.
 
 The skills referenced below are generic and live in `~/.claude/skills/` — they apply to any project, not just this one.
 
@@ -8,13 +8,27 @@ The skills referenced below are generic and live in `~/.claude/skills/` — they
 
 ## plan shape
 
-Plans live in `notes/plans/<project>.md`. Each plan has:
+Plans live in `.claude/plans/<slug>/` as a four-file directory. each file has a single job; nothing crosses files.
+
+```
+.claude/plans/<slug>/
+├── plan.md         # forward-looking spec + per-phase status. THE canonical doc; edited in place.
+├── pre-mortem.md   # adversarial review output. written once, edited rarely.
+├── log.md          # phase retros + plan-revise what-changed summaries, chronological, append-only.
+└── bugs.md         # bug log; closed items pruned at phase close.
+```
+
+`plan.md` carries:
 
 1. **goals** — small, co-equal, measurable.
-2. **pre-mortem** — adversarial pass on the plan before phase 1, via the `pre-mortem` skill. output: revisions to phase order, identified high-risk phases, the walking-skeleton phase 0.
-3. **phase 0 — walking skeleton.** thinnest possible end-to-end slice that exercises every layer the project will eventually touch. empty implementations are fine. this pulls integration bugs from month 3 to week 1.
-4. **phases 1..n — risk-first, not dependency-first.** order phases by uncertainty, not by build order. the scariest unknown goes first. downstream phases get refactored after each retro.
-5. **bug log** — a section in the plan, separate from the phase list. anything qa or the programmer finds that's outside the current phase's scope goes here. never sneaks into the next phase's scope without `bug-triage`.
+2. **non-goals** + **constraints**.
+3. **accepted risks** — one short paragraph; the full report is in `pre-mortem.md`.
+4. **phase 0 — walking skeleton.** thinnest possible end-to-end slice that exercises every layer the project will eventually touch. empty implementations are fine. this pulls integration bugs from month 3 to week 1.
+5. **phases 1..n — risk-first, not dependency-first.** order phases by uncertainty, not by build order. the scariest unknown goes first. each phase has a `**status:**` row updated by `phase-retro`. downstream phases get refactored in place after each retro — never appended as `## revision after phase N` sections (those go to `log.md`).
+
+bug log lives at `<plan-dir>/bugs.md`, not in `plan.md`. anything qa or the programmer finds that's outside the current phase's scope goes there. never sneaks into the next phase's scope without `bug-triage`.
+
+legacy single-file plans at `notes/plans/<slug>.md` (the six in flight as of May 2026) keep their existing flat shape — work in place, do not migrate unsolicited.
 
 ---
 
@@ -59,10 +73,10 @@ Before declaring a project done, run `ship-readiness`. it walks the bug log, cla
 
 if a plan is small (one or two phases) the full loop is overkill. the floor is:
 
-- write a one-paragraph pre-mortem inline in the plan
-- bug log section, even if it stays empty
-- run `feature-completion` + a brief integration check at phase end
-- run `ship-readiness` before declaring done
+- still use the directory shape, but `pre-mortem.md` can be a one-paragraph note rather than a full report.
+- `bugs.md` present with empty `## open`, even if it stays empty.
+- run `feature-completion` + a brief integration check at phase end.
+- run `ship-readiness` before declaring done.
 
 larger plans (three+ phases, especially anything with cross-phase dependencies or perf budgets) get the full loop.
 
