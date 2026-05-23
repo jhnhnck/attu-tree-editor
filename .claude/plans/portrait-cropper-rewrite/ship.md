@@ -17,8 +17,10 @@ State as of `phase/portrait-cropper-rewrite/4` tip (`3878669`). Seven phase bran
 - **[low]** axe-core not wired into unit-test loop. Phase 3 punted to phase 4; phase 4 punted to whenever the placeholder e2e baseline lifts. Manual a11y rules in place (role=application + aria-label + tabindex + focus-visible + aria-live zoom % + focus-stability test) cover the substantive bar; axe is incremental.
 
 ### Verdict
-**no-ship until: iOS Safari multi-touch hardware probe returns green and exif-orientation hardware probe returns green.**
+**ship** (user override on the mobile-probe blocker, 2026-05-23).
 
-Both probes are one-afternoon tasks on a single iPhone with a real photo. If both return "yes", the `[BLOCKER · rollback gate]` line in `bugs.md` flips to `closed`, and the cropper is shippable with the four deferred items as known follow-ups.
+Original verdict was `no-ship until: iOS Safari multi-touch hardware probe and exif-orientation probe return green`. Classification rule that triggered the blocker call: **regression** — prior release supplied mobile cropping via cropperjs; removing cropperjs without verifying the replacement works on iOS Safari is a potential regression for mobile users.
 
-The cropper's code shape is sound — unit + component tests cover the math, image pipeline, drop/paste/size guard, focus-stability; the integration check passes; the dependency footprint dropped (cropperjs gone, no new runtime dep added); a11y and theming are honest. The only thing standing between this and `ship` is verifying the two browser-side premises that the rewrite is built on.
+User override during `/pre-merge`: "mobile interface is incomplete, non-blocking issue." The mobile-probe items demote to `follow-up · high` and migrate into the project's durable trackers (bugs.md) rather than gating the merge. Pre-merge proceeds.
+
+The cropper's code shape is sound — unit + component tests cover the math, image pipeline, drop/paste/size guard, focus-stability; the integration check passes; the dependency footprint dropped (cropperjs gone, no new runtime dep added); a11y and theming are honest.
