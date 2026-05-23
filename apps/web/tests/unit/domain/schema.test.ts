@@ -254,6 +254,29 @@ describe("Phase 5 migration: 3.1.0 → 3.2.0 normalises gender code to a struct"
     });
 });
 
+describe("Phase 6a migration: 3.2.0 → 3.3.0 is additive (tree.groups[])", () => {
+    it("threads existing tree through unchanged (no people, no groups)", () => {
+        const v3_2 = { name: "x", people: {} };
+        const r = _migrateBetween(v3_2, "3.2.0", "3.3.0");
+        expect(r.ok).toBe(true);
+        if (!r.ok) return;
+        expect(r.value.value).toBe(v3_2);
+    });
+
+    it("leaves a pre-populated groups[] array alone (forward-compat)", () => {
+        const v3_2 = {
+            name: "x",
+            people: {},
+            groups: [{ id: "g1", name: "X", kind: "dynasty", memberIds: [] }],
+        };
+        const r = _migrateBetween(v3_2, "3.2.0", "3.3.0");
+        expect(r.ok).toBe(true);
+        if (!r.ok) return;
+        const migrated = r.value.value as typeof v3_2;
+        expect(migrated.groups).toEqual(v3_2.groups);
+    });
+});
+
 describe("Phase 2b migration: 1.0.0 → 2.0.0 replaces legacy with parentIds", () => {
     it("converts motherId / fatherId into parentIds entries and drops legacy keys", () => {
         const v1 = {

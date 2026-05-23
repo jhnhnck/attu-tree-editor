@@ -76,6 +76,8 @@
         showOverlayTransformations?: boolean | undefined;
         /** Phase 4: toggle for severance overlays. Persisted as `fte.overlays.severances`. */
         showOverlaySeverances?: boolean | undefined;
+        /** Phase 6a: toggle for group frames (dynasties, houses, etc.). Persisted as `fte.overlays.groupFrames`. */
+        showGroupFrames?: boolean | undefined;
         /**
          * Portrait blob -> object-URL cache shared with the layered engine.
          * Phase 1 of the visual fix-up plan: family-view now renders
@@ -119,6 +121,7 @@
         showOverlaySwornBonds = true,
         showOverlayTransformations = true,
         showOverlaySeverances = true,
+        showGroupFrames = true,
         portraitUrls,
         onselect,
         ondeselect,
@@ -666,6 +669,43 @@
             height={layout.bbox.height * UNIT}
             aria-hidden="true"
         >
+            {#if showGroupFrames && layout.groups}
+                {#each layout.groups as group (group.id)}
+                    {#if group.frame === "hull" && group.hull && group.hull.length >= 3}
+                        <polygon
+                            class="family-view-group family-view-group-hull"
+                            data-group-id={group.id}
+                            data-group-kind={group.kind}
+                            points={group.hull.map((p) => `${p.x * UNIT},${p.y * UNIT}`).join(" ")}
+                            style:fill={group.color ?? undefined}
+                            vector-effect="non-scaling-stroke"
+                        />
+                    {/if}
+                    {#if (group.frame === "band" || group.frame === "ribbon") && group.rect}
+                        <rect
+                            class="family-view-group family-view-group-{group.frame}"
+                            data-group-id={group.id}
+                            data-group-kind={group.kind}
+                            x={group.rect.x * UNIT}
+                            y={group.rect.y * UNIT}
+                            width={group.rect.w * UNIT}
+                            height={group.rect.h * UNIT}
+                            style:fill={group.color ?? undefined}
+                            vector-effect="non-scaling-stroke"
+                        />
+                        {#if group.frame === "ribbon"}
+                            <text
+                                class="family-view-group-label"
+                                x={(group.rect.x + group.rect.w / 2) * UNIT}
+                                y={(group.rect.y + group.rect.h / 2) * UNIT}
+                                text-anchor="middle"
+                                dominant-baseline="central"
+                                font-size="12">{group.name}</text
+                            >
+                        {/if}
+                    {/if}
+                {/each}
+            {/if}
             {#each layout.edges as edge (edge.id)}
                 <path
                     d={edgePath(edge)}

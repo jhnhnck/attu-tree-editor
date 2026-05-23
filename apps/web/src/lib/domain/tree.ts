@@ -8,6 +8,8 @@ import { legacyGenderCode } from "$lib/domain/personIdentity";
 import type { HaracalndeDateData } from "$lib/date/HaracalndeDate";
 import type {
     CoupleRecord,
+    Group,
+    GroupKind,
     ParentPedi,
     ParentRef,
     ParentRole,
@@ -701,6 +703,111 @@ function defaultRelationshipId(rel: {
 }): string {
     const parts = [...rel.sourceIds, ...rel.targetIds];
     return `rel-${rel.kind}-${parts.join("-")}`;
+}
+
+export type GroupPatch = {
+    name?: Group["name"];
+    kind?: Group["kind"];
+    founderId?: Group["founderId"] | undefined;
+    armorial?: Group["armorial"] | undefined;
+    frame?: Group["frame"] | undefined;
+};
+
+/**
+ * Append a `Group` to `tree.groups[]`. Generates a stable id
+ * `group-<kind>-<name-slug>-<memberIds.length>` so GEDCOM round-trip
+ * + programmatic creation produce the same id. Initialises `groups`
+ * to `[]` if absent.
+ */
+export function addGroup(
+    t: Tree,
+    g: Omit<Group, "id"> & { id?: string },
+): { tree: Tree; id: string } {
+    const id = g.id ?? defaultGroupId(g);
+    const next: Group = {
+        id,
+        name: g.name,
+        kind: g.kind,
+        memberIds: [...g.memberIds],
+    };
+    if (g.founderId !== undefined) next.founderId = g.founderId;
+    if (g.armorial !== undefined) next.armorial = g.armorial;
+    if (g.frame !== undefined) next.frame = g.frame;
+    const list = t.groups ?? [];
+    return { tree: { ...t, groups: [...list, next] }, id };
+}
+
+/**
+ * Remove a group by id. No-op if unknown.
+ */
+export function removeGroup(t: Tree, groupId: string): Tree {
+    const list = t.groups ?? [];
+    const next = list.filter((g) => g.id !== groupId);
+    if (next.length === list.length) return t;
+    return { ...t, groups: next };
+}
+
+/**
+ * Patch a group's scalar fields. `undefined` in the patch clears the
+ * corresponding optional field. memberIds are not patched here — use
+ * `addGroupMember` / `removeGroupMember` for membership mutations.
+ */
+export function updateGroup(t: Tree, groupId: string, patch: GroupPatch): Tree {
+    const list = t.groups ?? [];
+    const idx = list.findIndex((g) => g.id === groupId);
+    if (idx < 0) return t;
+    const g = list[idx];
+    if (!g) return t;
+    const next: Group = { ...g };
+    if (patch.name !== undefined) next.name = patch.name;
+    if (patch.kind !== undefined) next.kind = patch.kind;
+    if ("founderId" in patch) {
+        if (patch.founderId === undefined) delete next.founderId;
+        else next.founderId = patch.founderId;
+    }
+    if ("armorial" in patch) {
+        if (patch.armorial === undefined) delete next.armorial;
+        else next.armorial = patch.armorial;
+    }
+    if ("frame" in patch) {
+        if (patch.frame === undefined) delete next.frame;
+        else next.frame = patch.frame;
+    }
+    return { ...t, groups: [...list.slice(0, idx), next, ...list.slice(idx + 1)] };
+}
+
+export function addGroupMember(t: Tree, groupId: string, personId: PersonId): Tree {
+    const list = t.groups ?? [];
+    const idx = list.findIndex((g) => g.id === groupId);
+    if (idx < 0) return t;
+    const g = list[idx];
+    if (!g || g.memberIds.includes(personId)) return t;
+    const next: Group = { ...g, memberIds: [...g.memberIds, personId] };
+    return { ...t, groups: [...list.slice(0, idx), next, ...list.slice(idx + 1)] };
+}
+
+export function removeGroupMember(t: Tree, groupId: string, personId: PersonId): Tree {
+    const list = t.groups ?? [];
+    const idx = list.findIndex((g) => g.id === groupId);
+    if (idx < 0) return t;
+    const g = list[idx];
+    if (!g) return t;
+    const filtered = g.memberIds.filter((id) => id !== personId);
+    if (filtered.length === g.memberIds.length) return t;
+    const next: Group = { ...g, memberIds: filtered };
+    return { ...t, groups: [...list.slice(0, idx), next, ...list.slice(idx + 1)] };
+}
+
+function defaultGroupId(g: {
+    kind: GroupKind;
+    name: string;
+    memberIds: readonly PersonId[];
+}): string {
+    const slug = g.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "");
+    return `group-${g.kind}-${slug || "unnamed"}-${String(g.memberIds.length)}`;
 }
 
 export function* ancestorsOf(t: Tree, id: PersonId): Iterable<Person> {

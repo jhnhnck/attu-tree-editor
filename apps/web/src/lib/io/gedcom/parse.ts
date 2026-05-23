@@ -10,6 +10,8 @@ import { HaracalndeDate } from "$lib/date/HaracalndeDate";
 import { generateId } from "$lib/domain/ids";
 import type {
     CoupleRecord,
+    Group,
+    GroupFrameStyle,
     ParentPedi,
     ParentRef,
     ParentRole,
@@ -94,6 +96,7 @@ function buildTree(root: TreeNodeRoot): GedParseResult {
     const famNodes: TreeNode[] = [];
     const unionNodes: TreeNode[] = [];
     const relNodes: TreeNode[] = [];
+    const groupNodes: TreeNode[] = [];
 
     for (const child of root.children) {
         switch (child.tag) {
@@ -111,6 +114,9 @@ function buildTree(root: TreeNodeRoot): GedParseResult {
                 break;
             case "_TREES_REL":
                 relNodes.push(child);
+                break;
+            case "_TREES_GROUP":
+                groupNodes.push(child);
                 break;
             case "TRLR":
             case "SUBM":
@@ -210,6 +216,16 @@ function buildTree(root: TreeNodeRoot): GedParseResult {
         if (rec) relationships.push(rec);
     }
 
+    // _TREES_GROUP extensions (Phase 6a; schema 3.3.0). Each is a
+    // `0 @Gxx@ _TREES_GROUP` top-level record with `_NAME` / `_KIND` /
+    // `_MEMBER*` / optional `_FOUNDER` / `_FRAME_STYLE` / `_FRAME_COLOR`
+    // / `_ARMORIAL`. Tools that strip extensions render no group.
+    const groups: Group[] = [];
+    for (const gnode of groupNodes) {
+        const rec = parseTreesGroup(gnode, idByXref);
+        if (rec) groups.push(rec);
+    }
+
     // pick a root: first INDI (xref @I1@ in FE exports is the file's "owner")
     const firstId = Object.keys(people)[0];
     const rootId = firstId ?? "START";
@@ -222,6 +238,7 @@ function buildTree(root: TreeNodeRoot): GedParseResult {
         couples,
         unions,
         relationships,
+        groups,
         editRev: 0,
         updatedAt: Date.now(),
     };
@@ -721,6 +738,71 @@ function parseTreesRel(node: TreeNode, idByXref: Map<string, PersonId>): Relatio
     if (cause !== undefined) rec.cause = cause;
     if (date !== undefined) rec.date = date;
     if (notes !== undefined) rec.notes = notes;
+    return rec;
+}
+
+/**
+ * Parse a top-level `0 @Gxx@ _TREES_GROUP` record into a Group.
+ * Subtags: `_NAME`, `_KIND`, `_MEMBER+`, `_FOUNDER`, `_FRAME_STYLE`,
+ * `_FRAME_COLOR`, `_ARMORIAL`. Drops the record if name + kind aren't
+ * both present (permissive elsewhere — empty member list is fine, the
+ * walker will skip emitting a frame).
+ */
+function parseTreesGroup(node: TreeNode, idByXref: Map<string, PersonId>): Group | null {
+    let name: string | undefined;
+    let kind: string | undefined;
+    const memberIds: PersonId[] = [];
+    let founderId: PersonId | undefined;
+    let frameStyle: GroupFrameStyle | undefined;
+    let frameColor: string | undefined;
+    let armorial: string | undefined;
+
+    for (const sub of node.children) {
+        switch (sub.tag) {
+            case "_NAME":
+                if (sub.value) name = sub.value;
+                break;
+            case "_KIND":
+                if (sub.value) kind = sub.value;
+                break;
+            case "_MEMBER": {
+                const id = sub.value ? idByXref.get(sub.value) : undefined;
+                if (id) memberIds.push(id);
+                break;
+            }
+            case "_FOUNDER": {
+                const id = sub.value ? idByXref.get(sub.value) : undefined;
+                if (id) founderId = id;
+                break;
+            }
+            case "_FRAME_STYLE":
+                if (sub.value === "hull" || sub.value === "band" || sub.value === "ribbon") {
+                    frameStyle = sub.value;
+                }
+                break;
+            case "_FRAME_COLOR":
+                if (sub.value) frameColor = sub.value;
+                break;
+            case "_ARMORIAL":
+                if (sub.value) armorial = sub.value;
+                break;
+        }
+    }
+
+    if (name === undefined || kind === undefined) return null;
+    const xref = node.pointer ?? "";
+    const id =
+        xref.length > 0
+            ? xref.replace(/^@/, "").replace(/@$/, "")
+            : `group-${kind}-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+    const rec: Group = { id, name, kind, memberIds };
+    if (founderId !== undefined) rec.founderId = founderId;
+    if (frameStyle !== undefined || frameColor !== undefined) {
+        rec.frame = {};
+        if (frameStyle !== undefined) rec.frame.style = frameStyle;
+        if (frameColor !== undefined) rec.frame.color = frameColor;
+    }
+    if (armorial !== undefined) rec.armorial = { description: armorial };
     return rec;
 }
 

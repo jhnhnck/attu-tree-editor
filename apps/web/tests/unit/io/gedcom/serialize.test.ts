@@ -444,6 +444,66 @@ describe("serializeGedcom - Phase 5 identity / species / kind / origin extension
     });
 });
 
+describe("serializeGedcom - Phase 6a group extensions", () => {
+    it("emits a top-level _TREES_GROUP record per group", () => {
+        const base = tinyTree();
+        base.groups = [
+            {
+                id: "group-house-marvane-3",
+                name: "House Marvane",
+                kind: "house",
+                memberIds: ["AAAAA", "BBBBB", "CCCCC"],
+                founderId: "AAAAA",
+                frame: { style: "hull", color: "#cc4444" },
+                armorial: { description: "azure, three estoiles or" },
+            },
+        ];
+        const out = serializeGedcom(base);
+        expect(out).toContain("0 @G1@ _TREES_GROUP");
+        expect(out).toContain("1 _NAME House Marvane");
+        expect(out).toContain("1 _KIND house");
+        expect(out).toContain("1 _MEMBER @I1@");
+        expect(out).toContain("1 _MEMBER @I2@");
+        expect(out).toContain("1 _MEMBER @I3@");
+        expect(out).toContain("1 _FOUNDER @I1@");
+        expect(out).toContain("1 _FRAME_STYLE hull");
+        expect(out).toContain("1 _FRAME_COLOR #cc4444");
+        expect(out).toContain("1 _ARMORIAL azure, three estoiles or");
+    });
+
+    it("round-trips a group through serialize → parse", () => {
+        const base = tinyTree();
+        base.groups = [
+            {
+                id: "g1",
+                name: "Order of the Loom",
+                kind: "order",
+                memberIds: ["AAAAA", "BBBBB"],
+                frame: { style: "band" },
+            },
+        ];
+        const out = serializeGedcom(base);
+        const r = unwrap(parseGedcom(out));
+        const g = (r.tree.groups ?? []).find((x) => x.name === "Order of the Loom");
+        expect(g).toBeDefined();
+        if (!g) return;
+        expect(g.kind).toBe("order");
+        expect(g.memberIds).toHaveLength(2);
+        expect(g.frame?.style).toBe("band");
+    });
+
+    it("drops a group whose name or kind is missing on re-parse (permissive)", () => {
+        const base = tinyTree();
+        // Manually inject a malformed record to verify the parser's tolerance.
+        const out = serializeGedcom(base).replace(
+            "0 TRLR",
+            "0 @Gbad@ _TREES_GROUP\r\n1 _NAME only-name\r\n0 TRLR",
+        );
+        const r = unwrap(parseGedcom(out));
+        expect(r.tree.groups ?? []).toEqual([]);
+    });
+});
+
 describe("serializeGedcom - golden snapshot", () => {
     it("parse-then-serialize is byte-stable through a second round-trip", async () => {
         const input = readFileSync(FIXTURE, "utf-8");

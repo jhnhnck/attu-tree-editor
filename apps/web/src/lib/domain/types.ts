@@ -266,6 +266,58 @@ export interface Relationship {
     notes?: string;
 }
 
+/**
+ * Group classification (Phase 6a; schema 3.3.0). Open string — the 7
+ * canonical kinds (`dynasty`, `house`, `clan`, `household`, `faction`,
+ * `order`, `covenant`) drive the inspector kind-picker and the
+ * renderer's default tone; non-canonical strings round-trip but pick
+ * the `band` default frame style.
+ */
+export type GroupKind = string;
+
+/**
+ * How a group's frame renders on the canvas. `hull` is a convex hull
+ * around the members' card positions (semi-transparent fill); `band` is
+ * a vertical lane down a slice of the canvas tinted with the group's
+ * colour; `ribbon` is a generation-spanning header bar at the top of
+ * the group's rank range.
+ */
+export type GroupFrameStyle = "hull" | "band" | "ribbon";
+
+/**
+ * Optional armorial blazon — free-form text the inspector exposes,
+ * reserved for a future image-binding flow.
+ */
+export interface GroupArmorial {
+    description?: string;
+    blobId?: string;
+}
+
+/**
+ * Optional frame styling override. Absent → the renderer picks
+ * sensible defaults based on `kind` (dynasty / house → hull;
+ * faction / order / covenant → band; clan → ribbon; household → hull).
+ */
+export interface GroupFrameOverride {
+    style?: GroupFrameStyle;
+    color?: string;
+}
+
+/**
+ * A named group (dynasty, house, clan, household, faction, order,
+ * covenant). Phase 6a (schema 3.3.0) lands the data + rendering;
+ * Phase 8 sweeps documentation + GEDCOM `_TREES_GROUP` extension.
+ */
+export interface Group {
+    id: string;
+    name: string;
+    kind: GroupKind;
+    memberIds: PersonId[];
+    founderId?: PersonId;
+    armorial?: GroupArmorial;
+    frame?: GroupFrameOverride;
+}
+
 export interface Tree {
     id: string;
     name: string;
@@ -293,6 +345,13 @@ export interface Tree {
      * segments routed independently of the standard layout.
      */
     relationships?: Relationship[];
+    /**
+     * Named groups: dynasties, houses, clans, households, factions,
+     * orders, covenants (Phase 6a; schema 3.3.0). Renders as a frame
+     * (hull / band / ribbon) behind the cards. Optional so existing
+     * Tree literals stay valid; absence is treated as the empty list.
+     */
+    groups?: Group[];
     /**
      * Local edit counter, monotonically incremented by the tree store on
      * every user-driven mutation (set / update / reset / undo / redo).

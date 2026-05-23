@@ -90,8 +90,8 @@ export interface CommandHandlers {
     viewOverlayTransformationsToggle: () => void;
     /** Phase 4: toggle severance overlays (severed / estranged / disowned / exiled). */
     viewOverlaySeverancesToggle: () => void;
-    /** relationship-vocabulary Phase 6a wires this; today shows "coming soon" */
-    viewOverlayGroupFramesStub: () => void;
+    /** Phase 6a: toggle group frames (dynasties, houses, etc.). */
+    viewOverlayGroupFramesToggle: () => void;
     /** relationship-vocabulary Phase 6b wires this; today shows "coming soon" */
     viewOverlayConsanguinityStub: () => void;
     selectClear: () => void;
@@ -137,6 +137,8 @@ export interface CommandEnabledFlags {
     overlayTransformationsActive?: () => boolean;
     /** Phase 4: are severance overlays currently enabled? */
     overlaySeverancesActive?: () => boolean;
+    /** Phase 6a: are group frames currently enabled? */
+    overlayGroupFramesActive?: () => boolean;
 }
 
 export function buildCommands(
@@ -371,10 +373,10 @@ export function buildCommands(
         },
         {
             id: "view.overlay.groupFrames",
-            label: "Overlay: group frames (coming in phase 6a)",
+            label: "Overlay: group frames",
             group: "View",
-            enabled: () => false,
-            run: h.viewOverlayGroupFramesStub,
+            checked: enabled.overlayGroupFramesActive,
+            run: h.viewOverlayGroupFramesToggle,
         },
         {
             id: "view.overlay.consanguinity",

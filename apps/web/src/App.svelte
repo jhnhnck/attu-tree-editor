@@ -311,6 +311,10 @@
     let transformationsEnabled = $state(readBoolPref(TRANSFORMATIONS_LS_KEY));
     let severancesEnabled = $state(readBoolPref(SEVERANCES_LS_KEY));
 
+    // relationship-vocabulary phase 6a: group-frames toggle.
+    const GROUP_FRAMES_LS_KEY = "fte.overlays.groupFrames";
+    let groupFramesEnabled = $state(readBoolPref(GROUP_FRAMES_LS_KEY));
+
     // save-pill state
     let lastSavedAt = $state<number | undefined>(undefined);
     let lastError = $state<string | undefined>(undefined);
@@ -1099,13 +1103,9 @@
             severancesEnabled = !severancesEnabled;
             writeBoolPref(SEVERANCES_LS_KEY, severancesEnabled);
         },
-        // remaining Phase 6a / 6b stubs stay as placeholders for now.
-        viewOverlayGroupFramesStub: () => {
-            toasts.push(
-                "group frames — coming with relationship-vocabulary phase 6a",
-                "info",
-                1500,
-            );
+        viewOverlayGroupFramesToggle: () => {
+            groupFramesEnabled = !groupFramesEnabled;
+            writeBoolPref(GROUP_FRAMES_LS_KEY, groupFramesEnabled);
         },
         viewOverlayConsanguinityStub: () => {
             toasts.push(
@@ -1178,6 +1178,7 @@
             overlaySwornBondsActive: () => swornBondsEnabled,
             overlayTransformationsActive: () => transformationsEnabled,
             overlaySeverancesActive: () => severancesEnabled,
+            overlayGroupFramesActive: () => groupFramesEnabled,
             engineHyperbolicActive: () => selectedEngine === "hyperbolic",
         }),
     );
@@ -1452,6 +1453,7 @@
                     showOverlaySwornBonds={swornBondsEnabled}
                     showOverlayTransformations={transformationsEnabled}
                     showOverlaySeverances={severancesEnabled}
+                    showGroupFrames={groupFramesEnabled}
                     {portraitUrls}
                     onselect={(id: string) => selection.select(id)}
                     ondeselect={() => selection.select(undefined)}

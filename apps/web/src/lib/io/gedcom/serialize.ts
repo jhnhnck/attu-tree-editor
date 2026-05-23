@@ -105,6 +105,17 @@ export function serializeGedcom(tree: Tree, opts: GedSerializeOptions = {}): str
         relCounter += 1;
     }
 
+    // Groups (Phase 6a; schema 3.3.0). One `_TREES_GROUP` top-level
+    // record per group. Same shape pattern as `_TREES_UNION` and
+    // `_TREES_REL`: registered via HEAD.SCHMA, stripped by tools that
+    // don't know it, re-imported by FamilyTree Editor for full
+    // fidelity.
+    let groupCounter = 1;
+    for (const g of tree.groups ?? []) {
+        appendGroup(lines, g, xrefByPerson, groupCounter);
+        groupCounter += 1;
+    }
+
     lines.push("0 TRLR");
     return lines.join(LINE_END) + LINE_END;
 }
@@ -135,6 +146,33 @@ function appendRelationship(
     }
     if (rel.notes !== undefined && rel.notes.length > 0) {
         lines.push(`1 _NOTES ${rel.notes}`);
+    }
+}
+
+function appendGroup(
+    lines: string[],
+    group: import("$lib/domain/types").Group,
+    xrefByPerson: Map<PersonId, string>,
+    groupNumber: number,
+): void {
+    const xref = `@G${String(groupNumber)}@`;
+    lines.push(`0 ${xref} _TREES_GROUP`);
+    lines.push(`1 _NAME ${group.name}`);
+    lines.push(`1 _KIND ${group.kind}`);
+    for (const mid of group.memberIds) {
+        const x = xrefByPerson.get(mid);
+        if (x) lines.push(`1 _MEMBER ${x}`);
+    }
+    if (group.founderId !== undefined) {
+        const x = xrefByPerson.get(group.founderId);
+        if (x) lines.push(`1 _FOUNDER ${x}`);
+    }
+    if (group.frame !== undefined) {
+        if (group.frame.style !== undefined) lines.push(`1 _FRAME_STYLE ${group.frame.style}`);
+        if (group.frame.color !== undefined) lines.push(`1 _FRAME_COLOR ${group.frame.color}`);
+    }
+    if (group.armorial?.description !== undefined) {
+        lines.push(`1 _ARMORIAL ${group.armorial.description}`);
     }
 }
 

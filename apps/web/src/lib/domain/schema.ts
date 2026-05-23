@@ -22,7 +22,7 @@ export type SchemaVersion = string;
  * of `Tree` changes in a way that needs migration. Each bump is paired with
  * a `Migration` in the registry below.
  */
-export const CURRENT_SCHEMA_VERSION: SchemaVersion = "3.2.0";
+export const CURRENT_SCHEMA_VERSION: SchemaVersion = "3.3.0";
 
 export interface Migration {
     from: SchemaVersion;

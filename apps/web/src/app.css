@@ -166,3 +166,37 @@ body {
     stroke-width: 4px;
     pointer-events: none;
 }
+
+/* relationship-vocabulary Phase 6a: group frames. hull is a translucent
+   convex polygon behind the cards; band is a vertical lane; ribbon is a
+   header bar with the group's name. Default tone is a muted teal so groups
+   read as a backdrop, not as an active overlay element. */
+.family-view-group {
+    fill: hsl(180 30% 50% / 0.12);
+    stroke: hsl(180 50% 50% / 0.45);
+    stroke-width: 1.5px;
+    pointer-events: none;
+}
+
+.family-view-group-hull {
+    /* convex hull rendered with rounded join so concave-looking single
+       slivers don't show as sharp triangles. */
+    stroke-linejoin: round;
+}
+
+.family-view-group-band {
+    fill: hsl(180 30% 50% / 0.08);
+    stroke-width: 0;
+}
+
+.family-view-group-ribbon {
+    fill: hsl(180 40% 50% / 0.6);
+    stroke-width: 0;
+}
+
+.family-view-group-label {
+    fill: var(--color-fg, white);
+    font-family: ui-sans-serif, system-ui, sans-serif;
+    font-weight: 600;
+    pointer-events: none;
+}

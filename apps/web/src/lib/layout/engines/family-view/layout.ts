@@ -43,6 +43,7 @@ import {
     PRIMARY_PRIMITIVE,
 } from "$lib/layout/engines/family-view/nPartnerGeometry";
 import { buildOverlays } from "$lib/layout/engines/family-view/overlays";
+import { buildGroups } from "$lib/layout/engines/family-view/groups";
 import type {
     BadgeNode,
     FamilyViewEdge,
@@ -354,6 +355,7 @@ export function computeLayout(
 
     const multiUnionMates = collectMultiUnionMates(tree, anchors, primaryOverrides);
     const overlays = buildOverlays(tree, nodes, edges, { width: maxWidth, height });
+    const groups = buildGroups(tree, nodes, { width: maxWidth, height });
 
     return {
         focus: focusId,
@@ -368,6 +370,7 @@ export function computeLayout(
         autoCollapsed,
         multiUnionMates,
         overlays,
+        groups,
     };
 }
 
