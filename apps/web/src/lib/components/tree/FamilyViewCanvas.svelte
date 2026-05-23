@@ -88,6 +88,15 @@
          */
         showConsanguinity?: boolean | undefined;
         /**
+         * Wave-2 phase 2: family-view crossing-minimisation. Default
+         * `true` — runs the slot-index barycentric pass with a monotone
+         * gate (re-uses the candidate layout only when its geometric
+         * crossing count is strictly lower). Persisted upstream via
+         * `fte.layout.familyViewCrossingMin` localStorage flag; rollback
+         * path is to flip the App-level default to `false`.
+         */
+        crossingMin?: boolean | undefined;
+        /**
          * Portrait blob -> object-URL cache shared with the layered engine.
          * Phase 1 of the visual fix-up plan: family-view now renders
          * portraits at the larger card height when `person.portraitBlobId`
@@ -132,6 +141,7 @@
         showOverlaySeverances = true,
         showGroupFrames = true,
         showConsanguinity = false,
+        crossingMin = true,
         portraitUrls,
         onselect,
         ondeselect,
@@ -230,6 +240,7 @@
             options: {
                 expanded: (void expansionRev, expansion.expanded),
                 primaryUnionOverrides: (void primaryRev, primaryUnion.overrides),
+                crossingMin,
             },
         }),
     );

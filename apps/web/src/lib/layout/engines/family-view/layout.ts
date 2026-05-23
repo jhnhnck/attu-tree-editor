@@ -148,6 +148,16 @@ export interface LayoutOptions {
     readonly primaryUnionOverrides?: ReadonlyMap<PersonId, number>;
     /** Override the auto-collapse threshold; used by perf tests. */
     readonly autoCollapseThreshold?: number;
+    /**
+     * Wave-2 phase 2: run the slot-index barycentric crossing-minimisation
+     * sweep between `planRank` and the left-to-right placement pass.
+     * Default `true` in production via the `fte.layout.familyViewCrossingMin`
+     * localStorage flag; tests opt-out by passing `false` to assert the
+     * pre-pass slot order. The pass is monotone — it never raises
+     * crossings — so opting out only matters when a test is asserting
+     * the *raw* `tree.couples` field-order placement.
+     */
+    readonly crossingMin?: boolean;
 }
 
 export function computeLayout(
@@ -218,6 +228,74 @@ export function computeLayout(
         plans.set(r, planRank(tree, ids, rankBadges));
     }
 
+    // `canCollapse` and the rest of the per-layout post-processing depend
+    // on `working` / `expanded` / `focusId`; capture once so both the
+    // pre-pass and post-pass placement calls below can reuse them.
+    const canCollapse = new Set<PersonId>();
+    for (const id of expanded) if (working.visible.has(id)) canCollapse.add(id);
+
+    const placeFromPlans = (planMap: ReadonlyMap<number, readonly RankSlot[]>): FamilyViewLayout =>
+        materialiseLayout(planMap, {
+            tree,
+            focusId,
+            badges,
+            autoCollapsed,
+            primaryOverrides,
+            hasMoreChildren: working.hasMoreChildren,
+            hasMoreParents: working.hasMoreParents,
+            canCollapse,
+        });
+
+    // Wave-2 phase 2: barycentric crossing-min pass. The pass mutates a
+    // *copy* of the slot map by mean-of-neighbour-slot-index. Both the
+    // pre-pass and post-pass slot orders are then materialised through
+    // the same placement pipeline; whichever produces strictly fewer
+    // geometric edge-crossings wins. The pass is thus monotone on the
+    // user-visible metric — it never increases crossings — even when
+    // the heuristic's slot-inversion-count goal diverges from the
+    // family-view bus-and-stub geometry's actual crossings. Caller can
+    // opt out (`crossingMin: false`) to assert the raw `tree.couples`
+    // field-order placement.
+    const baseLayout = placeFromPlans(plans);
+    if (opts.crossingMin === false) return baseLayout;
+
+    const focusRank = working.rank.get(focusId) ?? 0;
+    const plansCopy = new Map<number, readonly RankSlot[]>();
+    for (const [r, slots] of plans) plansCopy.set(r, slots);
+    crossingMinPass(plansCopy, tree, focusRank);
+    if (!planMapsDiffer(plans, plansCopy)) return baseLayout;
+    const candidate = placeFromPlans(plansCopy);
+    if (countLayoutCrossings(candidate) < countLayoutCrossings(baseLayout)) {
+        return candidate;
+    }
+    return baseLayout;
+}
+
+interface MaterialiseContext {
+    readonly tree: Tree;
+    readonly focusId: PersonId;
+    readonly badges: readonly BadgeNode[];
+    readonly autoCollapsed: ReadonlySet<PersonId>;
+    readonly primaryOverrides: ReadonlyMap<PersonId, number>;
+    readonly hasMoreChildren: ReadonlySet<PersonId>;
+    readonly hasMoreParents: ReadonlySet<PersonId>;
+    readonly canCollapse: ReadonlySet<PersonId>;
+}
+
+/**
+ * Materialise a `FamilyViewLayout` from a slot-map. Pure function of its
+ * inputs — called once when `crossingMin` is off, twice when it's on
+ * (once for the pre-pass baseline, once for the candidate). Factoring
+ * this out so phase 2's monotone gate can compare two candidates side-
+ * by-side without duplicating the placement / rank-y / centering /
+ * emit-edges pipeline.
+ */
+function materialiseLayout(
+    plans: ReadonlyMap<number, readonly RankSlot[]>,
+    ctx: MaterialiseContext,
+): FamilyViewLayout {
+    const { tree, focusId, badges, autoCollapsed, primaryOverrides } = ctx;
+
     // Place left-to-right per rank.
     const nodes = new Map<PersonId, FamilyViewNode>();
     const placedBadges = new Map<string, BadgeNode>();
@@ -276,9 +354,6 @@ export function computeLayout(
     for (const badge of placedBadges.values()) ranksPresent.add(badge.rank);
     const sortedRanks = [...ranksPresent].sort((a, b) => a - b);
     const rankStartY = new Map<number, number>();
-    // `cumulativeEndY` is the y-coord just past the last rank's bottom edge,
-    // including a trailing gutter to match the old `(rankCount) * ROW_H`
-    // bbox formula. Used by the bbox.height computation below.
     let cumulativeEndY = 0;
     if (sortedRanks.length > 0) {
         let cursor = sortedRanks[0]! * ROW_H;
@@ -339,20 +414,10 @@ export function computeLayout(
         rowGeometry,
     );
 
-    // Cumulative height: top of the lowest-numbered rank to a point one
-    // gutter past the highest-numbered rank's bottom, matching the legacy
-    // `rankCount * ROW_H` formula on all-default trees while also covering
-    // a portrait card overhang on the bottom rank.
     let height = 0;
     if (sortedRanks.length > 0) {
         height = cumulativeEndY - rowGeometry.topY(sortedRanks[0]!);
     }
-
-    // `canCollapse` = persons the user can `−`-click. That's every id in
-    // `expanded` that is currently visible (auto-collapse doesn't remove
-    // the source, only its children).
-    const canCollapse = new Set<PersonId>();
-    for (const id of expanded) if (working.visible.has(id)) canCollapse.add(id);
 
     const multiUnionMates = collectMultiUnionMates(tree, anchors, primaryOverrides);
     const overlays = buildOverlays(tree, nodes, edges, { width: maxWidth, height });
@@ -366,15 +431,30 @@ export function computeLayout(
         edges,
         badges: finalBadges,
         bbox: { width: maxWidth, height },
-        hasMoreChildren: working.hasMoreChildren,
-        hasMoreParents: working.hasMoreParents,
-        canCollapse,
+        hasMoreChildren: ctx.hasMoreChildren,
+        hasMoreParents: ctx.hasMoreParents,
+        canCollapse: ctx.canCollapse,
         autoCollapsed,
         multiUnionMates,
         overlays,
         groups,
         sibships,
     };
+}
+
+function planMapsDiffer(
+    a: ReadonlyMap<number, readonly RankSlot[]>,
+    b: ReadonlyMap<number, readonly RankSlot[]>,
+): boolean {
+    if (a.size !== b.size) return true;
+    for (const [r, slotsA] of a) {
+        const slotsB = b.get(r);
+        if (!slotsB || slotsA.length !== slotsB.length) return true;
+        for (let i = 0; i < slotsA.length; i += 1) {
+            if (slotsA[i] !== slotsB[i]) return true;
+        }
+    }
+    return false;
 }
 
 /**
@@ -476,6 +556,215 @@ function planRank(
         slots.push({ kind: "badge", badgeId: badge.id });
     }
     return slots;
+}
+
+/**
+ * Wave-2 phase 2: slot-index barycentric crossing-minimisation sweep.
+ *
+ * Walks outward from `focusRank` in both directions, reordering each
+ * rank's slot list by the mean slot-index of its persons' neighbours
+ * (parents on the descendant side, children on the ancestor side). The
+ * outward direction keeps the focus row anchored — its slot order
+ * never changes — so deterministic focus placement is preserved across
+ * passes. Iterates two-direction sweeps until a fixpoint or
+ * `MAX_ITERS`. Slot-index based, not x-position based: positions don't
+ * exist yet at this stage of the pipeline. The standard layered-graph-
+ * drawing barycentric heuristic; small (≤30 cards) bounded subsets
+ * converge in 2-3 iterations.
+ *
+ * `plans` is mutated in place. Stable tie-break: a slot whose mean
+ * slot-index ties with another keeps its current relative order via the
+ * decorator-sort's index fallback. A slot with no visible neighbours in
+ * the adjacent rank keeps its current index as its barycenter (= no
+ * incentive to move).
+ */
+function crossingMinPass(
+    plans: Map<number, readonly RankSlot[]>,
+    tree: Tree,
+    focusRank: number,
+): void {
+    const sortedRanks = [...plans.keys()].sort((a, b) => a - b);
+    if (sortedRanks.length <= 1) return;
+    const minR = sortedRanks[0]!;
+    const maxR = sortedRanks[sortedRanks.length - 1]!;
+    const MAX_ITERS = 16;
+    for (let it = 0; it < MAX_ITERS; it += 1) {
+        let changed = false;
+        // descendants: walk outward from focus toward maxR, anchoring on
+        // the parent rank (= the rank one step toward focus).
+        for (let r = focusRank + 1; r <= maxR; r += 1) {
+            if (reorderRankByBarycenter(r, r - 1, plans, tree)) changed = true;
+        }
+        // ancestors: walk outward from focus toward minR, anchoring on
+        // the child rank (= the rank one step toward focus).
+        for (let r = focusRank - 1; r >= minR; r -= 1) {
+            if (reorderRankByBarycenter(r, r + 1, plans, tree)) changed = true;
+        }
+        if (!changed) break;
+    }
+}
+
+/**
+ * Reorder `plans[rank]` by the slot-index barycenter of each slot's
+ * persons' neighbours in `plans[neighborRank]`. Returns true iff the
+ * slot order changed. `dir` is derived from rank vs neighborRank:
+ * neighborRank < rank → walk parents; neighborRank > rank → walk
+ * children. The focus rank is never reordered.
+ */
+function reorderRankByBarycenter(
+    rank: number,
+    neighborRank: number,
+    plans: Map<number, readonly RankSlot[]>,
+    tree: Tree,
+): boolean {
+    const slots = plans.get(rank);
+    const neighborSlots = plans.get(neighborRank);
+    if (!slots || !neighborSlots || slots.length <= 1) return false;
+    const useParents = neighborRank < rank;
+    const indexOfPerson = new Map<PersonId, number>();
+    for (let i = 0; i < neighborSlots.length; i += 1) {
+        for (const pid of slotPersons(neighborSlots[i]!)) indexOfPerson.set(pid, i);
+    }
+    const decorated = slots.map((slot, i) => ({
+        slot,
+        origIdx: i,
+        bary: barycenterOfSlot(slot, indexOfPerson, tree, useParents, i),
+    }));
+    decorated.sort((a, b) => a.bary - b.bary || a.origIdx - b.origIdx);
+    const reordered = decorated.map((d) => d.slot);
+    const changed = reordered.some((s, i) => s !== slots[i]);
+    if (changed) plans.set(rank, reordered);
+    return changed;
+}
+
+function barycenterOfSlot(
+    slot: RankSlot,
+    indexOfPerson: ReadonlyMap<PersonId, number>,
+    tree: Tree,
+    useParents: boolean,
+    fallback: number,
+): number {
+    const persons = slotPersons(slot);
+    if (persons.length === 0) return fallback;
+    let sum = 0;
+    let n = 0;
+    for (const id of persons) {
+        for (const nid of useParents ? parentsOfPerson(tree, id) : childrenOfPerson(tree, id)) {
+            const idx = indexOfPerson.get(nid);
+            if (idx === undefined) continue;
+            sum += idx;
+            n += 1;
+        }
+    }
+    return n === 0 ? fallback : sum / n;
+}
+
+function slotPersons(slot: RankSlot): readonly PersonId[] {
+    switch (slot.kind) {
+        case "single":
+            return [slot.personId];
+        case "couple":
+            return [slot.leftId, slot.rightId];
+        case "multi-union":
+            return slot.partnerIds;
+        case "badge":
+            return [];
+    }
+}
+
+function parentsOfPerson(tree: Tree, personId: PersonId): readonly PersonId[] {
+    const p = tree.people[personId];
+    if (!p) return [];
+    return getParents(p).map((r) => r.personId);
+}
+
+function childrenOfPerson(tree: Tree, personId: PersonId): PersonId[] {
+    const out: PersonId[] = [];
+    for (const couple of tree.couples) {
+        if (couple.leftId === personId || couple.rightId === personId) {
+            for (const c of couple.childIds) out.push(c);
+        }
+    }
+    for (const u of getUnions(tree)) {
+        if (u.partnerIds.length <= 2) continue;
+        if (u.partnerIds.includes(personId)) {
+            for (const c of u.childIds) out.push(c);
+        }
+    }
+    return out;
+}
+
+/**
+ * Wave-2 phase 2: count strict-proper edge-crossings in a layout. Used
+ * by the monotone gate in `computeLayout` so the crossing-min pass
+ * never raises the user-visible crossing count.
+ *
+ * "Strict proper" = neither endpoint touches the other segment;
+ * endpoint-touching does not count. Edges that share any person in
+ * their `persons` lists are excluded (those are intentional shared
+ * geometry — couple connector + parent stem + sibling bus + per-kid
+ * stubs all share the partner pair; counting them against each other
+ * would just measure the bus topology, not crossings).
+ *
+ * Exported because the `crossings-baseline` measurement test counts on
+ * the same definition driving the gate. Keeping a single source of
+ * truth prevents the two from drifting.
+ */
+export function countLayoutCrossings(layout: FamilyViewLayout): number {
+    const edges = layout.edges;
+    let count = 0;
+    for (let i = 0; i < edges.length; i += 1) {
+        for (let j = i + 1; j < edges.length; j += 1) {
+            if (sharePerson(edges[i]!, edges[j]!)) continue;
+            if (edgePairCrosses(edges[i]!, edges[j]!)) count += 1;
+        }
+    }
+    return count;
+}
+
+function sharePerson(a: FamilyViewEdge, b: FamilyViewEdge): boolean {
+    const seen = new Set<PersonId>(a.persons);
+    for (const p of b.persons) if (seen.has(p)) return true;
+    return false;
+}
+
+function edgePairCrosses(a: FamilyViewEdge, b: FamilyViewEdge): boolean {
+    for (let i = 0; i < a.points.length - 1; i += 1) {
+        const a0 = a.points[i]!;
+        const a1 = a.points[i + 1]!;
+        for (let j = 0; j < b.points.length - 1; j += 1) {
+            const b0 = b.points[j]!;
+            const b1 = b.points[j + 1]!;
+            if (segmentsCross(a0.x, a0.y, a1.x, a1.y, b0.x, b0.y, b1.x, b1.y)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+function segmentsCross(
+    ax: number,
+    ay: number,
+    bx: number,
+    by: number,
+    cx: number,
+    cy: number,
+    dx: number,
+    dy: number,
+): boolean {
+    const o1 = ori(ax, ay, bx, by, cx, cy);
+    const o2 = ori(ax, ay, bx, by, dx, dy);
+    const o3 = ori(cx, cy, dx, dy, ax, ay);
+    const o4 = ori(cx, cy, dx, dy, bx, by);
+    return o1 !== 0 && o2 !== 0 && o3 !== 0 && o4 !== 0 && o1 !== o2 && o3 !== o4;
+}
+
+function ori(ax: number, ay: number, bx: number, by: number, cx: number, cy: number): number {
+    const v = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
+    if (v > 1e-12) return 1;
+    if (v < -1e-12) return -1;
+    return 0;
 }
 
 function midX(node: FamilyViewNode): number {

@@ -296,6 +296,26 @@
     }
     let generationBadgeEnabled = $state(readGenerationBadgePref());
 
+    // Wave-2 phase 2: family-view crossing-minimisation. Default `true`;
+    // null reads as on for parity with `fte.overlays.pathHighlight`. The
+    // pass is monotone (see `computeLayout`'s gate) so flipping the flag
+    // off only matters for power-users who want to disable the extra
+    // candidate-layout pass entirely, e.g. while profiling. No UI toggle —
+    // the rollback path is to flip the read fallback below to `false`.
+    const CROSSING_MIN_LS_KEY = "fte.layout.familyViewCrossingMin";
+    function readCrossingMinPref(): boolean {
+        try {
+            const raw =
+                typeof localStorage === "undefined"
+                    ? null
+                    : localStorage.getItem(CROSSING_MIN_LS_KEY);
+            return raw !== "false";
+        } catch {
+            return true;
+        }
+    }
+    let crossingMinEnabled = $state(readCrossingMinPref());
+
     // relationship-vocabulary phase 4: per-overlay-kind toggles. each
     // localStorage key defaults on (`null` → on); anything but `"false"`
     // reads as on. mirrors PATH_HIGHLIGHT_LS_KEY's defensive shape.
@@ -1515,6 +1535,7 @@
                     showOverlaySeverances={severancesEnabled}
                     showGroupFrames={groupFramesEnabled}
                     showConsanguinity={consanguinityEnabled}
+                    crossingMin={crossingMinEnabled}
                     {portraitUrls}
                     onselect={(id: string) => selection.select(id)}
                     ondeselect={() => selection.select(undefined)}
