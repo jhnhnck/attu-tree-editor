@@ -20,6 +20,22 @@ schema + reader + inspector layers that two wave-2 phases sit on top of.
   N>2-partner polycule renderer; phase 4 dependency text relaxed to
   reflect what RV phase 3b actually shipped vs deferred; DoD probes
   added per phase. pre-mortem report retained at end of file.
+- rev 2 (23 May 2026) — folded in resolutions from the parallel
+  wise-skipping-meerkat ("family-view visual fix-up") plan, which
+  shipped 22 May 2026. closed phase-0 items (visual-akarians snapshot
+  dir is tracked + actively maintained across the visual-fix-up plan's
+  6 phases; latency test has been stable across 4 phases since the
+  wave-1 ship-gate). cross-referenced the mobile inspector-overlay
+  flakiness item with the precise signature recorded in the visual-
+  fix-up plan's bug-log entry B4 (empty-state overlay intercepts the
+  `Use layered engine` menuitem click during engine swap on Pixel 7).
+  documented the new layout invariants the visual-fix-up plan added
+  (cumulative rank-y, `RowGeometry` abstraction, explicit
+  bus/stem/stub topology, busY clamp on multi-union `dropFromY`,
+  `CARD_VISIBLE_INSET_U` selection-ring cross-link) so phase 2
+  crossing-min and phase 4 secondary-union expansion both start from
+  the post-fix-up surface. added 4 new bug-log entries (B5/B6/B11/B12
+  carried over from the visual-fix-up plan's residual debt).
 
 ---
 
@@ -64,6 +80,109 @@ wave-1's plan, bug log, retros, and ship-gate cut-line all live in
 [`family-view.md`](family-view.md). the ship-gate verdict was `no-ship
 until RV-phase-3b WIP resolved` — that blocker belongs to the RV plan,
 not this one.
+
+---
+
+## what the visual fix-up plan delivered (parallel thread, shipped 22 May 2026)
+
+between wave-1's ship-gate and wave-2 starting, a separate plan
+[`wise-skipping-meerkat`](../../../home/jhn/.claude/plans/wise-skipping-meerkat.md)
++ tracker at [`notes/plans/family-view-visual-fixup.md`](family-view-visual-fixup.md)
+drove a 6-phase visual / rendering fix-up on the family-view engine.
+that plan shipped at trunk `5e37307` with a clean ship-readiness
+verdict. wave-2 inherits its surface; the items below are the
+deltas to keep in mind when phase 2 (crossing-min) and phase 4
+(secondary-union expansion) start.
+
+**resolved (10 issues closed):**
+
+- **#1** two-line names no longer clipped at card bottom (phase 1).
+- **#2** when `dateRange` is null, the name + avatar block centers
+  vertically; the empty-band-at-top failure mode is gone. uses a new
+  `data-has-date` attribute on the PersonNode button (phase 5).
+- **#3** card height varies with content via a deterministic
+  `cardHeight(person)` heuristic. portrait card is `CARD_H * 2 = 2.4u`,
+  which exceeds `ROW_H = 2`, so the layout adopted a **cumulative
+  rank-y** pass that walks ranks in sorted order accumulating
+  `max(CARD_H, maxHByRank[r]) + RANK_GUTTER` where
+  `RANK_GUTTER = ROW_H - CARD_H = 0.8`. default-height rows preserve
+  `rank * ROW_H` spacing; portrait rows push every subsequent rank
+  down by the height delta. `bbox.height` switched to the cumulative
+  formula too (phase 1 + 3).
+- **#4** couple-bus terminates flush at the card's visible edge via a
+  new `CARD_VISIBLE_INSET_U = 3 / 80` constant that matches the 3 px
+  `box-shadow: inset 0 0 0 3px` selection-ring inset in PersonNode.
+  cross-cutting: any later edit to the selection-ring inset must
+  move `CARD_VISIBLE_INSET_U` in the same commit (phase 2 + 5).
+- **#5** sibling bus is now an **explicit horizontal segment** —
+  one `stem:union:…` (parent stem), one `bus:union:…` (the bus),
+  N `stub:union:…|kid` (per-child verticals). replaces the old
+  N L-drops whose horizontal segments visually overlapped into an
+  emergent bus. bus extent =
+  `[min(anchorCenterX, kidsMinX), max(anchorCenterX, kidsMaxX)]`
+  so the parent stem always lands on the bus. busY clamped to
+  `max(midpoint, parentRowBottom + 0.05)` — SVG edges render behind
+  cards, so a bus inside the parent card was invisible (phase 2 + 3).
+- **#6** SVG path coordinates round to integer pixels via `Math.round`
+  after the UNIT scale. `edgePath` extracted to a worker-safe pure
+  module at `engines/family-view/edgePath.ts` (phase 2).
+- **#7** selection ring corner radius matches the card's outer
+  radius. fixed by bumping the card border-radius from `0.375rem`
+  (6 px) to `0.5rem` (8 px); with border-width 2 px the padding-box
+  inner radius becomes 6 px, giving the inset-3 px shadow's outer
+  corner enough arc to render flush against the border's inner
+  corner. `box-shadow: inset 0 0 0 3px` preserved (phase 5).
+- **#9** generation-badge toggle in the View menu and command palette.
+  default OFF (was implicitly on in wave-1). persisted via
+  `fte.overlays.generationBadge` localStorage key; round-trips
+  through reload AND through tab close/reopen (verified by e2e in
+  `family-view-continuity.spec.ts`'s new sibling describe block).
+  the badge entry is `view.overlay.generationBadge` in commands.ts
+  (phase 0 + 4).
+- **#11** silhouette placeholder removed entirely. no-portrait
+  cards render only name + date. when `portraitBlobId` is set but
+  the URL hasn't resolved, the slot still renders (no `<img>`) with
+  an `.is-portrait-pending` neutral background, so the tall portrait
+  card never shows an empty top band during blob load (phase 1 + 3).
+- **#12** debug-pill Bug icon contrast: `text-fg-muted` → `text-fg`
+  so the lucide glyph reads at parity with the "N people" pill text
+  (phase 5).
+
+**new layout invariants wave-2 phase 2 needs to know:**
+
+- the family-view layout pipeline is **not** the shared `passes/`
+  pipeline — it's its own module at `apps/web/src/lib/layout/engines/family-view/layout.ts`.
+  the natural seam for an ordering pass is the `planRank` →
+  `placeAt` flow inside `computeLayout` (this was already in rev 1's
+  phase 2 correction; visual fix-up didn't move the seam, but it
+  did add new contracts at it).
+- ranks have variable y-spacing now via the **cumulative rank-y**
+  pass — a crossing-min reorder within a rank doesn't change y
+  (max card height in the rank stays the same), but reorders across
+  rank boundaries must respect the per-rank max-height accumulator.
+- `emitAnchorsAndEdges` reads from a `RowGeometry` lookup (`topY`,
+  `bottomY` per rank) rather than per-node y, so reorders that
+  change which sibling is leftmost are fine — kid-rank top derives
+  from `rowGeometry.topY(kid.rank)`, not from the leftmost kid's
+  current y.
+- the **explicit bus/stem/stub** topology means crossing-min should
+  count crossings against `bus:union:…` and `stub:union:…|kid`
+  edge ids, not the legacy `drop:union:…` shape. earlier wave-2 rev
+  text referenced `drop:` ids; those don't exist in this code path
+  anymore.
+
+**new layout invariants wave-2 phase 4 (secondary-union expansion)
+needs to know:**
+
+- the visual fix-up plan added a busY clamp for the N>2 multi-union
+  manifold drops too: `dropFromY = max(midpoint, parentRowBottom + 0.05)`.
+  the secondary-union union-fan geometry inherits this clamp;
+  partners drawn in an expanded second union still land in the
+  gutter, not behind the parent card.
+- `CARD_VISIBLE_INSET_U = 3 / 80` matches the 3 px selection-ring
+  inset. if phase 4 changes the union-anchor visual edge (e.g. a
+  thicker frame for "this is the primary union"), the inset
+  constant must move too.
 
 ---
 
@@ -187,19 +306,17 @@ together gate CI signal and reviewer confidence.
   two snapshot files together** in one commit, since stale snapshots
   with no regen path are worse than no snapshots at all. record the
   choice + reasoning in the phase 0 commit message.
-- **`visual-akarians.spec.ts-snapshots/` untracked dir.** the only
-  file in the dir today is `akarians-layered-chromium-linux.png` —
-  the *layered* engine's render, not family-view. and the layered
-  metrics in `notes/profiles/` shifted in the same working tree
-  (ghosts 167 → 129, crossings 2852 → 1934), meaning the layered
-  output *changed* recently without an explained source. **rev 1
-  pre-commit gate:** before committing the snapshot, run
-  `git log --diff-filter=M apps/web/src/lib/layout/` to identify the
-  layered change that moved the metrics; document it in the phase 0
-  commit message; confirm the snapshot diffs cleanly against CI
-  output on first run (rollback the commit if it doesn't and
-  re-baseline from CI, not the dev machine). only then do we get
-  the original goal: CI doesn't re-baseline on first run.
+- **~~`visual-akarians.spec.ts-snapshots/` untracked dir~~** (rev 2:
+  resolved by the visual fix-up plan's phase 0 in `cf15ea7`; the dir
+  is tracked and re-baselined across the fix-up plan's 6 phases. the
+  rev-1 pre-commit gate is moot now — the snapshot commit landed and
+  was retroactively absorbed into 6 phases of family-view changes.
+  **what's still worth doing in phase 0:** run
+  `git log --diff-filter=M apps/web/src/lib/layout/ -- "*.ts"` and
+  identify the layered change that moved the ghosts 167 → 129 /
+  crossings 2852 → 1934 metric. it's no longer rollback-gate
+  material, but documenting the source-of-change in the phase 0
+  commit message is still cheap signal hygiene.)
 
 ### definition of done
 
@@ -229,10 +346,12 @@ prevent silent slippage past ~1 day):
 - [ ] **spike-test resolution** — choice (a) keep+fix or (b) delete-
   generator-plus-snapshots applied; phase 0 commit message records
   the choice.
-- [ ] **akarians snapshot** — `visual-akarians.spec.ts-snapshots/`
+- [x] ~~**akarians snapshot** — `visual-akarians.spec.ts-snapshots/`
   committed only after the source-of-change for layered metrics is
   documented and the snapshot passes CI on first run; rollback gate
-  honoured if CI disagrees.
+  honoured if CI disagrees.~~ (rev 2: closed via the visual fix-up
+  plan's phase 0 in `cf15ea7`. the source-of-change documentation
+  trip is still worth taking — see phase 0 work item.)
 
 post-sweep integration check (rev 1 added): manually open family-view
 on the akarians fixture, scroll through the bounded window, expand-
@@ -335,7 +454,19 @@ interesting open item. risk: every visual golden could shift.
   the pass design starts, read `engines/family-view/layout.ts` end-
   to-end and identify the actual hook point between rank-planning
   and placement; the `planRank` → `placeAt` flow inside `computeLayout`
-  is the natural seam.
+  is the natural seam. **(rev 2) new contracts to respect at that
+  seam** — the visual fix-up plan added: (a) a cumulative rank-y
+  pass that walks ranks in sorted order accumulating
+  `max(CARD_H, maxHByRank[r]) + RANK_GUTTER`; reorders within a
+  rank don't change y, but reorders that pull a portrait card into
+  a new rank shift the whole accumulator below it; (b) an
+  `emitAnchorsAndEdges(rowGeometry)` consumer that reads `topY` /
+  `bottomY` per rank rather than per-node y, so reorders don't
+  invalidate edge anchoring; (c) edge ids are `stem:union:…` /
+  `bus:union:…` / `stub:union:…|kid` not the legacy `drop:union:…`
+  shape — any test that counts crossings or asserts about edges
+  must use the new ids. see "## what the visual fix-up plan
+  delivered" earlier in this file.
 - the pass is opt-in via a `fte.layout.familyViewCrossingMin` flag,
   on by default. (rev 1: renamed from `fte.layout.crossingMin` to
   make scope explicit; the layered + hyperbolic engines are not
@@ -545,10 +676,11 @@ current phase's scope. `bug-triage` walks it between phases.
 
 ### open (carried in from wave-1 ship-gate)
 
-- visual-akarians baseline snapshot dir untracked → **phase 0**
-  (rev 1: pre-commit gate added — see phase 0)
 - family-view layout has no crossing-minimisation → **phase 2 (or
-  defer)** (rev 1: was phase 3, swapped to phase 2)
+  defer)** (rev 1: was phase 3, swapped to phase 2; rev 2: hook
+  point and edge-id contracts updated to match the post-visual-
+  fix-up layout pipeline — see "new layout invariants wave-2 phase 2
+  needs to know" above)
 - no smooth-diff animation → **phase 3 (spike-gated)** (rev 1: was
   phase 2, swapped to phase 3)
 - vite-preview e2e workflow requires `pnpm build` before each run →
@@ -570,9 +702,59 @@ current phase's scope. `bug-triage` walks it between phases.
   has a design-note gate — may split to phase 0b)
 - shared visual-golden mask helper for akarians goldens → **phase 1**
 - mobile inspector-overlay e2e flakiness (3 tests on Pixel 7) →
-  **phase 0**
+  **phase 0** (rev 2: precise signature recorded by the visual fix-
+  up plan's B4 — 2 of the 3 tests fail because the empty-state
+  placeholder overlay intercepts the `Use layered engine` menuitem
+  click during engine swap. desktop chromium is clean. confirmed
+  pre-existing across all 6 phases of the visual fix-up plan, so
+  not a regression in either plan. the third test (which the wave-1
+  ship-gate noted) may be unrelated; verify at phase 0 start.)
 - `family-view-latency.test.ts` flaky at 50 ms budget under CPU
-  contention → **phase 0**
+  contention → **phase 0** (rev 2: re-tested across 4 phases of the
+  visual fix-up plan with measured times 11.13 / 15.65 / 16.51 ms
+  for 3-expand and 10-expand on idle. no flake observed since the
+  wave-1 ship-gate. **the loosen-to-75ms-plus-retry-once item may
+  no longer be needed** — start phase 0 by re-running the test 10×
+  on a contended CPU; if it stays under 50 ms, close this item
+  without code change. if it flakes, the rev-1 plan still applies.)
+
+### open (carried in from the visual fix-up plan's residual debt — 2026-05-22)
+
+these closed-with-defer items in the visual fix-up plan's bug log are
+relevant to wave-2 phases. routed here so the visual fix-up plan can
+stay closed and wave-2's phase-loop sees them at the next triage.
+
+- **B5** zoom-matrix verification for the #6 integer-pixel-rounding
+  fix never ran at 0.5× / 2.0× zoom (the rounded coords land on
+  half-pixel grid offsets at non-1 scales). `shape-rendering: crispEdges`
+  fallback is documented in `engines/family-view/edgePath.ts` but
+  not applied. → **phase 0** (folds naturally into the zoom-anchor
+  + stable-100% work; once zoom is fixed, re-run the matrix and
+  decide whether to apply the crispEdges fallback)
+- **B6** the explicit sibling bus emits `role: "blood"` uniformly
+  even when every kid of the couple is a half-sibling. per-kid stubs
+  carry the correct role; only the bus itself is uniform. visually
+  fine today (bus = shared-children-line; stubs = per-kid role) but
+  a relationship-vocabulary palette enrichment may want bus-level
+  roles. → **phase 4** (secondary-union expansion is the natural
+  home; if union-fan geometry exposes per-bus role distinctions,
+  fold this in then)
+- **B11** `orientCouple` swaps left/right by personId lex order; the
+  pattern has bitten family-view test assertions twice (visual fix-
+  up phases 2 and 3). visual fix-up's plan-revise deferred the
+  `tests/_helpers/family-view.ts` `pickLeftRight(layout, ids)`
+  proposal to "if a third phase trips on it" — wave-2 phase 2
+  (crossing-min) is the most likely third instance because the new
+  pass will need to assert "leftmost-at-rank-N is X". → **phase 0
+  or phase 2** (introduce the helper preemptively in phase 0's
+  test-hygiene cluster, or defer until phase 2 actually trips on
+  it; preference: preempt, the helper is ~10 lines)
+- **B12** `.is-portrait-pending` slot background transition is
+  unguarded — the slot snaps from neutral grey to the resolved
+  portrait the instant the blob URL resolves. sub-perception on
+  cached blobs (<100 ms typical). → **phase 0** (tiny CSS
+  `transition: background-image 80ms ease-out` if phase 0 touches
+  PersonNode's portrait-slot rules at all; otherwise defer)
 
 ### owned elsewhere (handed off, not duplicated here)
 
@@ -592,6 +774,22 @@ current phase's scope. `bug-triage` walks it between phases.
   + family-view N>2-partner renderer landed together. *closed via
   RV workstream; recorded here so wave-2 phase 4 sees the resolved
   blocker.*
+- **visual-akarians baseline snapshot dir untracked** (rev 2,
+  23 May 2026) → resolved during the visual fix-up plan's phase 0
+  (`cf15ea7`, 14 May 2026). the dir is tracked and the snapshot
+  has been actively re-baselined across phases 1–5 of that plan
+  as the family-view rendering evolved (portrait slot, cumulative
+  rank-y, explicit sibling bus, generation-badge default flip,
+  border-radius bump). the rev-1 "source-of-change for layered
+  metrics" pre-commit gate from phase 0 is **NOT** retroactively
+  satisfied — the layered metrics shifted (ghosts 167 → 129,
+  crossings 2852 → 1934) without an explained source — but the
+  shift is now embedded in 6 phases of subsequent visual-fix-up
+  commits, so the rollback path that gate protected no longer
+  exists. *the gate's investigation is still worth doing in phase
+  0 (just `git log --diff-filter=M apps/web/src/lib/layout/` and
+  document what moved the layered metrics), but the snapshot
+  commit itself is no longer pending.*
 
 ---
 
@@ -601,13 +799,27 @@ current phase's scope. `bug-triage` walks it between phases.
 
 note (14 May 2026): the active wave-2 thread is the visual fix-up
 plan at [`~/.claude/plans/wise-skipping-meerkat.md`](../../../home/jhn/.claude/plans/wise-skipping-meerkat.md)
-+ tracker at [`notes/features/family-view-visual-fixup.md`](../features/family-view-visual-fixup.md),
++ tracker at [`notes/plans/family-view-visual-fixup.md`](family-view-visual-fixup.md),
 which shipped its own phase 0 (`cf15ea7`) and phase 1 (`9f8a784`)
 on the same day this plan was rev-1'd. that plan's phase 2 is the
 next thing being driven; this plan's phase 0 (stability sweep) is
 on hold pending a decision on whether the two streams merge or
 stay separate. revisit this plan after the visual fix-up plan
 ships its remaining phases.
+
+note (23 May 2026, rev 2): the visual fix-up plan **shipped** on
+22 May 2026 at trunk `5e37307` with a clean ship-readiness verdict
+— all 10 in-scope issues (#1, #2, #3, #4, #5, #6, #7, #9, #11,
+#12) closed across 6 phases. wave-2 is now unblocked: the
+"two streams merge or stay separate" decision can be resolved in
+favour of **stay separate** (the visual fix-up was a tight,
+self-contained cosmetic / rendering pass; wave-2 is the layout-
+quality + scope-expansion successor). see the new
+"## what the visual fix-up plan delivered" section above for the
+deltas wave-2 phase 2 (crossing-min) and phase 4 (secondary-union
+expansion) need to consume. wave-2 phase 0 (stability sweep) is
+now next on deck; some of its items have been resolved or
+descoped by the visual fix-up plan (see bug-log updates).
 
 ---
 
