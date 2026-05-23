@@ -24,9 +24,13 @@
 
     let buttonEl: HTMLButtonElement | undefined = $state();
     let menuEl: HTMLDivElement | undefined = $state();
+    // -1 means "no item highlighted yet" — only an explicit ↑/↓/Home/End sets it
     let activeIdx = $state(-1);
-    // plain var, not reactive — read inside $effect when `open` changes
-    let openedVia: "keyboard" | "mouse" | undefined = undefined;
+    // openArrowDown is set by the trigger's ArrowDown key — when true, the very
+    // first item is auto-highlighted on open (matches the menubar convention).
+    // plain Enter/Space and mouse-click leave activeIdx at -1; the first arrow
+    // key inside the menu then sets it.
+    let openArrowDown = false;
 
     const enabledItems = $derived(
         items
@@ -36,10 +40,7 @@
 
     function toggle(): void {
         if (open) onclose();
-        else {
-            openedVia = "mouse";
-            onopen();
-        }
+        else onopen();
     }
 
     function selectItem(item: MenuItem): void {
@@ -48,19 +49,34 @@
         onclose();
     }
 
-    async function focusFirst(): Promise<void> {
-        await tick();
+    function focusItem(i: number): void {
+        menuEl?.querySelector<HTMLElement>(`[data-idx="${String(i)}"]`)?.focus();
+    }
+
+    function highlightFirst(): void {
         activeIdx = enabledItems[0]?.i ?? -1;
-        menuEl?.querySelector<HTMLElement>(`[data-idx="${String(activeIdx)}"]`)?.focus();
+        if (activeIdx >= 0) focusItem(activeIdx);
+    }
+
+    function highlightLast(): void {
+        activeIdx = enabledItems[enabledItems.length - 1]?.i ?? -1;
+        if (activeIdx >= 0) focusItem(activeIdx);
     }
 
     function moveBy(delta: number): void {
         if (enabledItems.length === 0) return;
+        // first arrow on an unhighlighted menu jumps to first (ArrowDown) /
+        // last (ArrowUp) — matches the WAI-ARIA menubar pattern
+        if (activeIdx < 0) {
+            if (delta > 0) highlightFirst();
+            else highlightLast();
+            return;
+        }
         const order = enabledItems.map((e) => e.i);
         const here = order.indexOf(activeIdx);
         const nextPos = here < 0 ? 0 : (here + delta + order.length) % order.length;
         activeIdx = order[nextPos]!;
-        menuEl?.querySelector<HTMLElement>(`[data-idx="${String(activeIdx)}"]`)?.focus();
+        focusItem(activeIdx);
     }
 
     function onMenuKey(e: KeyboardEvent): void {
@@ -82,12 +98,10 @@
             onnavigate?.("right");
         } else if (e.key === "Home") {
             e.preventDefault();
-            activeIdx = enabledItems[0]?.i ?? -1;
-            menuEl?.querySelector<HTMLElement>(`[data-idx="${String(activeIdx)}"]`)?.focus();
+            highlightFirst();
         } else if (e.key === "End") {
             e.preventDefault();
-            activeIdx = enabledItems[enabledItems.length - 1]?.i ?? -1;
-            menuEl?.querySelector<HTMLElement>(`[data-idx="${String(activeIdx)}"]`)?.focus();
+            highlightLast();
         }
     }
 
@@ -98,21 +112,38 @@
         } else if (e.key === "ArrowRight") {
             e.preventDefault();
             onnavigate?.("right");
-        } else if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ") {
+        } else if (e.key === "ArrowDown") {
+            // ArrowDown is the explicit "open and start at first item" gesture
             e.preventDefault();
             if (!open) {
-                openedVia = "keyboard";
+                openArrowDown = true;
                 onopen();
             }
+        } else if (e.key === "Enter" || e.key === " ") {
+            // Enter / Space open the menu but don't pre-highlight — match the
+            // mouse-open behaviour. The first ↑/↓ then sets the highlight.
+            e.preventDefault();
+            if (!open) onopen();
         }
     }
 
     $effect(() => {
         if (open) {
-            if (openedVia !== "mouse") void focusFirst();
+            // focus the menu container so keydown handlers receive the event;
+            // do NOT auto-focus the first item unless the user explicitly
+            // requested it by pressing ArrowDown on the trigger
+            void (async () => {
+                await tick();
+                if (openArrowDown) {
+                    highlightFirst();
+                    openArrowDown = false;
+                } else {
+                    menuEl?.focus();
+                }
+            })();
         } else {
             activeIdx = -1;
-            openedVia = undefined;
+            openArrowDown = false;
         }
     });
 </script>
@@ -127,10 +158,7 @@
         aria-expanded={open}
         onclick={toggle}
         onkeydown={onButtonKey}
-        onmouseenter={() => {
-            openedVia = "mouse";
-            onhover?.();
-        }}
+        onmouseenter={() => onhover?.()}
     >
         {label}
     </button>

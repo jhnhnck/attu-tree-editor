@@ -47,7 +47,9 @@
     let containerEl: HTMLDivElement | undefined = $state();
     let listEl: HTMLDivElement | undefined = $state();
     let query = $state("");
-    let activeIdx = $state(0);
+    // -1 means "no row highlighted yet" — the first ↑/↓ inside the palette
+    // sets it. Enter on an unhighlighted palette picks the first row anyway.
+    let activeIdx = $state(-1);
 
     /**
      * derive the "effective" mode + the user-visible filter portion of the input
@@ -147,9 +149,9 @@
     });
 
     $effect(() => {
-        // reset highlight whenever the row list shrinks/grows
+        // collapse out-of-range highlight when the row list shrinks
         void rows;
-        if (activeIdx >= rows.length) activeIdx = 0;
+        if (activeIdx >= rows.length) activeIdx = -1;
     });
 
     async function focusInput(): Promise<void> {
@@ -195,16 +197,32 @@
         } else if (e.key === "ArrowDown") {
             e.preventDefault();
             if (rows.length === 0) return;
-            activeIdx = (activeIdx + 1) % rows.length;
+            // first ↓ on an unhighlighted palette lands on row 0
+            activeIdx = activeIdx < 0 ? 0 : (activeIdx + 1) % rows.length;
             ensureVisible(activeIdx);
         } else if (e.key === "ArrowUp") {
             e.preventDefault();
             if (rows.length === 0) return;
-            activeIdx = (activeIdx - 1 + rows.length) % rows.length;
+            // first ↑ on an unhighlighted palette wraps to the last row
+            activeIdx =
+                activeIdx < 0 ? rows.length - 1 : (activeIdx - 1 + rows.length) % rows.length;
+            ensureVisible(activeIdx);
+        } else if (e.key === "Home") {
+            e.preventDefault();
+            if (rows.length === 0) return;
+            activeIdx = 0;
+            ensureVisible(activeIdx);
+        } else if (e.key === "End") {
+            e.preventDefault();
+            if (rows.length === 0) return;
+            activeIdx = rows.length - 1;
             ensureVisible(activeIdx);
         } else if (e.key === "Enter") {
             e.preventDefault();
-            const row = rows[activeIdx];
+            // Enter on an unhighlighted palette picks the top hit (row 0) so
+            // typing "save<Enter>" still works without an explicit ↓ first
+            const idx = activeIdx < 0 ? 0 : activeIdx;
+            const row = rows[idx];
             if (row) pickRow(row);
         }
     }

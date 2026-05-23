@@ -29,6 +29,7 @@
         "src/**/*.svelte",
         "src/**/*.svelte.ts",
         "tests/**/*.ts",
+        "tests/**/*.svelte",
         "vite.config.ts",
         "vitest.config.ts",
         "vitest.spike.config.ts",

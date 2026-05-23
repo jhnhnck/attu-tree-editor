@@ -3,11 +3,20 @@
  * licensed under the MIT license; see LICENSE.md for full text
  */
 
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/svelte";
 import CommandPalette from "$lib/components/palette/CommandPalette.svelte";
 import type { Command } from "$lib/components/palette/commands";
 import type { Person, Tree } from "$lib/domain/types";
+
+beforeAll(() => {
+    // jsdom doesn't implement Element.scrollIntoView — the palette calls it
+    // after every arrow-key nav. stub it as a no-op so the keydown handler
+    // doesn't throw.
+    if (!Element.prototype.scrollIntoView) {
+        Element.prototype.scrollIntoView = vi.fn();
+    }
+});
 
 function person(over: Partial<Person> = {}): Person {
     return {
@@ -135,5 +144,37 @@ describe("CommandPalette", () => {
         const input = screen.getByLabelText<HTMLInputElement>("palette search");
         await fireEvent.keyDown(input, { key: "Escape" });
         expect(onclose).toHaveBeenCalled();
+    });
+
+    it("on open, no row carries the bg-canvas highlight class", () => {
+        // matches Menu's behaviour: the first row is only highlighted after the
+        // user explicitly presses ↑/↓ or hovers a row with the mouse
+        render(CommandPalette, {
+            tree: tinyTree(),
+            commands: cmds("Save"),
+            mode: "commands",
+            onpick: vi.fn(),
+            onclose: vi.fn(),
+        });
+        const row = screen.getByText("Save").closest("button");
+        // class:bg-canvas adds it as a standalone token; check against classList
+        expect(row?.classList.contains("bg-canvas")).toBe(false);
+    });
+
+    it("first ArrowDown highlights row 0; second ArrowDown moves to row 1", async () => {
+        render(CommandPalette, {
+            tree: tinyTree(),
+            commands: cmds("Save", "Open"),
+            mode: "commands",
+            onpick: vi.fn(),
+            onclose: vi.fn(),
+        });
+        const input = screen.getByLabelText<HTMLInputElement>("palette search");
+        await fireEvent.keyDown(input, { key: "ArrowDown" });
+        const rows = screen.getAllByRole("button").filter((el) => el.dataset["row"] !== undefined);
+        expect(rows[0]?.classList.contains("bg-canvas")).toBe(true);
+        await fireEvent.keyDown(input, { key: "ArrowDown" });
+        expect(rows[1]?.classList.contains("bg-canvas")).toBe(true);
+        expect(rows[0]?.classList.contains("bg-canvas")).toBe(false);
     });
 });
