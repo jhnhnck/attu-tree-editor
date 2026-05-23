@@ -280,6 +280,64 @@ describe("kinshipTerm — in-law / spouse", () => {
     });
 });
 
+describe("kinshipTerm — pronouns override SEX-derived code", () => {
+    it("she/her overrides legacy unknown -> sister", () => {
+        let t = createTree("x", blank("mom", "f"));
+        const me = addPerson(t, blank("me", "u"));
+        t = me.tree;
+        // sibling identity unknown but pronouns are she/her -> kinship reads "sister"
+        const sib = addPerson(t, {
+            ...blank("sib", "u"),
+            gender: { identity: "unknown", pronouns: "she/her" },
+        });
+        t = sib.tree;
+        const r1 = linkParent(t, me.id, ROOT_ID);
+        if (!r1.ok) throw new Error(r1.error);
+        const r2 = linkParent(r1.value, sib.id, ROOT_ID);
+        if (!r2.ok) throw new Error(r2.error);
+        t = r2.value;
+        const p = shortestPath(t, me.id, sib.id);
+        expect(kinshipTerm(t, p!)).toBe("sister");
+    });
+
+    it("they/them overrides legacy male -> sibling (neutral)", () => {
+        let t = createTree("x", blank("mom", "f"));
+        const me = addPerson(t, blank("me", "u"));
+        t = me.tree;
+        // legacy SEX would say "brother"; pronouns flip to neutral
+        const sib = addPerson(t, {
+            ...blank("sib", "m"),
+            gender: { identity: "male", pronouns: "they/them" },
+        });
+        t = sib.tree;
+        const r1 = linkParent(t, me.id, ROOT_ID);
+        if (!r1.ok) throw new Error(r1.error);
+        const r2 = linkParent(r1.value, sib.id, ROOT_ID);
+        if (!r2.ok) throw new Error(r2.error);
+        t = r2.value;
+        const p = shortestPath(t, me.id, sib.id);
+        expect(kinshipTerm(t, p!)).toBe("sibling");
+    });
+
+    it("he/him on a non-binary identity -> brother", () => {
+        let t = createTree("x", blank("mom", "f"));
+        const me = addPerson(t, blank("me", "u"));
+        t = me.tree;
+        const sib = addPerson(t, {
+            ...blank("sib", "u"),
+            gender: { identity: "agender", pronouns: "he/him" },
+        });
+        t = sib.tree;
+        const r1 = linkParent(t, me.id, ROOT_ID);
+        if (!r1.ok) throw new Error(r1.error);
+        const r2 = linkParent(r1.value, sib.id, ROOT_ID);
+        if (!r2.ok) throw new Error(r2.error);
+        t = r2.value;
+        const p = shortestPath(t, me.id, sib.id);
+        expect(kinshipTerm(t, p!)).toBe("brother");
+    });
+});
+
 describe("pathCaption", () => {
     it("renders a readable arrow chain", () => {
         let t = createTree("x", blank("root", "u"));

@@ -1,6 +1,7 @@
 <!--
     FamilyTreeEditor - right-side persistent inspector for the selected person.
-    tabs: Personal · Connections · Details · Bio. empty state shows a tree summary.
+    tabs: Personal · Connections · Bonds · Groups · Sibship · Details · Bio.
+    empty state shows a tree summary.
     licensed under the MIT license; see LICENSE.md for full text
 -->
 <script lang="ts">
@@ -12,35 +13,55 @@
         Crown,
         Crosshair,
         FileText,
+        Flag,
         Link2,
         MoreHorizontal,
+        Sparkles,
         Trash2,
         User,
         Users,
         X,
     } from "@lucide/svelte";
     import type {
+        Group,
         ParentPedi,
         ParentRef,
         ParentRole,
         Person,
         PersonId,
         Relationship,
+        SibshipDecorator,
         Tree,
     } from "$lib/domain/types";
-    import type { CouplePatch, PersonPatch, RelationshipPatch, UnionPatch } from "$lib/domain/tree";
+    import type {
+        CouplePatch,
+        GroupPatch,
+        PersonPatch,
+        RelationshipPatch,
+        SibshipPatch,
+        UnionPatch,
+    } from "$lib/domain/tree";
     import type { PortraitUrlCache } from "$lib/state/portraitUrls.svelte";
     import PersonalTab from "./PersonalTab.svelte";
     import ConnectionsTab from "./ConnectionsTab.svelte";
     import DetailsTab from "./DetailsTab.svelte";
+    import GroupsTab from "./GroupsTab.svelte";
     import RelationshipsTab from "./RelationshipsTab.svelte";
+    import SibshipTab from "./SibshipTab.svelte";
 
     type Slot =
         | { kind: "parent"; role: "mother" | "father" }
         | { kind: "parent-extra" }
         | { kind: "partner" }
         | { kind: "child" };
-    type Tab = "personal" | "connections" | "relationships" | "details" | "bio";
+    type Tab =
+        | "personal"
+        | "connections"
+        | "relationships"
+        | "groups"
+        | "sibship"
+        | "details"
+        | "bio";
 
     interface Props {
         tree: Tree;
@@ -87,6 +108,28 @@
         onremoveRelationship?: ((relId: string) => void) | undefined;
         /** patch a Relationship (kind / sourceIds / targetIds / cause / date / notes). */
         onpatchRelationship?: ((relId: string, patch: RelationshipPatch) => void) | undefined;
+        /** Phase 6a: add a Group to tree.groups[]. */
+        onaddGroup?: ((g: Omit<Group, "id"> & { id?: string }) => void) | undefined;
+        /** remove a Group by id. */
+        onremoveGroup?: ((groupId: string) => void) | undefined;
+        /** patch a Group's scalar fields. */
+        onpatchGroup?: ((groupId: string, patch: GroupPatch) => void) | undefined;
+        /** append a member to a Group. */
+        onaddGroupMember?: ((groupId: string, personId: PersonId) => void) | undefined;
+        /** remove a member from a Group. */
+        onremoveGroupMember?: ((groupId: string, personId: PersonId) => void) | undefined;
+        /** Phase 6b: add a SibshipDecorator to tree.sibshipDecorators[]. */
+        onaddSibshipDecorator?:
+            | ((d: Omit<SibshipDecorator, "id"> & { id?: string }) => void)
+            | undefined;
+        /** remove a SibshipDecorator by id. */
+        onremoveSibshipDecorator?: ((id: string) => void) | undefined;
+        /** patch a SibshipDecorator's scalar fields. */
+        onpatchSibshipDecorator?: ((id: string, patch: SibshipPatch) => void) | undefined;
+        /** append a member to a SibshipDecorator. */
+        onaddSibshipMember?: ((id: string, personId: PersonId) => void) | undefined;
+        /** remove a member from a SibshipDecorator. */
+        onremoveSibshipMember?: ((id: string, personId: PersonId) => void) | undefined;
         onduplicate: (id: PersonId) => void;
         onsetRoot: (id: PersonId) => void;
         ondelete: (id: PersonId) => void;
@@ -129,6 +172,16 @@
         onaddRelationship,
         onremoveRelationship,
         onpatchRelationship,
+        onaddGroup,
+        onremoveGroup,
+        onpatchGroup,
+        onaddGroupMember,
+        onremoveGroupMember,
+        onaddSibshipDecorator,
+        onremoveSibshipDecorator,
+        onpatchSibshipDecorator,
+        onaddSibshipMember,
+        onremoveSibshipMember,
         onduplicate,
         onsetRoot,
         ondelete,
@@ -230,6 +283,8 @@
         { id: "personal", label: "personal", icon: User },
         { id: "connections", label: "connections", icon: Users },
         { id: "relationships", label: "bonds", icon: Link2 },
+        { id: "groups", label: "groups", icon: Flag },
+        { id: "sibship", label: "sibship", icon: Sparkles },
         { id: "details", label: "details", icon: FileText },
         { id: "bio", label: "bio", icon: BookOpen },
     ];
@@ -407,6 +462,28 @@
                     {onaddRelationship}
                     {onremoveRelationship}
                     {onpatchRelationship}
+                    {onselect}
+                />
+            {:else if activeTab === "groups"}
+                <GroupsTab
+                    {tree}
+                    {person}
+                    {onaddGroup}
+                    {onremoveGroup}
+                    {onpatchGroup}
+                    {onaddGroupMember}
+                    {onremoveGroupMember}
+                    {onselect}
+                />
+            {:else if activeTab === "sibship"}
+                <SibshipTab
+                    {tree}
+                    {person}
+                    {onaddSibshipDecorator}
+                    {onremoveSibshipDecorator}
+                    {onpatchSibshipDecorator}
+                    {onaddSibshipMember}
+                    {onremoveSibshipMember}
                     {onselect}
                 />
             {:else if activeTab === "details"}

@@ -149,6 +149,17 @@
     const MIN_SCALE = 0.2;
     const MAX_SCALE = 2.0;
 
+    /**
+     * Compute a font-size that compensates for the canvas scale so SVG
+     * text reads at a stable on-screen size across the zoom range.
+     * Clamped to [8, 28] so labels stay legible at the scale extremes
+     * without inflating into oversized blobs at minimum zoom.
+     */
+    function scaledFontSize(base: number, s: number): number {
+        const v = base / s;
+        return Math.max(8, Math.min(28, v));
+    }
+
     const engine = new FamilyViewEngine();
 
     let hostEl: HTMLDivElement | undefined = $state();
@@ -731,7 +742,7 @@
                                 y={(group.rect.y + group.rect.h / 2) * UNIT}
                                 text-anchor="middle"
                                 dominant-baseline="central"
-                                font-size="12">{group.name}</text
+                                font-size={scaledFontSize(12, scale)}>{group.name}</text
                             >
                         {/if}
                     {/if}
@@ -817,7 +828,7 @@
                                     y={mid.y * UNIT}
                                     text-anchor="middle"
                                     dominant-baseline="central"
-                                    font-size="14">{glyph}</text
+                                    font-size={scaledFontSize(14, scale)}>{glyph}</text
                                 >
                             {/if}
                         {/if}
@@ -828,7 +839,7 @@
                                 y={overlay.severanceMark.y * UNIT}
                                 text-anchor="middle"
                                 dominant-baseline="central"
-                                font-size="14">//</text
+                                font-size={scaledFontSize(14, scale)}>//</text
                             >
                         {/if}
                     {/if}

@@ -11,9 +11,45 @@
  * licensed under the MIT license; see LICENSE.md for full text
  */
 
-import type { PersonId, Tree } from "$lib/domain/types";
-import { legacyGenderCode } from "$lib/domain/personIdentity";
+import type { Person, PersonId, Tree } from "$lib/domain/types";
+import { getPronouns, legacyGenderCode } from "$lib/domain/personIdentity";
 import type { Path } from "$lib/layout/graph";
+
+/**
+ * Map a person to a kinship-term gender code, preferring their pronouns
+ * over the legacy SEX-derived code. Lets non-canonical identities pick
+ * the gendered term that fits their pronouns ("she/her" → "sister" /
+ * "mother" / "daughter" regardless of the identity string), and lets
+ * they/them and neopronoun users collapse to the neutral term ("sibling"
+ * / "parent" / "child") even when the underlying identity is a binary
+ * legacy literal.
+ *
+ * Resolution order:
+ *   1. pronouns (he/him → "m", she/her → "f", they/them or other → "u")
+ *   2. legacy SEX-derived code (the historical default)
+ */
+function kinshipGender(person: Person): "m" | "f" | "u" {
+    const pronouns = getPronouns(person);
+    if (pronouns !== undefined) {
+        const code = codeFromPronouns(pronouns);
+        if (code !== undefined) return code;
+    }
+    return legacyGenderCode(person);
+}
+
+function codeFromPronouns(pronouns: string): "m" | "f" | "u" | undefined {
+    const first = pronouns
+        .toLowerCase()
+        .split(/[\s,/]+/, 1)[0]
+        ?.trim();
+    if (!first) return undefined;
+    if (first === "he") return "m";
+    if (first === "she") return "f";
+    // they/them and any other pronoun set (xe, ze, it, ey, …) reads
+    // as the neutral term; the inspector picker exposes the canonical
+    // values but free-form text round-trips through here too.
+    return "u";
+}
 
 /**
  * Returns a short label for the kinship described by `path`. `path.ids[0]`
@@ -34,7 +70,7 @@ export function kinshipTerm(tree: Tree, path: Path): string {
 
     const last = path.ids[path.ids.length - 1];
     const lastPerson = last !== undefined ? tree.people[last] : undefined;
-    const targetGender = lastPerson ? legacyGenderCode(lastPerson) : "u";
+    const targetGender = lastPerson ? kinshipGender(lastPerson) : "u";
 
     // count spouse hops; locate them by index so we can detect "single hop at end"
     const spouseIdx: number[] = [];

@@ -14,6 +14,7 @@ import {
     getPronouns,
     legacyGenderCode,
 } from "$lib/domain/personIdentity";
+import { TREES_EXTENSION_TAGS, TREES_SCHEMA_NAMESPACE } from "$lib/io/gedcom/extensions";
 import type { GedHead } from "$lib/io/gedcom/parse";
 
 export interface GedSerializeOptions {
@@ -654,7 +655,7 @@ function appendChildren(lines: string[], nodes: readonly TreeNode[], level: numb
 }
 
 function defaultHead(treeName: string): string[] {
-    return [
+    const head: string[] = [
         "0 HEAD",
         "1 SOUR FamilyTreeEditor",
         "2 WWW https://github.com/attu-project/FamilyTreeEditor",
@@ -663,5 +664,15 @@ function defaultHead(treeName: string): string[] {
         "2 VERS 5.5.1",
         "2 FORM LINEAGE-LINKED",
         "1 CHAR UTF-8",
+        // schema-namespace registration for the `_TREES_*` extensions emitted
+        // below. tools that don't understand SCHMA skip it; FamilyTree Editor
+        // uses it to confirm the source of truth for tag semantics. listed in
+        // insertion order from `extensions.ts` so adding a new extension is a
+        // one-line change there and the new tag flows through here.
+        "1 SCHMA",
     ];
+    for (const [tag, fragment] of TREES_EXTENSION_TAGS) {
+        head.push(`2 TAG ${tag} ${TREES_SCHEMA_NAMESPACE}${fragment}`);
+    }
+    return head;
 }

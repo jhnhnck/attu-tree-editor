@@ -8,6 +8,8 @@
     import { Plus, Trash2, X, ArrowRight } from "@lucide/svelte";
     import type { Person, PersonId, Relationship, RelationshipKind, Tree } from "$lib/domain/types";
     import type { RelationshipPatch } from "$lib/domain/tree";
+    import type { HaracalndeDateData } from "$lib/date/HaracalndeDate";
+    import DateInput from "$lib/components/form/DateInput.svelte";
     import PersonChooser from "./PersonChooser.svelte";
 
     interface Props {
@@ -247,7 +249,7 @@
                         >
                     </div>
 
-                    <!-- cause / notes -->
+                    <!-- cause / date / notes -->
                     <div class="mt-2 flex flex-col gap-1.5">
                         <label class="flex items-center gap-1.5">
                             <span class="text-fg-muted w-14 text-[10px] uppercase tracking-wide"
@@ -264,6 +266,19 @@
                                         e as Event & { currentTarget: HTMLInputElement },
                                     )}
                             />
+                        </label>
+                        <label class="flex items-center gap-1.5">
+                            <span class="text-fg-muted w-14 text-[10px] uppercase tracking-wide"
+                                >date</span
+                            >
+                            <div class="min-w-0 flex-1">
+                                <DateInput
+                                    value={rel.date}
+                                    placeholder="optional"
+                                    onchange={(v: HaracalndeDateData | undefined) =>
+                                        onpatchRelationship?.(rel.id, { date: v })}
+                                />
+                            </div>
                         </label>
                         <label class="flex items-start gap-1.5">
                             <span

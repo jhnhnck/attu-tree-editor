@@ -72,6 +72,18 @@ describe("serializeGedcom - synthetic", () => {
         expect(out).toContain("1 CHIL @I3@");
     });
 
+    it("registers _TREES_* extensions via HEAD.SCHMA in the default header", () => {
+        const out = serializeGedcom(tinyTree());
+        expect(out).toContain("1 SCHMA");
+        // every short-form extension tag from extensions.ts gets a 2 TAG line
+        // pointing at the canonical URI. spot-check a couple from across phases.
+        expect(out).toContain("2 TAG _TREES_UNION https://attuproject.org/trees/schema/v1#union");
+        expect(out).toContain("2 TAG _TREES_GROUP https://attuproject.org/trees/schema/v1#group");
+        expect(out).toContain(
+            "2 TAG _TREES_SIBSHIP https://attuproject.org/trees/schema/v1#sibship",
+        );
+    });
+
     it("emits BIRT/DEAT with DATE child", () => {
         const out = serializeGedcom(tinyTree());
         expect(out).toContain("1 BIRT\r\n2 DATE 15 JUN 0005");

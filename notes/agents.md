@@ -211,6 +211,35 @@ invariants:
 
 when adding a schema-breaking domain change: bump `CURRENT_SCHEMA_VERSION`, push the corresponding `Migration` into `migrations[]`, write a unit test in `tests/unit/domain/schema.test.ts` that round-trips a v(N-1) sample through the migration, and only then change `domain/types.ts`.
 
+### 8.4 GEDCOM `_TREES_*` extension namespace + HEAD.SCHMA
+
+the relationship-vocabulary phases (3 through 6b) introduced a family of leading-underscore GEDCOM tags so the serializer can round-trip data the standard 5.5.1 schema can't express:
+
+- **`_TREES_PARENT_REF`** (phase 2): one-line-per-parent with role + pedi, paired with FAMC/PEDI fallback for legacy tools.
+- **`_TREES_UNION`** (phase 3): top-level N-partner union records carrying kind + closed flag.
+- **`_TREES_REL`** (phase 4): top-level relationship records for the overlay layer (sworn bonds, transformations, severances, alias-of, etc.).
+- **`_TREES_GENDER_IDENTITY` / `_TREES_PRONOUNS` / `_TREES_ASSIGNED_SEX` / `_TREES_GENDER_FLUID`** (phase 5): identity struct fields without coercing to binary SEX.
+- **`_TREES_SPECIES` / `_TREES_PERSON_KIND` / `_TREES_ORIGIN_*`** (phase 5): species / kind / origin extensions.
+- **`_TREES_GROUP`** (phase 6a): top-level group records (dynasty, house, clan, household, faction, order, covenant).
+- **`_TREES_SIBSHIP` / `_TREES_BIRTH_ORDER`** (phase 6b): sibship decorators + birth-order metadata.
+
+source of truth: [`apps/web/src/lib/io/gedcom/extensions.ts`](../apps/web/src/lib/io/gedcom/extensions.ts) (`TREES_EXTENSION_TAGS`). adding a new extension is a one-line change there, plus the actual emit / parse code.
+
+the serializer registers the namespace via `HEAD.SCHMA` so the file declares its own dialect:
+
+```
+1 SCHMA
+2 TAG _TREES_UNION https://attuproject.org/trees/schema/v1#union
+2 TAG _TREES_GROUP https://attuproject.org/trees/schema/v1#group
+...
+```
+
+tools that don't understand SCHMA skip it; FamilyTree Editor's own permissive parser ignores SCHMA on read and re-emits a fresh block on write. the URI is stable across schema bumps — the schema version applies to the *tree data* (`manifest.json`), not the tag vocabulary.
+
+### 8.5 Pronouns drive kinship terms before SEX
+
+`apps/web/src/lib/layout/kinship.ts:kinshipGender(person)` consults `getPronouns(person)` first and falls back to `legacyGenderCode(person)`. so a person with `gender = { identity: "agender", pronouns: "he/him" }` reads as "brother / father / son" in path captions, and a person with `gender = "m"` whose pronouns are `they/them` reads as the neutral "sibling / parent / child". the same is not true of the GEDCOM SEX line (which has to be one of `M / F / U / X` because that's what the standard says); the SEX-derived legacy code is the *fallback* for kinship rendering, not the source of truth.
+
 ---
 
 ## 9. Patterns & Pitfalls

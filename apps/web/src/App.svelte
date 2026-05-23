@@ -45,29 +45,41 @@
     } from "@lucide/svelte";
 
     import {
+        addGroup,
+        addGroupMember,
         addPerson,
         addRelationship,
+        addSibshipDecorator,
+        addSibshipMember,
         addUnionPartner,
         createTree,
         getParents,
         linkParent,
         linkParentRef,
         linkSpouse,
+        removeGroup,
+        removeGroupMember,
         removePerson,
         removeRelationship,
+        removeSibshipDecorator,
+        removeSibshipMember,
         removeUnionPartner,
         setPreferredUnion,
         unlinkParent,
         unlinkParentByPersonId,
         unlinkSpouse,
         updateCouple,
+        updateGroup,
         updateParentRef,
         updatePerson,
         updateRelationship,
+        updateSibshipDecorator,
         updateUnion,
         type CouplePatch,
+        type GroupPatch,
         type PersonPatch,
         type RelationshipPatch,
+        type SibshipPatch,
         type UnionPatch,
     } from "$lib/domain/tree";
     import { migratePreferredUnion } from "$lib/state/preferredUnionMigration";
@@ -700,6 +712,50 @@
 
     function patchRelationship(relId: string, patch: RelationshipPatch): void {
         treeStore.update((t) => updateRelationship(t, relId, patch));
+    }
+
+    function addGroupLink(
+        g: Omit<import("$lib/domain/types").Group, "id"> & { id?: string },
+    ): void {
+        treeStore.update((t) => addGroup(t, g).tree);
+    }
+
+    function removeGroupLink(groupId: string): void {
+        treeStore.update((t) => removeGroup(t, groupId));
+    }
+
+    function patchGroup(groupId: string, patch: GroupPatch): void {
+        treeStore.update((t) => updateGroup(t, groupId, patch));
+    }
+
+    function addGroupMemberLink(groupId: string, personId: PersonId): void {
+        treeStore.update((t) => addGroupMember(t, groupId, personId));
+    }
+
+    function removeGroupMemberLink(groupId: string, personId: PersonId): void {
+        treeStore.update((t) => removeGroupMember(t, groupId, personId));
+    }
+
+    function addSibshipDecoratorLink(
+        d: Omit<import("$lib/domain/types").SibshipDecorator, "id"> & { id?: string },
+    ): void {
+        treeStore.update((t) => addSibshipDecorator(t, d).tree);
+    }
+
+    function removeSibshipDecoratorLink(id: string): void {
+        treeStore.update((t) => removeSibshipDecorator(t, id));
+    }
+
+    function patchSibshipDecorator(id: string, patch: SibshipPatch): void {
+        treeStore.update((t) => updateSibshipDecorator(t, id, patch));
+    }
+
+    function addSibshipMemberLink(id: string, personId: PersonId): void {
+        treeStore.update((t) => addSibshipMember(t, id, personId));
+    }
+
+    function removeSibshipMemberLink(id: string, personId: PersonId): void {
+        treeStore.update((t) => removeSibshipMember(t, id, personId));
     }
 
     function createAndLinkUnionPartner(unionId: string): void {
@@ -1789,6 +1845,16 @@
                 onaddRelationship={addRelationshipLink}
                 onremoveRelationship={removeRelationshipLink}
                 onpatchRelationship={patchRelationship}
+                onaddGroup={addGroupLink}
+                onremoveGroup={removeGroupLink}
+                onpatchGroup={patchGroup}
+                onaddGroupMember={addGroupMemberLink}
+                onremoveGroupMember={removeGroupMemberLink}
+                onaddSibshipDecorator={addSibshipDecoratorLink}
+                onremoveSibshipDecorator={removeSibshipDecoratorLink}
+                onpatchSibshipDecorator={patchSibshipDecorator}
+                onaddSibshipMember={addSibshipMemberLink}
+                onremoveSibshipMember={removeSibshipMemberLink}
                 onduplicate={duplicatePerson}
                 onsetRoot={setRootAction}
                 ondelete={deletePerson}
