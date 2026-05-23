@@ -350,7 +350,7 @@ most likely place for an inadvertent regression.
 ---
 
 ## phase 0b — zoom 100% contract (split from phase 0)
-**status:** open
+**status:** closed 2026-05-23 (anchor-aware `setScale` across all 3 engines; semantic-100 ZoomWidget readout + `fte.zoom.semantic100` flag; `--fte-design-card-width` token; B5 closed via `.family-view-edge { shape-rendering: crispEdges }`; worktree `.claude/worktrees/family-view-w2/` and branch `phase/family-view-w2/0b` retained per user instruction — *not* merged into parent. integration check: chromium 27/28, mobile 17/28, 927 unit tests, 0 regressions, 0 baseline updates. phase 2 branch will be rebased onto this tip at step 5.)
 **definition of done:** zoom widget `+` / `−` / slider / exact-percent
 paths anchor on viewport-center by default (wheel + pinch keep their
 pointer anchor); 100% reads as "one standard card at design size"

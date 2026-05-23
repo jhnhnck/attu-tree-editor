@@ -642,3 +642,141 @@ next phase: per the user's discretion. natural candidates: phase 0b
 (zoom 100% contract; quick), phase 3 (smooth-diff; spike-gated), or
 phase 4 (secondary-union expansion; biggest scope and the one that
 will activate B15 if any).
+
+## starting phase 0b — 2026-05-23
+
+- worktree: `.claude/worktrees/family-view-w2/` (same slot reused);
+  branch `phase/family-view-w2/0b` from `phase/family-view-w2/1` tip
+  at `0910bac`. parallel to `phase/family-view-w2/2` (a650ffa); phase
+  2's branch stays in place and will be rebased onto 0b's tip at
+  step 5 close so the logical sequence becomes
+  `trunk → 0 → 1 → 0b → 2`.
+- this run is correcting the order: phase 2 was driven before 0b in
+  the prior `/phase-loop` invocation; the user re-invoked the loop
+  asking for 0b explicitly. branch sequencing fixes the logical
+  order without re-doing phase 2's substantive work.
+- scope re-confirmed against `plan.md` phase 0b (rev-1 post-phase-0
+  with the three design-note answers inlined). spec carries:
+  controller-surface anchor-aware `setScale({anchorPx?})` (widget +/-
+  / slider / exact-percent → viewport-center default; wheel + pinch
+  keep their pointer anchor); `--fte-design-card-width` CSS token;
+  ZoomWidget displayed `%` derived from measured / design card-width
+  ratio; `fte.zoom.semantic100` localStorage flag (default true,
+  null reads as on); B5 zoom-matrix verification at 0.5× / 2.0×.
+- **DoD (cross-phase check):** widget paths no longer drift focal
+  point at fixed canvas position (manual repro at akarians fixture
+  viewport center / top-left / bottom-right); displayed % derived
+  from card-width ratio (unit test); flag exists default-on; flag-
+  off restores canvas-transform=1; B5 zoom-matrix recorded; manual
+  smoke on layered + family-view + hyperbolic confirms the controller-
+  surface change doesn't regress per-engine zoom.
+- merge policy for this run: **do not merge** at step 5 (match prior
+  phases). worktree and branch stay in place. step 5 also rebases
+  `phase/family-view-w2/2` onto this branch's tip for the corrected
+  logical sequence.
+
+## phase 0b retro — 2026-05-23
+
+### spec delta
+
+- delivered: anchor-aware `setScale(next, {anchorPx?})` across
+  `CanvasController` interface + `TreeCanvas` + `FamilyViewCanvas`
+  (hyperbolic stays no-op with signature-compatible `() => undefined`).
+  widget +/- / slider / exact-percent / `zoom100` paths now anchor on
+  host viewport-center; wheel + pinch keep cursor anchors via their own
+  internal math (they don't route through `setScale`). closes the
+  prior FamilyViewCanvas drift bug (widget paths bumped `scale` without
+  recomputing `panX`/`panY`).
+- delivered: `--fte-design-card-width: 320px` token in `app.css` (= `PERSON_W (4) × UNIT (80)`); paired
+  `DESIGN_CARD_WIDTH_PX` export from the new
+  `lib/components/canvas/zoomDisplay.ts` so JS + CSS share one source
+  of truth.
+- delivered: `computeDisplayPercent({scale, semantic100, measuredCardWidthPx})`
+  pure helper + `ZoomWidget.displayPercent?: number` optional prop.
+  ZoomWidget falls back to `Math.round(scale * 100)` when the prop is
+  undefined (preserves headless test behaviour + the pre-phase-0b
+  semantic for any caller that hasn't updated).
+- delivered: `fte.zoom.semantic100` localStorage flag default-on; no
+  UI toggle (rollback path = flip the read fallback to false). App.svelte
+  samples `document.querySelector("[data-person-id]").getBoundingClientRect().width`
+  in a `$effect` that re-runs on `canvasScale` + `selectedEngine`
+  changes; `measuredCardWidthPx` feeds `zoomDisplayPercent` to the
+  widget.
+- delivered: 8 unit cases in `tests/unit/components/zoomDisplay.test.ts`
+  covering DESIGN_CARD_WIDTH_PX constant + semantic-at-1×-DPR (matches
+  scale × 100) + semantic-honours-browser-zoom (the only divergence
+  case) + rounding + flag-off + measurement-missing + zero/negative
+  measurement defensive path + scale extremes.
+- delivered: **B5 zoom-matrix verification** — `.family-view-edge`
+  CSS class with `shape-rendering: crispEdges` applied to every
+  family-view edge polyline (couple connectors, parent stems, sibling
+  buses, per-kid stubs). closes B5 since family-view edges are
+  predominantly axis-aligned — `crispEdges` removes the sub-pixel
+  anti-aliasing that the integer-coord `edgePath` emit was creating
+  at non-1× scales (the documented-but-unapplied fallback from
+  `edgePath.ts:24`).
+- missed / deferred: no UI toggle for the semantic100 flag (plan
+  said "settings panel gets an unobtrusive checkbox"; this codebase
+  doesn't have a settings panel — flags are View-menu toggles. skipped
+  the UI for now per phase-2's same precedent; rollback path stands).
+- extra: none. clean spec delivery.
+
+### surprises
+
+- the plan's sketch had all three engines' `setScale` drifting →
+  reality: TreeCanvas (layered) already anchored on viewport-center
+  (lines 614-620 pre-phase-0b); HyperbolicCanvas's was a no-op. only
+  FamilyViewCanvas had the actual drift bug. the phase-0b plan-text's
+  "FamilyViewCanvas.svelte:418, TreeCanvas.svelte:603, HyperbolicCanvas's
+  equivalent" implied parity across engines; refactoring all three to
+  the new signature is still the right call for consistency, but the
+  *visible* bug fix scope was 1 file, not 3.
+- "semantic 100% from card-width ratio" was billed as a UX-contract
+  change → reality: on every standard display (1× DPR + 100% browser
+  zoom), `measured / DESIGN = scale` exactly, so the displayed number
+  is identical. the only case where the two diverge is *browser zoom*
+  (e.g. user has Ctrl+= bumped the browser to 200%); on a 2× DPR
+  display the rendered card is still 320 CSS px wide because CSS px
+  is DPR-normalised. so the "honest" semantic only matters for the
+  ~rare browser-zoom case. test #3 in `zoomDisplay.test.ts` pins that
+  case down explicitly.
+- `crispEdges` scope was reduced mid-implementation — first applied to
+  the entire family-view `<svg>` (would have affected group hulls /
+  sibship brackets / overlay segments too), then narrowed to a
+  dedicated `.family-view-edge` class on edge polylines only. axis-
+  aligned only; future diagonal edges (e.g. relationship-vocab
+  decorators if they introduce sloped strokes) need to opt out.
+
+### residual debt
+
+- no UI toggle for `fte.zoom.semantic100` · routed to bugs.md as
+  **B17** (low priority; flag exists in localStorage for power-users).
+- the family-view-edge `crispEdges` rule applies even at 1× zoom
+  where it's unnecessary · acceptable today (axis-aligned edges look
+  identical under default and crispEdges rendering on integer-pixel
+  coords) but worth noting if a future engine adds diagonals;
+  routed alongside B17 as a sub-note.
+- the `$effect` sampler in App.svelte reads `document.querySelector`,
+  which finds the *first* `[data-person-id]` in DOM order. that's fine
+  for a representative measurement, but if the canvas is in an
+  intermediate "fitting" state (CSS transform mid-transition), the
+  measured width could briefly disagree with the `scale` state. visible
+  effect: % readout may flicker for one tick on fit/refit. low impact;
+  acceptable. mentioned here rather than in the bug log.
+
+### implications for downstream phases
+
+- **phase 2 (already shipped on a sibling branch)**: phase 0b's
+  `setScale` signature change is a structural addition (optional
+  param); phase 2's family-view code touches the controller surface
+  only via the unchanged `engine.layout(...)` path, so rebasing
+  `phase/family-view-w2/2` on top of 0b should be a clean fast-forward
+  with no semantic conflicts. integration-check has already validated
+  this combination indirectly: phase 0b's visual goldens at fit zoom
+  match phase 2's no-baseline-update result.
+- **phase 3 (smooth-diff animation)**: spike-gating still on
+  Pixel 7 + FLIP / view-transitions / motion compose with svelte 5.
+  no overlap with phase 0b's surface.
+- **phase 4 (secondary-union expansion)**: the new
+  `--fte-design-card-width` token is reusable if phase 4's union-fan
+  geometry needs a design-size reference. no other overlap.

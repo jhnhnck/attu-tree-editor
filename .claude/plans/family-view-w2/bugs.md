@@ -14,19 +14,9 @@ boundary (git history is the trace).
   (secondary-union expansion; RV phase 3b shipped in `aba7de0`)**
   (rev 1: was "commits to N=2; blocked on RV 3b" — renamed for
   terminology disambiguation, dep updated).
-- family-view zoom not centered + "100%" not a stable reference →
-  **phase 0b** (carried over from wave-1's open bug log; rev 1
-  added the design-note gate. phase 0 [2026-05-23] tripped the gate;
-  formal phase 0b created in `plan.md`).
 
 ## open (carried in from visual fix-up plan residual debt — 2026-05-22)
 
-- **B5** zoom-matrix verification for the #6 integer-pixel-rounding
-  fix never ran at 0.5× / 2.0× zoom. `shape-rendering: crispEdges`
-  fallback is documented in `engines/family-view/edgePath.ts` but
-  not applied. → **phase 0b** (folds with the zoom-anchor + stable-
-  100% work; once zoom is fixed, re-run the matrix and decide
-  whether to apply the crispEdges fallback).
 - **B6** the explicit sibling bus emits `role: "blood"` uniformly
   even when every kid of the couple is a half-sibling. per-kid stubs
   carry the correct role; only the bus itself is uniform. visually
@@ -65,6 +55,21 @@ boundary (git history is the trace).
   inspector-vs-canvas-click geometry stays routed to wave-3 (or to
   phase 0b if the zoom contract work surfaces the same root cause).
   no separate B-entry; this is B4's 4th confirmed signature.
+
+## open (phase 0b findings — 2026-05-23)
+
+- **B17** no UI toggle for the `fte.zoom.semantic100` flag. flag
+  exists in localStorage with `null → on` default; rollback path is
+  to flip the read fallback in App.svelte to `false`. plan-text said
+  "settings panel gets an unobtrusive checkbox" but this codebase
+  doesn't have a settings panel — flags are View-menu toggles, and
+  no other zoom-related entry exists there to anchor it next to.
+  → **deferred** (low priority polish; revisit if/when a View-menu
+  Zoom submenu emerges). same-priority sub-note: the
+  `.family-view-edge { shape-rendering: crispEdges }` rule applies
+  even at 1× zoom, which is fine for axis-aligned strokes but would
+  need an opt-out if a future family-view feature introduces
+  diagonal segments.
 
 ## open (phase 2 findings — 2026-05-23)
 
