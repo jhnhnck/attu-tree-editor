@@ -53,3 +53,22 @@ after revision, the phase list reads: 0a (probes + skeleton with cropperjs still
 - **phase 2b** — split: exif via `createImageBitmap({ imageOrientation: "from-image" })` with `<img>` fallback; 2-step downscale when src/out > 2; dod = the 12-mp iphone exif-6 fixture from the phase-0 probe produces a dimensionally-correct, clean ≤ 50 kb webp; rollback criterion: if exif rotation produces wrong dims on any real-device fixture, the entry surface degrades to "file picker only" (drop/paste handlers off) until a fix lands, rather than rolling back the new dialog.
 - **phase 3** — add: component test asserts that swapping `personId` on `PortraitField` while the dialog is open does not leak focus to `document.body` on dialog close.
 - **phase 4** — add: visual goldens *update* the phase-0a baseline rather than introducing the harness for the first time; tolerance band documented in the spec file.
+
+## probe results
+
+phase 0a ships scaffolding for both hardware probes; the results below must be filled in by a tester with a real iphone before phase 0a is allowed to close and before phase 1 starts (rollback criterion gate). open the probe pages on the device, follow the on-screen instructions, and paste the "RESULT" line emitted by the page.
+
+### exif-orientation probe (risk #2)
+- probe page: `/probes/exif.html` (served by `vite preview` from `apps/web/public/probes/`)
+- expected: `createImageBitmap(blob, { imageOrientation: "from-image" })` on an iphone exif-6 portrait returns `bitmap.width × bitmap.height` matching the visually-rotated dimensions (e.g. 3024 × 4032 for a typical portrait shot held vertically).
+- RESULT: **pending hardware probe** (paste the page output here; expected format: "createImageBitmap(from-image) returned dims that match / do not match the visually-rotated photo. ua=…")
+
+### ios safari multi-touch in <dialog> probe (risk #3)
+- probe page: `/probes/touch.html` (served by `vite preview` from `apps/web/public/probes/`)
+- expected: two-finger pinch inside the stub `<dialog>` produces two `pointerdown` events with distinct `pointerId`s and `pointerType === "touch"`.
+- RESULT: **pending hardware probe** (paste the page output here; expected format: "multi-touch inside <dialog> delivered N distinct pointerIds. ua=…")
+
+### placeholder visual golden harness (risk #5)
+- spec: `apps/web/tests/e2e/portrait-crop.spec.ts`
+- expected: spec runs green twice consecutively in ci before phase 4 invests in real goldens.
+- RESULT: **pending ci verification** (baseline snapshot not yet captured; run `pnpm -F web exec playwright test portrait-crop --update-snapshots` once locally, then verify two clean ci runs in a row).

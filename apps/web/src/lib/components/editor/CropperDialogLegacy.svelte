@@ -1,5 +1,6 @@
 <!--
-    FamilyTreeEditor - <dialog>-based image cropper, lazy-imports cropperjs v2
+    FamilyTreeEditor - legacy cropperjs v2 dialog, kept as fallback during phase 0a/0b
+    selected by appending ?cropper=legacy to the page url; default is the new custom dialog.
     licensed under the MIT license; see LICENSE.md for full text
 -->
 <script lang="ts">
