@@ -61,7 +61,7 @@ pre-mortem (`pre-mortem.md`) surfaced five residual risks worth folding in: (1) 
 **retires the unknown:** does removing the dep cause any unexpected regression in build, bundle, or runtime that phases 0a + 1 didn't surface?
 
 ## phase 2a — entry ergonomics
-**status:** open
+**status:** closed — branch `phase/portrait-cropper-rewrite/2a`, not merged per user instruction
 **definition of done:** dragging an image file onto the portrait slot opens the cropper dialog (with whatever exif handling phase 0a shipped — improved in 2b). pasting an image from the system clipboard works in chromium and safari (firefox degraded acceptably; a paste-from-app outside the browser may not deliver `image/*` and that's tolerated). dropping a non-image file or one over 20 mb shows a clear inline error and does not open the dialog. the existing file picker still works. visual hover state (`border-accent ring-2 ring-accent/40`) appears during drag-over.
 **scope:** extend `PortraitField.svelte` to be a drop target (`ondragover`/`ondrop`) and a paste target (window-level `paste` listener gated on the field having focus). size guard (`> 20 mb → onerror`). dragHover state for visual feedback. component test covering drop, paste, non-image, oversize.
 **retires the unknown:** is the entry surface forgiving enough to not require user education, and does the focus-gated paste listener avoid conflicts with paste elsewhere in the inspector?

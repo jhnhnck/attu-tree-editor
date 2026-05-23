@@ -92,3 +92,37 @@ no phase reordered, rewritten, inserted, or deleted. phase 0a marked "closed (co
 plan shape unchanged. phase 0b (cropperjs removal) is the next phase by plan order but remains gated on the hardware probes returning green — those have not been run. if probes are still pending when phase-loop resumes, **propose skipping 0b and starting phase 2a (entry ergonomics)**, leaving 0b for after the probes land. 2a does not depend on 0b.
 
 no phase reordered, rewritten, inserted, or deleted. bugs.md carries the same three open items from phase 0a. next (by plan): **phase 0b — cropperjs removal**, gated on probes. alternative (if probes still pending): **phase 2a — entry ergonomics**.
+
+## starting phase 2a — 2026-05-23
+
+- worktree: `.claude/worktrees/portrait-cropper-rewrite-phase2a`
+- branch: `phase/portrait-cropper-rewrite/2a` (off `phase/portrait-cropper-rewrite/1` @ `5d55a27`)
+- per user direction (`complete all of phase 2`), phase 0b is skipped for now and remains gated on hardware probes.
+- scope re-confirmed against `plan.md`. 2a touches only `PortraitField.svelte` and a new component test. no contract changes outside that file.
+- DoD (cross-phase shape):
+  1. drop an image file onto the portrait slot → cropper opens. drop a non-image or > 20 mb file → inline error, dialog does not open.
+  2. paste an image from system clipboard (focus-gated on the field) → cropper opens. firefox degradation tolerated for cross-app paste.
+  3. existing file picker still works.
+  4. `border-accent ring-2 ring-accent/40` hover state visible during drag-over.
+  5. component test covers drop / paste / non-image / oversize.
+- merge gate: deferred per user instruction (`do not merge`). worktree + branch will be left in place after step 5.
+
+## phase 2a retro — 2026-05-23
+
+**what landed vs spec**
+- `PortraitField.svelte` now hosts a Files-only drag target (`ondragover` with a `dataTransfer.types` pre-flight so non-file drags don't steal the dropEffect) and a window-level focus-gated paste target. shared `admitSource` gate validates mime + size; clear inline error copy for non-image and oversize (>20 mb) cases. drag-hover ring uses tailwind v4 tokens (`border-accent` + `accent/40` ring).
+- 6-case component test (drop happy + non-image + oversize; paste happy + unfocused-ignored + non-image silent). dialog mocked at module level because jsdom doesn't implement `<dialog>.showModal()`.
+- all gates green: typecheck, lint, 921/921 unit, build.
+
+**surprises**
+- jsdom doesn't ship `ClipboardEvent`. swapped to a generic `Event` with a stamped `clipboardData` property — works fine and is honest about what the test actually probes.
+- svelte v5 a11y lint requires a role on any element with drag handlers. solved with `role="region" aria-label="portrait"`. ergonomic side effect: screen readers now announce the field by name.
+- the focus-gate uses `focusin`/`focusout` on the root div + `tabindex="-1"`. simpler than I expected — no global event-target dance needed because the field's buttons live inside the same container.
+
+**residual debt**
+- no new bug-log entries. phase-0a items still carry over (hardware probes, golden baseline, `visual-path-highlight` deferred).
+- the placeholder e2e (`tests/e2e/portrait-crop.spec.ts`) still `test.skip`s on a fresh shell — phase 2a didn't fix that. lifting the skip is naturally a phase-3 / phase-4 task once the spec can reach the inspector field.
+
+## revision after phase 2a — 2026-05-23
+
+plan shape unchanged. next phase per plan order is **2b — image pipeline (exif + downscale)**. no reorders, rewrites, inserts, or deletes. bugs.md carries the same three open items.
