@@ -1,12 +1,15 @@
 # family view — wave 2
 
-successor plan to [`family-view.md`](family-view.md). picks up the trailing
-work that the wave-1 ship-gate (2026-05-14) deferred or surfaced, plus the
-multi-union scope expansion that wave-1 explicitly scoped to N=2.
+successor plan to the wave-1 family-view rollout (retired plan; see
+git history for `notes/plans/family-view.md`). picks up the trailing
+work that the wave-1 ship-gate (2026-05-14) deferred or surfaced, plus
+the multi-union scope expansion that wave-1 explicitly scoped to N=2.
 
-reads alongside [`notes/agents.md`](../agents.md) and the RV workstream's
-[`relationship-vocabulary.md`](relationship-vocabulary.md), which owns the
-schema + reader + inspector layers that two wave-2 phases sit on top of.
+reads alongside [`notes/agents.md`](../agents.md) and the now-retired
+RV workstream (relationship-vocabulary.md; see git history), which
+owned the schema + reader + inspector layers that two wave-2 phases
+sit on top of. its shipped contracts (parents, unions, identity)
+remain in `domain/schema.ts`; only the planning doc was retired.
 
 **revision history:**
 - rev 1 (14 May 2026) — folded in pre-mortem findings: phases 2 + 3
@@ -76,10 +79,11 @@ six planned phases. summary of the surface that's now live:
 - visual goldens at Akarians DEMO + a 5-generation linear fixture;
   `pnpm verify` green at the Phase 6 ship commit (`20966f1`).
 
-wave-1's plan, bug log, retros, and ship-gate cut-line all live in
-[`family-view.md`](family-view.md). the ship-gate verdict was `no-ship
-until RV-phase-3b WIP resolved` — that blocker belongs to the RV plan,
-not this one.
+wave-1's plan, bug log, retros, and ship-gate cut-line lived in
+`notes/plans/family-view.md` (retired plan; recover via git history
+if needed). the ship-gate verdict was `no-ship until RV-phase-3b WIP
+resolved` — that blocker belonged to the RV plan and was resolved
+in `aba7de0` before the RV plan itself was retired.
 
 ---
 
@@ -483,7 +487,8 @@ interesting open item. risk: every visual golden could shift.
 
 - pre-spike outcome recorded with **measured** crossing counts; if
   "defer", phase 2 closes with a one-line retro and the work moves
-  to a `family-view.md` follow-up note.
+  to a follow-up note in this plan's bug log (family-view.md is
+  retired; this plan is now the canonical follow-up home).
 - if implemented: `pnpm verify` green; **all family-view visual
   goldens** re-baselined (rev 1: not only akarians — layout passes
   have surprising downstream effects on small fixtures where greedy
@@ -597,9 +602,10 @@ view, not one-at-a-time.
   N>2 partners; `partnersInMultiUnionsOf` helper; `treeDiff` tracks
   `unions[]`. **(rev 1) dependency text relaxed:** the original plan
   said "every layout / inspector / serializer consumer has migrated
-  to `getUnions(tree)`". the RV plan's 3b retro (line 2397 of
-  `relationship-vocabulary.md`) records that the `couples.ts` reader
-  migration is *deliberately deferred* — today's 2-partner paths are
+  to `getUnions(tree)`". the RV plan's 3b retro (recorded in the
+  retired relationship-vocabulary.md, recoverable via git history)
+  records that the `couples.ts` reader migration is *deliberately
+  deferred* — today's 2-partner paths are
   bit-identical against `tree.couples`, so a wholesale sweep was
   judged no-gain. phase 4's actual dependency: `tree.unions[]` is
   reliable (it is); new phase-4 code paths use `getUnions(tree)`;
@@ -825,13 +831,17 @@ descoped by the visual fix-up plan (see bug-log updates).
 
 ## reference shelf
 
-- [`family-view.md`](family-view.md) — wave-1 plan, retros, bug log,
-  ship-gate cut-line (2026-05-14).
-- [`relationship-vocabulary.md`](relationship-vocabulary.md) — RV
-  workstream; owner of `UnionRecord` schema + N>2-partner renderer
-  (3b, shipped in `aba7de0`), GEDCOM `_TREES_UNION` extension (3c,
-  in-flight), and server-side finding emission. (rev 1: previous
-  "reader sweep" framing was inaccurate — the sweep was deliberately
+- `notes/plans/family-view.md` (retired) — wave-1 plan, retros, bug
+  log, ship-gate cut-line (2026-05-14). recoverable via git history.
+  the relevant deliverables are summarised in "## what wave-1
+  delivered" above.
+- `notes/plans/relationship-vocabulary.md` (retired) — RV workstream;
+  owned the `UnionRecord` schema + N>2-partner renderer (3b, shipped
+  in `aba7de0`), the GEDCOM `_TREES_UNION` extension (3c), and the
+  server-side finding emission path. shipped contracts remain in
+  `domain/schema.ts` and `domain/tree.ts`; the planning doc itself
+  is retired. recoverable via git history. (rev 1: previous "reader
+  sweep" framing was inaccurate — the sweep was deliberately
   deferred; only writers were flipped to unconditional sync.)
 - [`notes/agents.md`](../agents.md) — affordance slot reservation
   (entries 15 + 16), ARIA-label test-selector guidance (to be added

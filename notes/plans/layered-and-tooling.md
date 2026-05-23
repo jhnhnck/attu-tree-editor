@@ -1,12 +1,13 @@
 # Layered engine cleanup + UI tooling (14 May 2026, rev 1)
 
 Janitorial plan covering the three remaining layered-engine bugs that
-neither [family-view.md](./family-view.md) nor
-[relationship-vocabulary.md](./relationship-vocabulary.md) claims, plus
-the `tooling / infra` section of [../to-do.md](../to-do.md). The layered
-engine is demoted to a power-user toggle once family-view ships, but
-the three bugs degrade it visibly today and the tooling work helps the
-upcoming phase work on both other plans.
+neither the now-retired family-view.md plan nor the now-retired
+relationship-vocabulary.md plan claimed (both retired by 23 May 2026;
+recoverable via git history), plus the `tooling / infra` section of
+[../to-do.md](../to-do.md). The layered engine is demoted to a power-
+user toggle once family-view ships, but the three bugs degrade it
+visibly today and the tooling work helps the upcoming phase work on
+the [family-view-w2.md](./family-view-w2.md) successor plan.
 
 This plan is intentionally scoped narrow: no new features, no engine
 rework, no schema bumps. Every item is bounded to a single pass file,
@@ -110,6 +111,15 @@ either close them out or commit to a tracking shape.
 ---
 
 ## Coordination with other plans
+
+_Historical note (rev 2, 23 May 2026): both plans referenced below
+have been retired. Wave-1's family-view.md shipped 14 May 2026 and
+the relationship-vocabulary.md schema work landed alongside it (see
+`aba7de0`, `7f12a72`, and the wave-1 `20966f1` ship commit). The
+notes below remain as planning context describing why this plan
+stayed out of certain files and where coordination boundaries
+landed; the successor plan for ongoing family-view work is
+[family-view-w2.md](./family-view-w2.md)._
 
 - **family-view.md Phase 2** (union-as-anchor) will adopt the same
   father-left orientation rule. Phase 1 of this plan delivers the
@@ -788,8 +798,8 @@ Low. Doc + decision work; no code paths touched.
     working tree has lint errors
     (`tests/unit/engines/family-view/path.test.ts:87` and
     `:130`). These are NOT introduced by Phase 0 — they are
-    the user's in-flight phase work on
-    [family-view.md](./family-view.md). Full `pnpm verify`
+    the user's in-flight phase work on family-view.md (retired
+    plan; recoverable via git history). Full `pnpm verify`
     fails because of them; my Phase 0 subset (typecheck,
     spikes, unit tests, build) is clean. Routed to bug log
     for triage, but the right disposition is "fix as part of
@@ -993,11 +1003,14 @@ Low. Doc + decision work; no code paths touched.
 - [bugs.md](../bugs.md) — the three layered-engine bugs this plan
   closes (lines 13, 17, 18).
 - [to-do.md](../to-do.md) — the `tooling / infra` section.
-- [family-view.md](./family-view.md) — coordination on spouse
-  orientation (Phase 2), engine quick-switch (Phase 6).
-- [relationship-vocabulary.md](./relationship-vocabulary.md) —
-  bounds on `layer.ts` work this plan does NOT touch (Phase 2
-  there); pre-Phase-2 ordering check.
+- `notes/plans/family-view.md` (retired; recoverable via git
+  history) — coordination on spouse orientation (Phase 2), engine
+  quick-switch (Phase 6). Successor plan is
+  [family-view-w2.md](./family-view-w2.md).
+- `notes/plans/relationship-vocabulary.md` (retired; recoverable
+  via git history) — bounds on `layer.ts` work this plan does NOT
+  touch (Phase 2 there); pre-Phase-2 ordering check. Shipped
+  contracts remain in `domain/schema.ts` and `domain/tree.ts`.
 - [tree-rendering.md](./tree-rendering.md) — original layered/
   hyperbolic engine plan that produced the bugs being cleaned up.
 - `apps/web/vitest.spike.config.ts` — existing spike-runner
