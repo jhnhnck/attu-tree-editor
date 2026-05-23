@@ -79,7 +79,7 @@ pre-mortem (`pre-mortem.md`) surfaced five residual risks worth folding in: (1) 
 **retires the unknown:** does the keyboard interaction model actually work end-to-end, including the focus-handoff between the inspector field and the modal dialog when the parent re-renders mid-flight?
 
 ## phase 4 — polish + theming
-**status:** open
+**status:** closed (grid + outline + loading + error retry shipped) / open (axe-core + visual goldens + dim-mask outside-frame routed to bugs.md as follow-ups) — branch `phase/portrait-cropper-rewrite/4`, not merged per user instruction
 **definition of done:** the dialog matches the rest of the inspector visually in both dark and light themes: dimmed mask outside the crop frame, optional rule-of-thirds grid (default on), accent-colored crop frame outline, zoom-percentage readout in the footer next to the save button. loading state shown while `createImageBitmap` is decoding a large source. decoding errors surface as inline text with a "try another image" affordance. playwright visual goldens captured for the dialog in dark + light (updating the baselines first captured in phase 0). light/dark snapshot diff under tolerance.
 **scope:** add `drawMask`, `drawGrid`, `drawFrameOutline` to the render loop (reading css variables via `getComputedStyle`). loading + error state in `CropperCanvas.svelte`. zoom-percentage readout in the dialog footer. update `apps/web/tests/e2e/portrait-crop.spec.ts` (baseline spec laid down in phase 0) to assert the polished dialog visual; capture goldens in both themes.
 **retires the unknown:** does it look like it belongs in this app, and are we capturing regressions via goldens going forward?

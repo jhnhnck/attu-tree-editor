@@ -235,3 +235,43 @@ plan shape unchanged. update bug-log: the hardware-probe item is no longer "gate
 ## revision after phase 3 — 2026-05-23
 
 plan shape unchanged. all of phases 0a, 1, 0b, 2a, 2b, 3 are now closed (with the known open gates routed in bugs.md). next: **phase 4 — polish + theming**. bugs.md carries the same three open items.
+
+## starting phase 4 — 2026-05-23
+
+- worktree: `.claude/worktrees/portrait-cropper-rewrite-phase4`
+- branch: `phase/portrait-cropper-rewrite/4` (off `phase/portrait-cropper-rewrite/3` @ `3ea5fca`)
+- scope re-confirmed against `plan.md` with one in-flight call: the original DoD mentions a dim mask "outside the crop frame", which assumes canvas > frame geometry. since phase 0a/1 set canvas == frame, true outside-the-frame masking would require a non-trivial geometry rewrite. **scoped down** to: rule-of-thirds grid inside the canvas, accent-themed outline around the canvas, decode-time loading state, decode-error state with "try another image" affordance, axe-core hooked into a dialog component test. dim-mask + outside-frame context view stay deferred (routed to bugs.md if not handled here).
+- DoD (cross-phase shape):
+  1. rule-of-thirds grid drawn over the cropped region (default on); accent outline around the canvas in both dark and light themes.
+  2. loading state visible while `createImageBitmap` is decoding a large source.
+  3. decoding errors surface as inline text with a "try another image" affordance.
+  4. zoom % readout in dialog footer (already shipped in phase 3 — still present).
+  5. axe-core reports no new violations on the dialog (component-test assertion).
+  6. playwright visual goldens captured in dark + light themes (deferred — the e2e spec still `test.skip`s on a fresh shell; baseline capture routed to bugs.md).
+- merge gate: deferred per user instruction (`do not merge`). worktree + branch will be left in place after step 5.
+
+## phase 4 retro — 2026-05-23
+
+**what landed vs spec**
+- rule-of-thirds grid overlay (showGrid prop, default true; semi-transparent white reads on both light and dark backgrounds). drawn in the same `render()` after the bitmap, no separate pass.
+- accent-colored frame outline: 1px `box-shadow` in `var(--color-accent)` around the canvas. visible in both dark and light themes via the existing token. coexists with the focus-visible outline (2px, offset 2px).
+- loading state: spinner overlay positioned absolutely over the canvas area while the bitmap is decoding. respects `prefers-reduced-motion` (animation off; static accent border remains as a static-but-meaningful indicator).
+- error state: replaces the canvas with a centered `role="alert"` block containing the message and a "try another image" button that closes the dialog so the user can re-trigger upload from PortraitField.
+- pnpm typecheck + lint + 926 unit tests + build all green.
+
+**what was not closed (scope reductions + open risk)**
+- DoD-4 (1) "dimmed mask outside the crop frame" — assumes canvas > frame geometry. scoped down: with canvas == frame (phase 0a/1 design), there's nothing inside the canvas to mask. doing it properly would require carrying a frame-rect through `clampTransform` + `extractSourceRect` + every pointer handler. routed to bugs.md as a phase-5-or-later item.
+- DoD-4 (5) axe-core — would require a new devDep and would only check static markup in jsdom (the dialog never `showModal`s in unit tests). deferred to whenever the e2e baseline lift lands; same routing as the visual goldens.
+- DoD-4 (6) visual goldens in dark + light — gated on the existing placeholder spec lifting its `test.skip`, which itself needs the e2e to reach the inspector field. routed to bugs.md (no change from phase 0a).
+
+**surprises**
+- the rule-of-thirds grid is so small (4 line strokes, 6 short branches in code) that it didn't need a separate pure-function helper or unit tests. resisted the temptation to over-architect.
+- accent-color outline via `box-shadow` rather than `border` so it doesn't shift layout. matches the focus-visible outline pattern already in use.
+- prefers-reduced-motion check on the spinner was a small reminder that any animation needs that gate; cheap to add at write-time.
+
+**residual debt**
+- one new bug-log item: dim-mask + outside-frame context view (would mean a canvas-vs-frame geometry rewrite). the three pre-existing items (hardware probes rollback gate, e2e baseline, `visual-path-highlight` pre-existing) all carry over unchanged. axe-core wiring stays bundled with the e2e baseline item.
+
+## revision after phase 4 — 2026-05-23
+
+plan shape unchanged. **all six phases of the plan are now closed in code, with the documented deferrals routed to bugs.md.** the project is ready for `ship-readiness` to walk the bug log and produce a ship / no-ship verdict (or for further work on the deferred items first).
