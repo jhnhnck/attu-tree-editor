@@ -23,6 +23,7 @@
 
 import { resolve } from "node:path";
 import { expect, test } from "@playwright/test";
+import { maskUnstableUI } from "./_helpers/visual-mask";
 
 const AKARIANS = resolve(process.cwd(), "tests/fixtures/Akarians.ged");
 
@@ -64,11 +65,7 @@ test.describe("family-view visual golden — Akarians DEMO", () => {
 
         await expect(region).toHaveScreenshot("akarians-family-view.png", {
             maxDiffPixelRatio: 0.02,
-            mask: [
-                page.locator('[role="alert"]'),
-                page.locator(".save-status-pill"),
-                page.getByRole("button", { name: /people/ }),
-            ],
+            mask: maskUnstableUI(page),
         });
     });
 });

@@ -21,6 +21,7 @@
 
 import { resolve } from "node:path";
 import { expect, test } from "@playwright/test";
+import { maskUnstableUI } from "./_helpers/visual-mask";
 
 const AKARIANS = resolve(process.cwd(), "tests/fixtures/Akarians.ged");
 
@@ -63,11 +64,7 @@ test.describe("DEMO visual golden", () => {
         const canvas = page.locator(".canvas-host");
         await expect(canvas).toHaveScreenshot("akarians-layered.png", {
             maxDiffPixelRatio: 0.02,
-            mask: [
-                page.locator('[role="alert"]'), // toasts
-                page.locator(".save-status-pill"),
-                page.getByRole("button", { name: /people/ }),
-            ],
+            mask: maskUnstableUI(page),
         });
     });
 });

@@ -35,7 +35,16 @@ export default ts.config(
         ...ts.configs.disableTypeChecked,
     },
     {
-        ignores: ["dist/", "node_modules/", "playwright-report/", "coverage/"],
+        // generator scripts for committed test fixtures are run by hand
+        // (`node *.gen.mjs`) and never imported by the app; keep them
+        // outside the typescript-eslint project-service surface.
+        ignores: [
+            "dist/",
+            "node_modules/",
+            "playwright-report/",
+            "coverage/",
+            "tests/fixtures/*.gen.mjs",
+        ],
     },
     {
         rules: {
