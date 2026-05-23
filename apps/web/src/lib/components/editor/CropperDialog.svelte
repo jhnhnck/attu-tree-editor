@@ -1,13 +1,11 @@
 <!--
-    FamilyTreeEditor - custom <canvas>-based image cropper (phase 0a: degenerate cover-center)
-    selects the legacy cropperjs implementation when the page url has ?cropper=legacy.
+    FamilyTreeEditor - custom <canvas>-based image cropper (pan/zoom, exif-aware)
     licensed under the MIT license; see LICENSE.md for full text
 -->
 <script lang="ts">
     import { onDestroy } from "svelte";
     import Button from "$lib/components/ui/Button.svelte";
     import CropperCanvas from "$lib/components/editor/CropperCanvas.svelte";
-    import CropperDialogLegacy from "$lib/components/editor/CropperDialogLegacy.svelte";
     import { loadSourceBitmap, type SourceBitmap } from "$lib/components/editor/loadSourceBitmap";
     import { encodePortrait } from "$lib/components/editor/encodePortrait";
     import {
@@ -30,12 +28,6 @@
 
     let { source, outputW = 600, outputH = 600, quality = 0.85, onsave, onclose }: Props = $props();
 
-    // ?cropper=legacy escape hatch: bypass to the cropperjs implementation while
-    // phase-0a probes (ios multi-touch, exif orientation) are unconfirmed.
-    const useLegacy =
-        typeof window !== "undefined" &&
-        new URLSearchParams(window.location.search).get("cropper") === "legacy";
-
     // frame in the dialog is rendered at 320 css pixels (square, matches output aspect).
     // chosen to fit comfortably in a min-width 48rem dialog with margins.
     const FRAME_W = 320;
@@ -51,7 +43,6 @@
     let transform = $state<Transform | undefined>(undefined);
 
     $effect(() => {
-        if (useLegacy) return;
         if (!dialogEl) return;
         if (source && !dialogEl.open) {
             dialogEl.showModal();
@@ -120,59 +111,55 @@
     onDestroy(cleanup);
 </script>
 
-{#if useLegacy}
-    <CropperDialogLegacy {source} {outputW} {outputH} {quality} {onsave} {onclose} />
-{:else}
-    <dialog
-        bind:this={dialogEl}
-        onclose={() => {
-            cleanup();
-            onclose();
-        }}
-        class="cropper-dialog"
-        aria-labelledby="cropper-title"
-    >
-        {#if source}
-            <header class="border-line flex items-center justify-between border-b px-5 py-3">
-                <h2 id="cropper-title" class="text-fg text-base font-semibold">crop portrait</h2>
-                <button
-                    type="button"
-                    aria-label="close"
-                    onclick={() => onclose()}
-                    class="text-fg-muted hover:text-fg text-lg leading-none"
-                >
-                    ×
-                </button>
-            </header>
+<dialog
+    bind:this={dialogEl}
+    onclose={() => {
+        cleanup();
+        onclose();
+    }}
+    class="cropper-dialog"
+    aria-labelledby="cropper-title"
+>
+    {#if source}
+        <header class="border-line flex items-center justify-between border-b px-5 py-3">
+            <h2 id="cropper-title" class="text-fg text-base font-semibold">crop portrait</h2>
+            <button
+                type="button"
+                aria-label="close"
+                onclick={() => onclose()}
+                class="text-fg-muted hover:text-fg text-lg leading-none"
+            >
+                ×
+            </button>
+        </header>
 
-            <div class="bg-canvas flex items-center justify-center p-6">
-                <CropperCanvas source={bitmap} frameW={FRAME_W} frameH={FRAME_H} bind:transform />
-            </div>
+        <div class="bg-canvas flex items-center justify-center p-6">
+            <CropperCanvas source={bitmap} frameW={FRAME_W} frameH={FRAME_H} bind:transform />
+        </div>
 
-            {#if !bitmap && !error}
-                <p class="text-fg-muted px-5 py-1 text-xs">loading image…</p>
-            {/if}
-
-            {#if error}
-                <p class="px-5 py-2 text-xs text-red-400" role="alert">{error}</p>
-            {/if}
-
-            <footer class="border-line bg-canvas-elev flex justify-end gap-2 border-t px-5 py-3">
-                <Button type="button" variant="ghost" onclick={() => onclose()}>
-                    {#snippet children()}cancel{/snippet}
-                </Button>
-                <Button
-                    type="button"
-                    variant="primary"
-                    disabled={busy || !bitmap}
-                    onclick={() => void save()}
-                >
-                    {#snippet children()}{busy ? "saving…" : "save portrait"}{/snippet}
-                </Button>
-            </footer>
+        {#if !bitmap && !error}
+            <p class="text-fg-muted px-5 py-1 text-xs">loading image…</p>
         {/if}
-    </dialog>
-{/if}
+
+        {#if error}
+            <p class="px-5 py-2 text-xs text-red-400" role="alert">{error}</p>
+        {/if}
+
+        <footer class="border-line bg-canvas-elev flex justify-end gap-2 border-t px-5 py-3">
+            <Button type="button" variant="ghost" onclick={() => onclose()}>
+                {#snippet children()}cancel{/snippet}
+            </Button>
+            <Button
+                type="button"
+                variant="primary"
+                disabled={busy || !bitmap}
+                onclick={() => void save()}
+            >
+                {#snippet children()}{busy ? "saving…" : "save portrait"}{/snippet}
+            </Button>
+        </footer>
+    {/if}
+</dialog>
 
 <style>
     .cropper-dialog {

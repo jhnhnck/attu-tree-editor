@@ -20,7 +20,6 @@
         "@attu/api-client": "workspace:*",
         "@lucide/svelte": "^1.16.0",
         "@panzoom/panzoom": "^4.6.2",
-        "cropperjs": "^2.1.1",
         "dexie": "^4.4.2",
         "fflate": "^0.8.3",
         "read-gedcom": "^0.3.2",
