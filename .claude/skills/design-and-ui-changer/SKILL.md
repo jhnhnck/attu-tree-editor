@@ -86,17 +86,18 @@ popover on the relevant control) fits.
 | Layer | Path | What's inside |
 | :---- | :--- | :----- |
 | Domain | `lib/domain/` | `types.ts`, `tree.ts` (immutable ops + `PersonPatch`), `validate.ts`, `ids.ts`, `schema.ts` |
-| State | `lib/state/` | runes-based stores: `tree`, `selection`, `viewport`, `auth`, `toasts`, `portraitUrls` |
+| State | `lib/state/` | runes-based stores: `tree.svelte.ts`, `selection`, `viewport`, `auth`, `toasts`, `progress`, `portraitUrls`, `sync`, `preferences`, `engine.ts` (active layout engine) |
 | IO | `lib/io/` | `familyscript/`, `gedcom/`, `bundle/`, `merge/`, `importFile.ts` |
-| Layout | `lib/layout/` | HV tidy tree (`hvLayout`), `edgeRouter`, `kinship`, `graph` (in-flight, see below) |
-| Canvas | `lib/components/tree/` | `TreeCanvas`, `PersonNode`, `EdgeLayer`, `edges.ts`, `edgePath.ts`, `canvasController.ts` |
-| Inspector | `lib/components/inspector/` | `Inspector`, `PersonalTab`, `ConnectionsTab`, `DetailsTab`, `PersonChooser` |
-| Shell | `lib/components/shell/` | `MenuBar`, `Menu`, `OpenDialog`, `ShareDialog`, `AuthBar`, `SaveStatusPill`, `LinkCodeDialog`, `AdminPanel` |
-| Palette | `lib/components/palette/` | `CommandPalette`, `commands.ts` (action registry — **single source of truth**) |
-| Canvas chrome | `lib/components/canvas/` | `ZoomWidget` |
+| Layout | `lib/layout/` | four-pass IR pipeline (`ir.ts`, `passes/{layer,order,place,route}.ts`), engine boundary (`engine.ts`), three engines under `engines/{layered-hv,family-view,hyperbolic-lr}/`, `layout.worker.ts` (off-main-thread), shared utilities: `edgeRouter.ts`, `kinship.ts`, `pathHighlight.ts` |
+| Canvas | `lib/components/tree/` | `TreeCanvas.svelte`, `FamilyViewCanvas.svelte`, `HyperbolicCanvas.svelte` (per-engine renderers), `PersonNode.svelte` (foreignObject card), `EdgeLayer.svelte` + `edgePath.ts` (SVG connectors), `canvasController.ts` (pan/zoom/focus), `DebugOverlay.svelte` (Ctrl+Shift+D), `InstancePopover.svelte` |
+| Canvas chrome | `lib/components/canvas/` | `ZoomWidget.svelte`, `BackButton.svelte` |
+| Editor | `lib/components/editor/` | `PersonEditor.svelte` (`<dialog>` form), `PortraitField.svelte`, `CropperDialog.svelte` + `CropperCanvas.svelte` (canvas portrait cropper) |
+| Inspector | `lib/components/inspector/` | `Inspector`, `PersonalTab`, `ConnectionsTab`, `DetailsTab`, `RelationshipsTab`, `GroupsTab`, `SibshipTab`, `PersonChooser` |
+| Shell | `lib/components/shell/` | `MenuBar`, `Menu`, `menu.ts` (action registry), `AuthBar`, `AdminPanel`, `SaveStatusPill`, `ProgressStrip`, `OpenDialog`, `ShareDialog`, `SettingsDialog`, `LinkCodeDialog` |
+| Palette | `lib/components/palette/` | `CommandPalette.svelte` + `commands.ts` (Ctrl+P quick-jump + Ctrl+Shift+P command palette) |
 | Help | `lib/components/help/` | `ShortcutsOverlay` |
 | UI primitives | `lib/components/ui/` | `Button`, `ContextMenu`, `Toasts`, `Field`, etc. |
-| Form | `lib/components/form/` | `DateInput` (Haracalnde calendar popup) |
+| Form | `lib/components/form/` | `DateInput` (Haracalnde calendar popup), `Field.svelte` |
 | Keyboard | `lib/keyboard.ts`, `lib/shortcuts.ts` | global handler + binding table |
 
 Anything new should slot into the right folder. If you find yourself adding
@@ -126,23 +127,39 @@ palette can't see, and discoverability rots.
 
 ---
 
-## TreeCanvas + edge routing (currently in-flight)
+## Multi-engine canvas architecture
 
-There's a parallel track of work happening in `lib/layout/edgeRouter.ts`,
-`lib/layout/hvLayout.ts`, `lib/layout/kinship.ts`, `lib/layout/graph.ts`,
-and `lib/components/tree/edgePath.ts` / `EdgeLayer.svelte` — bridge-hop arcs
-on edge crossings, divorce ticks, role-bucketed paths. **Don't touch these
-unless that's the task.** The git working tree may show modifications and new
-files there even when your task is unrelated; the prettier check on
-`EdgeLayer.svelte` may fail and that failure is **pre-existing**, not your
-problem to fix unless asked.
+Three layout engines ship, all stable:
 
-If you do work on this layer:
-- Coordinates are in unit space until `TreeCanvas.toRendered()` multiplies
-  by `UNIT = 80`.
-- Edges render as one `<path>` per role with `vector-effect:
-  non-scaling-stroke` so pan/zoom stays GPU-composited. Don't introduce
-  per-segment `<line>` elements — perf regresses on 1k+ edges.
+- **layered-hv** (`engines/layered-hv/`) — HV tidy tree; the classic top-down view. Rendered by `TreeCanvas.svelte`.
+- **family-view** (`engines/family-view/`) — bounded-window ego view; shows a focus person with visible ancestors, spouses, and descendants. Rendered by `FamilyViewCanvas.svelte`.
+- **hyperbolic-lr** (`engines/hyperbolic-lr/`) — hyperbolic disk. Rendered by `HyperbolicCanvas.svelte`.
+
+The active engine is set in `lib/state/engine.ts` and flows through `App.svelte`. All three share `canvasController.ts` for pan/zoom/focus.
+
+**If you work on any engine or edge layer:**
+- Coordinates are in unit space until the canvas component multiplies by `UNIT = 80`.
+- Edges render as one `<path>` per role with `vector-effect: non-scaling-stroke` so pan/zoom stays GPU-composited. Don't introduce per-segment `<line>` elements — perf regresses on 1k+ edges.
+- Layout runs in `layout.worker.ts` off the main thread; don't import live Svelte state into the pipeline.
+
+**Family-view card affordance slots are reserved.** Every visible card has six fixed slots. New affordances must pick a free slot or use an existing menu — don't overlap:
+
+| slot | current occupant |
+| :--- | :--- |
+| top-left | `+ person` (focus only) / generation badge (non-focus) |
+| top-right | `−` collapse |
+| top-centre | `+` expand parents |
+| bottom-centre | `+` expand children |
+| bottom-right | `˅` union picker |
+| bottom edge | 1-px era underline |
+
+**Family-view localStorage flags** (all default-on, no UI yet — tracked in to-do.md as View > Advanced):
+- `fte.zoom.semantic100` — semantic 100% zoom derived from card width
+- `fte.layout.familyViewCrossingMin` — barycentric crossing-min pass
+- `fte.overlays.smoothDiff` — CSS card-position transitions on layout change
+- `fte.layout.familyViewSecondaryUnion` — 2-unions-max secondary expansion
+
+**Wrapper-attribute selectors for e2e**: family-view affordances live on the *absolutely-positioned wrapper* around `PersonNode`, not on `[data-person-id]`. Use `data-expand-toggle`, `data-union-picker`, `data-on-path`, `data-add-toggle`, `data-generation-badge`, `data-silhouette`, `data-era-underline`. Scan existing aria-label selectors before settling on copy for a new affordance.
 
 ---
 
@@ -217,9 +234,8 @@ profile).
   `feat(share): copy view-link, grants list`.
 - Three items max in the subject — if you have more, split the commit.
 - The body explains *why*, not what. Skip the body for trivial changes.
-- Don't commit unless asked. *Especially* don't bundle unrelated in-flight
-  changes (e.g. the edge-router track) into a commit you didn't author.
-  Stage explicit files, not `-A`.
+- Commit completed work. Don't bundle unrelated in-flight changes into a
+  commit you didn't author. Stage explicit files, not `-A`.
 
 See [`notes/style/commit_style.md`](../../../notes/style/commit_style.md) for the full
 rules.
