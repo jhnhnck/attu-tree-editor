@@ -69,3 +69,44 @@ export function extractSourceRect(
     const ch = Math.max(0, Math.min(src.h - cy, sh));
     return { sx: cx, sy: cy, sw: cw, sh: ch };
 }
+
+// maximum zoom expressed as a multiple of the cover-fit scale. plan §phase 1.
+export const MAX_ZOOM_MULTIPLE = 4;
+
+// pan by (dx, dy) canvas pixels.
+export function panTransform(t: Transform, dx: number, dy: number): Transform {
+    return { scale: t.scale, tx: t.tx + dx, ty: t.ty + dy };
+}
+
+// zoom around a fixed canvas point (cx, cy) by `factor`. the source-bitmap
+// point under (cx, cy) before the zoom is the same one under (cx, cy) after.
+// derivation: canvas (x, y) -> source (x - tx) / scale; require the source
+// point at (cx, cy) to be invariant -> tx' = cx - (cx - tx) * factor.
+export function anchorZoom(t: Transform, cx: number, cy: number, factor: number): Transform {
+    return {
+        scale: t.scale * factor,
+        tx: cx - (cx - t.tx) * factor,
+        ty: cy - (cy - t.ty) * factor,
+    };
+}
+
+// constrain a transform so the source bitmap fully covers the frame and stays
+// within the zoom envelope [cover, cover * MAX_ZOOM_MULTIPLE]. assumes the
+// canvas has the same dimensions as the frame (frame anchored at canvas (0,0)).
+// returns a new transform; never mutates.
+export function clampTransform(src: Size, frame: Size, t: Transform): Transform {
+    const minScale = coverScale(src, frame);
+    const maxScale = minScale * MAX_ZOOM_MULTIPLE;
+    const scale = Math.min(maxScale, Math.max(minScale, t.scale));
+    // bitmap drawn occupies [tx, tx + src.w * scale] x [ty, ty + src.h * scale].
+    // frame is [0, frame.w] x [0, frame.h]. cover constraint: bitmap contains
+    // the frame on all four sides.
+    const minTx = frame.w - src.w * scale;
+    const minTy = frame.h - src.h * scale;
+    // when scale is exactly the cover-fit minimum and the source is wider than
+    // tall (or vice versa), minTx may equal maxTx (=0) on one axis; clamp does
+    // the right thing in that degenerate case.
+    const tx = Math.min(0, Math.max(minTx, t.tx));
+    const ty = Math.min(0, Math.max(minTy, t.ty));
+    return { scale, tx, ty };
+}

@@ -46,17 +46,9 @@
     let error = $state<string | undefined>(undefined);
     let bitmap = $state<SourceBitmap | undefined>(undefined);
     let lastLoaded: Blob | undefined;
-
-    let transform = $derived<Transform | undefined>(
-        bitmap
-            ? initialCoverTransform(
-                  { w: bitmap.width, h: bitmap.height },
-                  { w: FRAME_W, h: FRAME_H },
-                  FRAME_W / 2,
-                  FRAME_H / 2,
-              )
-            : undefined,
-    );
+    // user-mutable; the canvas updates this via $bindable as the user pans/zooms.
+    // re-initialized each time a fresh bitmap is loaded.
+    let transform = $state<Transform | undefined>(undefined);
 
     $effect(() => {
         if (useLegacy) return;
@@ -84,6 +76,12 @@
                 return;
             }
             bitmap = bm;
+            transform = initialCoverTransform(
+                { w: bm.width, h: bm.height },
+                { w: FRAME_W, h: FRAME_H },
+                FRAME_W / 2,
+                FRAME_H / 2,
+            );
         } catch (e) {
             error = e instanceof Error ? e.message : String(e);
         }
@@ -115,6 +113,7 @@
     function cleanup(): void {
         bitmap?.dispose();
         bitmap = undefined;
+        transform = undefined;
         lastLoaded = undefined;
     }
 
@@ -147,7 +146,7 @@
             </header>
 
             <div class="bg-canvas flex items-center justify-center p-6">
-                <CropperCanvas source={bitmap} frameW={FRAME_W} frameH={FRAME_H} {transform} />
+                <CropperCanvas source={bitmap} frameW={FRAME_W} frameH={FRAME_H} bind:transform />
             </div>
 
             {#if !bitmap && !error}
