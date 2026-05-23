@@ -36,7 +36,6 @@
 - :o: `medium priority` `low effort` debug pill is hidden when the family-view engine is active - the bottom-left debug pill (Ctrl+Shift+D entry point) is gated to the layered engine, leaving family-view users with no UI entry into the debug panel. surface the pill under family-view too (even if some panel toggles are layered-only). stats pill staying layered-only is by design (no cluster analogue)
 - :o: `medium priority` `low effort` many debug-panel toggles silently no-op under family-view - layered-IR toggles (segment ids, ghost arrows, bridge hops, etc.) target structures family-view doesn't emit. fix: per-engine visibility on toggles, or label unsupported items. bundles with the debug-pill-hidden bug above
 - :o: `medium priority` `low effort` tree-view (layered engine) zoom doesn't behave as expected - user-reported, unspecified misbehaviour. needs concrete repro - probable candidates: zoom anchor (wheel vs. button), zoom-aware label thresholds, or perceived 100% reference (semantic 100% is correct per recent audit but cards below the 320px design width may feel "wrong")
-- :o: `medium priority` `low effort` PersonNode portraits render stretched inside the card portrait slot - portrait region itself is correct at `CARD_H * 2 = 2.4u` (fixed 22 May 2026) but the image fill uses the wrong `object-fit` mode in some cases. switch to `object-fit: cover` and crop excess vertical
 - :o: `medium priority` `low effort` toasts (top-right corner) overlap the inspector panel when the inspector docks right - toast content becomes unreachable. fix: anchor toasts top-center, or offset by the inspector width when the inspector is open on that side
 - :o: `medium priority` `no effort` inspector Connections-tab "trace path to…" sets `traceTargetId` but no canvas highlight paints - button at `ConnectionsTab.svelte:705` invokes `onsetTraceTarget` (line 240); the consumer downstream is missing or broken. suggested fix: remove the action (subsumed by the "selectable lineage trace" feature in to-do.md) unless we wire it through
 - :o: `medium priority` `low effort` zoom fit-to-window overflows the canvas UI box - the fit calculation doesn't account for the inspector/menu/topbar chrome, so the fitted tree extends underneath them. include the visible chrome insets when computing fit bounds
@@ -47,6 +46,7 @@
 
 ## fixed
 
+- :red_circle: `23 May 2026` PersonNode portrait img already uses `object-cover object-top` (apps/web/src/lib/components/tree/PersonNode.svelte:175); square 600x600 source crops cleanly into the 3:4 slot, no stretch path remains.
 - :red_circle: `23 May 2026` Menu / command palette auto-highlighted the first item on mouse open - `activeIdx` now starts at -1; only ↑/↓/Home/End sets the highlight. ArrowDown on the menu-bar trigger still auto-focuses the first item (matches the WAI-ARIA convention).
 - :red_circle: `23 May 2026` Tree > "center on root" recentred viewport without selecting the root - `viewCenterRoot` command handler in `App.svelte` now calls `selection.select(treeStore.tree.rootId)` alongside `c.centerOnRoot()`.
 - :red_circle: `23 May 2026` clicking the empty canvas background doesn't clear the selection - pointerup-with-no-drag deselect added to TreeCanvas / FamilyViewCanvas / HyperbolicCanvas; cards / cluster glyphs / tuning panel filtered out.
@@ -101,5 +101,5 @@ if a feature in `to-do.md` turns up a defect during implementation, file the def
 
 ```yaml
 last_updated: 23 May 2026
-total_fixed: 10
+total_fixed: 11
 ```
