@@ -1253,7 +1253,14 @@
         viewSelectTool: () => withCanvas((c) => c.setMode("select")),
         viewZoomIn: () => withCanvas((c) => c.zoomBy(1.25)),
         viewZoomOut: () => withCanvas((c) => c.zoomBy(0.8)),
-        viewCenterRoot: () => withCanvas((c) => c.centerOnRoot()),
+        viewCenterRoot: () => {
+            // center the viewport on root and also select it - users
+            // usually want both (e.g. to start editing or path-tracing
+            // from the root after a long pan away)
+            withCanvas((c) => c.centerOnRoot());
+            const rid = treeStore.tree.rootId;
+            if (rid) selection.select(rid);
+        },
         viewToggleInspector: () => (showInspector = !showInspector),
         viewEngineFamilyView: () => void switchEngine("family-view"),
         viewEngineLayered: () => void switchEngine("layered"),
