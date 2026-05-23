@@ -43,7 +43,7 @@
     import type { DebugLayerOptions } from "$lib/components/tree/debugTypes";
     import type { PortraitUrlCache } from "$lib/state/portraitUrls.svelte";
     import type { PersonId, Tree } from "$lib/domain/types";
-    import type { CanvasController } from "./canvasController";
+    import type { CanvasAnchorOpts, CanvasController } from "./canvasController";
 
     interface Props {
         tree: Tree;
@@ -600,7 +600,7 @@
         if (instancePopover) instancePopover = null;
     }
 
-    function setScale(next: number): void {
+    function setScale(next: number, opts?: CanvasAnchorOpts): void {
         clearJumpSnapshot();
         cancelZoomAnim();
         if (!hostEl) {
@@ -611,8 +611,13 @@
         const rect = hostEl.getBoundingClientRect();
         const target = clamp(next, MIN_SCALE, MAX_SCALE);
         if (target === scale) return;
-        const cx = rect.width / 2;
-        const cy = rect.height / 2;
+        // wave-2 phase 0b: anchor defaults to viewport center; callers
+        // (wheel / pinch) that need cursor anchoring pass anchorPx
+        // explicitly. existing widget + / − / slider / exact-percent
+        // paths land here without anchorPx → host-center anchor, the
+        // documented stable behaviour.
+        const cx = opts?.anchorPx?.x ?? rect.width / 2;
+        const cy = opts?.anchorPx?.y ?? rect.height / 2;
         const cuX = (cx - panX) / scale;
         const cuY = (cy - panY) / scale;
         panX = cx - cuX * target;
@@ -621,8 +626,8 @@
         targetScale = target;
     }
 
-    function zoomBy(factor: number): void {
-        setScale(scale * factor);
+    function zoomBy(factor: number, opts?: CanvasAnchorOpts): void {
+        setScale(scale * factor, opts);
     }
 
     function zoom100(): void {

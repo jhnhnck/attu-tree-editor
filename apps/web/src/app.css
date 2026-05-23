@@ -27,6 +27,31 @@
      * here; light-theme overrides further down. */
     --fte-on-path-stroke-width: 5;
     --fte-on-path-ring-color: hsl(220 100% 65% / 0.7);
+
+    /* Wave-2 phase 0b: design size for one standard (non-portrait)
+     * card in CSS pixels. equals `PERSON_W (4) × UNIT (80)` from
+     * `layout/constants.ts` and `engines/family-view/layout.ts`. the
+     * ZoomWidget reads this to derive the semantic-100% display: the
+     * visible card's `getBoundingClientRect().width / 320 × 100`
+     * equals the canvas's `scale * 100` on 1× DPR / 100% browser zoom
+     * but stays honest about on-screen size when either changes. when
+     * `fte.zoom.semantic100` is off, the widget falls back to raw
+     * `scale × 100`. theme-invariant — same value across light/dark. */
+    --fte-design-card-width: 320px;
+}
+
+/* Wave-2 phase 0b (B5): apply `shape-rendering: crispEdges` to
+ * family-view edge polylines so the integer-pixel coords emitted by
+ * `engines/family-view/edgePath.ts` render without anti-aliasing at
+ * non-1× scales (where the rounded coords land on half-pixel grid
+ * offsets after the CSS transform). family-view edges are
+ * predominantly axis-aligned (vertical stems, horizontal buses, kid
+ * stubs) so `crispEdges` is the right semantic — diagonals would
+ * look jaggier under it, but family-view doesn't use diagonals. the
+ * fallback was documented in `edgePath.ts:24` but not applied; B5
+ * closed by the verification + this rule. */
+.family-view-edge {
+    shape-rendering: crispEdges;
 }
 
 /* prefers-color-scheme switches the palette only when the user has *not*

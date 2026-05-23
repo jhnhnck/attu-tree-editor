@@ -44,7 +44,7 @@
     import { usePath, badgeOnPath } from "$lib/layout/engines/family-view/path";
     import { computeAncestorOverlap } from "$lib/domain/consanguinity";
     import type { PersonId, Tree } from "$lib/domain/types";
-    import type { CanvasController } from "./canvasController";
+    import type { CanvasAnchorOpts, CanvasController } from "./canvasController";
 
     interface Props {
         tree: Tree;
@@ -423,18 +423,40 @@
         focusOverride = id;
     }
 
+    /**
+     * Wave-2 phase 0b: anchor-aware setScale. Without an explicit
+     * anchor, pans the host viewport-center to stay fixed at the new
+     * scale — fixing the prior "100% drifts the focal point" bug
+     * where the widget +/- / slider / exact-percent paths bumped
+     * scale without recomputing panX/panY. The wheel path
+     * (FamilyViewCanvas.svelte's `onWheel`) keeps its cursor anchor by
+     * mutating pan + scale directly without going through `setScale`.
+     */
+    function setScaleAnchored(next: number, opts?: CanvasAnchorOpts): void {
+        const target = Math.max(MIN_SCALE, Math.min(MAX_SCALE, next));
+        if (target === scale) return;
+        if (hostEl) {
+            const rect = hostEl.getBoundingClientRect();
+            const cx = opts?.anchorPx?.x ?? rect.width / 2;
+            const cy = opts?.anchorPx?.y ?? rect.height / 2;
+            const cuX = (cx - panX) / scale;
+            const cuY = (cy - panY) / scale;
+            panX = cx - cuX * target;
+            panY = cy - cuY * target;
+        }
+        scale = target;
+    }
+
     onMount(() => {
         oncontroller?.({
             getScale: () => scale,
-            setScale: (next: number) => {
-                scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, next));
-            },
-            zoomBy: (factor: number) => {
-                scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale * factor));
+            setScale: setScaleAnchored,
+            zoomBy: (factor: number, opts?: CanvasAnchorOpts) => {
+                setScaleAnchored(scale * factor, opts);
             },
             fit: fitToView,
             zoom100: () => {
-                scale = 1;
+                setScaleAnchored(1);
             },
             focusSelection: () => {
                 if (selectedId) recenterOn(selectedId);
@@ -763,7 +785,7 @@
             {#each layout.edges as edge (edge.id)}
                 <path
                     d={edgePath(edge)}
-                    class="fill-none {edgeClass(edge)}"
+                    class="family-view-edge fill-none {edgeClass(edge)}"
                     vector-effect="non-scaling-stroke"
                 />
             {/each}

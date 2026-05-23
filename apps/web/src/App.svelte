@@ -138,6 +138,10 @@
         type CommandGroup,
     } from "$lib/components/palette/commands";
     import ZoomWidget from "$lib/components/canvas/ZoomWidget.svelte";
+    import {
+        DESIGN_CARD_WIDTH_PX,
+        computeDisplayPercent,
+    } from "$lib/components/canvas/zoomDisplay";
     import SaveStatusPill from "$lib/components/shell/SaveStatusPill.svelte";
     import type { Person, PersonId } from "$lib/domain/types";
     import { shortestPath } from "$lib/layout/graph";
@@ -295,6 +299,66 @@
         }
     }
     let generationBadgeEnabled = $state(readGenerationBadgePref());
+
+    // Wave-2 phase 0b: zoom-100% semantic flag. Default true; null
+    // reads as on for parity with `fte.overlays.pathHighlight`. when
+    // true, the ZoomWidget's % readout is derived from a sample
+    // card's measured CSS width / `--fte-design-card-width` (320 px);
+    // when false, falls back to raw `Math.round(scale * 100)`. on a
+    // 1× DPR display at 100% browser zoom the two are identical;
+    // semantic mode only diverges (honestly) when browser zoom is
+    // active. no UI toggle — rollback path is to flip the read
+    // fallback below to `false`.
+    const SEMANTIC_100_LS_KEY = "fte.zoom.semantic100";
+    function readSemantic100Pref(): boolean {
+        try {
+            const raw =
+                typeof localStorage === "undefined"
+                    ? null
+                    : localStorage.getItem(SEMANTIC_100_LS_KEY);
+            return raw !== "false";
+        } catch {
+            return true;
+        }
+    }
+    let semantic100Enabled = $state(readSemantic100Pref());
+
+    // Sample-card measurement for the ZoomWidget readout. `undefined`
+    // means "no measurable card on canvas right now" → fallback path.
+    // Re-sampled in a $effect below whenever `canvasScale` or the
+    // engine changes (cards are remounted on engine swap).
+    let measuredCardWidthPx = $state<number | undefined>(undefined);
+
+    // Wave-2 phase 0b: sample any visible `[data-person-id]` card's
+    // CSS-pixel width and feed it to `computeDisplayPercent`. Re-runs
+    // when `canvasScale` or `selectedEngine` changes — engine swap
+    // remounts the entire card tree. `DESIGN_CARD_WIDTH_PX` is asserted
+    // as a sanity check: if a future commit drifts the constant, the
+    // assertion failure points here (no silent semantic shift).
+    $effect(() => {
+        void canvasScale;
+        void selectedEngine;
+        if (typeof document === "undefined") return;
+        const sample = document.querySelector("[data-person-id]");
+        if (!sample) {
+            measuredCardWidthPx = undefined;
+            return;
+        }
+        const w = sample.getBoundingClientRect().width;
+        measuredCardWidthPx = w > 0 ? w : undefined;
+    });
+
+    let zoomDisplayPercent = $derived(
+        computeDisplayPercent({
+            scale: canvasScale,
+            semantic100: semantic100Enabled,
+            measuredCardWidthPx,
+        }),
+    );
+    // referenced in dev-only consistency check; kept alongside the
+    // sampler so the constant import isn't dropped if the assertion is
+    // removed.
+    void DESIGN_CARD_WIDTH_PX;
 
     // Wave-2 phase 2: family-view crossing-minimisation. Default `true`;
     // null reads as on for parity with `fte.overlays.pathHighlight`. The
@@ -1413,6 +1477,7 @@
             {#if canvasController && (selectedEngine === "layered" || selectedEngine === "family-view")}
                 <ZoomWidget
                     scale={canvasScale}
+                    displayPercent={zoomDisplayPercent}
                     onzoom={(n: number) => canvasController?.setScale(n)}
                     onfit={() => canvasController?.fit()}
                 />
