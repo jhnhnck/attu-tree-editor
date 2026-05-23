@@ -21,6 +21,12 @@
     --color-line: hsl(220 25% 22%); /* #2b3548 - subtle border */
     --color-accent: hsl(220 100% 65%); /* #4d8aff - link blue */
     --color-accent-strong: hsl(220 100% 75%); /* #80acff - hover/active */
+
+    /* on-path overlay tokens. consumed by .family-view-onpath (card ring)
+     * and .family-view-onpath-edge (edge stroke width). dark-theme defaults
+     * here; light-theme overrides further down. */
+    --fte-on-path-stroke-width: 5;
+    --fte-on-path-ring-color: hsl(220 100% 65% / 0.7);
 }
 
 /* prefers-color-scheme switches the palette only when the user has *not*
@@ -36,6 +42,7 @@
         --color-line: hsl(220 25% 78%); /* #b8c2d4 */
         --color-accent: hsl(220 100% 45%); /* #0057e6 */
         --color-accent-strong: hsl(220 100% 35%); /* #0044b3 */
+        --fte-on-path-ring-color: hsl(220 100% 45% / 0.7);
     }
 }
 
@@ -47,6 +54,7 @@
     --color-line: hsl(220 25% 78%);
     --color-accent: hsl(220 100% 45%);
     --color-accent-strong: hsl(220 100% 35%);
+    --fte-on-path-ring-color: hsl(220 100% 45% / 0.7);
 }
 
 :root[data-theme="dark"] {
@@ -57,6 +65,7 @@
     --color-line: hsl(220 25% 22%);
     --color-accent: hsl(220 100% 65%);
     --color-accent-strong: hsl(220 100% 75%);
+    --fte-on-path-ring-color: hsl(220 100% 65% / 0.7);
 }
 
 html,
@@ -107,13 +116,25 @@ body {
  *
  * Applied via `class:family-view-onpath-edge={onPath}` on the <path>
  * element in `FamilyViewCanvas.svelte`. The drop-shadow is the glow;
- * `stroke-width` and translucent stroke are set inline by the Tailwind
- * `stroke-[5]` + `/55` modifiers in `edgeClass()`.
+ * the translucent stroke colour is still set inline via the Tailwind
+ * `/55` modifier in `edgeClass()` (it varies per edge role). Stroke
+ * width is centralised here via the `--fte-on-path-stroke-width` token.
  */
 .family-view-onpath-edge {
     filter: drop-shadow(0 0 4px var(--color-accent)) drop-shadow(0 0 2px var(--color-accent));
     stroke-linecap: round;
     stroke-linejoin: round;
+    stroke-width: var(--fte-on-path-stroke-width);
+}
+
+/*
+ * On-path card ring: applied alongside `.family-view-onpath-edge` when
+ * a card sits on the BFS path between focus and selection. The ring
+ * colour comes from the `--fte-on-path-ring-color` token so themes can
+ * tune it without touching every usage.
+ */
+.family-view-onpath {
+    box-shadow: 0 0 0 2px var(--fte-on-path-ring-color);
 }
 
 .family-view-overlay-sworn {

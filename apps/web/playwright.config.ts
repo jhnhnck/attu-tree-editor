@@ -22,9 +22,13 @@ export default defineConfig({
         { name: "mobile", use: { ...devices["Pixel 7"] } },
     ],
     webServer: {
-        command: `npx vite preview --port ${PORT} --strictPort --host 127.0.0.1`,
+        // chain `vite build` before `vite preview`: the preview server serves
+        // dist/, so a stale (or missing) build would otherwise render the
+        // wrong markup or 404. when reuseExistingServer hits an already-warm
+        // preview the rebuild is fast (vite's cache) and harmless.
+        command: `npx vite build && npx vite preview --port ${PORT} --strictPort --host 127.0.0.1`,
         url: `http://127.0.0.1:${PORT}`,
         reuseExistingServer: !process.env.CI,
-        timeout: 60_000,
+        timeout: 180_000,
     },
 });

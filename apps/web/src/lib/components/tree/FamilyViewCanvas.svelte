@@ -635,13 +635,14 @@
                   : "stroke-fg-muted/70 stroke-1";
         }
         if (onPath) {
-            // thick translucent stroke; the .family-view-onpath-edge class adds
-            // the accent-colored drop-shadow glow that makes the line look lit
+            // thick translucent stroke; .family-view-onpath-edge owns the
+            // stroke-width (via the --fte-on-path-stroke-width token) and the
+            // accent-colored drop-shadow glow that makes the line look lit.
             return e.role === "married"
-                ? "family-view-onpath-edge stroke-rose-400/55 stroke-[5]"
+                ? "family-view-onpath-edge stroke-rose-400/55"
                 : e.role === "divorced"
-                  ? "family-view-onpath-edge stroke-rose-400/45 stroke-[5]"
-                  : "family-view-onpath-edge stroke-accent/60 stroke-[5]";
+                  ? "family-view-onpath-edge stroke-rose-400/45"
+                  : "family-view-onpath-edge stroke-accent/60";
         }
         // Off-path while a path is active: dim.
         return e.role === "married"
@@ -852,7 +853,7 @@
             {#if person}
                 <div
                     class="group/card absolute {cardOnPath(node.personId)
-                        ? 'family-view-onpath rounded ring-2 ring-accent/70'
+                        ? 'family-view-onpath rounded'
                         : ''}"
                     data-on-path={cardOnPath(node.personId) ? "true" : undefined}
                     data-consang-duplicate={consangCardDuplicate(node.personId)
@@ -1046,7 +1047,7 @@
                 class="border-line bg-canvas-elev text-fg hover:border-accent
                        absolute flex items-center justify-center gap-1 rounded-full
                        border px-2 py-0.5 text-xs shadow-sm
-                       {isBadgeOnPath(badge) ? 'ring-2 ring-accent/70 border-accent' : ''}"
+                       {isBadgeOnPath(badge) ? 'family-view-onpath border-accent' : ''}"
                 style:left="{badge.x * UNIT}px"
                 style:top="{badge.y * UNIT}px"
                 style:width="{CARD_W_PX}px"
