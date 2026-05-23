@@ -789,7 +789,7 @@
 
 <div
     bind:this={hostEl}
-    class="family-view-canvas bg-canvas relative h-full w-full overflow-hidden"
+    class="family-view-canvas bg-canvas relative h-full w-full overflow-clip"
     role="region"
     aria-label="family view canvas"
     onpointerdown={onPointerDown}

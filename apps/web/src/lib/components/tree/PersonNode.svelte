@@ -136,7 +136,7 @@
     data-has-date={dateRange ? "true" : "false"}
     data-frame={decoration.frame}
     data-era-underline={decoration.underlineColour ? "true" : undefined}
-    style:border-bottom-color={decoration.underlineColour || undefined}
+    style:--era-bottom={decoration.underlineColour || "transparent"}
     tabindex={selected ? 0 : -1}
     aria-selected={selected}
     aria-label={fullName || initials}
@@ -267,6 +267,11 @@
            ring at spread=3px has enough arc to render flush against the border's
            inner corner — closes the visible corner-gap from #7/B9. */
         border-radius: 0.5rem;
+        /* era underline: inset bottom shadow driven by --era-bottom (set inline).
+           inset shadow is immune to overflow:hidden clipping and doesn't affect
+           the tone-based border color. transparent default means no shadow when
+           no era colour is set. */
+        box-shadow: inset 0 -3px 0 0 var(--era-bottom, transparent);
     }
     /* relationship-vocabulary Phase 5: per-frame stroke style driven by the
        cardDecorator's `frame` axis. The decorator maps species + kind →
@@ -353,7 +358,9 @@
        inset box-shadow draws inside the element's own padding box, so it's
        immune to the parent's `contain: paint` and to focus-ring cascade. */
     .is-selected {
-        box-shadow: inset 0 0 0 3px hsl(50 100% 65%);
+        box-shadow:
+            inset 0 0 0 3px hsl(50 100% 65%),
+            inset 0 -3px 0 0 var(--era-bottom, transparent);
         z-index: 5;
     }
 </style>
