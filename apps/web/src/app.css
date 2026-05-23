@@ -54,6 +54,24 @@
     shape-rendering: crispEdges;
 }
 
+/* Wave-2 phase 3: smooth-diff animation. Cards + badges are
+ * positioned via `transform: translate3d(x, y, 0)` (GPU-compositable)
+ * inside the absolutely-positioned canvas surface; this class adds a
+ * CSS `transition` so layout shifts (expand / collapse / refocus)
+ * tween smoothly instead of jump-cutting. Edges (SVG `<path>` `d`
+ * attribute) and badge mount / unmount jump-cut for v1 — see the
+ * phase 3 retro at `.claude/plans/family-view-w2/log.md`.
+ *
+ * Composition with `.family-view-onpath` (the on-path ring `box-
+ * shadow`) is intentional: the two rules target different CSS
+ * properties (`transform` vs `box-shadow`) on the same element, so
+ * they animate independently without fighting. The global
+ * `prefers-reduced-motion: reduce` rule near the top of this file
+ * zeroes `transition-duration` for users who opt out of motion. */
+.family-view-smooth-card {
+    transition: transform 250ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 /* prefers-color-scheme switches the palette only when the user has *not*
  * pinned a theme via the settings dialog. without :not([data-theme]) the
  * media query would override an explicit data-theme="dark" for users whose

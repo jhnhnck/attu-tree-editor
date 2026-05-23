@@ -380,6 +380,28 @@
     }
     let crossingMinEnabled = $state(readCrossingMinPref());
 
+    // Wave-2 phase 3: smooth-diff animation flag. Default `true`; null
+    // reads as on for parity with `fte.overlays.pathHighlight`. Gates
+    // FamilyViewCanvas's `smoothDiff` prop, which toggles a CSS
+    // `transition` on card / badge `transform`. Rollback path is to
+    // flip the read fallback below to `false`; users who prefer
+    // reduced motion already get jump-cut behaviour via the global
+    // `prefers-reduced-motion: reduce` rule in `app.css`. No UI
+    // toggle today — same precedent as `crossingMin` and `semantic100`.
+    const SMOOTH_DIFF_LS_KEY = "fte.overlays.smoothDiff";
+    function readSmoothDiffPref(): boolean {
+        try {
+            const raw =
+                typeof localStorage === "undefined"
+                    ? null
+                    : localStorage.getItem(SMOOTH_DIFF_LS_KEY);
+            return raw !== "false";
+        } catch {
+            return true;
+        }
+    }
+    let smoothDiffEnabled = $state(readSmoothDiffPref());
+
     // relationship-vocabulary phase 4: per-overlay-kind toggles. each
     // localStorage key defaults on (`null` → on); anything but `"false"`
     // reads as on. mirrors PATH_HIGHLIGHT_LS_KEY's defensive shape.
@@ -1601,6 +1623,7 @@
                     showGroupFrames={groupFramesEnabled}
                     showConsanguinity={consanguinityEnabled}
                     crossingMin={crossingMinEnabled}
+                    smoothDiff={smoothDiffEnabled}
                     {portraitUrls}
                     onselect={(id: string) => selection.select(id)}
                     ondeselect={() => selection.select(undefined)}

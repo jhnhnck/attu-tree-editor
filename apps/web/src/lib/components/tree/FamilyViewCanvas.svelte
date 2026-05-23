@@ -97,6 +97,17 @@
          */
         crossingMin?: boolean | undefined;
         /**
+         * Wave-2 phase 3: smooth-diff animation. When `true` (default),
+         * card positions tween via a CSS transition on `transform`
+         * whenever the layout shifts (expand / collapse / refocus).
+         * Edges and badge mount/unmount jump-cut — see the phase 3
+         * retro for the bounded-scope rationale. Persisted upstream
+         * via `fte.overlays.smoothDiff` localStorage flag; the global
+         * `prefers-reduced-motion: reduce` media query in `app.css`
+         * zeroes the transition for users who opt out of motion.
+         */
+        smoothDiff?: boolean | undefined;
+        /**
          * Portrait blob -> object-URL cache shared with the layered engine.
          * Phase 1 of the visual fix-up plan: family-view now renders
          * portraits at the larger card height when `person.portraitBlobId`
@@ -142,6 +153,7 @@
         showGroupFrames = true,
         showConsanguinity = false,
         crossingMin = true,
+        smoothDiff = true,
         portraitUrls,
         onselect,
         ondeselect,
@@ -887,13 +899,15 @@
                 <div
                     class="group/card absolute {cardOnPath(node.personId)
                         ? 'family-view-onpath rounded'
-                        : ''}"
+                        : ''} {smoothDiff ? 'family-view-smooth-card' : ''}"
                     data-on-path={cardOnPath(node.personId) ? "true" : undefined}
                     data-consang-duplicate={consangCardDuplicate(node.personId)
                         ? "true"
                         : undefined}
-                    style:left="{node.x * UNIT}px"
-                    style:top="{node.y * UNIT}px"
+                    data-smooth-diff={smoothDiff ? "true" : undefined}
+                    style:left="0"
+                    style:top="0"
+                    style:transform="translate3d({node.x * UNIT}px, {node.y * UNIT}px, 0)"
                     style:width="{CARD_W_PX}px"
                     style:height="{(node.h ?? CARD_H) * UNIT}px"
                 >
@@ -1077,12 +1091,15 @@
                 type="button"
                 data-badge-id={badge.id}
                 data-on-path={isBadgeOnPath(badge) ? "true" : undefined}
+                data-smooth-diff={smoothDiff ? "true" : undefined}
                 class="border-line bg-canvas-elev text-fg hover:border-accent
                        absolute flex items-center justify-center gap-1 rounded-full
                        border px-2 py-0.5 text-xs shadow-sm
-                       {isBadgeOnPath(badge) ? 'family-view-onpath border-accent' : ''}"
-                style:left="{badge.x * UNIT}px"
-                style:top="{badge.y * UNIT}px"
+                       {isBadgeOnPath(badge) ? 'family-view-onpath border-accent' : ''}
+                       {smoothDiff ? 'family-view-smooth-card' : ''}"
+                style:left="0"
+                style:top="0"
+                style:transform="translate3d({badge.x * UNIT}px, {badge.y * UNIT}px, 0)"
                 style:width="{CARD_W_PX}px"
                 style:height="{CARD_H_PX}px"
                 aria-label={`expand ${String(badge.members.length)} hidden persons starting with ${badge.sampleName}`}
