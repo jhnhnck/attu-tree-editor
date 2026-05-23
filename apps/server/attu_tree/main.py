@@ -49,8 +49,10 @@ def _templated_index() -> str:
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     await init_db()
-    yield
-    await close_db()
+    try:
+        yield
+    finally:
+        await close_db()
 
 
 class HealthResponse(BaseModel):
