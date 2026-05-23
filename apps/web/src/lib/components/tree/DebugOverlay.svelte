@@ -185,7 +185,7 @@
 
     <!-- unit grid -->
     {#if layers.showGrid}
-        {#each Array.from({ length: Math.ceil(layout.canvas.width) + 1 }) as _, x}
+        {#each Array.from({ length: Math.ceil(layout.canvas.width) + 1 }) as _, x (x)}
             <line
                 x1={x * unit}
                 y1={0}
@@ -197,7 +197,7 @@
                 vector-effect="non-scaling-stroke"
             />
         {/each}
-        {#each Array.from({ length: Math.ceil(layout.canvas.height) + 1 }) as _, y}
+        {#each Array.from({ length: Math.ceil(layout.canvas.height) + 1 }) as _, y (y)}
             <line
                 x1={0}
                 y1={y * unit}

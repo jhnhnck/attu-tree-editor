@@ -115,8 +115,7 @@
                             class="border-line bg-canvas-elev text-fg rounded border px-1 py-0.5 text-[11px]"
                             value={d.kind}
                             aria-label="sibship kind"
-                            onchange={(e) =>
-                                onKindChange(d, e as Event & { currentTarget: HTMLSelectElement })}
+                            onchange={(e) => onKindChange(d, e)}
                         >
                             {#each CANONICAL_KINDS as k (k)}
                                 <option value={k}>{k}</option>
@@ -131,8 +130,7 @@
                             placeholder="optional label"
                             aria-label="sibship label"
                             value={d.name ?? ""}
-                            onblur={(e) =>
-                                onNameBlur(d, e as Event & { currentTarget: HTMLInputElement })}
+                            onblur={(e) => onNameBlur(d, e)}
                         />
                         <button
                             type="button"

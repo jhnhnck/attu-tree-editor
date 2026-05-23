@@ -35,16 +35,13 @@ export default defineConfig({
         css: false,
         testTimeout: 120_000,
         hookTimeout: 30_000,
-        // Run each test file in its own forked subprocess so libavoid's
+        // Run all test files in a single forked subprocess so libavoid's
         // WASM module (which keeps its emscripten heap alive for the
         // process lifetime) doesn't keep the parent vitest hanging on
         // exit. Without this, a passing run still trips ELIFECYCLE on
-        // teardown.
+        // teardown. vitest 4 flattened the old poolOptions.forks.singleFork
+        // to top-level `fileParallelism: false` (forces maxWorkers=1).
         pool: "forks",
-        poolOptions: {
-            forks: {
-                singleFork: true,
-            },
-        },
+        fileParallelism: false,
     },
 });

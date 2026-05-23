@@ -3,7 +3,7 @@
  * licensed under the MIT license; see LICENSE.md for full text
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import { ROOT_ID } from "$lib/domain/ids";
 import { addPerson, createTree, linkParent, linkSpouse } from "$lib/domain/tree";
 import { ghostNodeId } from "$lib/layout/ir";
@@ -503,7 +503,7 @@ describe("layer — spouseEdges", () => {
 // ---------------------------------------------------------------------------
 
 describe("layer — cycle detection", () => {
-    let warnSpy: ReturnType<typeof vi.spyOn>;
+    let warnSpy: MockInstance<typeof console.warn>;
 
     beforeEach(() => {
         warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
@@ -540,7 +540,7 @@ describe("layer — cycle detection", () => {
         const tree = selfAncestorCycle();
         layer(tree, visAll(tree), ROOT_ID);
         expect(warnSpy).toHaveBeenCalled();
-        const firstArg = warnSpy.mock.calls[0]?.[0];
+        const firstArg: unknown = warnSpy.mock.calls[0]?.[0];
         expect(typeof firstArg).toBe("string");
         expect(firstArg as string).toContain("cycle");
     });

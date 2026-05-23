@@ -154,8 +154,7 @@
                             class="border-line bg-canvas-elev text-fg rounded border px-1 py-0.5 text-[11px]"
                             value={g.kind}
                             aria-label="group kind"
-                            onchange={(e) =>
-                                onKindChange(g, e as Event & { currentTarget: HTMLSelectElement })}
+                            onchange={(e) => onKindChange(g, e)}
                         >
                             {#each CANONICAL_KINDS as k (k)}
                                 <option value={k}>{k}</option>
@@ -169,8 +168,7 @@
                             class="border-line bg-canvas-elev text-fg flex-1 rounded border px-1.5 py-0.5"
                             aria-label="group name"
                             value={g.name}
-                            onblur={(e) =>
-                                onNameBlur(g, e as Event & { currentTarget: HTMLInputElement })}
+                            onblur={(e) => onNameBlur(g, e)}
                         />
                         <button
                             type="button"
@@ -263,11 +261,7 @@
                                 class="border-line bg-canvas-elev text-fg rounded border px-1 py-0.5 text-[11px]"
                                 value={g.frame?.style ?? "default"}
                                 aria-label="frame style"
-                                onchange={(e) =>
-                                    onFrameStyleChange(
-                                        g,
-                                        e as Event & { currentTarget: HTMLSelectElement },
-                                    )}
+                                onchange={(e) => onFrameStyleChange(g, e)}
                             >
                                 <option value="default">default</option>
                                 {#each FRAME_STYLES as s (s)}
@@ -287,11 +281,7 @@
                             class="border-line bg-canvas-elev text-fg flex-1 resize-y rounded border px-1.5 py-0.5"
                             placeholder="optional armorial blazon"
                             value={g.armorial?.description ?? ""}
-                            onblur={(e) =>
-                                onArmorialBlur(
-                                    g,
-                                    e as Event & { currentTarget: HTMLTextAreaElement },
-                                )}
+                            onblur={(e) => onArmorialBlur(g, e)}
                         ></textarea>
                     </label>
                 </li>

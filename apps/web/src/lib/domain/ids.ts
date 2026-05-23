@@ -16,7 +16,7 @@ const COLLISION_RETRY_LIMIT = 8;
 // rejection-sampling threshold: largest multiple of ALPHABET_SIZE that fits in a byte
 const REJECTION_THRESHOLD = Math.floor(256 / ALPHABET_SIZE) * ALPHABET_SIZE;
 
-type RandomSource = (out: Uint8Array) => void;
+type RandomSource = (out: Uint8Array<ArrayBuffer>) => void;
 
 const defaultRandom: RandomSource = (out) => {
     crypto.getRandomValues(out);

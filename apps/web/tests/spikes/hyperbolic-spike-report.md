@@ -1,6 +1,6 @@
 # Hyperbolic Lamping-Rao Phase 2 spike
 
-Captured: 2026-05-14T04:06:10.418Z
+Captured: 2026-05-23T05:52:49.081Z
 Proband: EZ5OI (Solurak Garvak)
 
 ## DoD checklist
@@ -12,12 +12,12 @@ Proband: EZ5OI (Solurak Garvak)
 - ⚠️ hit |z|=1 clamp during layout
 **linear-0.2**:
 - ❌ no pixel collisions (9213 pairs within 1 px)
-- ❌ deepest gen at |z| = 0.999991 (gen 66)
+- ❌ deepest gen at |z| = 0.999969 (gen 66)
 - ✅ ancestor/descendant halves disjoint (0 bleed)
 - ✅ never hit |z|=1 clamp
 **linear-0.08**:
-- ❌ no pixel collisions (370 pairs within 1 px)
-- ✅ deepest gen at |z| = 0.985493 (gen 66)
+- ❌ no pixel collisions (249 pairs within 1 px)
+- ✅ deepest gen at |z| = 0.975557 (gen 66)
 - ✅ ancestor/descendant halves disjoint (0 bleed)
 - ✅ never hit |z|=1 clamp
 
@@ -26,15 +26,15 @@ Proband: EZ5OI (Solurak Garvak)
 | scheme | nodes | max \|z\| | deepest gen | deepest \|z\| | min pair dist | px collisions | half bleed | hit clamp |
 |---|---|---|---|---|---|---|---|---|
 | linear-0.7 | 170 | 1.000000 | 66 | 1.000000 | 3.10e-25 | 12721 | 0 | yes |
-| linear-0.2 | 170 | 0.999995 | 66 | 0.999991 | 6.58e-8 | 9213 | 0 | no |
-| linear-0.08 | 170 | 0.988188 | 66 | 0.985493 | 3.52e-5 | 370 | 0 | no |
+| linear-0.2 | 170 | 0.999995 | 66 | 0.999969 | 1.71e-7 | 9213 | 0 | no |
+| linear-0.08 | 170 | 0.988729 | 66 | 0.975557 | 9.62e-5 | 249 | 0 | no |
 
 ## Hourglass wedge negotiation — algorithm used
 
 Phase 5's full implementation will lift this directly.
 
 1. **Build two subtrees from the proband.** Ancestors via BFS up
-   parent-chain (motherId, fatherId at each step); descendants via BFS
+   parent-chain (parentIds at each step); descendants via BFS
    down the inverted children-of map. Each subtree is treated as
    unidirectional for the recursive Lamping-Rao step.
 2. **Place the proband at z = 0** with no outward direction (it's
@@ -71,8 +71,8 @@ the clamp catches it.
 ## Float64 precision floor
 
 - **linear-0.7**: gen 66 reaches |z| = 1.000000 — at or past the 0.999 boundary clip; **Phase 5 needs log-distance scaling or a generation cap**.
-- **linear-0.2**: gen 66 reaches |z| = 0.999991 — at or past the 0.999 boundary clip; **Phase 5 needs log-distance scaling or a generation cap**.
-- **linear-0.08**: gen 66 sits at |z| = 0.985493 — below the 0.999 boundary clip with margin to spare.
+- **linear-0.2**: gen 66 reaches |z| = 0.999969 — at or past the 0.999 boundary clip; **Phase 5 needs log-distance scaling or a generation cap**.
+- **linear-0.08**: gen 66 sits at |z| = 0.975557 — below the 0.999 boundary clip with margin to spare.
 
 ## Phase 5 implications
 

@@ -376,7 +376,7 @@
             </div>
 
             <div class="mt-2 grid grid-cols-6 gap-0.5">
-                {#each { length: 30 } as _, i}
+                {#each { length: 30 } as _, i (i)}
                     {@const d = i + 1}
                     <button
                         type="button"

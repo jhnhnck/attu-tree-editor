@@ -55,7 +55,7 @@ function legacyKeyPrefix(treeId: string): string {
  */
 export function migratePreferredUnion(tree: Tree): Tree {
     if (typeof localStorage === "undefined") return tree;
-    let sentinelExisted = false;
+    let sentinelExisted;
     try {
         sentinelExisted = localStorage.getItem(sentinelKey(tree.id)) !== null;
     } catch {

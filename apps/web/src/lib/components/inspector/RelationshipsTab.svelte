@@ -167,11 +167,7 @@
                             class="border-line bg-canvas-elev text-fg rounded border px-1 py-0.5 text-[11px]"
                             value={rel.kind}
                             aria-label="relationship kind"
-                            onchange={(e) =>
-                                onKindChange(
-                                    rel,
-                                    e as Event & { currentTarget: HTMLSelectElement },
-                                )}
+                            onchange={(e) => onKindChange(rel, e)}
                         >
                             {#each KINDS as k (k)}
                                 <option value={k}>{k}</option>
@@ -260,11 +256,7 @@
                                 class="border-line bg-canvas-elev text-fg flex-1 rounded border px-1.5 py-0.5"
                                 placeholder="optional"
                                 value={rel.cause ?? ""}
-                                onblur={(e) =>
-                                    onCauseBlur(
-                                        rel,
-                                        e as Event & { currentTarget: HTMLInputElement },
-                                    )}
+                                onblur={(e) => onCauseBlur(rel, e)}
                             />
                         </label>
                         <label class="flex items-center gap-1.5">
@@ -290,11 +282,7 @@
                                 class="border-line bg-canvas-elev text-fg flex-1 resize-y rounded border px-1.5 py-0.5"
                                 placeholder="optional"
                                 value={rel.notes ?? ""}
-                                onblur={(e) =>
-                                    onNotesBlur(
-                                        rel,
-                                        e as Event & { currentTarget: HTMLTextAreaElement },
-                                    )}
+                                onblur={(e) => onNotesBlur(rel, e)}
                             ></textarea>
                         </label>
                     </div>
