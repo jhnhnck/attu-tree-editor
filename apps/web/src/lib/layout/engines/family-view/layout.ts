@@ -199,7 +199,7 @@ export function computeLayout(
         const scores = computeDoiScores({ tree, focus: focusId });
         const protect = new Set<PersonId>([focusId, ...expanded]);
         while (visibleCount > threshold) {
-            const victim = pickCollapseVictim(tree, working, scores, protect, autoCollapsed);
+            const victim = pickCollapseVictim(tree, working, scores, protect, autoCollapsed, expanded);
             if (!victim) break;
             autoCollapsed.add(victim);
             working = recomputeAfterCollapse(
@@ -1152,10 +1152,11 @@ function drop(
 /**
  * Pick the next sibling block to demote to a badge. Strategy:
  * walk every visible parent → child-set; rank by parent's DOI
- * (lowest first = furthest from focus). Skip if any child is in
- * `protect` (explicit-expansion or focus) or if all children are
- * already auto-collapsed. Returns the parent person id whose children
- * should be replaced; null if nothing collapsible remains.
+ * (lowest first = furthest from focus). Skip if the source person is
+ * in `expanded` (user-explicit expansion keeps their children visible)
+ * or if any child is in `protect` (focus or explicit-expansion) or if
+ * all children are already auto-collapsed. Returns the parent person id
+ * whose children should be replaced; null if nothing collapsible remains.
  */
 function pickCollapseVictim(
     tree: Tree,
@@ -1163,15 +1164,17 @@ function pickCollapseVictim(
     scores: ReadonlyMap<PersonId, { readonly score: number }>,
     protect: ReadonlySet<PersonId>,
     alreadyCollapsed: ReadonlySet<PersonId>,
+    expanded: ReadonlySet<PersonId>,
 ): PersonId | null {
-    // `protect` only protects from being HIDDEN. The source person whose
-    // children get badged stays visible (only the children collapse), so
-    // a protected source is fine — what matters is that none of the
-    // CHILDREN about to be hidden are themselves in `protect`.
+    // `expanded` guards the source: a person the user explicitly expanded
+    // cannot have their children auto-collapsed again (badge would flicker).
+    // `protect` guards children: focus or expanded ids in a child position
+    // block collapsing the whole sibling block.
     let worstScore = Number.POSITIVE_INFINITY;
     let victim: PersonId | null = null;
     for (const id of subset.visible) {
         if (alreadyCollapsed.has(id)) continue;
+        if (expanded.has(id)) continue;
         const kids = directChildrenOfInSubset(tree, id, subset.visible);
         if (kids.length === 0) continue;
         let hasProtected = false;

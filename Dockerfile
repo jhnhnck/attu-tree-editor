@@ -4,7 +4,7 @@
 # ---------------------------------------------------------------------------
 # stage 1: build the web spa
 # ---------------------------------------------------------------------------
-FROM node:22-slim AS web-builder
+FROM node:24-slim AS web-builder
 
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
@@ -25,7 +25,7 @@ RUN VITE_BASE=/trees/ pnpm -F web build
 # ---------------------------------------------------------------------------
 # stage 2: runtime — uv image is the base; deps installed in place
 # ---------------------------------------------------------------------------
-FROM ghcr.io/astral-sh/uv:python3.13-bookworm AS runtime
+FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim AS runtime
 
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \

@@ -15,7 +15,6 @@
 - ⭕ `medium priority` `medium effort` selectable lineage trace - clicking an edge (or a person + an "trace" action) highlights a chain through the graph in a unique color so the user can see where a relationship goes; pairs naturally with the "hide unrelated branches" toggle. **Partially addressed by the wave-1 family-view rollout's Phase 3 (retired plan; see git history)**: selection→focus path highlight ships in wave 1 (on by default, toggleable via View > Overlays > Path highlight). True any-to-any "trace" action remains open.
 - ⭕ `medium priority` `low effort` hover tooltip at far zoom levels - PersonNode at level 4 (initials) and 5 (dot) drops the name; add a native `title` or floating tooltip showing the full name + dates so users can identify cards before zooming in
 - ⭕ `medium priority` `low effort` minimap + search-by-name popover
-- ⭕ `medium priority` `low effort` PersonNode portrait area is too short - the portrait crop reads as a thin band rather than a face; either grow the portrait slot vertically or rebalance card padding so the face has proportional height to the name/dates block. **Likely closed by the family-view visual fix-up plan** ([family-view-visual-fixup.md](plans/family-view-visual-fixup.md), shipped 22 May 2026): portrait card is `CARD_H * 2 = 2.4u`, slot occupies ~70% of card width at 3:4 aspect, silhouette placeholder dropped. Audit on next pass and move to completed if confirmed.
 - ⭕ `low priority` `medium effort` edge lines should grow thicker / darker as the canvas zooms out so the topology stays readable when individual cards become unreadable. Tried inline `stroke-width = basePx / scale` on the bucket paths (Layer 3) but it forced the browser to re-stroke the entire path geometry on every wheel tick and added visible lag; reverted to `vector-effect: non-scaling-stroke`. Right approach: precompute per-zoom-level CSS classes (e.g. `.zoom-far`, `.zoom-mid`) and toggle one class on the host element instead of inline-styling the path
 - ⭕ `medium priority` `medium effort` family-view crossing-min algorithm upgrade - the wave-2 phase-2 barycentric slot-index pass landed with a monotone gate but is a measured no-op on every production fixture (akarians root=1/dense=4/leaf=0, dense-tree=9, multi-union=0; all delta=0) including the phase-4 secondary-union-expanded configuration. root cause is structural, not fixture-dependent: edges sharing a person (couple-bus + parent-stem + sibling-bus + per-kid stubs all share the partner pair) are filtered out of the strict-cross definition, so the heuristic improvements don't translate to fewer geometric crossings. options: median barycentric, alternating inward sweep, or per-swap geometric-crossing transposition. monotone gate guarantees no harm in the meantime. baseline measurement lives in `apps/web/tests/unit/engines/family-view/crossings-baseline.test.ts`. 🎯 *carried in from family-view-w2 (retired plan; see git history, phase-2/phase-4 follow-up 2026-05-23)*
 - ⭕ `medium priority` `low effort` family-view union-fan ordering puts focus at the *edge* of rank 0 instead of the centre - when a 2-expanded focus renders with primary + secondary, planRank iterates `tree.couples` and emits a `couple` slot for the primary union (containing focus + primary partner) followed by a `single` slot for the secondary partner. visible in `tests/e2e/visual-secondary-union.spec.ts-snapshots/` as the secondary couple-bus running diagonally across the primary-partner card. ideal: focus in the middle with both partners flanking, both buses short + non-crossing. fix: ~10 lines in `planRank` to detect a focus with expanded secondary unions and emit slots in `[primary-partner, focus, secondary-partner]` order; visual golden re-baselines on close. 🎯 *carried in from family-view-w2 (retired plan; see git history, phase-4 finding 2026-05-23)*
@@ -69,23 +68,9 @@
 
 ### tooling + docs
 
-- ⭕ `medium priority` `medium effort` debug toolbox overhaul - **partially closed by commits `916078f` (sectioned debug toolbox + per-pass timings + 5 new overlays) and `d3243c4` (unified bottom-left bar; stats pill + debug pill in one flex row).** anchor + discovery pill + sectioned layout + layout-timing readout + 5 new overlays shipped. Residual sub-bullets below remain open; re-audit and prune as the implementation lands. the Ctrl+Shift+D panel currently floats top-center with bare checkboxes (`App.svelte:1130-1182`, drives `DebugOverlay.svelte`). Wanted:
-  - **anchor**: move panel to bottom-left, stacked directly above the people-count stats pill (currently bottom-left at `App.svelte` people-count pill); panel grows upward from there
-  - **discovery pill**: first time Ctrl+Shift+D is pressed in a session/profile, latch a `debug.discovered` flag in `persistence/settings.ts`; show a small bug-icon pill (lucide `bug`) immediately to the right of the stats pill that toggles the panel on click. Panel has a "hide debug pill" option that clears the flag and removes the pill again (panel stays reachable via the shortcut)
-  - **toggle switches** instead of checkboxes; reuse the toggle component used in the Inspector Connections tab (married / primary toggles) for visual consistency
-  - **sectioned layout** with headers - candidates: `layout` (unit grid, node bounds, component bounds, segment ids), `routing` (ghost arrows, bridge hops, overlap pairs), `runtime` (expose `window.__treeDebug`), plus the new sections below
-  - **proposed new "secret" options** to land alongside the rework:
-    - `layout timing` corner readout - ms per pass (layer / order / place / route) + total; useful for the 1.8K-node lag investigation
-    - `topology hash` corner readout - current `editRev` + content hash from `layout.worker.ts`; verifies the worker-cache key
-    - `cycle nodes` highlight - draws a red ring around `LayeredGraph.cycleNodes` entries (the field already exists per the recent layer.ts cycle warning)
-    - `bond / centroid delta` markers - small caret showing children-centroid x vs bond-midpoint x for each couple; would have surfaced the recent same-rank bond-stub bug visually
-    - `orphan badge` - flags people with no parents, no spouse, and no children (data hygiene)
-    - `rank gutter labels` - draws the rank index (0, 1, 2, …) in the left margin so the layered structure is legible at a glance
-    - `last-edit halo` - 1-second yellow halo around whatever card was most recently mutated; helps verify that an edit actually re-laid-out
-    - `copy layout snapshot` button - dumps the placed/routed IR to clipboard as JSON for bug reports
-    - `engine quick-switch` row - one-click toggle between layered / hyperbolic without going through View menu
-    - `dump tree json` / `load tree json` pair - paste a tree into the textarea for repros without going through file import
-    - `force conflict` action - artificially bumps server revision so the next autosave hits the 409 path; exercises `ShareDialog` / `SaveStatusPill` conflict UI
+- ⭕ `low priority` `low effort` debug toolbox residual - shipped in `916078f` + `d3243c4`: anchor (bottom-left unified bar), discovery pill, chip toggles, 4 sections, layout-timing readout, cycle-nodes, bond/centroid-delta, orphan badge, rank-gutter labels, last-edit halo, copy-snapshot, dump/load-tree-json, force-conflict. two sub-bullets remain open:
+  - `topology hash` corner readout - current `editRev` + content hash from `layout.worker.ts`; verifies the worker-cache key
+  - `engine quick-switch` row - one-click toggle between layered / hyperbolic without going through View menu
 - ⭕ `medium priority` `low effort` update `notes/features/keyboard-shortcuts.md` to reflect what actually shipped: drop Mod+N (browser new-window), Mod+Shift+N (browser private-window) and Mod+1 (browser tab-1) from the canonical spec; document the soft-conflict pattern where Mod+S/O/P/D/I/E/0 work via `preventDefault` like Figma/VS Code; add a "browser-safe" rule of thumb for future bindings
 - ⭕ `low priority` `low effort` revisit prettier-plugin-tailwindcss once upstream supports svelte 5
 - ⭕ `low priority` `low effort` `.claude/skills/layout-worker/` skill - capture the IR worker-boundary discipline once the Web Worker layout refactor lands: wire types vs. live types (`hydrateLayered/Ordered/Placed`), no functions / no `Map` instances across `postMessage`, `layoutSeq` race-handling for stale responses, the four-pass purity contract. defer until the refactor stabilises; one-off architectural skill, only worthwhile if a second worker gets added later
@@ -98,6 +83,10 @@
 ---
 
 ## completed
+
+### canvas + layout
+
+- 🔴 `23 May 2026` PersonNode portrait area was too short (rendered as a thin band) - portrait card is `CARD_H * 2 = 2.4u` with a 3:4 slot; silhouette placeholder dropped. closed by family-view visual fix-up plan (shipped 22 May 2026, retired plan; see git history).
 
 ### schema evolution
 
@@ -136,6 +125,6 @@ defects with observable wrong behavior (a wrong line on the canvas, a focused fi
 ### metadata
 
 ```yaml
-last_updated: 14 May 2026
-total_completed: 1
+last_updated: 23 May 2026
+total_completed: 2
 ```
