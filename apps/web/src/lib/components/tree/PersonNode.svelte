@@ -135,6 +135,8 @@
     data-portrait={hasPortraitSlot ? "1" : "0"}
     data-has-date={dateRange ? "true" : "false"}
     data-frame={decoration.frame}
+    data-era-underline={decoration.underlineColour ? "true" : undefined}
+    style:border-bottom-color={decoration.underlineColour || undefined}
     tabindex={selected ? 0 : -1}
     aria-selected={selected}
     aria-label={fullName || initials}
@@ -205,21 +207,6 @@
         <span class="m-auto text-6xl leading-none font-bold tracking-tight">{initials}</span>
     </div>
     <!-- level 5: empty box, no text -->
-
-    {#if decoration.underlineColour}
-        <!-- Phase 5 era underline: a subtle 1-px band at the bottom of
-             the card, hue derived from the birth-year's century by
-             cardDecorator. Cards without a birth-year have
-             `underlineColour: null` so this block doesn't render and
-             no stray pixel-row appears. Positioned absolutely so it
-             doesn't push the existing flex layout. -->
-        <span
-            class="pointer-events-none absolute right-0 bottom-0 left-0 h-px"
-            style:background-color={decoration.underlineColour}
-            aria-hidden="true"
-            data-era-underline="true"
-        ></span>
-    {/if}
 
     {#if hasMultipleInstances}
         <div
