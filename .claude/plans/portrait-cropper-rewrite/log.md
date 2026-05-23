@@ -164,3 +164,34 @@ plan shape unchanged. next phase per plan order is **2b — image pipeline (exif
 plan shape unchanged. next by plan order: **phase 3 — keyboard + a11y** (gated only on the placeholder e2e baseline, which doesn't block). no reorders, rewrites, inserts, or deletes. bugs.md carries the same three items.
 
 phase 2 (a+b) is complete per user request.
+
+## starting phase 0b — 2026-05-23
+
+- worktree: `.claude/worktrees/portrait-cropper-rewrite-phase0b`
+- branch: `phase/portrait-cropper-rewrite/0b` (off `phase/portrait-cropper-rewrite/2b` @ `1600111`)
+- **gate-override:** plan rollback criterion says 0b should only run after hardware probes return green. probes are still pending; user explicitly asked to proceed. risk: if a probe returns "no" later, we'll need to re-add cropperjs to recover the legacy path. blast radius is contained to this branch — easy to revert. recorded here so future me knows what to undo.
+- scope: delete `cropperjs` from `apps/web/package.json`; delete `CropperDialogLegacy.svelte`; remove the `?cropper=legacy` branch and the `CropperDialogLegacy` import from `CropperDialog.svelte`. run `pnpm install` to update the lockfile.
+- DoD:
+  1. `grep -c cropperjs pnpm-lock.yaml` returns 0.
+  2. `grep -rn cropperjs apps/web/src` returns nothing.
+  3. lazy chunk previously containing cropperjs (≈ 41 kb minified) is gone from `pnpm build` output.
+  4. `pnpm verify` passes.
+- merge gate: deferred per user instruction (`do not merge`). worktree + branch will be left in place after step 5.
+
+## phase 0b retro — 2026-05-23
+
+**what landed vs spec**
+- cropperjs removed from `apps/web/package.json`; lockfile updated; `grep -c cropperjs pnpm-lock.yaml = 0`; `grep -rn cropperjs apps/web/src = nothing`.
+- `CropperDialogLegacy.svelte` deleted; `CropperDialog.svelte` lost its `useLegacy` branch and the `CropperDialogLegacy` import. 394 lines deleted vs 48 added.
+- bundle delta: the 41.04 kB `cropper.esm.raw-*` lazy chunk is gone. main bundle effectively unchanged (the legacy dialog was already lazy).
+- `pnpm verify`-equivalent (typecheck + lint + 925 unit + build) all green.
+
+**surprises**
+- none. one focused commit; cleanest phase yet. the lazy chunk going away matched the plan estimate (≈ 41 kb minified) exactly.
+
+**residual debt**
+- the gate-override risk lives on: if the multi-touch hardware probe later returns "no", there's no path back to a working selection-rect cropper without `git revert d3693a9` (plus a `pnpm install` to restore the lockfile entry). recorded in the commit message so the recovery is one git command. the probe + golden-baseline items in `bugs.md` stay open (now gating later phases, not 0b).
+
+## revision after phase 0b — 2026-05-23
+
+plan shape unchanged. update bug-log: the hardware-probe item is no longer "gates phase 0b" since 0b has shipped under the user's gate-override; reframe as a *rollback gate* (if probe returns "no", revert d3693a9). next: **phase 3 — keyboard + a11y**.

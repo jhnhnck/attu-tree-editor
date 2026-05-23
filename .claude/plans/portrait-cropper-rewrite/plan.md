@@ -55,7 +55,7 @@ pre-mortem (`pre-mortem.md`) surfaced five residual risks worth folding in: (1) 
 **retires the unknown:** does our pointer math feel right on real touch hardware, and does the cover-clamp logic survive every gesture combination?
 
 ## phase 0b — cropperjs removal
-**status:** open
+**status:** closed — branch `phase/portrait-cropper-rewrite/0b`, not merged per user instruction. gate-override accepted; recovery is `git revert d3693a9 && pnpm install`
 **definition of done:** `cropperjs` is removed from `apps/web/package.json`; `pnpm install` updates the lockfile; `grep -c cropperjs pnpm-lock.yaml` returns `0`; the lazy chunk previously containing cropperjs is gone (bundle-size delta ≈ −41 kb minified, verified via `pnpm build` + `du`). `pnpm verify` and all e2e tests pass. only entered after phase 1 closes green and the ios multi-touch probe from phase 0a returned yes.
 **scope:** delete the dep, run install, verify bundle and tests. one focused commit. if anything regresses, revert this commit and continue work on a separate branch — phases 2–4 do not depend on cropperjs being gone.
 **retires the unknown:** does removing the dep cause any unexpected regression in build, bundle, or runtime that phases 0a + 1 didn't surface?
