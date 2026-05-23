@@ -315,6 +315,12 @@
     const GROUP_FRAMES_LS_KEY = "fte.overlays.groupFrames";
     let groupFramesEnabled = $state(readBoolPref(GROUP_FRAMES_LS_KEY));
 
+    // relationship-vocabulary phase 6b: consanguinity toggle (COI badge +
+    // duplicate-ancestor tint). Default off — surfaces only when the user
+    // opts in via the View menu.
+    const CONSANGUINITY_LS_KEY = "fte.overlays.consanguinity";
+    let consanguinityEnabled = $state(readBoolPref(CONSANGUINITY_LS_KEY));
+
     // save-pill state
     let lastSavedAt = $state<number | undefined>(undefined);
     let lastError = $state<string | undefined>(undefined);
@@ -1108,11 +1114,8 @@
             writeBoolPref(GROUP_FRAMES_LS_KEY, groupFramesEnabled);
         },
         viewOverlayConsanguinityStub: () => {
-            toasts.push(
-                "consanguinity — coming with relationship-vocabulary phase 6b",
-                "info",
-                1500,
-            );
+            consanguinityEnabled = !consanguinityEnabled;
+            writeBoolPref(CONSANGUINITY_LS_KEY, consanguinityEnabled);
         },
         selectClear: () => selection.select(undefined),
         selectEdit: () => withSelected((id) => focusPerson(id, "personal")),
@@ -1179,6 +1182,7 @@
             overlayTransformationsActive: () => transformationsEnabled,
             overlaySeverancesActive: () => severancesEnabled,
             overlayGroupFramesActive: () => groupFramesEnabled,
+            overlayConsanguinityActive: () => consanguinityEnabled,
             engineHyperbolicActive: () => selectedEngine === "hyperbolic",
         }),
     );
@@ -1454,6 +1458,7 @@
                     showOverlayTransformations={transformationsEnabled}
                     showOverlaySeverances={severancesEnabled}
                     showGroupFrames={groupFramesEnabled}
+                    showConsanguinity={consanguinityEnabled}
                     {portraitUrls}
                     onselect={(id: string) => selection.select(id)}
                     ondeselect={() => selection.select(undefined)}

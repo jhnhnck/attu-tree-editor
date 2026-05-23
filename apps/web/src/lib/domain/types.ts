@@ -138,6 +138,13 @@ export interface Person {
     /** see `Origin`. Phase 5; schema 3.2.0. */
     origin?: Origin;
     /**
+     * Position within a sibship for twin / triplet / cohort ordering
+     * (Phase 6b; schema 3.4.0). 1-based; unset means "unknown" — the
+     * renderer falls back to declared order under the parent. Optional
+     * so existing fixtures stay valid.
+     */
+    birthOrder?: number;
+    /**
      * Canonical parent list. Populated by the 1.0.0 → 2.0.0 schema
      * migration from the now-removed `motherId` / `fatherId` fields.
      * Optional so existing Person literals without parents (test
@@ -318,6 +325,35 @@ export interface Group {
     frame?: GroupFrameOverride;
 }
 
+/**
+ * Kind of sibship decorator (Phase 6b; schema 3.4.0). Open string — the
+ * canonical values drive the renderer's tie-bar (MZ = solid bar, DZ =
+ * absent, ? = dashed bar) and the inspector kind-picker. Non-canonical
+ * strings round-trip through GEDCOM and render as `litter`.
+ *
+ * Canonical values: `twins-MZ`, `twins-DZ`, `twins-?`, `triplets-MZ`,
+ * `triplets-DZ`, `triplets-?`, `clone-batch`, `litter`,
+ * `spawned-together`.
+ */
+export type SibshipKind = string;
+
+/**
+ * A named sibship grouping (Phase 6b; schema 3.4.0). Drives the
+ * twin / triplet / clone-batch / litter bracket on the family-view
+ * canvas. `sibIds` is the unordered set of people in the sibship;
+ * the renderer draws a bracket connecting the listed siblings under
+ * their shared parent's bus. Members must share a parent for the
+ * bracket to render; the renderer skips decorators whose members
+ * don't share a visible parent in the current layout.
+ */
+export interface SibshipDecorator {
+    id: string;
+    sibIds: PersonId[];
+    kind: SibshipKind;
+    /** Optional human-readable label (e.g. "the triplets"). */
+    name?: string;
+}
+
 export interface Tree {
     id: string;
     name: string;
@@ -352,6 +388,13 @@ export interface Tree {
      * Tree literals stay valid; absence is treated as the empty list.
      */
     groups?: Group[];
+    /**
+     * Sibship decorators: twins, triplets, clone-batches, litters
+     * (Phase 6b; schema 3.4.0). Renders as a bracket beneath the
+     * shared parent's bus. Optional so existing Tree literals stay
+     * valid; absence is treated as the empty list.
+     */
+    sibshipDecorators?: SibshipDecorator[];
     /**
      * Local edit counter, monotonically incremented by the tree store on
      * every user-driven mutation (set / update / reset / undo / redo).

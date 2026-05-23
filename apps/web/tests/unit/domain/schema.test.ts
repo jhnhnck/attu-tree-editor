@@ -277,6 +277,41 @@ describe("Phase 6a migration: 3.2.0 → 3.3.0 is additive (tree.groups[])", () =
     });
 });
 
+describe("Phase 6b migration: 3.3.0 → 3.4.0 is additive (tree.sibshipDecorators[] + Person.birthOrder)", () => {
+    it("threads existing tree through unchanged (no people, no decorators)", () => {
+        const v3_3 = { name: "x", people: {} };
+        const r = _migrateBetween(v3_3, "3.3.0", "3.4.0");
+        expect(r.ok).toBe(true);
+        if (!r.ok) return;
+        expect(r.value.value).toBe(v3_3);
+    });
+
+    it("leaves a pre-populated sibshipDecorators[] array alone (forward-compat)", () => {
+        const v3_3 = {
+            name: "x",
+            people: {},
+            sibshipDecorators: [{ id: "s1", kind: "twins-MZ", sibIds: ["A", "B"] }],
+        };
+        const r = _migrateBetween(v3_3, "3.3.0", "3.4.0");
+        expect(r.ok).toBe(true);
+        if (!r.ok) return;
+        const migrated = r.value.value as typeof v3_3;
+        expect(migrated.sibshipDecorators).toEqual(v3_3.sibshipDecorators);
+    });
+
+    it("preserves Person.birthOrder on existing people", () => {
+        const v3_3 = {
+            name: "x",
+            people: { a: { id: "a", gender: { identity: "male" }, birthOrder: 2 } },
+        };
+        const r = _migrateBetween(v3_3, "3.3.0", "3.4.0");
+        expect(r.ok).toBe(true);
+        if (!r.ok) return;
+        const migrated = r.value.value as typeof v3_3;
+        expect(migrated.people["a"]?.birthOrder).toBe(2);
+    });
+});
+
 describe("Phase 2b migration: 1.0.0 → 2.0.0 replaces legacy with parentIds", () => {
     it("converts motherId / fatherId into parentIds entries and drops legacy keys", () => {
         const v1 = {

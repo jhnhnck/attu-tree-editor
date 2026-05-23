@@ -116,8 +116,36 @@ export function serializeGedcom(tree: Tree, opts: GedSerializeOptions = {}): str
         groupCounter += 1;
     }
 
+    // Sibship decorators (Phase 6b; schema 3.4.0). One `_TREES_SIBSHIP`
+    // top-level record per decorator. Members are emitted as INDI
+    // xref pointers so the decorator survives stream-roundtrip even
+    // when xrefs differ across writes.
+    let sibshipCounter = 1;
+    for (const d of tree.sibshipDecorators ?? []) {
+        appendSibship(lines, d, xrefByPerson, sibshipCounter);
+        sibshipCounter += 1;
+    }
+
     lines.push("0 TRLR");
     return lines.join(LINE_END) + LINE_END;
+}
+
+function appendSibship(
+    lines: string[],
+    d: import("$lib/domain/types").SibshipDecorator,
+    xrefByPerson: Map<PersonId, string>,
+    sibshipNumber: number,
+): void {
+    const xref = `@S${String(sibshipNumber)}@`;
+    lines.push(`0 ${xref} _TREES_SIBSHIP`);
+    lines.push(`1 _KIND ${d.kind}`);
+    for (const sid of d.sibIds) {
+        const x = xrefByPerson.get(sid);
+        if (x) lines.push(`1 _MEMBER ${x}`);
+    }
+    if (d.name !== undefined && d.name.length > 0) {
+        lines.push(`1 _NAME ${d.name}`);
+    }
 }
 
 function appendRelationship(
@@ -473,6 +501,14 @@ function appendIndi(
         lines.push(`1 _TREES_PARENT_REF ${px}`);
         if (ref.role !== undefined) lines.push(`2 _ROLE ${ref.role}`);
         if (ref.pedi !== undefined) lines.push(`2 _PEDI ${ref.pedi}`);
+    }
+
+    // _TREES_BIRTH_ORDER extension (Phase 6b; schema 3.4.0). 1-based
+    // position within a sibship. Lossy without the extension — tools
+    // that strip it lose the exact ordering; the BIRT/DATE date is
+    // already emitted above and provides a coarser fallback.
+    if (person.birthOrder !== undefined) {
+        lines.push(`1 _TREES_BIRTH_ORDER ${String(person.birthOrder)}`);
     }
 }
 

@@ -137,6 +137,17 @@
     function commitDeath(v: HaracalndeDateData | undefined): void {
         onpatch({ death: v });
     }
+    function commitBirthOrder(value: string): void {
+        const trimmed = value.trim();
+        if (trimmed === "") {
+            if (person.birthOrder !== undefined) onpatch({ birthOrder: undefined });
+            return;
+        }
+        const n = Number.parseInt(trimmed, 10);
+        if (!Number.isFinite(n) || n < 1) return;
+        if (n === person.birthOrder) return;
+        onpatch({ birthOrder: n });
+    }
     function commitPortrait(blobId: string | undefined): void {
         onpatch({ portraitBlobId: blobId });
     }
@@ -354,5 +365,20 @@
                 {/snippet}
             </Field>
         </div>
+        <Field label="birth order" for_="ip-birth-order">
+            {#snippet children()}
+                <input
+                    id="ip-birth-order"
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={person.birthOrder ?? ""}
+                    placeholder="position within sibship (twins, triplets, ...)"
+                    onblur={(e: Event & { currentTarget: HTMLInputElement }) =>
+                        commitBirthOrder(e.currentTarget.value)}
+                    class={inputCls}
+                />
+            {/snippet}
+        </Field>
     </section>
 </div>

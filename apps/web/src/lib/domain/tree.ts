@@ -17,6 +17,8 @@ import type {
     PersonId,
     Relationship,
     RelationshipKind,
+    SibshipDecorator,
+    SibshipKind,
     Tree,
     UnionKind,
     UnionRecord,
@@ -808,6 +810,83 @@ function defaultGroupId(g: {
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-|-$/g, "");
     return `group-${g.kind}-${slug || "unnamed"}-${String(g.memberIds.length)}`;
+}
+
+export type SibshipPatch = {
+    kind?: SibshipDecorator["kind"];
+    name?: SibshipDecorator["name"] | undefined;
+};
+
+/**
+ * Append a `SibshipDecorator` to `tree.sibshipDecorators[]`. Generates
+ * a stable id `sibship-<kind>-<sorted-sibIds-hash>` so re-runs produce
+ * the same id; initialises the list to `[]` if absent. Caller is
+ * responsible for ensuring members actually share a parent — the
+ * renderer filters decorators whose members don't share a visible
+ * parent.
+ */
+export function addSibshipDecorator(
+    t: Tree,
+    d: Omit<SibshipDecorator, "id"> & { id?: string },
+): { tree: Tree; id: string } {
+    const id = d.id ?? defaultSibshipId(d);
+    const next: SibshipDecorator = {
+        id,
+        sibIds: [...d.sibIds],
+        kind: d.kind,
+    };
+    if (d.name !== undefined) next.name = d.name;
+    const list = t.sibshipDecorators ?? [];
+    return { tree: { ...t, sibshipDecorators: [...list, next] }, id };
+}
+
+export function removeSibshipDecorator(t: Tree, id: string): Tree {
+    const list = t.sibshipDecorators ?? [];
+    const next = list.filter((d) => d.id !== id);
+    if (next.length === list.length) return t;
+    return { ...t, sibshipDecorators: next };
+}
+
+export function updateSibshipDecorator(t: Tree, id: string, patch: SibshipPatch): Tree {
+    const list = t.sibshipDecorators ?? [];
+    const idx = list.findIndex((d) => d.id === id);
+    if (idx < 0) return t;
+    const d = list[idx];
+    if (!d) return t;
+    const next: SibshipDecorator = { ...d };
+    if (patch.kind !== undefined) next.kind = patch.kind;
+    if ("name" in patch) {
+        if (patch.name === undefined) delete next.name;
+        else next.name = patch.name;
+    }
+    return { ...t, sibshipDecorators: [...list.slice(0, idx), next, ...list.slice(idx + 1)] };
+}
+
+export function addSibshipMember(t: Tree, id: string, personId: PersonId): Tree {
+    const list = t.sibshipDecorators ?? [];
+    const idx = list.findIndex((d) => d.id === id);
+    if (idx < 0) return t;
+    const d = list[idx];
+    if (!d || d.sibIds.includes(personId)) return t;
+    const next: SibshipDecorator = { ...d, sibIds: [...d.sibIds, personId] };
+    return { ...t, sibshipDecorators: [...list.slice(0, idx), next, ...list.slice(idx + 1)] };
+}
+
+export function removeSibshipMember(t: Tree, id: string, personId: PersonId): Tree {
+    const list = t.sibshipDecorators ?? [];
+    const idx = list.findIndex((d) => d.id === id);
+    if (idx < 0) return t;
+    const d = list[idx];
+    if (!d) return t;
+    const filtered = d.sibIds.filter((pid) => pid !== personId);
+    if (filtered.length === d.sibIds.length) return t;
+    const next: SibshipDecorator = { ...d, sibIds: filtered };
+    return { ...t, sibshipDecorators: [...list.slice(0, idx), next, ...list.slice(idx + 1)] };
+}
+
+function defaultSibshipId(d: { kind: SibshipKind; sibIds: readonly PersonId[] }): string {
+    const sorted = [...d.sibIds].sort().join("-");
+    return `sibship-${d.kind}-${sorted}`;
 }
 
 export function* ancestorsOf(t: Tree, id: PersonId): Iterable<Person> {

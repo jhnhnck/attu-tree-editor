@@ -200,3 +200,60 @@ body {
     font-weight: 600;
     pointer-events: none;
 }
+
+/* relationship-vocabulary Phase 6b: sibship brackets + tie-bars. The
+   bracket is a horizontal segment under the parent bus connecting every
+   sibling; the tie-bar fills in for monozygotic / unknown-zygosity /
+   clone-batch cases. Muted accent so the bracket reads as decoration
+   over the main edge layer. */
+.family-view-sibship {
+    fill: none;
+    stroke: hsl(220 60% 60% / 0.7);
+    stroke-width: 1.5px;
+    pointer-events: none;
+}
+
+.family-view-sibship-tie-solid {
+    stroke: hsl(220 60% 50% / 0.85);
+    stroke-width: 2px;
+}
+
+.family-view-sibship-tie-dashed {
+    stroke: hsl(220 60% 50% / 0.7);
+    stroke-width: 1.5px;
+    stroke-dasharray: 4 3;
+}
+
+.family-view-sibship-tie-double {
+    /* paired double-line via duplicated path with offsets, applied at
+       render time. styling here just sets stroke. */
+    stroke: hsl(280 60% 55% / 0.85);
+    stroke-width: 1.5px;
+}
+
+/* Phase 6b: consanguinity surfacing. COI badge sits on the proband card
+   corner; duplicate-ancestor tint highlights people who appear in more
+   than one ancestor path of the focus. Both pieces are pointer-events:
+   none so the cards underneath stay interactive. */
+.family-view-coi-badge {
+    fill: hsl(0 70% 50% / 0.85);
+    pointer-events: none;
+}
+
+.family-view-coi-badge-text {
+    fill: white;
+    font-family: ui-sans-serif, system-ui, sans-serif;
+    font-size: 9px;
+    font-weight: 600;
+    pointer-events: none;
+}
+
+[data-consang-duplicate="true"] {
+    /* tint a card whose person appears in multiple ancestor paths from
+       the focus. Subtle enough to compose with selection-ring + on-path
+       highlights. */
+    box-shadow:
+        0 0 0 2px hsl(0 70% 55% / 0.45),
+        inset 0 0 0 1px hsl(0 70% 55% / 0.25);
+    border-radius: 4px;
+}

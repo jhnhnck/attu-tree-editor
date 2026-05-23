@@ -92,7 +92,13 @@ export interface CommandHandlers {
     viewOverlaySeverancesToggle: () => void;
     /** Phase 6a: toggle group frames (dynasties, houses, etc.). */
     viewOverlayGroupFramesToggle: () => void;
-    /** relationship-vocabulary Phase 6b wires this; today shows "coming soon" */
+    /**
+     * Phase 6b: toggle the consanguinity overlay (COI badge on focus,
+     * duplicate-ancestor tint). Persisted as `fte.overlays.consanguinity`.
+     * The old "stub" entry retained the name `…Stub` for one cycle so
+     * existing handlers keep typechecking — Phase 8 cleanup renames to
+     * `viewOverlayConsanguinityToggle`.
+     */
     viewOverlayConsanguinityStub: () => void;
     selectClear: () => void;
     selectEdit: () => void;
@@ -139,6 +145,8 @@ export interface CommandEnabledFlags {
     overlaySeverancesActive?: () => boolean;
     /** Phase 6a: are group frames currently enabled? */
     overlayGroupFramesActive?: () => boolean;
+    /** Phase 6b: is the consanguinity overlay currently enabled? */
+    overlayConsanguinityActive?: () => boolean;
 }
 
 export function buildCommands(
@@ -380,9 +388,9 @@ export function buildCommands(
         },
         {
             id: "view.overlay.consanguinity",
-            label: "Overlay: consanguinity (coming in phase 6b)",
+            label: "Overlay: consanguinity",
             group: "View",
-            enabled: () => false,
+            checked: enabled.overlayConsanguinityActive,
             run: h.viewOverlayConsanguinityStub,
         },
 

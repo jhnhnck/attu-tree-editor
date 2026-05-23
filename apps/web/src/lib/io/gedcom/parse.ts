@@ -19,6 +19,7 @@ import type {
     PersonId,
     Relationship,
     RelationshipKind,
+    SibshipDecorator,
     Tree,
     UnionKind,
     UnionRecord,
@@ -97,6 +98,7 @@ function buildTree(root: TreeNodeRoot): GedParseResult {
     const unionNodes: TreeNode[] = [];
     const relNodes: TreeNode[] = [];
     const groupNodes: TreeNode[] = [];
+    const sibshipNodes: TreeNode[] = [];
 
     for (const child of root.children) {
         switch (child.tag) {
@@ -117,6 +119,9 @@ function buildTree(root: TreeNodeRoot): GedParseResult {
                 break;
             case "_TREES_GROUP":
                 groupNodes.push(child);
+                break;
+            case "_TREES_SIBSHIP":
+                sibshipNodes.push(child);
                 break;
             case "TRLR":
             case "SUBM":
@@ -226,6 +231,16 @@ function buildTree(root: TreeNodeRoot): GedParseResult {
         if (rec) groups.push(rec);
     }
 
+    // _TREES_SIBSHIP extensions (Phase 6b; schema 3.4.0). Each is a
+    // `0 @Sxx@ _TREES_SIBSHIP` top-level record with `_KIND` /
+    // `_MEMBER+` / optional `_NAME`. Tools that strip extensions
+    // render no sibship bracket.
+    const sibshipDecorators: SibshipDecorator[] = [];
+    for (const snode of sibshipNodes) {
+        const rec = parseTreesSibship(snode, idByXref);
+        if (rec) sibshipDecorators.push(rec);
+    }
+
     // pick a root: first INDI (xref @I1@ in FE exports is the file's "owner")
     const firstId = Object.keys(people)[0];
     const rootId = firstId ?? "START";
@@ -239,6 +254,7 @@ function buildTree(root: TreeNodeRoot): GedParseResult {
         unions,
         relationships,
         groups,
+        sibshipDecorators,
         editRev: 0,
         updatedAt: Date.now(),
     };
@@ -302,6 +318,12 @@ function buildPerson(
                 break;
             case "_TREES_ORIGIN":
                 if (sub.value != null) applyOriginExtension(person, sub);
+                break;
+            case "_TREES_BIRTH_ORDER":
+                if (sub.value != null) {
+                    const n = Number.parseInt(sub.value, 10);
+                    if (Number.isFinite(n) && n >= 1) person.birthOrder = n;
+                }
                 break;
             case "BIRT":
                 applyEvent(person, "birth", sub, findings);
@@ -803,6 +825,45 @@ function parseTreesGroup(node: TreeNode, idByXref: Map<string, PersonId>): Group
         if (frameColor !== undefined) rec.frame.color = frameColor;
     }
     if (armorial !== undefined) rec.armorial = { description: armorial };
+    return rec;
+}
+
+/**
+ * Parse a top-level `0 @Sxx@ _TREES_SIBSHIP` record into a
+ * SibshipDecorator. Subtags: `_KIND`, `_MEMBER+`, optional `_NAME`.
+ * Drops the record if kind isn't present or no members resolve to
+ * known persons.
+ */
+function parseTreesSibship(
+    node: TreeNode,
+    idByXref: Map<string, PersonId>,
+): SibshipDecorator | null {
+    let kind: string | undefined;
+    let name: string | undefined;
+    const sibIds: PersonId[] = [];
+    for (const sub of node.children) {
+        switch (sub.tag) {
+            case "_KIND":
+                if (sub.value) kind = sub.value;
+                break;
+            case "_MEMBER": {
+                const id = sub.value ? idByXref.get(sub.value) : undefined;
+                if (id) sibIds.push(id);
+                break;
+            }
+            case "_NAME":
+                if (sub.value) name = sub.value;
+                break;
+        }
+    }
+    if (kind === undefined || sibIds.length === 0) return null;
+    const xref = node.pointer ?? "";
+    const id =
+        xref.length > 0
+            ? xref.replace(/^@/, "").replace(/@$/, "")
+            : `sibship-${kind}-${[...sibIds].sort().join("-")}`;
+    const rec: SibshipDecorator = { id, sibIds, kind };
+    if (name !== undefined) rec.name = name;
     return rec;
 }
 

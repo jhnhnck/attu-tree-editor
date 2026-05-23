@@ -18,6 +18,7 @@
 import type { PersonId } from "$lib/domain/types";
 import type { OverlaySegment } from "$lib/layout/engines/family-view/overlays";
 import type { GroupFrame } from "$lib/layout/engines/family-view/groups";
+import type { SibshipFrame } from "$lib/layout/engines/family-view/sibships";
 
 /** Generation rank relative to focus: 0 = focus, -1 = parents, +1 = children. */
 export type Rank = number;
@@ -154,4 +155,11 @@ export interface FamilyViewLayout {
      * 3.3.0 lands. Renderers treat `undefined` and `[]` identically.
      */
     readonly groups?: readonly GroupFrame[];
+    /**
+     * Sibship brackets (twins, triplets, clone-batches, litters).
+     * Optional; empty/absent in v1. Phase 6b populates this from
+     * `tree.sibshipDecorators[]` once schema 3.4.0 lands. Renderers
+     * treat `undefined` and `[]` identically.
+     */
+    readonly sibships?: readonly SibshipFrame[];
 }

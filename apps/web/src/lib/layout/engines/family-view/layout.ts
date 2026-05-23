@@ -44,6 +44,7 @@ import {
 } from "$lib/layout/engines/family-view/nPartnerGeometry";
 import { buildOverlays } from "$lib/layout/engines/family-view/overlays";
 import { buildGroups } from "$lib/layout/engines/family-view/groups";
+import { buildSibships } from "$lib/layout/engines/family-view/sibships";
 import type {
     BadgeNode,
     FamilyViewEdge,
@@ -356,6 +357,7 @@ export function computeLayout(
     const multiUnionMates = collectMultiUnionMates(tree, anchors, primaryOverrides);
     const overlays = buildOverlays(tree, nodes, edges, { width: maxWidth, height });
     const groups = buildGroups(tree, nodes, { width: maxWidth, height });
+    const sibships = buildSibships(tree, nodes);
 
     return {
         focus: focusId,
@@ -371,6 +373,7 @@ export function computeLayout(
         multiUnionMates,
         overlays,
         groups,
+        sibships,
     };
 }
 

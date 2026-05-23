@@ -504,6 +504,63 @@ describe("serializeGedcom - Phase 6a group extensions", () => {
     });
 });
 
+describe("serializeGedcom - Phase 6b sibship + birthOrder extensions", () => {
+    it("emits a top-level _TREES_SIBSHIP record per decorator", () => {
+        const base = tinyTree();
+        base.sibshipDecorators = [
+            {
+                id: "sibship-twins-MZ-AAAAA-BBBBB",
+                kind: "twins-MZ",
+                sibIds: ["AAAAA", "BBBBB"],
+                name: "the twins",
+            },
+        ];
+        const out = serializeGedcom(base);
+        expect(out).toContain("0 @S1@ _TREES_SIBSHIP");
+        expect(out).toContain("1 _KIND twins-MZ");
+        expect(out).toContain("1 _MEMBER @I1@");
+        expect(out).toContain("1 _MEMBER @I2@");
+        expect(out).toContain("1 _NAME the twins");
+    });
+
+    it("emits _TREES_BIRTH_ORDER under the INDI it applies to", () => {
+        const base = tinyTree();
+        base.people["CCCCC"]!.birthOrder = 2;
+        const out = serializeGedcom(base);
+        expect(out).toContain("1 _TREES_BIRTH_ORDER 2");
+    });
+
+    it("round-trips a sibship + birthOrder through serialize → parse", () => {
+        const base = tinyTree();
+        base.sibshipDecorators = [
+            { id: "s1", kind: "triplets-MZ", sibIds: ["AAAAA", "BBBBB", "CCCCC"] },
+        ];
+        base.people["AAAAA"]!.birthOrder = 1;
+        base.people["BBBBB"]!.birthOrder = 2;
+        base.people["CCCCC"]!.birthOrder = 3;
+        const out = serializeGedcom(base);
+        const r = unwrap(parseGedcom(out));
+        const d = (r.tree.sibshipDecorators ?? []).find((x) => x.kind === "triplets-MZ");
+        expect(d).toBeDefined();
+        expect(d?.sibIds).toHaveLength(3);
+        const orders = Object.values(r.tree.people)
+            .map((p) => p.birthOrder)
+            .filter((b): b is number => b !== undefined)
+            .sort();
+        expect(orders).toEqual([1, 2, 3]);
+    });
+
+    it("drops a sibship whose kind is missing on re-parse (permissive)", () => {
+        const base = tinyTree();
+        const out = serializeGedcom(base).replace(
+            "0 TRLR",
+            "0 @Sbad@ _TREES_SIBSHIP\r\n1 _MEMBER @I1@\r\n0 TRLR",
+        );
+        const r = unwrap(parseGedcom(out));
+        expect(r.tree.sibshipDecorators ?? []).toEqual([]);
+    });
+});
+
 describe("serializeGedcom - golden snapshot", () => {
     it("parse-then-serialize is byte-stable through a second round-trip", async () => {
         const input = readFileSync(FIXTURE, "utf-8");

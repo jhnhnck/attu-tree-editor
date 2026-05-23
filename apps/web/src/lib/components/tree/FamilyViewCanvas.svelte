@@ -42,6 +42,7 @@
     import { useExpansionState } from "$lib/layout/engines/family-view/expansion";
     import { usePrimaryUnionState } from "$lib/layout/engines/family-view/primaryUnion";
     import { usePath, badgeOnPath } from "$lib/layout/engines/family-view/path";
+    import { computeAncestorOverlap } from "$lib/domain/consanguinity";
     import type { PersonId, Tree } from "$lib/domain/types";
     import type { CanvasController } from "./canvasController";
 
@@ -78,6 +79,14 @@
         showOverlaySeverances?: boolean | undefined;
         /** Phase 6a: toggle for group frames (dynasties, houses, etc.). Persisted as `fte.overlays.groupFrames`. */
         showGroupFrames?: boolean | undefined;
+        /**
+         * Phase 6b: toggle for consanguinity surfacing — COI badge on
+         * the focus card, duplicate-ancestor tint on people appearing
+         * in multiple ancestor paths of the focus. Persisted as
+         * `fte.overlays.consanguinity`. Default `false` (off until the
+         * user opts in via the View menu).
+         */
+        showConsanguinity?: boolean | undefined;
         /**
          * Portrait blob -> object-URL cache shared with the layered engine.
          * Phase 1 of the visual fix-up plan: family-view now renders
@@ -122,6 +131,7 @@
         showOverlayTransformations = true,
         showOverlaySeverances = true,
         showGroupFrames = true,
+        showConsanguinity = false,
         portraitUrls,
         onselect,
         ondeselect,
@@ -212,6 +222,27 @@
             },
         }),
     );
+
+    /**
+     * Phase 6b: derived consanguinity surfacing for the active focus.
+     * When the Consanguinity overlay is on, drive the COI badge on the
+     * focus card and the duplicate-ancestor tint on cards whose person
+     * appears in more than one ancestor path.
+     */
+    let consang = $derived(showConsanguinity ? computeAncestorOverlap(tree, activeFocus) : null);
+    let consangDuplicateSet = $derived(
+        consang ? new Set<PersonId>(consang.duplicates) : new Set<PersonId>(),
+    );
+    function consangCardDuplicate(id: PersonId): boolean {
+        return consangDuplicateSet.has(id);
+    }
+    function coiPercent(coi: number | undefined): string {
+        if (coi === undefined || coi <= 0) return "";
+        const pct = coi * 100;
+        if (pct < 1) return `${pct.toFixed(2)}%`;
+        if (pct < 10) return `${pct.toFixed(1)}%`;
+        return `${Math.round(pct).toString()}%`;
+    }
 
     /** Open picker state — only one `˅` menu open at a time. */
     let pickerOpenFor = $state<PersonId | null>(null);
@@ -713,6 +744,59 @@
                     vector-effect="non-scaling-stroke"
                 />
             {/each}
+            {#if layout.sibships}
+                {#each layout.sibships as sib (sib.id)}
+                    {#if sib.members.length >= 2}
+                        {@const xs = sib.members.map((m) => m.x)}
+                        {@const minX = Math.min(...xs)}
+                        {@const maxX = Math.max(...xs)}
+                        <!-- bracket horizontal across the sibship span -->
+                        <path
+                            class="family-view-sibship"
+                            d={`M ${(minX * UNIT).toString()} ${(sib.bracketY * UNIT).toString()} L ${(maxX * UNIT).toString()} ${(sib.bracketY * UNIT).toString()}`}
+                            data-sibship-id={sib.id}
+                            data-sibship-kind={sib.kind}
+                            vector-effect="non-scaling-stroke"
+                        />
+                        <!-- short verticals from bracket down to each sibling's card top -->
+                        {#each sib.members as m (m.personId)}
+                            <path
+                                class="family-view-sibship"
+                                d={`M ${(m.x * UNIT).toString()} ${(sib.bracketY * UNIT).toString()} L ${(m.x * UNIT).toString()} ${((sib.bracketY + 0.15) * UNIT).toString()}`}
+                                vector-effect="non-scaling-stroke"
+                            />
+                        {/each}
+                        {#if sib.tieBar === "solid"}
+                            <path
+                                class="family-view-sibship-tie-solid"
+                                d={`M ${(minX * UNIT).toString()} ${((sib.bracketY - 0.07) * UNIT).toString()} L ${(maxX * UNIT).toString()} ${((sib.bracketY - 0.07) * UNIT).toString()}`}
+                                data-sibship-tie="solid"
+                                vector-effect="non-scaling-stroke"
+                            />
+                        {/if}
+                        {#if sib.tieBar === "dashed"}
+                            <path
+                                class="family-view-sibship-tie-dashed"
+                                d={`M ${(minX * UNIT).toString()} ${((sib.bracketY - 0.07) * UNIT).toString()} L ${(maxX * UNIT).toString()} ${((sib.bracketY - 0.07) * UNIT).toString()}`}
+                                data-sibship-tie="dashed"
+                                vector-effect="non-scaling-stroke"
+                            />
+                        {/if}
+                        {#if sib.tieBar === "double"}
+                            <path
+                                class="family-view-sibship-tie-double"
+                                d={`M ${(minX * UNIT).toString()} ${((sib.bracketY - 0.06) * UNIT).toString()} L ${(maxX * UNIT).toString()} ${((sib.bracketY - 0.06) * UNIT).toString()}`}
+                                vector-effect="non-scaling-stroke"
+                            />
+                            <path
+                                class="family-view-sibship-tie-double"
+                                d={`M ${(minX * UNIT).toString()} ${((sib.bracketY - 0.1) * UNIT).toString()} L ${(maxX * UNIT).toString()} ${((sib.bracketY - 0.1) * UNIT).toString()}`}
+                                vector-effect="non-scaling-stroke"
+                            />
+                        {/if}
+                    {/if}
+                {/each}
+            {/if}
             {#if layout.overlays}
                 {#each layout.overlays as overlay (overlay.id)}
                     {#if isOverlayVisible(overlay.kind) && overlay.points.length >= 2}
@@ -760,6 +844,9 @@
                         ? 'family-view-onpath rounded ring-2 ring-accent/70'
                         : ''}"
                     data-on-path={cardOnPath(node.personId) ? "true" : undefined}
+                    data-consang-duplicate={consangCardDuplicate(node.personId)
+                        ? "true"
+                        : undefined}
                     style:left="{node.x * UNIT}px"
                     style:top="{node.y * UNIT}px"
                     style:width="{CARD_W_PX}px"
@@ -807,6 +894,19 @@
                         >
                             <Minus size={14} strokeWidth={2.5} />
                         </button>
+                    {/if}
+                    {#if showConsanguinity && node.personId === activeFocus && consang && consang.coi !== undefined && consang.coi > 0}
+                        <span
+                            class="border-line bg-canvas-elev/90
+                                   pointer-events-none absolute -bottom-2 -right-2 z-20
+                                   rounded-full border px-1.5 font-mono text-[10px]
+                                   leading-tight shadow-sm"
+                            style:color="hsl(0 70% 45%)"
+                            data-consang-coi={coiPercent(consang.coi)}
+                            title={`coefficient of inbreeding ${coiPercent(consang.coi)} (${String(consang.duplicates.length)} duplicate ancestor${consang.duplicates.length === 1 ? "" : "s"})`}
+                            aria-label="coefficient of inbreeding"
+                            >COI {coiPercent(consang.coi)}</span
+                        >
                     {/if}
                     {#if showGenerationBadge && generationLabel(node)}
                         <span
