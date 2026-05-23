@@ -1,0 +1,120 @@
+<!doctype html>
+<!--
+    FamilyTreeEditor - phase 0a ios safari <canvas>-in-<dialog> multi-touch probe
+
+    open this page on a real iphone in safari (ios 16.4+), click "open", then
+    pinch with two fingers on the canvas inside the modal. the event log should
+    show two distinct pointerId values with pointerType === "touch".
+
+    if it does not, pre-mortem risk #3 fires — phase 1 must drop the native
+    <dialog> in favor of a custom overlay before committing to pan/zoom inside
+    a modal.
+
+    licensed under the MIT license; see LICENSE.md for full text
+-->
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>probe: canvas-in-dialog multi-touch</title>
+        <style>
+            body {
+                font-family: system-ui, sans-serif;
+                max-width: 40rem;
+                margin: 1rem auto;
+                padding: 0 1rem;
+            }
+            dialog {
+                padding: 1rem;
+                border: 1px solid #888;
+                border-radius: 0.5rem;
+            }
+            canvas {
+                display: block;
+                width: 280px;
+                height: 280px;
+                background: #cdf;
+                touch-action: none;
+            }
+            #log {
+                font-family: ui-monospace, monospace;
+                font-size: 0.75rem;
+                max-height: 12rem;
+                overflow-y: auto;
+                background: #f0f0f0;
+                padding: 0.5rem;
+            }
+            button {
+                padding: 0.5rem 1rem;
+                font-size: 1rem;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>canvas-in-dialog multi-touch probe</h1>
+        <p>
+            tap "open", then pinch with two fingers on the blue canvas. each finger touch should
+            produce a pointerdown with pointerType=touch and a distinct pointerId.
+        </p>
+
+        <button id="open">open</button>
+
+        <dialog id="dlg">
+            <canvas id="canvas" width="280" height="280"></canvas>
+            <p>event log (pointerdown/move only, throttled):</p>
+            <div id="log"></div>
+            <button id="close" style="margin-top: 0.5rem">close</button>
+        </dialog>
+
+        <h2>what to record</h2>
+        <p>
+            copy the row labeled <code>RESULT</code> into the pre-mortem's "probe results" section.
+        </p>
+        <div id="result" style="margin-top: 1rem"></div>
+
+        <script>
+            const dlg = document.getElementById("dlg");
+            const cv = document.getElementById("canvas");
+            const log = document.getElementById("log");
+            const seenIds = new Set();
+            let downCount = 0;
+            let lastMoveTime = 0;
+
+            document.getElementById("open").addEventListener("click", () => {
+                seenIds.clear();
+                downCount = 0;
+                log.innerHTML = "";
+                dlg.showModal();
+            });
+            document.getElementById("close").addEventListener("click", () => dlg.close());
+
+            cv.addEventListener("pointerdown", (e) => {
+                downCount += 1;
+                seenIds.add(e.pointerId);
+                log.innerHTML += `pointerdown id=${e.pointerId} type=${e.pointerType} at (${e.clientX.toFixed(0)},${e.clientY.toFixed(0)})<br>`;
+                log.scrollTop = log.scrollHeight;
+                updateResult();
+            });
+            cv.addEventListener("pointermove", (e) => {
+                const now = performance.now();
+                if (now - lastMoveTime < 60) return; // throttle
+                lastMoveTime = now;
+                log.innerHTML += `pointermove id=${e.pointerId} type=${e.pointerType}<br>`;
+                log.scrollTop = log.scrollHeight;
+            });
+            cv.addEventListener("pointerup", (e) => {
+                log.innerHTML += `pointerup id=${e.pointerId}<br>`;
+                log.scrollTop = log.scrollHeight;
+            });
+
+            const result = document.getElementById("result");
+            function updateResult() {
+                if (seenIds.size >= 2) {
+                    result.innerHTML = `<b>RESULT</b> — paste into pre-mortem: multi-touch inside &lt;dialog&gt; <em>delivered</em> ${seenIds.size} distinct pointerIds (ua=${navigator.userAgent})`;
+                } else if (downCount > 0) {
+                    result.innerHTML = `<b>RESULT</b> — paste into pre-mortem: only ${seenIds.size} pointerId observed so far. pinch with two fingers to test. (ua=${navigator.userAgent})`;
+                }
+            }
+        </script>
+    </body>
+</html>
