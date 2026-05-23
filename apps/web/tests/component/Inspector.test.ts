@@ -5,6 +5,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/svelte";
+import userEvent from "@testing-library/user-event";
 import Inspector from "$lib/components/inspector/Inspector.svelte";
 import type { PortraitUrlCache } from "$lib/state/portraitUrls.svelte";
 import type { Person, Tree } from "$lib/domain/types";
@@ -130,5 +131,57 @@ describe("Inspector", () => {
 
         await fireEvent.click(screen.getByRole("button", { name: /close inspector/i }));
         expect(props.onclose).toHaveBeenCalled();
+    });
+
+    describe("header more-actions menu", () => {
+        // user-event simulates the full pointerdown -> pointerup -> click
+        // sequence. the inspector registers a capture-phase pointerdown
+        // listener on window that closes the menu when it fires outside
+        // menuEl, so each item handler must survive a real pointer
+        // interaction.
+        async function openMenu(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+            await user.click(screen.getByRole("button", { name: /more actions/i }));
+        }
+
+        it("fires onduplicate when Duplicate person is clicked", async () => {
+            const user = userEvent.setup();
+            const props = baseProps();
+            render(Inspector, { ...props, tree: tree(), selectedId: "AAAAA" });
+            await openMenu(user);
+            await user.click(screen.getByRole("button", { name: /duplicate person/i }));
+            expect(props.onduplicate).toHaveBeenCalledWith("AAAAA");
+        });
+
+        it("fires onsetRoot when Set as tree root is clicked", async () => {
+            const user = userEvent.setup();
+            const props = baseProps();
+            render(Inspector, { ...props, tree: tree(), selectedId: "AAAAA" });
+            await openMenu(user);
+            await user.click(screen.getByRole("button", { name: /set as tree root/i }));
+            expect(props.onsetRoot).toHaveBeenCalledWith("AAAAA");
+        });
+
+        it("writes the selected person's id to the clipboard when Copy ID is clicked", async () => {
+            const user = userEvent.setup();
+            const props = baseProps();
+            const writeText = vi.fn().mockResolvedValue(undefined);
+            Object.defineProperty(navigator, "clipboard", {
+                configurable: true,
+                value: { writeText },
+            });
+            render(Inspector, { ...props, tree: tree(), selectedId: "AAAAA" });
+            await openMenu(user);
+            await user.click(screen.getByRole("button", { name: /copy id/i }));
+            expect(writeText).toHaveBeenCalledWith("AAAAA");
+        });
+
+        it("fires ondelete when Delete person is clicked", async () => {
+            const user = userEvent.setup();
+            const props = baseProps();
+            render(Inspector, { ...props, tree: tree(), selectedId: "AAAAA" });
+            await openMenu(user);
+            await user.click(screen.getByRole("button", { name: /delete person/i }));
+            expect(props.ondelete).toHaveBeenCalledWith("AAAAA");
+        });
     });
 });

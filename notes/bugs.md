@@ -29,7 +29,6 @@
 - :o: `high priority` `medium effort` family-view selection→focus path highlight does not paint - the `--fte-on-path-stroke-width` / `--fte-on-path-ring-color` tokens + `.family-view-onpath-edge` selector shipped 23 May 2026 (see fixed section) but on current trunk the highlight is invisible. likely a regression in the family-view edge classname pipeline or a specificity loss. verify View > Overlays > Path highlight is on, then inspect computed styles on a selected card's edges
 - :o: `high priority` `medium effort` picking a person from the command palette / find-person search closes the palette but doesn't update selection - canvas may re-centre via `focusSelection()` (`App.svelte:1156`) but the selection-store write either doesn't fire or doesn't propagate. trace the `select.person` action path
 - :o: `high priority` `medium effort` inspector panel grows the document height instead of scrolling internally - panel expands beyond viewport, forces outer scroll and breaks fixed-position toasts/pills. fix: constrain the aside to `max-height: 100vh; overflow-y: auto` and let inner sections flex. bundles with the inspector-scroll bug below
-- :o: `high priority` `low effort` inspector header more-actions menu ("..." MoreHorizontal button) opens visually but its items (duplicate, set as root, copy id, delete) don't fire their handlers - check menu handler wiring in `Inspector.svelte` header
 - :o: `high priority` `low effort` inspector panel content can't scroll - long person records overflow the panel but neither wheel nor drag scrolls. likely a missing `overflow-y: auto` (or stray `overflow: hidden`) on the inspector tab body container in `Inspector.svelte`. bundles with the page-overflow bug above
 - :o: `medium priority` `medium effort` selected person is lost on page reload - selection state isn't persisted. add a `fte.selection.lastPersonId` localStorage key restored on tree load (gate restoration on the loaded tree containing that id)
 - :o: `medium priority` `medium effort` family-view `+` expand-subtree action auto-refits viewport, losing the user's zoom/pan - expected: extend canvas content, let new branches overflow off-screen, keep zoom stable. fix in the expand handler's post-layout step (`FamilyViewCanvas.svelte:530`) - skip the auto-fit when expansion is user-driven mid-session
@@ -46,6 +45,7 @@
 
 ## fixed
 
+- :red_circle: `23 May 2026` inspector header more-actions menu items (duplicate / set as root / copy id / delete) fire correctly; regression locked by `Inspector.test.ts` (jsdom + userEvent) and `inspector-more-actions-smoke.spec.ts` (real chromium).
 - :red_circle: `23 May 2026` PersonNode portrait img already uses `object-cover object-top` (apps/web/src/lib/components/tree/PersonNode.svelte:175); square 600x600 source crops cleanly into the 3:4 slot, no stretch path remains.
 - :red_circle: `23 May 2026` Menu / command palette auto-highlighted the first item on mouse open - `activeIdx` now starts at -1; only ↑/↓/Home/End sets the highlight. ArrowDown on the menu-bar trigger still auto-focuses the first item (matches the WAI-ARIA convention).
 - :red_circle: `23 May 2026` Tree > "center on root" recentred viewport without selecting the root - `viewCenterRoot` command handler in `App.svelte` now calls `selection.select(treeStore.tree.rootId)` alongside `c.centerOnRoot()`.
@@ -101,5 +101,5 @@ if a feature in `to-do.md` turns up a defect during implementation, file the def
 
 ```yaml
 last_updated: 23 May 2026
-total_fixed: 11
+total_fixed: 12
 ```
