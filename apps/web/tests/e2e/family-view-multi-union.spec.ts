@@ -56,8 +56,13 @@ test.describe("family view — Phase 2 multi-union UI", () => {
 
         const menu = page.locator("[data-union-picker='menu']");
         await expect(menu).toBeVisible();
-        // Menu lists "switch to Sera" — Aron's other partner.
-        const seraItem = menu.locator("button", { hasText: /Sera/ });
+        // Menu lists "set primary to Sera" — the wave-1 swap action.
+        // Wave-2 phase 4 added a second "show alongside Sera" button to
+        // the same menu, so scope the selector to the swap action
+        // explicitly via the `data-union-picker-action` attribute.
+        const seraItem = menu.locator("[data-union-picker-action='set-primary']", {
+            hasText: /Sera/,
+        });
         await expect(seraItem).toBeVisible();
         await seraItem.dispatchEvent("click");
 

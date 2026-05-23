@@ -41,6 +41,7 @@
     } from "$lib/layout/engines/family-view";
     import { useExpansionState } from "$lib/layout/engines/family-view/expansion";
     import { usePrimaryUnionState } from "$lib/layout/engines/family-view/primaryUnion";
+    import { useSecondaryUnionState } from "$lib/layout/engines/family-view/secondaryUnion";
     import { usePath, badgeOnPath } from "$lib/layout/engines/family-view/path";
     import { computeAncestorOverlap } from "$lib/domain/consanguinity";
     import type { PersonId, Tree } from "$lib/domain/types";
@@ -108,6 +109,16 @@
          */
         smoothDiff?: boolean | undefined;
         /**
+         * Wave-2 phase 4: secondary-union expansion master switch. When
+         * `true` (default), the `˅` picker offers a "show alongside" /
+         * "hide" action that adds a second 2-partner union next to the
+         * primary at the same rank — see `secondaryUnion.ts` for the
+         * 1-expanded-secondary-per-person cap. When `false`, the picker
+         * reverts to wave-1's swap-only behaviour. Persisted upstream
+         * via `fte.layout.familyViewSecondaryUnion` localStorage flag.
+         */
+        secondaryUnion?: boolean | undefined;
+        /**
          * Portrait blob -> object-URL cache shared with the layered engine.
          * Phase 1 of the visual fix-up plan: family-view now renders
          * portraits at the larger card height when `person.portraitBlobId`
@@ -154,6 +165,7 @@
         showConsanguinity = false,
         crossingMin = true,
         smoothDiff = true,
+        secondaryUnion = true,
         portraitUrls,
         onselect,
         ondeselect,
@@ -221,6 +233,8 @@
     let expansion = $derived(useExpansionState(tree.id, activeFocus));
     // Phase 2 primary-union override — same per-(treeId, focusId) lifecycle.
     let primaryUnion = $derived(usePrimaryUnionState(tree.id, activeFocus));
+    // Wave-2 phase 4 secondary-union expansion — same lifecycle.
+    let secondaryUnionState = $derived(useSecondaryUnionState(tree.id, activeFocus));
 
     // Phase 6: when the Overlays > "Path highlight" toggle is off, skip
     // the BFS path lookup and present an empty path-set so the renderer
@@ -245,6 +259,7 @@
      */
     let expansionRev = $state(0);
     let primaryRev = $state(0);
+    let secondaryRev = $state(0);
     let layout = $derived<FamilyViewLayout>(
         engine.layout({
             tree,
@@ -253,6 +268,15 @@
                 expanded: (void expansionRev, expansion.expanded),
                 primaryUnionOverrides: (void primaryRev, primaryUnion.overrides),
                 crossingMin,
+                // Conditionally include the field rather than passing
+                // `undefined` — `exactOptionalPropertyTypes` distinguishes
+                // "absent" from "undefined value".
+                ...(secondaryUnion
+                    ? {
+                          expandedSecondaryUnions:
+                              (void secondaryRev, secondaryUnionState.byPerson),
+                      }
+                    : {}),
             },
         }),
     );
@@ -519,6 +543,36 @@
         primaryUnion.setPrimary(mateId, coupleIndex);
         primaryRev += 1;
         pickerOpenFor = null;
+    }
+
+    /**
+     * Wave-2 phase 4: pulls a secondary union into the visible subset
+     * alongside the current primary, capped at one expanded secondary
+     * per person by `secondaryUnion.ts`'s setter. Idempotent — calling
+     * `expand` for an already-expanded entry is a no-op. Returns
+     * immediately if the secondary-union master switch is off (the
+     * action shouldn't even be reachable via the menu, but the guard
+     * is here for completeness).
+     */
+    function onPickerShowAlongside(mateId: PersonId, coupleIndex: number, e: MouseEvent): void {
+        e.stopPropagation();
+        if (!secondaryUnion) return;
+        secondaryUnionState.expand(mateId, coupleIndex);
+        secondaryRev += 1;
+        pickerOpenFor = null;
+    }
+
+    function onPickerHideAlongside(mateId: PersonId, coupleIndex: number, e: MouseEvent): void {
+        e.stopPropagation();
+        secondaryUnionState.collapse(mateId, coupleIndex);
+        secondaryRev += 1;
+        pickerOpenFor = null;
+    }
+
+    /** Coupleindexes currently expanded as secondaries for `mateId`. */
+    function expandedSecondariesFor(mateId: PersonId): readonly number[] {
+        void secondaryRev;
+        return secondaryUnionState.expandedFor(mateId);
     }
 
     function onAddToggle(cardId: PersonId, e: MouseEvent): void {
@@ -1059,20 +1113,52 @@
                                 data-union-picker="menu"
                                 role="menu"
                                 class="border-line bg-canvas-elev absolute top-full right-0 z-40 mt-1
-                                       min-w-32 rounded border py-1 text-xs shadow-md"
+                                       min-w-48 rounded border py-1 text-xs shadow-md"
                             >
                                 {#each m.alternates as alt (alt.coupleIndex)}
+                                    {@const isExpandedSecondary = expandedSecondariesFor(
+                                        m.mateId,
+                                    ).includes(alt.coupleIndex)}
                                     <button
                                         type="button"
                                         role="menuitem"
                                         data-union-picker-alt={alt.coupleIndex}
+                                        data-union-picker-action="set-primary"
                                         class="text-fg hover:bg-canvas-hover block w-full
                                                px-2 py-1 text-left"
                                         onclick={(e) =>
                                             onPickerSelect(m.mateId, alt.coupleIndex, e)}
                                     >
-                                        switch to {partnerLabel(alt.partnerId)}
+                                        set primary to {partnerLabel(alt.partnerId)}
                                     </button>
+                                    {#if secondaryUnion && !isExpandedSecondary}
+                                        <button
+                                            type="button"
+                                            role="menuitem"
+                                            data-union-picker-alt={alt.coupleIndex}
+                                            data-union-picker-action="show-alongside"
+                                            class="text-fg-muted hover:bg-canvas-hover block w-full
+                                                   px-2 py-1 pl-4 text-left"
+                                            onclick={(e) =>
+                                                onPickerShowAlongside(m.mateId, alt.coupleIndex, e)}
+                                        >
+                                            also show {partnerLabel(alt.partnerId)} alongside
+                                        </button>
+                                    {/if}
+                                    {#if secondaryUnion && isExpandedSecondary}
+                                        <button
+                                            type="button"
+                                            role="menuitem"
+                                            data-union-picker-alt={alt.coupleIndex}
+                                            data-union-picker-action="hide-alongside"
+                                            class="text-fg-muted hover:bg-canvas-hover block w-full
+                                                   px-2 py-1 pl-4 text-left"
+                                            onclick={(e) =>
+                                                onPickerHideAlongside(m.mateId, alt.coupleIndex, e)}
+                                        >
+                                            hide {partnerLabel(alt.partnerId)}
+                                        </button>
+                                    {/if}
                                 {/each}
                                 {#if m.alternates.length === 0}
                                     <span class="text-fg-muted block px-2 py-1"

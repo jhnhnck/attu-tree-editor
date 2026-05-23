@@ -402,6 +402,27 @@
     }
     let smoothDiffEnabled = $state(readSmoothDiffPref());
 
+    // Wave-2 phase 4: secondary-union expansion flag. Default `true`;
+    // null reads as on for parity with the other wave-2 phase-internal
+    // flags. Gates FamilyViewCanvas's `secondaryUnion` prop, which
+    // toggles the picker menu's "show alongside" / "hide" actions and
+    // (when off) reverts to wave-1's swap-only behaviour. Rollback
+    // path is to flip the read fallback to `false`. No UI toggle —
+    // same precedent as `smoothDiff` / `crossingMin` / `semantic100`.
+    const SECONDARY_UNION_LS_KEY = "fte.layout.familyViewSecondaryUnion";
+    function readSecondaryUnionPref(): boolean {
+        try {
+            const raw =
+                typeof localStorage === "undefined"
+                    ? null
+                    : localStorage.getItem(SECONDARY_UNION_LS_KEY);
+            return raw !== "false";
+        } catch {
+            return true;
+        }
+    }
+    let secondaryUnionEnabled = $state(readSecondaryUnionPref());
+
     // relationship-vocabulary phase 4: per-overlay-kind toggles. each
     // localStorage key defaults on (`null` → on); anything but `"false"`
     // reads as on. mirrors PATH_HIGHLIGHT_LS_KEY's defensive shape.
@@ -1624,6 +1645,7 @@
                     showConsanguinity={consanguinityEnabled}
                     crossingMin={crossingMinEnabled}
                     smoothDiff={smoothDiffEnabled}
+                    secondaryUnion={secondaryUnionEnabled}
                     {portraitUrls}
                     onselect={(id: string) => selection.select(id)}
                     ondeselect={() => selection.select(undefined)}

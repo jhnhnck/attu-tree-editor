@@ -158,6 +158,17 @@ export interface LayoutOptions {
      * the *raw* `tree.couples` field-order placement.
      */
     readonly crossingMin?: boolean;
+    /**
+     * Wave-2 phase 4: per-person expanded-secondary-union map. Passed
+     * through to `selectBoundedSubset`. Maps personId → Set of
+     * `coupleIndex` (position in `tree.couples`); for each entry the
+     * other partner of that 2-partner union + its children join the
+     * bounded subset. v1 caps at one expanded secondary per person
+     * (enforced upstream by `secondaryUnion.ts`'s `expand()` setter).
+     * Empty / undefined preserves wave-1 behaviour (only the primary
+     * union renders).
+     */
+    readonly expandedSecondaryUnions?: ReadonlyMap<PersonId, ReadonlySet<number>>;
 }
 
 export function computeLayout(
@@ -167,10 +178,13 @@ export function computeLayout(
 ): FamilyViewLayout {
     const expanded = opts.expanded ?? new Set<PersonId>();
     const primaryOverrides = opts.primaryUnionOverrides ?? new Map<PersonId, number>();
+    const expandedSecondaryUnions =
+        opts.expandedSecondaryUnions ?? new Map<PersonId, ReadonlySet<number>>();
     const threshold = opts.autoCollapseThreshold ?? AUTO_COLLAPSE_THRESHOLD;
     const subset = selectBoundedSubset(tree, focusId, {
         expanded,
         primaryUnionOverrides: primaryOverrides,
+        expandedSecondaryUnions,
     });
 
     // Auto-collapse: while visible > threshold, demote the lowest-DOI

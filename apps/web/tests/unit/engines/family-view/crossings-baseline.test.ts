@@ -198,4 +198,69 @@ describe("family-view crossings — phase 2 baseline against fixtures", () => {
         );
         expect(onCount).toBeLessThanOrEqual(offCount);
     });
+
+    // Wave-2 phase 4 — B15 follow-up. The phase-2 retro recorded that
+    // the barycentric pass was a measured no-op on every production
+    // fixture; the phase-2-plan-revise note routed B15 here, predicting
+    // that secondary-union expansion "brings 2+ partners' children into
+    // the bounded subset side-by-side" — the configuration where the
+    // pass *should* activate. This test exercises that configuration by
+    // expanding a person's secondary union on the multi-union fixture
+    // (the only production fixture with multiple unions per person)
+    // and measuring pre- vs post-pass crossings. If still a no-op,
+    // B15 stays open and escalates to algorithm upgrade.
+    it("multi-union fixture w/ secondary-union expanded: B15 follow-up", () => {
+        const muPath = resolve(process.cwd(), "tests/fixtures/multi-union.ged");
+        const muTree = unwrap(parseGedcom(readFileSync(muPath, "utf8"))).tree;
+        // Find a focus with 2+ unions in tree.couples.
+        const unionCount = new Map<PersonId, number>();
+        for (const c of muTree.couples) {
+            unionCount.set(c.leftId, (unionCount.get(c.leftId) ?? 0) + 1);
+            unionCount.set(c.rightId, (unionCount.get(c.rightId) ?? 0) + 1);
+        }
+        let focus: PersonId | undefined;
+        for (const [pid, n] of unionCount) if (n >= 2) focus = pid;
+        if (!focus) {
+            console.info(
+                "[phase-4] multi-union fixture has no 2-union person; B15 follow-up skipped",
+            );
+            return;
+        }
+        // Find a secondary couple-index for that focus (one that's not the
+        // default-primary). defaultPrimaryUnion picks isPrimary===true
+        // first, else lowest unionIndex — we just need a different one.
+        const focusCouples: number[] = [];
+        for (let i = 0; i < muTree.couples.length; i += 1) {
+            const c = muTree.couples[i]!;
+            if (c.leftId === focus || c.rightId === focus) focusCouples.push(i);
+        }
+        if (focusCouples.length < 2) {
+            console.info("[phase-4] selected focus has <2 unions in tree.couples; skipping");
+            return;
+        }
+        const secondaryCoupleIdx = focusCouples[1]!;
+        const expandedSecondaryUnions = new Map<PersonId, ReadonlySet<number>>([
+            [focus, new Set([secondaryCoupleIdx])],
+        ]);
+        const off = computeLayout(muTree, focus, {
+            crossingMin: false,
+            expandedSecondaryUnions,
+        });
+        const on = computeLayout(muTree, focus, {
+            crossingMin: true,
+            expandedSecondaryUnions,
+        });
+        const offCount = countCrossings(off);
+        const onCount = countCrossings(on);
+        console.info(
+            `[phase-4 B15] multi-union w/ secondary expanded (focus=${focus}, ` +
+                `visible=${String(off.nodes.size)}, edges=${String(off.edges.length)}): ` +
+                `off=${String(offCount)} on=${String(onCount)} delta=${String(onCount - offCount)}`,
+        );
+        // Monotone gate still guards: post-pass never raises crossings.
+        // delta < 0 → B15 closes (pass activated); delta === 0 → B15 stays
+        // open (escalate to algorithm upgrade). We don't fail on delta=0
+        // here; the assertion is the monotone guard.
+        expect(onCount).toBeLessThanOrEqual(offCount);
+    });
 });

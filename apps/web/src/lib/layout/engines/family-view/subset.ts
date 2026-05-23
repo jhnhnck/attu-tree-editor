@@ -58,6 +58,19 @@ export interface SubsetOptions {
      * lowest unionIndex). Empty by default.
      */
     readonly primaryUnionOverrides?: ReadonlyMap<PersonId, number>;
+    /**
+     * Wave-2 phase 4: per-person expanded-secondary-union set. Maps
+     * personId → set of `coupleIndex` (position in `tree.couples`).
+     * For each entry in the set, the OTHER partner of that 2-partner
+     * union and all of its children get pulled into the bounded subset
+     * alongside the primary union's render. Empty by default. Cap of
+     * one expanded secondary per person is enforced upstream by
+     * `secondaryUnion.ts`'s `expand()`; subset honours whatever is in
+     * the map (a corrupt localStorage row with multiple entries would
+     * pull in multiple secondary partners, which is degraded but not
+     * unsafe).
+     */
+    readonly expandedSecondaryUnions?: ReadonlyMap<PersonId, ReadonlySet<number>>;
 }
 
 /**
@@ -71,6 +84,8 @@ export function selectBoundedSubset(
 ): RankedSubset {
     const expanded = opts.expanded ?? new Set<PersonId>();
     const overrides = opts.primaryUnionOverrides ?? new Map<PersonId, number>();
+    const secondaryExpanded =
+        opts.expandedSecondaryUnions ?? new Map<PersonId, ReadonlySet<number>>();
     const visible = new Set<PersonId>();
     const rank = new Map<PersonId, number>();
     if (!tree.people[focusId]) {
@@ -99,6 +114,16 @@ export function selectBoundedSubset(
     for (const pid of partnersInMultiUnionsOf(tree, focusId)) {
         if (!visible.has(pid)) place(pid, 0);
     }
+    // Wave-2 phase 4: expanded-secondary unions for the focus. Each
+    // entry in `secondaryExpanded.get(focusId)` adds the OTHER partner
+    // of that 2-partner couple at rank 0 + its children at rank 1.
+    // The rest of the layout pipeline (`planRank` + `emitAnchorsAndEdges`)
+    // requires no changes — both partners visible at the same rank
+    // already trigger a UnionAnchor + couple-bus + sibling-bus drop in
+    // `emitAnchorsAndEdges`'s `for (let ci = 0; ci < tree.couples.length; ci += 1)`
+    // loop, so the second union renders automatically as a fan
+    // beside the primary.
+    placeSecondaryUnions(tree, focusId, 0, secondaryExpanded, visible, place);
 
     // Ancestor spine. Each ancestor's primary partner is placed alongside.
     let frontier: PersonId[] = [focusId];
@@ -205,6 +230,37 @@ export function selectBoundedSubset(
     const hasMoreParents = collectHasMoreParents(tree, visible, rank);
 
     return { visible, rank, hasMoreChildren, hasMoreParents };
+}
+
+/**
+ * Wave-2 phase 4 helper. For each expanded-secondary couple index in
+ * `secondaryExpanded.get(personId)`, place the other partner at
+ * `personRank` and every child at `personRank + 1`. Idempotent via
+ * `visible.has` checks inside `place`. No-op when the person has no
+ * entry in the map.
+ */
+function placeSecondaryUnions(
+    tree: Tree,
+    personId: PersonId,
+    personRank: number,
+    secondaryExpanded: ReadonlyMap<PersonId, ReadonlySet<number>>,
+    visible: ReadonlySet<PersonId>,
+    place: (id: PersonId, r: number) => void,
+): void {
+    const expandedSet = secondaryExpanded.get(personId);
+    if (!expandedSet || expandedSet.size === 0) return;
+    for (const coupleIdx of expandedSet) {
+        const couple = tree.couples[coupleIdx];
+        if (!couple) continue;
+        if (couple.leftId !== personId && couple.rightId !== personId) continue;
+        const partnerId = couple.leftId === personId ? couple.rightId : couple.leftId;
+        if (partnerId !== undefined && !visible.has(partnerId)) {
+            place(partnerId, personRank);
+        }
+        for (const childId of couple.childIds) {
+            if (!visible.has(childId)) place(childId, personRank + 1);
+        }
+    }
 }
 
 function revealChildren(
