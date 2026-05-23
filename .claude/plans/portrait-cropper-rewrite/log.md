@@ -195,3 +195,43 @@ phase 2 (a+b) is complete per user request.
 ## revision after phase 0b — 2026-05-23
 
 plan shape unchanged. update bug-log: the hardware-probe item is no longer "gates phase 0b" since 0b has shipped under the user's gate-override; reframe as a *rollback gate* (if probe returns "no", revert d3693a9). next: **phase 3 — keyboard + a11y**.
+
+## starting phase 3 — 2026-05-23
+
+- worktree: `.claude/worktrees/portrait-cropper-rewrite-phase3`
+- branch: `phase/portrait-cropper-rewrite/3` (off `phase/portrait-cropper-rewrite/0b` @ `ce1c490`)
+- scope re-confirmed against `plan.md`. 3 touches `CropperCanvas.svelte` (keyboard handlers, `role="application"`, `aria-label`, `tabindex="0"`), `CropperDialog.svelte` (focus management on open/close + aria-live zoom % readout), and `PortraitField.svelte` (stable ref on the "replace" button for focus return). plus a focus-stability component test.
+- DoD:
+  1. keyboard-only flow: tab into the dialog, arrow keys pan (shift = 10× step), `+`/`-` zoom (anchored at canvas center), `0` reset, `enter` saves, `esc` cancels.
+  2. focus moves to the canvas on dialog open; on close, focus returns to the "replace" button.
+  3. axe-core reports no new violations on the dialog.
+  4. zoom % is announced through an `aria-live` region (throttled / debounced to ~250 ms).
+  5. **focus-stability check** (per pre-mortem risk #6): swapping `personId` on `PortraitField` while the dialog is open and then closing it does not leak focus to `document.body`. component test asserts this.
+- merge gate: deferred per user instruction (`do not merge`). worktree + branch will be left in place after step 5.
+
+## phase 3 retro — 2026-05-23
+
+**what landed vs spec**
+- keyboard map in `CropperCanvas.svelte`: ArrowLeft/Right/Up/Down pan (shift = 10× step), `+`/`=` and `-`/`_` zoom around canvas center, `0` reset to cover-fit, `Enter` saves via `oncommit`, `Esc` cancels via `oncancel`.
+- `tabindex="0"`, `role="application"` (with deliberate `svelte-ignore` because the widget's keyboard semantics don't match any standard control), descriptive `aria-label`, focus-visible accent outline.
+- `autofocus` prop on the canvas; dialog raises `canvasAutofocus = true` on open. cleanup resets so re-opens re-trigger focus.
+- `coverScale`-relative zoom % derived in the dialog. `<output aria-live="polite">` updates after a 250 ms debounce. visible footer reads the live percent.
+- `PortraitField.svelte` captures a stable `replaceBtn` ref and restores focus on `onDialogClose`. dev warning if the ref is stale.
+- new component test asserts `document.activeElement !== document.body` after a personId swap + dialog close. dialog mock upgraded to capture props so `onclose` can fire synthetically.
+- pnpm typecheck + lint + 926 unit tests + build all green.
+
+**what was not closed (open risk)**
+- DoD part (3) — "axe-core reports no new violations" is not asserted programmatically. axe-core isn't wired into the unit-test suite. relevant DoD bar is met via the manual changes (role, aria-label, focus-visible, aria-live, tabindex); a real axe check belongs in the playwright e2e once that spec lifts its skip. routed in residual debt rather than as a regression.
+
+**surprises**
+- svelte 5 a11y lint says `<canvas>` cannot have `role="application"`. spec-wise that's overly strict — the cropper genuinely is an application widget — so suppressed with an inline `svelte-ignore` and a comment explaining why. would have been a real bug if the rule had stopped me from doing the right thing.
+- vi.mock of CropperDialog needed an upgrade: a plain no-op factory worked for prior tests but had to record the props bag so the focus-stability test could fire `onclose` synthetically. svelte 5's component factory signature `(anchor, props)` is what the runtime hands you; recording `props.onclose` is enough.
+- chose `coverScale`-relative zoom % (100 = cover, 400 = max) rather than absolute scale-as-percent. easier to describe to a user; matches the "min zoom = cover, max zoom = 4×" framing in phase 1.
+
+**residual debt**
+- axe-core not in unit-test loop. add when wiring the playwright e2e for the cropper dialog (probably in phase 4, alongside the visual goldens).
+- liveZoom debounce timer is module-scoped — if a future phase introduces multiple dialog instances on the same page, they'll fight over the timer. not currently a concern (singleton dialog) but worth a note.
+
+## revision after phase 3 — 2026-05-23
+
+plan shape unchanged. all of phases 0a, 1, 0b, 2a, 2b, 3 are now closed (with the known open gates routed in bugs.md). next: **phase 4 — polish + theming**. bugs.md carries the same three open items.
