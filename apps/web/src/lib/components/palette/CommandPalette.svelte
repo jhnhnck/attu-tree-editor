@@ -219,7 +219,7 @@
 
 <!-- backdrop is non-blocking; outside-click closes via the pointerdown listener -->
 <div
-    class="fixed inset-0 z-[60] flex items-start justify-center px-4 pt-[18vh]"
+    class="fixed inset-0 z-60 flex items-start justify-center px-4 pt-[18vh]"
     role="dialog"
     aria-modal="true"
     aria-label="command palette"
@@ -234,7 +234,7 @@
 
     <div
         bind:this={containerEl}
-        class="bg-canvas-elev border-line text-fg relative w-full max-w-[520px] overflow-hidden rounded-lg border shadow-2xl"
+        class="bg-canvas-elev border-line text-fg relative w-full max-w-130 overflow-hidden rounded-lg border shadow-2xl"
     >
         <header class="border-line flex items-center gap-2 border-b px-3 py-2">
             <Search size={14} class="text-fg-muted shrink-0" />
