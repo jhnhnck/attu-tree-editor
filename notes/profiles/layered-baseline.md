@@ -22,7 +22,7 @@ Distance (units) from each ghost to its `near` partner. The DELTA=2.5u policy in
 
 ## Bond stubbing
 
-Same-rank stub pairs are the [bugs.md:17](../bugs.md#L17) symptom — the couple's bond should be one continuous segment but `route.ts` emitted `/stub-l` + `/stub-r` instead, because `bondSpan > maxBondSpan` fired even on visually short bonds. Cross-rank stub pairs are the legitimate L-bond case. See [notes/profiles/route-stub-paths.md](./route-stub-paths.md) for the audit.
+Same-rank stub pairs are the [bugs.md:17](../bugs.md#L17) symptom - the couple's bond should be one continuous segment but `route.ts` emitted `/stub-l` + `/stub-r` instead, because `bondSpan > maxBondSpan` fired even on visually short bonds. Cross-rank stub pairs are the legitimate L-bond case. See [notes/profiles/route-stub-paths.md](./route-stub-paths.md) for the audit.
 
 | fixture | same-rank stub pairs | cross-rank stub pairs | same-rank single bonds |
 |---|---:|---:|---:|

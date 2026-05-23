@@ -52,19 +52,20 @@ if (Math.abs(lx - ux) > maxBondSpan) {
 }
 ```
 
-## Bug 17 root cause — different from the bug-log text
+## Bug 17 root cause - different from the bug-log text
 
 The [bugs.md:17](../bugs.md#L17) text describes the defect as a
-*consequence* of off-center children — "the children's centroid
-differs from the bond midpoint" — and names the suffix `:1/stu`.
+*consequence* of off-center children - "the children's centroid
+differs from the bond midpoint" - and names the suffix `:1/stu`.
 
 **Both are inaccurate against current code.**
 
 - **Suffix:** the actual current suffixes are `/stub-l` and `/stub-r`
   (set 9 May 2026 in commit dac9074-era refactor). The `:1/stu` form
   belonged to an earlier version of the code.
+
 - **Cause:** the children-centroid is consulted *only* for the
-  parent-drop x in the long-bond branch — `bondX = group.kids.reduce(...
+  parent-drop x in the long-bond branch - `bondX = group.kids.reduce(...
   / group.kids.length`. It does NOT cause the bond to split. The
   bond splits because `bondSpan > maxBondSpan` is true, and on
   small fixtures the active threshold is `bbox.width / 4`, not
@@ -73,7 +74,7 @@ differs from the bond midpoint" — and names the suffix `:1/stu`.
 The 8-person `eightPersonFamily()` repro from
 `apps/web/tests/fixtures/layered-bug-repros.ts` triggers path A
 because the 8-person tree's bbox is small (~14u wide), giving
-`maxBondSpan ≈ 3.5u` — any couple whose `bondSpan` exceeds 3.5u
+`maxBondSpan ≈ 3.5u` - any couple whose `bondSpan` exceeds 3.5u
 becomes two stubs. The Korak+Wife couple has children pulling
 `bondSpan` past that threshold; Moma+Dada (single child Korak)
 stays under.
@@ -82,7 +83,7 @@ stays under.
 
 The plan's Phase 1 fix as written ("when both partners are at the
 same rank, emit one continuous bond") is a **no-op** for the actual
-code — the same-rank branch *already* emits one continuous bond
+code - the same-rank branch *already* emits one continuous bond
 when `!isLongBond`. The real fix is to **floor the threshold** so
 small bboxes don't trigger path A on short bonds.
 
@@ -100,11 +101,14 @@ const maxBondSpan = Math.min(
 ```
 
 Effects:
+
 - 8-person fixture: `maxBondSpan = max(8*1, 3.5) = 8u`. Korak+Wife
   bond span is well under 8u → bond is a single segment. Bug 17
   fixed.
+
 - 1802-person Akarians: `maxBondSpan = min(25, max(8, bbox.width/4))`
   = 25 (ceiling still dominates). No regression.
+
 - Cross-rank L-bond: same threshold, same floor. Legitimate
   long-bond stubs (truly distant couples) still emit correctly.
 
@@ -159,6 +163,7 @@ if (current !== null && current > 0) {
 ```
 
 Preconditions:
+
 - user is signed in (`authStore.user` truthy)
 - tree is server-loaded (`syncStore.revision !== null`)
 - tree has been saved at least once (`revision > 0`)
@@ -172,7 +177,8 @@ gating is needed.
 - Phase 1 (bug 17): single-line edit at `route.ts:296`, floor
   `maxBondSpan` at `BUNDLE_THRESHOLD`. Plan body's "same-rank rule"
   is unnecessary.
-- Phase 1 (bug 18): unchanged — tie-break in `order.ts`.
+
+- Phase 1 (bug 18): unchanged - tie-break in `order.ts`.
 - Phase 3 (force-conflict): client-side knob is
   `syncStore.setRevision(revision - 1)`. No server work needed.
 

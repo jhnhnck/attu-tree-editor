@@ -1,25 +1,25 @@
-# FamilyTreeEditor - Agent Guide
+# FamilyTreeEditor - agent guide
 
-## 1. Project Overview
+## 1. project overview
 
 client-side typescript spa (svelte 5, vite, tailwind v4) for viewing and editing family trees in the [Attu Project](https://attuproject.org) wiki universe. backed by a thin fastapi+sqlite service for autosave, sharing, and discord-bridged auth via doom-bot. lives at `devel/FamilyTreeEditor/` inside the attu-wiki-dev deployment. see [`notes/features/attu-wiki.md`](features/attu-wiki.md) for parent project context and [`notes/features/doom-bot.md`](features/doom-bot.md) for the bot.
 
 ---
 
-## 2. Rules
+## 2. rules
 
 1. do not edit the rules.
 1. do not use git push or deploy any changes to prod without being explicitly asked to.
 1. do not commit secrets - `data/` is gitignored; secrets live in `data/trees-config.toml` `[secrets]`.
 1. all in-universe dates must use `HaracalndeDate`; never use `Date` in domain code.
 1. round-trip exports must list dropped fields when the target format cannot carry them; do not silently lose data.
-1. do not impose traditional family-structure constraints (gender pairings, monogamy, no cycles, two-parent, "must be human", etc.) - this is a fictional-world editor and the schema is permissive on purpose. validate-as-finding instead of reject-with-error. see Section 8.
-1. only one user-facing export format: GEDZIP `.gdz` (and a future native JSON). plain `.ged` and FamilyScript `.txt` are import-only. see Section 8.
+1. do not impose traditional family-structure constraints (gender pairings, monogamy, no cycles, two-parent, "must be human", etc.) - this is a fictional-world editor and the schema is permissive on purpose. validate-as-finding instead of reject-with-error. see section 8.
+1. only one user-facing export format: GEDZIP `.gdz` (and a future native JSON). plain `.ged` and FamilyScript `.txt` are import-only. see section 8.
 1. every persisted artifact (currently GEDZIP `manifest.json`; future native JSON) must carry `schemaVersion` so the migration runner in `domain/schema.ts` can convert older shapes forward. bumping `CURRENT_SCHEMA_VERSION` requires shipping a `Migration` in the registry.
 
 ---
 
-## 3. Architecture
+## 3. architecture
 
 ### top level
 
@@ -37,7 +37,7 @@ client-side typescript spa (svelte 5, vite, tailwind v4) for viewing and editing
 | :--- | :--- |
 | `src/lib/domain/` | typed person/tree model (`types.ts`), in-memory ops (`tree.ts`), id generator (`ids.ts`), validation (`validate.ts`), schema-version registry + migration runner (`schema.ts`) |
 | `src/lib/date/` | `HaracalndeDate` class, gregorian conversion (cosmetic) |
-| `src/lib/io/familyscript/` | import-only parser for family echo `.txt` (serializer retired - see Section 8) |
+| `src/lib/io/familyscript/` | import-only parser for family echo `.txt` (serializer retired - see section 8) |
 | `src/lib/io/gedcom/` | parser wraps `read-gedcom`'s low-level tree; serializer is hand-rolled, called only by `bundle/write.ts` |
 | `src/lib/io/bundle/` | GEDZIP `.gdz` reader / writer using `fflate`; ships `manifest.json` with `schemaVersion` |
 | `src/lib/io/merge/` | dual-import merge: pair persons by name+year, union spouses + couples, configurable conflict resolution |
@@ -69,7 +69,7 @@ client-side typescript spa (svelte 5, vite, tailwind v4) for viewing and editing
 
 ---
 
-## 4. Configuration System
+## 4. configuration system
 
 four sources, no `.env` at runtime. each value lives in exactly one tier.
 
@@ -99,7 +99,7 @@ precedence: `init_settings` > `TomlConfigSettingsSource` > `env_settings` > `fil
 
 ---
 
-## 5. Coding Conventions
+## 5. coding conventions
 
 ### typescript
 
@@ -136,7 +136,7 @@ when a test, fixture, doc, or example needs a generic person, use these akarian-
 
 ---
 
-## 6. Testing
+## 6. testing
 
 ### web
 
@@ -157,7 +157,7 @@ see [`notes/dev/testing.md`](dev/testing.md) for layout details, fixtures, and h
 
 ---
 
-## 7. Running Locally
+## 7. running locally
 
 see [`notes/dev/dev_setup.md`](dev/dev_setup.md) for prerequisites and one-time setup. once ready:
 
@@ -169,11 +169,11 @@ pnpm verify        # full ci sweep
 
 ---
 
-## 8. Design Decisions
+## 8. design decisions
 
-context for why pieces of the codebase look the way they do. the rules in Section 2 are the short form; this is the why.
+context for why pieces of the codebase look the way they do. the rules in section 2 are the short form; this is the why.
 
-### 8.1 Permissive schema for fictional families
+### 8.1 permissive schema for fictional families
 
 the editor targets an in-universe wiki where the fiction includes time travel, transmutation, multi-parent magical conception, asexual reproduction, and people marrying their horses. so the schema does **not** enforce any of the assumptions a real-world genealogy tool would:
 
@@ -197,7 +197,7 @@ users can **import** FamilyScript `.txt`, plain GEDCOM `.ged`, GEDZIP `.gdz`, or
 
 `io/warnings.ts`'s `ExportTarget` is `'gedzip' | 'json'` only. don't add `'gedcom'` or `'familyscript'` back unless that decision reverses.
 
-### 8.3 Schema versioning + forward migration
+### 8.3 schema versioning + forward migration
 
 every persisted artifact carries `schemaVersion`. the migration runner ([`apps/web/src/lib/domain/schema.ts`](../apps/web/src/lib/domain/schema.ts)) walks a registered chain of `Migration { from, to, migrate }` entries to bring older shapes up to `CURRENT_SCHEMA_VERSION`. this lets us evolve the domain (e.g. replace `motherId`/`fatherId` with `parentIds: PersonId[]`) without invalidating any existing user file.
 
@@ -227,22 +227,22 @@ source of truth: [`apps/web/src/lib/io/gedcom/extensions.ts`](../apps/web/src/li
 
 the serializer registers the namespace via `HEAD.SCHMA` so the file declares its own dialect:
 
-```
+```text
 1 SCHMA
 2 TAG _TREES_UNION https://attuproject.org/trees/schema/v1#union
 2 TAG _TREES_GROUP https://attuproject.org/trees/schema/v1#group
 ...
 ```
 
-tools that don't understand SCHMA skip it; FamilyTree Editor's own permissive parser ignores SCHMA on read and re-emits a fresh block on write. the URI is stable across schema bumps — the schema version applies to the *tree data* (`manifest.json`), not the tag vocabulary.
+tools that don't understand SCHMA skip it; FamilyTree Editor's own permissive parser ignores SCHMA on read and re-emits a fresh block on write. the URI is stable across schema bumps - the schema version applies to the *tree data* (`manifest.json`), not the tag vocabulary.
 
-### 8.5 Pronouns drive kinship terms before SEX
+### 8.5 pronouns drive kinship terms before SEX
 
 `apps/web/src/lib/layout/kinship.ts:kinshipGender(person)` consults `getPronouns(person)` first and falls back to `legacyGenderCode(person)`. so a person with `gender = { identity: "agender", pronouns: "he/him" }` reads as "brother / father / son" in path captions, and a person with `gender = "m"` whose pronouns are `they/them` reads as the neutral "sibling / parent / child". the same is not true of the GEDCOM SEX line (which has to be one of `M / F / U / X` because that's what the standard says); the SEX-derived legacy code is the *fallback* for kinship rendering, not the source of truth.
 
 ---
 
-## 9. Patterns & Pitfalls
+## 9. patterns & pitfalls
 
 1. **playwright webserver**: `playwright.config.ts` invokes `npx vite preview --host 127.0.0.1` rather than `pnpm preview`; subprocesses spawned by `playwright test` get a minimal `PATH` and can't always find pnpm. keep that line as `npx ...`.
 2. **vitest <-> vite version coupling**: vitest 3 pairs with vite 6+. if you bump vite, bump vitest in lockstep, or types will conflict across two parallel installs.
@@ -255,51 +255,55 @@ tools that don't understand SCHMA skip it; FamilyTree Editor's own permissive pa
 9. **svelte component tests on jsdom**: vitest `resolve.conditions: ['browser']` is required, otherwise `mount()` calls into the SSR build and crashes with `lifecycle_function_unavailable`. Also, jsdom doesn't implement `HTMLDialogElement.showModal/close`; component tests for anything using `<dialog>` need a `beforeAll` shim (see `PersonEditor.test.ts` for the pattern).
 10. **inline callback typing in svelte templates**: typescript-eslint can't infer prop types across `.svelte` boundaries, so an inline arrow like `onselect={(id) => ...}` lints as `id: any`. Annotate explicitly: `onselect={(id: string) => ...}`.
 11. **set-or-delete for optional fields**: `exactOptionalPropertyTypes` forbids `target.field = undefined` for `field?: T`. Use the `setOptional(target, key, value)` helper pattern (see `merge.ts` and `PersonEditor.svelte`); it `delete`s when value is undefined and assigns otherwise. Note this means clearing a field via patch isn't currently supported through `updatePerson` - tracked in to-do.md.
-12. **dexie + svelte 5 $state proxies**: anything written to IndexedDB via Dexie goes through structured-clone, which throws `DataCloneError` when given a Svelte 5 `$state` proxy. `persistence/trees.ts:saveTree` round-trips the `Tree` through `JSON.parse(JSON.stringify(...))` to drop the reactivity wrappers. Domain types are JSON-safe (no `Date`, `Map`, functions) so this is lossless. Apply the same pattern when writing other reactive runes to Dexie.
+12. **dexie + svelte 5 $state proxies**: anything written to IndexedDB via Dexie goes through structured-clone, which throws `DataCloneError` when given a Svelte 5 `$state` proxy. `persistence/trees.ts:saveTree` round-trips the `Tree` through `JSON.parse(JSON.stringify(...))` to drop the reactivity wrappers. Domain types are JSON-safe (no `Date` / `Map` / functions) so this is lossless. Apply the same pattern when writing other reactive runes to Dexie.
 13. **storing blobs in dexie**: store image bytes as `Uint8Array`, never as `Blob`. fake-indexeddb (used in tests) mangles Blob round-trips, and even real IndexedDB has subtle differences across browsers. `persistence/blobs.ts:putBlob` requires `Uint8Array`; the cropper output (a `Blob` from `canvas.toBlob`) is converted via `new Uint8Array(await blob.arrayBuffer())` at the call site. Read sites wrap back in `new Blob([bytes.slice()], { type: mime })` to create object URLs.
 14. **autosave + first-load semantics**: `treeStore.dirty` distinguishes user mutations from initial-load hydration. App.svelte's autosave `$effect` only schedules a save when `firstLoadComplete && treeStore.dirty`. `treeStore.hydrate(tree)` resets state without flipping dirty (used to restore from Dexie); `treeStore.reset(tree)` does flip dirty (used by import). Don't conflate the two - hydrate-then-save would just rewrite what we read.
 15. **family-view card-affordance slots are reserved**: the focus card and every visible card in the family-view engine has four corner slots + two centred-edge slots that are spoken for. New affordances must pick a free slot or share via a menu, not overlap. The current allocation:
-    - **top-left**: `+ person` (add-relative, focus card only — phase 4) / `g+N` generation badge (non-focus cards — phase 5)
-    - **top-right**: `−` collapse (when the branch was expanded — phase 1)
-    - **top-centre**: `+` expand parents (ancestors with un-shown parents — phase 1)
-    - **bottom-centre**: `+` expand children (descendants with un-shown children — phase 1)
-    - **bottom-right**: `˅` union picker (multi-union persons — phase 2)
-    - **bottom edge (1-px strip)**: era underline (HSL hue by birth-year century — phase 5)
+    - **top-left**: `+ person` (add-relative, focus card only - phase 4) / `g+N` generation badge (non-focus cards - phase 5)
+    - **top-right**: `−` collapse (when the branch was expanded - phase 1)
+    - **top-centre**: `+` expand parents (ancestors with un-shown parents - phase 1)
+    - **bottom-centre**: `+` expand children (descendants with un-shown children - phase 1)
+    - **bottom-right**: `˅` union picker (multi-union persons - phase 2)
+    - **bottom edge (1-px strip)**: era underline (HSL hue by birth-year century - phase 5)
     The focus card has rank 0 so the generation badge never collides with the `+ person` slot. A future seventh affordance should consider modifier-click, long-press, or an existing-menu entry rather than reaching for a new corner.
+
 16. **wrapper-attribute selectors for e2e**: family-view affordances live on the *absolutely-positioned wrapper* around `PersonNode`, not on `[data-person-id]` itself. e2e selectors target the wrapper-attribute and (if needed) filter by hasText. Established attributes:
-    - `data-expand-toggle="expand" | "collapse"` (`+` / `−` buttons — phase 1)
-    - `data-union-picker="toggle" | "menu"` (`˅` and its dropdown — phase 2)
-    - `data-on-path="true"` (when on the selection→focus BFS path — phase 3)
-    - `data-add-toggle="open" | "menu"` (`+ person` and its dropdown — phase 4)
-    - `data-add-kind="parent" | "partner" | "child"` (add-relative menu items — phase 4)
-    - `data-generation-badge="g±N"` (non-focus generation pill — phase 5)
-    - `data-silhouette="true"` (User-icon fallback when no portraitUrl — phase 5)
-    - `data-era-underline="true"` (1-px century-banded strip at card bottom — phase 5)
+    - `data-expand-toggle="expand" | "collapse"` (`+` / `−` buttons - phase 1)
+    - `data-union-picker="toggle" | "menu"` (`˅` and its dropdown - phase 2)
+    - `data-on-path="true"` (when on the selection→focus BFS path - phase 3)
+    - `data-add-toggle="open" | "menu"` (`+ person` and its dropdown - phase 4)
+    - `data-add-kind="parent" | "partner" | "child"` (add-relative menu items - phase 4)
+    - `data-generation-badge="g±N"` (non-focus generation pill - phase 5)
+    - `data-silhouette="true"` (User-icon fallback when no portraitUrl - phase 5)
+    - `data-era-underline="true"` (1-px century-banded strip at card bottom - phase 5)
     Aria-label substrings are *also* selector surface (phase 2 hit a collision when `˅`'s aria-label contained "view-time" and lit up the existing `getByRole("button", { name: "View" })` selector). When adding an affordance, scan existing aria-label / role selectors before settling on copy.
 
 ---
 
-## 10. Reference Notes
+## 10. reference notes
 
 commit conventions, comment style, file headers, the feature-completion checklist, and the pydantic v2 reference card live as skills under `.claude/skills/`; load via the skill name. they are canonical when they diverge from this guide.
 
 **`notes/features/`**
+
 - [`notes/features/attu-wiki.md`](features/attu-wiki.md) - parent project context (containers, services, architecture)
 - [`notes/features/doom-bot.md`](features/doom-bot.md) - sibling discord bot; family-tree integration touch points
 
 **`notes/dev/`**
+
 - [`notes/dev/dev_setup.md`](dev/dev_setup.md) - one-time install steps (node, pnpm, python, uv, playwright)
 - [`notes/dev/testing.md`](dev/testing.md) - test layout, fixtures, how to run subsets
 - [`notes/dev/process.md`](dev/process.md) - the phased-plan / phase-loop / ship-gate development process; lists generic shared skills (`pre-mortem`, `phase-retro`, `bug-triage`, `integration-check`, `plan-revise`, `ship-readiness`, `pre-merge`) used at each step
 
 **`notes/`**
+
 - [`notes/.meta.md`](.meta.md) - guide to this documentation system
 - [`notes/to-do.md`](to-do.md) - open items
 - `notes/plans/` - gitignored implementation plans; ask the user before publishing
 
 ---
 
-## 11. File & Directory Layout
+## 11. file & directory layout
 
 ```txt
 FamilyTreeEditor/
@@ -353,7 +357,7 @@ FamilyTreeEditor/
 
 ---
 
-## 12. Personality / Style
+## 12. personality / style
 
 - lowercase inline comments; no trailing periods
 - use semicolons or regular dashes (-); never em-dashes

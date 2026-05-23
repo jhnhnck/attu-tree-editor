@@ -33,7 +33,7 @@ shared secret env var (both sides): `DISCORD_BOT_HMAC_SECRET`. set to the same v
 
 every bot-to-server request carries two headers:
 
-```
+```text
 X-Attu-Timestamp: <unix-seconds-utc>
 X-Attu-Signature: sha256=<hex>
 ```
@@ -114,7 +114,7 @@ def route_for(code: str) -> str:
     return DEV_BASE_URL if norm[1] in {'X', 'Z'} else PROD_BASE_URL
 ```
 
-then sign + post to that backend's `/api/bot/auth/link`. this keeps the user-visible flow identical between environments — they paste whatever code the editor showed them, no `--env` flag, no separate command.
+then sign + post to that backend's `/api/bot/auth/link`. this keeps the user-visible flow identical between environments - they paste whatever code the editor showed them, no `--env` flag, no separate command.
 
 reasoning behind the partition:
 
@@ -266,13 +266,13 @@ no options. ephemeral reply renders an embed listing trees with a row of buttons
 
 reply when not linked:
 
-```
+```text
 you haven't linked your account yet. run /trees link with a code from the editor first.
 ```
 
 reply when linked but no trees:
 
-```
+```text
 no trees yet. open the editor to create one.
 ```
 

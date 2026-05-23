@@ -5,6 +5,7 @@ design study for extending the editor's connector / connection-type system so po
 reads alongside [`notes/agents.md`](../agents.md) §8.1 (the "permissive schema for fictional families" rule) and the schema-evolution entries in [`notes/to-do.md`](../to-do.md) (`parentIds[]`, `relationships[]`, `birthOrder`, family naming).
 
 editor-side touch points:
+
 - domain types: [`apps/web/src/lib/domain/types.ts`](../../apps/web/src/lib/domain/types.ts)
 - linking ops: [`apps/web/src/lib/domain/tree.ts`](../../apps/web/src/lib/domain/tree.ts) (`linkParent`, `linkSpouse`, `updateCouple`)
 - validation: [`apps/web/src/lib/domain/validate.ts`](../../apps/web/src/lib/domain/validate.ts)
@@ -116,6 +117,7 @@ interface CoupleRecord {
 ```
 
 **what's already permissive**:
+
 - self-couples (`leftId === rightId`) accepted, flagged as a non-blocking finding.
 - ancestral cycles accepted, flagged via DFS.
 - `gender: "u"` exists for non-binary / unknown / N/A.
@@ -123,6 +125,7 @@ interface CoupleRecord {
 - gedcom emit duplicates `1 HUSB` / `1 WIFE` for same-sex couples instead of coercing roles.
 
 **what's hard-coded traditional**:
+
 - **two-parent ceiling** at the schema level: a child has exactly `motherId` + `fatherId`. there is no `parentIds: PersonId[]`. queued as a v1→v2 migration in [`to-do.md`](../to-do.md).
 - **binary union entity**: `CoupleRecord.{leftId, rightId}` cannot hold three or more partners. polycules are forced into a fan of pair-records.
 - **no relationship type beyond "current/ended"**: no civil-vs-religious-vs-ritual-vs-cohabit; no asymmetric / consent-pattern data; no "sworn-bond, master-apprentice, transformed-from" overlays. queued as v2→v3 in [`to-do.md`](../to-do.md) (the generic `relationships[]`).
@@ -143,6 +146,7 @@ type EdgeRole = "blood" | "adopted" | "half" | "married" | "divorced";
 - four passes (layer → order → place → route) all assume **pair-anchored unions**: spouse-adjacency is enforced as a 2-element `spouseGroup`, joint-child fans are anchored at the midpoint of two parent slots, ghost-node insertion is one ghost per cross-rank spouse.
 
 n-ary union support needs touchpoints in every pass:
+
 - **layer.ts**: rank assignment for >2-parent children currently has no rule; assumes both parents on adjacent ranks.
 - **order.ts**: `spouseGroup` needs to become "union cluster" with N members; the contiguous-cluster constraint is heavier than pair-adjacency.
 - **place.ts**: spouse-bar midpoint becomes union-centroid; gap policy DELTA (2.5u) for spouse-pairs needs a wider variant for clusters.
@@ -190,6 +194,7 @@ stroke styling is a single zoom-aware width; the renderer has no concept of stac
 grouped by the axis they stretch. each is followed by §4 with concrete visual proposal.
 
 **a. partnership shape**
+
 1. monogamous pair (✅ today)
 2. plural pair-fan (✅ today via `spouseIds[]`, awkward)
 3. polyfidelitous closed N-union (triad, quad, polycule with internal-only relationships)
@@ -199,6 +204,7 @@ grouped by the axis they stretch. each is followed by §4 with concrete visual p
 7. ended union (divorce ✅; annulled, widowed, dissolved-by-transformation, ascended-out)
 
 **b. parentage / origin**
+
 8. multi-parent child (>2 genetic / legal / social parents of equal weight)
 9. adopted-in / adopted-out / fostered (with social-vs-bio distinction)
 10. donor / surrogate / assisted-reproduction (NSGC 2022 vocabulary)
@@ -211,6 +217,7 @@ grouped by the axis they stretch. each is followed by §4 with concrete visual p
 17. unknown / hidden / disputed parent (with confidence)
 
 **c. sibship**
+
 18. twin / triplet (monozygotic / dizygotic / unknown)
 19. half-sibling (shared one parent of the N)
 20. step-sibling
@@ -218,6 +225,7 @@ grouped by the axis they stretch. each is followed by §4 with concrete visual p
 22. found-family sibship (chosen)
 
 **d. group / overlay**
+
 23. dynasty / house / clan (named grouping of many people across many generations)
 24. household (people who cohabit, may cut across blood)
 25. species / race / faction membership (independent of family)
@@ -225,6 +233,7 @@ grouped by the axis they stretch. each is followed by §4 with concrete visual p
 27. estrangement / cutoff / exile (presence-of-tie + explicit severance)
 
 **e. identity-and-state**
+
 28. nonbinary / fluid / multi-gender (with optional AMAB/AFAB/UAAB for the medical layer)
 29. dead, undead, ascended, missing, fictional-in-universe, time-displaced
 30. duplicate ancestor (same person shows up at multiple positions in a cognatic tree)
@@ -240,18 +249,22 @@ each entry: **data**, **segment**, **sketch**, **routing**, **scale-out**. sketc
 - **data**: replace `CoupleRecord` with `UnionRecord { partnerIds: PersonId[]; kind: 'romantic'|'civil'|'ritual'|'cohabit'|...; closed: boolean; ... }`. partner array is the source of truth; legacy `leftId/rightId` becomes `partnerIds[0/1]` for migration.
 - **segment**: new `kind: "union-manifold"` with `partnerIds[]` and a small geometric primitive: `ring`, `bus`, or `polygon`.
 - **sketch (triad)**:
-  ```
+
+  ```text
    [A]───┬───[B]
          │
         [C]
   ```
+
   for 4+, prefer a bus-with-tails:
-  ```
+
+  ```text
    [A]──┬──[B]──┬──[C]──┬──[D]
         └──────────────────┘
                 │
               (kids)
   ```
+
 - **routing**: pick the **partner centroid** as the descent anchor; route a horizontal bus through all partners on the same rank, and short verticals from off-rank partners to a shared bus on the inter-rank gutter. one ghost per off-rank partner, same mechanism as today.
 - **scale-out**: for N=3 use a triangle; for N≥4 use the centroid-anchored bus. above ~6 partners, render a single rounded "polycule node" with a chip-list of names, and let the user expand on click.
 
@@ -260,11 +273,13 @@ each entry: **data**, **segment**, **sketch**, **routing**, **scale-out**. sketc
 - **data**: a single union may not be the right model; each *pair-bond* within the polycule is its own `UnionRecord` with `closed: false`. for the meta-shape, allow an optional `PolyculeGroup { memberIds[]; name?; relationshipMatrix?: {a,b,kind}[] }` overlay.
 - **segment**: each pair-bond is a normal bond segment; the polycule group is an optional **convex-hull frame** drawn behind the cluster, similar to a "house" frame (see 4.16).
 - **sketch (V)**:
-  ```
+
+  ```text
    [A]───[B]───[C]      A and C are not partners
             \
             [D]         B is also partnered with D
   ```
+
 - **routing**: existing bond router suffices for pair-bonds; the hull/frame is an overlay pass after `place` (doesn't affect skeleton routing). hyperbolic engine: same idea, the frame is a hyperbolic polygon.
 - **scale-out**: when the relationship matrix gets dense (≥4 partners with mutual pairwise bonds), prompt to convert to a closed `UnionRecord` (4.1) so the renderer collapses N(N-1)/2 lines into one bus.
 
@@ -275,7 +290,8 @@ each entry: **data**, **segment**, **sketch**, **routing**, **scale-out**. sketc
   - (a) `multi-parent-drop`: a small **parent gather** node above the child, with one line in from each parent and a single line down to the child. minimal new geometry.
   - (b) reuse the union manifold from 4.1 - treat the parents as a (possibly non-romantic) union whose only purpose is to be a parental anchor.
 - **sketch (a)**:
-  ```
+
+  ```text
    [A]   [B]   [C]
      \    │    /
       \   │   /
@@ -283,6 +299,7 @@ each entry: **data**, **segment**, **sketch**, **routing**, **scale-out**. sketc
            │
          [D]
   ```
+
 - **routing**: gather node lives in the inter-rank gutter; placed at parent centroid. when one parent is on a different rank, run a ghost on the child's parent-row (same ghost mechanism as today, generalized to N members).
 - **scale-out**: for 5+ parents we can collapse the gather into a small "★ ‍parents (N)" pill that expands on click and shows per-edge role labels.
 
@@ -296,7 +313,8 @@ each entry: **data**, **segment**, **sketch**, **routing**, **scale-out**. sketc
   - `donor` / `surrogate`: **dash-dot** with role glyph at midpoint (small "D" or "S").
   - `social` / `chosen`: **double-dashed** (parallel pair of dashes).
 - **sketch**:
-  ```
+
+  ```text
    [Bio mum]      [Adoptive dad]
         │\\\\\\\\\\\\\\\\\\\\│       <- bio = solid; adoptive = dashed
         │                     │
@@ -304,6 +322,7 @@ each entry: **data**, **segment**, **sketch**, **routing**, **scale-out**. sketc
                  │
               [child]
   ```
+
 - **routing**: zero change to skeleton routing; only stroke pattern changes. the renderer needs a per-role dash table (today there is none).
 - **scale-out**: arbitrary parent count handled by 4.3; this just decorates each drop.
 
@@ -319,7 +338,8 @@ each entry: **data**, **segment**, **sketch**, **routing**, **scale-out**. sketc
 - **data**: `Person.birthOrder?: number` (queued, v3→v4). new `SibshipDecorator { sibIds[]; kind: 'twins-MZ'|'twins-DZ'|'twins-?'|'triplets-MZ'|...|'clone-batch'|'litter'|'spawned-together' }`.
 - **segment**: new `kind: "sibship-bracket"` that draws a horizontal bracket under the parent-drop, fanning into individual short verticals; for twin batches add a horizontal tie-bar across the fork (MZ = bar present, DZ = no bar, unknown = `?`).
 - **sketch (MZ twins)**:
-  ```
+
+  ```text
         [parent gather]
               │
               ●
@@ -327,6 +347,7 @@ each entry: **data**, **segment**, **sketch**, **routing**, **scale-out**. sketc
             ╱   ╲
           [A]   [B]
   ```
+
 - **routing**: tightens existing sibship-bus; bracket is a new sub-segment kind drawn before the per-child drops.
 - **scale-out**: for a "clone batch" of 30 instances, render a single sibship-cluster node ("clones (30)") that expands on demand.
 
@@ -335,13 +356,15 @@ each entry: **data**, **segment**, **sketch**, **routing**, **scale-out**. sketc
 - **data**: derived from `parentIds[]` - any two children sharing < all parents are half-siblings by some axis. validation surfaces "asymmetric sibship" findings.
 - **segment**: sibship-bus gains `role: "half"` for the section between two children who don't share all parents. render as **lighter / dashed** sub-segment.
 - **sketch**:
-  ```
+
+  ```text
    [parents-1]        [parents-2]
         │                   │
         ●─────┐         ┌───●
         │     │·········│   │     <- dotted between half-sib pair
        [A]   [B]·······[C] [D]
   ```
+
 - **routing**: bus is already drawn as a single segment; this requires splitting it at sibship-membership boundaries.
 - **scale-out**: with N parents per child, "half" generalizes to a similarity coefficient (jaccard over `parentIds`); render colour intensity along the bus rather than a binary half/full distinction.
 
@@ -357,9 +380,11 @@ each entry: **data**, **segment**, **sketch**, **routing**, **scale-out**. sketc
 - **data**: `relationships[]` entry with `kind: 'transformed-from'|'reincarnated-as'|'merged-from'|'split-into'|'alias-of'; sourceIds[]; targetIds[]; cause?; date?`.
 - **segment**: new `kind: "identity-arc"`, drawn as a **wavy** or **arrow** line, with explicit direction and a small glyph on the arc (☼ for transformation, ∞ for reincarnation, ⊕ for merge, ⊖ for split, ≡ for alias).
 - **sketch (transformation)**:
-  ```
+
+  ```text
    [Princess Linda]∼∼∼∼☼∼∼∼∼>[Linda-as-swan]
   ```
+
 - **routing**: routed independently of skeleton. for "person became their own ancestor" (time loop), this is a self-loop drawn as a half-arc on the side of the card.
 - **scale-out**: bundled identity-arcs become a "narrative thread" view in the canvas - colour-key by character.
 
@@ -391,12 +416,14 @@ each entry: **data**, **segment**, **sketch**, **routing**, **scale-out**. sketc
 - **data**: today's self-couple is tolerated. self-parent (`Person.parentIds` includes self) currently cycles and is flagged.
 - **segment**: bond / drop becomes a **self-loop arc** drawn on the side of the card, with the time-loop glyph (⟲) at midpoint.
 - **sketch**:
-  ```
+
+  ```text
        ⟲
    ┌─[A]─┐
    │     │
    └─────┘
   ```
+
 - **routing**: self-loops are handled outside the rank-and-bus skeleton; routed as a side-arc of fixed radius.
 - **scale-out**: distinct cycles (A→B→C→A) get a colour-coded poly-arc on the side, treated like a relationship overlay.
 
@@ -408,13 +435,15 @@ each entry: **data**, **segment**, **sketch**, **routing**, **scale-out**. sketc
   - **band**: a vertical (or radial) **lane** down a slice of the canvas, tinted by faction colour; cards inside the band visually belong even at distance.
   - **header**: a generation-spanning ribbon labelled with the group name and (optional) armorial.
 - **sketch**:
-  ```
+
+  ```text
    ┌─[House Marvane ━━━━━━━━━━━━━━━━━━━━]
    │   [A]───[B]               [C]─[D]
    │    │       \             /
    │   [E]─[F]   [G]      [H]      
    └────────────────────────────────────
   ```
+
 - **routing**: overlay; runs after `place`. has no influence on skeleton routing but pushes nodes apart slightly via a soft constraint in `order` if groups want spatial cohesion.
 - **scale-out**: groups can nest (House → Cadet Branch → Household). render nested groups with concentric frames or stacked ribbons. for very large dynasties, a "fold to founder" affordance shows only the named founder + a chip of (N descendants).
 
@@ -452,6 +481,7 @@ each entry: **data**, **segment**, **sketch**, **routing**, **scale-out**. sketc
 ## 5. summary of new vocabulary
 
 **new segment kinds** (additions to `EdgeKind`):
+
 - `union-manifold` (N-ary partnership bus / ring / polygon)
 - `multi-parent-drop` with optional gather-node
 - `sibship-bracket` (with twin tie-bar variant)
@@ -460,10 +490,12 @@ each entry: **data**, **segment**, **sketch**, **routing**, **scale-out**. sketc
 - `self-loop` (time-loop / self-parent / self-couple)
 
 **new segment roles** (additions to `EdgeRole`; many already declared as placeholders):
+
 - existing: `blood`, `adopted`, `half`, `married`, `divorced`
 - add: `social`, `chosen`, `step`, `foster`, `donor`, `surrogate`, `sealed`, `magical`, `cloned`, `hatched`, `summoned`, `manufactured`, `ritual`, `civil`, `cohabit`, `oath`, `transformed`, `reincarnated`, `merged-from`, `split-into`, `alias-of`, `severed`, `estranged`, `exiled`, `disowned`
 
 **new stroke palette** (renderer additions):
+
 - solid (default)
 - dashed (adopted / sealed)
 - dotted (foster / step)
@@ -476,6 +508,7 @@ each entry: **data**, **segment**, **sketch**, **routing**, **scale-out**. sketc
 - per-role colour palette (configurable)
 
 **new card decorations**:
+
 - frame style (solid / dashed / dotted / gradient) for species / kind
 - shape (square / circle / diamond / triangle / shield) for gender identity + heraldic mode
 - corner glyphs (✝ deceased, ⟲ time-loop, ✨ summoned, ⚙ manufactured)
@@ -484,6 +517,7 @@ each entry: **data**, **segment**, **sketch**, **routing**, **scale-out**. sketc
 - COI badge / consanguinity colour tint
 
 **new overlay layers** (each is independently togglable in View menu):
+
 - skeleton (always on)
 - sealings / fictive parents / step-parents (each as separate parental layer)
 - sworn / oath / ritual bonds
@@ -531,6 +565,7 @@ the hyperbolic engine is structurally a better substrate for everything that bre
 ### 7.3 overlay layer
 
 overlays (sworn bonds, transformations, severances, group frames) live in a **separate render pass** stacked above the skeleton. they:
+
 - route independently (no participation in rank / order constraints).
 - have their own stroke palette and z-order.
 - are independently togglable.
@@ -630,8 +665,8 @@ users pick this tier for: archival, sharing between Trees collaborators, posting
 
 file → export menu offers two explicit choices with one-line subtitles:
 
-- **GEDZIP (compatible)** — "works with Ancestry, MyHeritage, Gramps. Loses fictional details."
-- **GEDZIP (accurate)** — "preserves everything. Other tools see extras as comments." *(default)*
+- **GEDZIP (compatible)** - "works with Ancestry, MyHeritage, Gramps. Loses fictional details."
+- **GEDZIP (accurate)** - "preserves everything. Other tools see extras as comments." *(default)*
 
 the existing dropped-fields banner runs against both tiers separately ([`fieldsDroppedFor`](../../apps/web/src/lib/io/warnings.ts) gains a per-tier branch); the user sees the diff before downloading.
 
@@ -663,7 +698,7 @@ primary:
 
 complementary:
 
-- nsgc 2022 PDF: https://www.nsgc.org/Portals/0/J.E.D.I/Journal%20of%20Genetic%20Counseling%20-%202022%20-%20Bennett%20-%20Practice%20resourcefocused%20revision%20%20Standardized%20pedigree%20nomenclature.pdf
+- nsgc 2022 PDF: <https://www.nsgc.org/Portals/0/J.E.D.I/Journal%20of%20Genetic%20Counseling%20-%202022%20-%20Bennett%20-%20Practice%20resourcefocused%20revision%20%20Standardized%20pedigree%20nomenclature.pdf>
 - iowa institute of human genetics - pedigree symbols guide
 - family tree magazine - guide to nontraditional family trees
 - sixgen.org - LGBTQ genealogy & software (series, parts 1-5) - documents where consumer tools fail

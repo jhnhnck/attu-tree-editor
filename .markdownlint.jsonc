@@ -1,0 +1,39 @@
+// markdownlint config for the FamilyTreeEditor repo.
+// matches the project convention: long single-line paragraphs,
+// asterisk emphasis, padded table pipes.
+{
+  // single-line paragraphs are the convention; do not enforce a wrap width
+  "MD013": false,
+
+  // emphasis style: asterisks (matches .vscode/settings.json)
+  "MD049": { "style": "asterisk" },
+  "MD050": { "style": "asterisk" },
+
+  // tables: padded (`| x | y |`) for readability
+  "MD060": { "style": "padded" },
+
+  // allow inline html where we use it (e.g. <topic> placeholders in templates)
+  "MD033": false,
+
+  // emphasis-as-heading is acceptable for italic purpose lines under H1
+  "MD036": false,
+
+  // duplicate-heading is fine across distinct sections in trackers
+  "MD024": false,
+
+  // ordered-list prefix: allow author-chosen numbering (sublists across emphasis headers)
+  "MD029": false,
+
+  // ignore generated and gitignored trees
+  "ignores": [
+    "**/node_modules/**",
+    "**/.venv/**",
+    "**/.pytest_cache/**",
+    "**/dist/**",
+    "data/**",
+    ".claude/worktrees/**",
+    ".claude/plans/**",
+    "notes/plans/**",
+    "LICENSE.md"
+  ]
+}

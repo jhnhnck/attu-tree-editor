@@ -11,7 +11,7 @@ Feasibility spike for the post-pass that closes [bugs.md:13](../bugs.md#L13). Se
 | Akarians | 0 | 2166 | 2166 | 0.0% | 3 | 3 | 0.0% | 3 | 0 | 0.0% |
 | Akarians | 2 | 2166 | 2166 | 0.0% | 3 | 3 | 0.0% | 3 | 0 | 0.0% |
 
-## Verdict — Akarians DEMO (load-bearing)
+## Verdict - Akarians DEMO (load-bearing)
 
 - **k=0 strict**: closure 0.0%, crossings Δ 0.0% → **red**
 - **k=2 relaxed**: closure 0.0%, crossings Δ 0.0% → **red**

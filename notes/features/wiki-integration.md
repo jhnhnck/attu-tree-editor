@@ -3,6 +3,7 @@
 contract document for the wiki side of the family tree editor. the editor is a self-contained spa + fastapi service that lives **under the wiki's domain** (`attuproject.org/trees/` in prod, `dev.attuproject.org/trees/` in dev). this note enumerates the changes that need to land in the parent `attu-wiki-dev` repo and on the host so the editor is reachable, links flow both directions, and the editor can autocomplete page titles. read alongside [`attu-wiki.md`](attu-wiki.md) for parent-project context.
 
 editor-side touch points:
+
 - url builder: [`apps/web/src/lib/wiki/linkResolver.ts`](../../apps/web/src/lib/wiki/linkResolver.ts) (`wikiUrlFor(title, baseUrl?)`)
 - compose unit: [`docker-compose.yml`](../../docker-compose.yml) (the family-tree service, container name `attu-tree`, joins network `attu_dev` / `attu_prod`)
 - inspector ui: [`apps/web/src/lib/components/inspector/DetailsTab.svelte`](../../apps/web/src/lib/components/inspector/DetailsTab.svelte) (`wikiTitle` field + "view ↗")
@@ -24,25 +25,25 @@ the integration is mostly about **plumbing** at the moment: caddy routing, compo
 
 ### 2.1 mediawiki container caddyfile (`config/Caddyfile`)
 
-all external traffic already flows through the mediawiki container's caddy (the host-level reverse proxy passes everything to `:6010` / `:6008`). the right place to peel off `/trees/*` is therefore inside `config/Caddyfile`, where it can forward to `attu-tree:8000` on the shared docker network — no host-level caddy change needed.
+all external traffic already flows through the mediawiki container's caddy (the host-level reverse proxy passes everything to `:6010` / `:6008`). the right place to peel off `/trees/*` is therefore inside `config/Caddyfile`, where it can forward to `attu-tree:8000` on the shared docker network - no host-level caddy change needed.
 
 add a `handle_path /trees/*` block as the **first handler** inside the `:8080` site block:
 
 ```caddyfile
 :8080 {
-	import max-body-100mb
-	import root
-	import logging
+    import max-body-100mb
+    import root
+    import logging
 
-	handle_path /trees/* {
-		reverse_proxy attu-tree:8000
-	}
+    handle_path /trees/* {
+        reverse_proxy attu-tree:8000
+    }
 
-	; ...rest of mediawiki config unchanged...
+    ; ...rest of mediawiki config unchanged...
 }
 ```
 
-`handle_path` strips the `/trees` prefix before forwarding, so the tree service sees `/` and `/api/` as expected. the service is addressed by docker container name (`attu-tree`) on the shared `attu_dev` / `attu_prod` network — no host port binding is needed.
+`handle_path` strips the `/trees` prefix before forwarding, so the tree service sees `/` and `/api/` as expected. the service is addressed by docker container name (`attu-tree`) on the shared `attu_dev` / `attu_prod` network - no host port binding is needed.
 
 **editor-side note:** the `ports:` mapping in `FamilyTreeEditor/docker-compose.yml` (`127.0.0.1:${FAMILY_TREE_PORT:-6024}:8000`) is not required for this routing path. the editor team should remove it; all traffic reaches the container via `attu-tree:8000` on the docker network. `FAMILY_TREE_PORT` and the `ports:` key can be dropped from `docker-compose.yml`.
 
@@ -111,7 +112,7 @@ the base url is **runtime-injected**. the fastapi server templates a `<script>wi
 
 humans paste an external link:
 
-```
+```text
 [https://attuproject.org/trees/view/<uuid> Akarian royal house tree]
 ```
 

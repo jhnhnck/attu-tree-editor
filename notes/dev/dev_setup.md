@@ -96,7 +96,7 @@ TREES_CONFIG_PATH=./trees-config.toml pnpm server:dev
 
 or skip the toml entirely; defaults are dev-friendly (sqlite at `/app/data/attu_tree.db` won't exist, so set `database_url` in a local toml, or override via `TREES_CONFIG_PATH`). when running the spa via `pnpm dev`, vite serves at `/` (no `/trees/` prefix); the linkResolver falls back to the build-time `VITE_WIKI_BASE_URL` env var or the default `https://attuproject.org`.
 
-never commit `data/trees-config.toml` — it carries `[secrets]`. ask the operator for live values.
+never commit `data/trees-config.toml` - it carries `[secrets]`. ask the operator for live values.
 
 ---
 
