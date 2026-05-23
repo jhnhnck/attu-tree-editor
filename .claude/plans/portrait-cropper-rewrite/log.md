@@ -126,3 +126,41 @@ no phase reordered, rewritten, inserted, or deleted. bugs.md carries the same th
 ## revision after phase 2a — 2026-05-23
 
 plan shape unchanged. next phase per plan order is **2b — image pipeline (exif + downscale)**. no reorders, rewrites, inserts, or deletes. bugs.md carries the same three open items.
+
+## starting phase 2b — 2026-05-23
+
+- worktree: `.claude/worktrees/portrait-cropper-rewrite-phase2b`
+- branch: `phase/portrait-cropper-rewrite/2b` (off `phase/portrait-cropper-rewrite/2a` @ `4a43209`)
+- scope re-confirmed against `plan.md`. 2b touches `loadSourceBitmap.ts` (feature-detected `<img>` fallback) and `encodePortrait.ts` (2-step downscale). plus a unit test exercising the `<img>` fallback against a known exif-6 fixture.
+- DoD:
+  1. 12-mp iphone exif-6 fixture decodes correctly rotated and produces a clean ≤ 50 kb webp via `createImageBitmap({ imageOrientation: "from-image" })`.
+  2. firefox < 113 (which historically returns un-rotated `createImageBitmap`) is detected via the fallback path and renders correctly. unit-test asserts the fallback path is exercised against a known fixture.
+  3. for src/out > 2 (e.g. 4000 × 4000 source → 600 × 600 output), the 2-step downscale produces visibly cleaner output than single-pass `drawImage`. verified by encoding the test fixture twice (single + two-step) and asserting the two-step output isn't smaller than a degenerate baseline (smoke check).
+- rollback criterion: if exif rotation produces wrong dims on any real-device fixture, degrade the entry surface to "file picker only" (turn drop/paste off via a config flag) — do not roll back the dialog itself.
+- merge gate: deferred per user instruction (`do not merge`). worktree + branch will be left in place after step 5.
+
+## phase 2b retro — 2026-05-23
+
+**what landed vs spec**
+- `loadSourceBitmap` now feature-detects the `imageOrientation:"from-image"` option by round-tripping a tiny embedded exif-6 jpeg (8×4 source; honored = 4×8). result cached as a session-level promise. fallback path (`<img>.naturalWidth/Height`) is the unconditional route when the probe returns false.
+- `encodePortrait` two-step downscale: when `max(sw/outW, sh/outH) > 2`, route through an intermediate canvas at `min(4, ratio/2) × out`. degrades to single-pass when the intermediate 2d context isn't available.
+- 4-case unit suite covering probe-says-no skips `createImageBitmap`, probe reset reversible, single-draw at threshold, two-step above threshold. 925 unit tests total all pass.
+- `__setOrientationProbe` test hook + `DOWNSCALE_RATIO_THRESHOLD` const exposed for tests.
+
+**what was not closed (open risk)**
+- DoD part (1) — actual ≤ 50 kb webp output for a 12-mp exif-6 jpeg is not asserted in unit tests because jsdom doesn't implement OffscreenCanvas, real `<canvas>` 2d contexts, or webp encoding. the assertion is structural (routing through the right code path) rather than pixel-perfect. real verification needs the playwright e2e + a real iphone fixture.
+- DoD part (3) — "visibly cleaner output than single-pass" is by-eye on a real high-contrast image. unit test asserts routing only. phase 4 visual goldens are the right place to verify pixel quality.
+
+**surprises**
+- jsdom's `<canvas>` is a near-empty stub: `getContext("2d")` returns null. exposing a meaningful unit test required runtime-patching `HTMLCanvasElement.prototype.getContext` to a fake context object. cleanly restored in `finally`.
+- `vi.spyOn(globalThis, "createImageBitmap")` fails when the property doesn't exist on globalThis (jsdom doesn't ship it). switched to manual `(globalThis as any).createImageBitmap = fn` with a delete in the cleanup.
+- typecheck caught a real bug: a `HTMLCanvasElement | OffscreenCanvas` union doesn't narrow on `.getContext` calls because the OffscreenCanvas overload returns a wider type. split the branches; each side has a precise context type.
+
+**residual debt**
+- no new bug-log entries. the phase-0a items (hardware probes × 2, golden baseline, `visual-path-highlight` deferred) all still apply; the exif-6 probe page output now has a counterpart in the unit test, but doesn't substitute for the real-device probe.
+
+## revision after phase 2b — 2026-05-23
+
+plan shape unchanged. next by plan order: **phase 3 — keyboard + a11y** (gated only on the placeholder e2e baseline, which doesn't block). no reorders, rewrites, inserts, or deletes. bugs.md carries the same three items.
+
+phase 2 (a+b) is complete per user request.
