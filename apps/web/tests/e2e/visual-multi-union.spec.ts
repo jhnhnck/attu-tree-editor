@@ -19,6 +19,7 @@
 
 import { resolve } from "node:path";
 import { expect, test } from "@playwright/test";
+import { maskUnstableUI } from "./_helpers/visual-mask";
 
 const MULTI = resolve(process.cwd(), "tests/fixtures/multi-union.ged");
 
@@ -55,11 +56,7 @@ test.describe("multi-union visual golden", () => {
 
         await expect(region).toHaveScreenshot("multi-union-family-view.png", {
             maxDiffPixels: 100,
-            mask: [
-                page.locator('[role="alert"]'),
-                page.locator(".save-status-pill"),
-                page.getByRole("button", { name: /people/ }),
-            ],
+            mask: maskUnstableUI(page),
         });
     });
 });

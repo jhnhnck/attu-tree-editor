@@ -9,11 +9,30 @@
 
     interface Props {
         scale: number;
+        /**
+         * Wave-2 phase 0b: when defined, drives the % readout instead
+         * of `Math.round(scale * 100)`. App.svelte computes this from
+         * a sample card's measured CSS width / `--fte-design-card-width`,
+         * gated by the `fte.zoom.semantic100` localStorage flag. Falling
+         * back to `scale * 100` when undefined keeps callers that haven't
+         * been updated (and the test harness) on the pre-phase-0b
+         * semantic.
+         */
+        displayPercent?: number | undefined;
         onzoom: (next: number) => void;
         onfit: () => void;
     }
 
-    let { scale, onzoom, onfit }: Props = $props();
+    let { scale, displayPercent, onzoom, onfit }: Props = $props();
+
+    /**
+     * Resolved % shown in the trigger, exact-entry button, and edit-
+     * placeholder. `displayPercent` wins when provided (semantic-100
+     * mode); falls back to the raw `scale * 100` otherwise.
+     */
+    let resolvedPercent = $derived(
+        displayPercent !== undefined ? displayPercent : Math.round(scale * 100),
+    );
 
     const MIN = 0.1;
     const MAX = 5.0;
@@ -57,7 +76,7 @@
     }
 
     function startEdit(): void {
-        editValue = String(Math.round(scale * 100));
+        editValue = String(resolvedPercent);
         editing = true;
         queueMicrotask(() => {
             editEl?.focus();
@@ -118,7 +137,7 @@
         type="button"
         class="text-fg-muted hover:text-fg flex h-7 w-7 items-center justify-center rounded"
         class:text-accent={open}
-        title="Zoom ({Math.round(scale * 100)}%)"
+        title="Zoom ({resolvedPercent}%)"
         aria-label="zoom"
         aria-haspopup="dialog"
         aria-expanded={open}
@@ -188,7 +207,7 @@
                     aria-label="zoom percent (click to edit)"
                     onclick={startEdit}
                 >
-                    {Math.round(scale * 100)}%
+                    {resolvedPercent}%
                 </button>
             {/if}
 

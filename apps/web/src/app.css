@@ -21,6 +21,55 @@
     --color-line: hsl(220 25% 22%); /* #2b3548 - subtle border */
     --color-accent: hsl(220 100% 65%); /* #4d8aff - link blue */
     --color-accent-strong: hsl(220 100% 75%); /* #80acff - hover/active */
+
+    /* on-path overlay tokens. consumed by .family-view-onpath (card ring)
+     * and .family-view-onpath-edge (edge stroke width). dark-theme defaults
+     * here; light-theme overrides further down. */
+    --fte-on-path-stroke-width: 5;
+    --fte-on-path-ring-color: hsl(220 100% 65% / 0.7);
+
+    /* Wave-2 phase 0b: design size for one standard (non-portrait)
+     * card in CSS pixels. equals `PERSON_W (4) × UNIT (80)` from
+     * `layout/constants.ts` and `engines/family-view/layout.ts`. the
+     * ZoomWidget reads this to derive the semantic-100% display: the
+     * visible card's `getBoundingClientRect().width / 320 × 100`
+     * equals the canvas's `scale * 100` on 1× DPR / 100% browser zoom
+     * but stays honest about on-screen size when either changes. when
+     * `fte.zoom.semantic100` is off, the widget falls back to raw
+     * `scale × 100`. theme-invariant — same value across light/dark. */
+    --fte-design-card-width: 320px;
+}
+
+/* Wave-2 phase 0b (B5): apply `shape-rendering: crispEdges` to
+ * family-view edge polylines so the integer-pixel coords emitted by
+ * `engines/family-view/edgePath.ts` render without anti-aliasing at
+ * non-1× scales (where the rounded coords land on half-pixel grid
+ * offsets after the CSS transform). family-view edges are
+ * predominantly axis-aligned (vertical stems, horizontal buses, kid
+ * stubs) so `crispEdges` is the right semantic — diagonals would
+ * look jaggier under it, but family-view doesn't use diagonals. the
+ * fallback was documented in `edgePath.ts:24` but not applied; B5
+ * closed by the verification + this rule. */
+.family-view-edge {
+    shape-rendering: crispEdges;
+}
+
+/* Wave-2 phase 3: smooth-diff animation. Cards + badges are
+ * positioned via `transform: translate3d(x, y, 0)` (GPU-compositable)
+ * inside the absolutely-positioned canvas surface; this class adds a
+ * CSS `transition` so layout shifts (expand / collapse / refocus)
+ * tween smoothly instead of jump-cutting. Edges (SVG `<path>` `d`
+ * attribute) and badge mount / unmount jump-cut for v1 — see the
+ * phase 3 retro at `.claude/plans/family-view-w2/log.md`.
+ *
+ * Composition with `.family-view-onpath` (the on-path ring `box-
+ * shadow`) is intentional: the two rules target different CSS
+ * properties (`transform` vs `box-shadow`) on the same element, so
+ * they animate independently without fighting. The global
+ * `prefers-reduced-motion: reduce` rule near the top of this file
+ * zeroes `transition-duration` for users who opt out of motion. */
+.family-view-smooth-card {
+    transition: transform 250ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* prefers-color-scheme switches the palette only when the user has *not*
@@ -36,6 +85,7 @@
         --color-line: hsl(220 25% 78%); /* #b8c2d4 */
         --color-accent: hsl(220 100% 45%); /* #0057e6 */
         --color-accent-strong: hsl(220 100% 35%); /* #0044b3 */
+        --fte-on-path-ring-color: hsl(220 100% 45% / 0.7);
     }
 }
 
@@ -47,6 +97,7 @@
     --color-line: hsl(220 25% 78%);
     --color-accent: hsl(220 100% 45%);
     --color-accent-strong: hsl(220 100% 35%);
+    --fte-on-path-ring-color: hsl(220 100% 45% / 0.7);
 }
 
 :root[data-theme="dark"] {
@@ -57,6 +108,7 @@
     --color-line: hsl(220 25% 22%);
     --color-accent: hsl(220 100% 65%);
     --color-accent-strong: hsl(220 100% 75%);
+    --fte-on-path-ring-color: hsl(220 100% 65% / 0.7);
 }
 
 html,
@@ -107,13 +159,25 @@ body {
  *
  * Applied via `class:family-view-onpath-edge={onPath}` on the <path>
  * element in `FamilyViewCanvas.svelte`. The drop-shadow is the glow;
- * `stroke-width` and translucent stroke are set inline by the Tailwind
- * `stroke-[5]` + `/55` modifiers in `edgeClass()`.
+ * the translucent stroke colour is still set inline via the Tailwind
+ * `/55` modifier in `edgeClass()` (it varies per edge role). Stroke
+ * width is centralised here via the `--fte-on-path-stroke-width` token.
  */
 .family-view-onpath-edge {
     filter: drop-shadow(0 0 4px var(--color-accent)) drop-shadow(0 0 2px var(--color-accent));
     stroke-linecap: round;
     stroke-linejoin: round;
+    stroke-width: var(--fte-on-path-stroke-width);
+}
+
+/*
+ * On-path card ring: applied alongside `.family-view-onpath-edge` when
+ * a card sits on the BFS path between focus and selection. The ring
+ * colour comes from the `--fte-on-path-ring-color` token so themes can
+ * tune it without touching every usage.
+ */
+.family-view-onpath {
+    box-shadow: 0 0 0 2px var(--fte-on-path-ring-color);
 }
 
 .family-view-overlay-sworn {

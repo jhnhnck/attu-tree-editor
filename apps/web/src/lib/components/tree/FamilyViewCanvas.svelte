@@ -41,10 +41,11 @@
     } from "$lib/layout/engines/family-view";
     import { useExpansionState } from "$lib/layout/engines/family-view/expansion";
     import { usePrimaryUnionState } from "$lib/layout/engines/family-view/primaryUnion";
+    import { useSecondaryUnionState } from "$lib/layout/engines/family-view/secondaryUnion";
     import { usePath, badgeOnPath } from "$lib/layout/engines/family-view/path";
     import { computeAncestorOverlap } from "$lib/domain/consanguinity";
     import type { PersonId, Tree } from "$lib/domain/types";
-    import type { CanvasController } from "./canvasController";
+    import type { CanvasAnchorOpts, CanvasController } from "./canvasController";
 
     interface Props {
         tree: Tree;
@@ -87,6 +88,36 @@
          * user opts in via the View menu).
          */
         showConsanguinity?: boolean | undefined;
+        /**
+         * Wave-2 phase 2: family-view crossing-minimisation. Default
+         * `true` — runs the slot-index barycentric pass with a monotone
+         * gate (re-uses the candidate layout only when its geometric
+         * crossing count is strictly lower). Persisted upstream via
+         * `fte.layout.familyViewCrossingMin` localStorage flag; rollback
+         * path is to flip the App-level default to `false`.
+         */
+        crossingMin?: boolean | undefined;
+        /**
+         * Wave-2 phase 3: smooth-diff animation. When `true` (default),
+         * card positions tween via a CSS transition on `transform`
+         * whenever the layout shifts (expand / collapse / refocus).
+         * Edges and badge mount/unmount jump-cut — see the phase 3
+         * retro for the bounded-scope rationale. Persisted upstream
+         * via `fte.overlays.smoothDiff` localStorage flag; the global
+         * `prefers-reduced-motion: reduce` media query in `app.css`
+         * zeroes the transition for users who opt out of motion.
+         */
+        smoothDiff?: boolean | undefined;
+        /**
+         * Wave-2 phase 4: secondary-union expansion master switch. When
+         * `true` (default), the `˅` picker offers a "show alongside" /
+         * "hide" action that adds a second 2-partner union next to the
+         * primary at the same rank — see `secondaryUnion.ts` for the
+         * 1-expanded-secondary-per-person cap. When `false`, the picker
+         * reverts to wave-1's swap-only behaviour. Persisted upstream
+         * via `fte.layout.familyViewSecondaryUnion` localStorage flag.
+         */
+        secondaryUnion?: boolean | undefined;
         /**
          * Portrait blob -> object-URL cache shared with the layered engine.
          * Phase 1 of the visual fix-up plan: family-view now renders
@@ -132,6 +163,9 @@
         showOverlaySeverances = true,
         showGroupFrames = true,
         showConsanguinity = false,
+        crossingMin = true,
+        smoothDiff = true,
+        secondaryUnion = true,
         portraitUrls,
         onselect,
         ondeselect,
@@ -199,6 +233,8 @@
     let expansion = $derived(useExpansionState(tree.id, activeFocus));
     // Phase 2 primary-union override — same per-(treeId, focusId) lifecycle.
     let primaryUnion = $derived(usePrimaryUnionState(tree.id, activeFocus));
+    // Wave-2 phase 4 secondary-union expansion — same lifecycle.
+    let secondaryUnionState = $derived(useSecondaryUnionState(tree.id, activeFocus));
 
     // Phase 6: when the Overlays > "Path highlight" toggle is off, skip
     // the BFS path lookup and present an empty path-set so the renderer
@@ -223,6 +259,7 @@
      */
     let expansionRev = $state(0);
     let primaryRev = $state(0);
+    let secondaryRev = $state(0);
     let layout = $derived<FamilyViewLayout>(
         engine.layout({
             tree,
@@ -230,6 +267,16 @@
             options: {
                 expanded: (void expansionRev, expansion.expanded),
                 primaryUnionOverrides: (void primaryRev, primaryUnion.overrides),
+                crossingMin,
+                // Conditionally include the field rather than passing
+                // `undefined` — `exactOptionalPropertyTypes` distinguishes
+                // "absent" from "undefined value".
+                ...(secondaryUnion
+                    ? {
+                          expandedSecondaryUnions:
+                              (void secondaryRev, secondaryUnionState.byPerson),
+                      }
+                    : {}),
             },
         }),
     );
@@ -412,18 +459,40 @@
         focusOverride = id;
     }
 
+    /**
+     * Wave-2 phase 0b: anchor-aware setScale. Without an explicit
+     * anchor, pans the host viewport-center to stay fixed at the new
+     * scale — fixing the prior "100% drifts the focal point" bug
+     * where the widget +/- / slider / exact-percent paths bumped
+     * scale without recomputing panX/panY. The wheel path
+     * (FamilyViewCanvas.svelte's `onWheel`) keeps its cursor anchor by
+     * mutating pan + scale directly without going through `setScale`.
+     */
+    function setScaleAnchored(next: number, opts?: CanvasAnchorOpts): void {
+        const target = Math.max(MIN_SCALE, Math.min(MAX_SCALE, next));
+        if (target === scale) return;
+        if (hostEl) {
+            const rect = hostEl.getBoundingClientRect();
+            const cx = opts?.anchorPx?.x ?? rect.width / 2;
+            const cy = opts?.anchorPx?.y ?? rect.height / 2;
+            const cuX = (cx - panX) / scale;
+            const cuY = (cy - panY) / scale;
+            panX = cx - cuX * target;
+            panY = cy - cuY * target;
+        }
+        scale = target;
+    }
+
     onMount(() => {
         oncontroller?.({
             getScale: () => scale,
-            setScale: (next: number) => {
-                scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, next));
-            },
-            zoomBy: (factor: number) => {
-                scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale * factor));
+            setScale: setScaleAnchored,
+            zoomBy: (factor: number, opts?: CanvasAnchorOpts) => {
+                setScaleAnchored(scale * factor, opts);
             },
             fit: fitToView,
             zoom100: () => {
-                scale = 1;
+                setScaleAnchored(1);
             },
             focusSelection: () => {
                 if (selectedId) recenterOn(selectedId);
@@ -474,6 +543,36 @@
         primaryUnion.setPrimary(mateId, coupleIndex);
         primaryRev += 1;
         pickerOpenFor = null;
+    }
+
+    /**
+     * Wave-2 phase 4: pulls a secondary union into the visible subset
+     * alongside the current primary, capped at one expanded secondary
+     * per person by `secondaryUnion.ts`'s setter. Idempotent — calling
+     * `expand` for an already-expanded entry is a no-op. Returns
+     * immediately if the secondary-union master switch is off (the
+     * action shouldn't even be reachable via the menu, but the guard
+     * is here for completeness).
+     */
+    function onPickerShowAlongside(mateId: PersonId, coupleIndex: number, e: MouseEvent): void {
+        e.stopPropagation();
+        if (!secondaryUnion) return;
+        secondaryUnionState.expand(mateId, coupleIndex);
+        secondaryRev += 1;
+        pickerOpenFor = null;
+    }
+
+    function onPickerHideAlongside(mateId: PersonId, coupleIndex: number, e: MouseEvent): void {
+        e.stopPropagation();
+        secondaryUnionState.collapse(mateId, coupleIndex);
+        secondaryRev += 1;
+        pickerOpenFor = null;
+    }
+
+    /** Coupleindexes currently expanded as secondaries for `mateId`. */
+    function expandedSecondariesFor(mateId: PersonId): readonly number[] {
+        void secondaryRev;
+        return secondaryUnionState.expandedFor(mateId);
     }
 
     function onAddToggle(cardId: PersonId, e: MouseEvent): void {
@@ -635,13 +734,14 @@
                   : "stroke-fg-muted/70 stroke-1";
         }
         if (onPath) {
-            // thick translucent stroke; the .family-view-onpath-edge class adds
-            // the accent-colored drop-shadow glow that makes the line look lit
+            // thick translucent stroke; .family-view-onpath-edge owns the
+            // stroke-width (via the --fte-on-path-stroke-width token) and the
+            // accent-colored drop-shadow glow that makes the line look lit.
             return e.role === "married"
-                ? "family-view-onpath-edge stroke-rose-400/55 stroke-[5]"
+                ? "family-view-onpath-edge stroke-rose-400/55"
                 : e.role === "divorced"
-                  ? "family-view-onpath-edge stroke-rose-400/45 stroke-[5]"
-                  : "family-view-onpath-edge stroke-accent/60 stroke-[5]";
+                  ? "family-view-onpath-edge stroke-rose-400/45"
+                  : "family-view-onpath-edge stroke-accent/60";
         }
         // Off-path while a path is active: dim.
         return e.role === "married"
@@ -751,7 +851,7 @@
             {#each layout.edges as edge (edge.id)}
                 <path
                     d={edgePath(edge)}
-                    class="fill-none {edgeClass(edge)}"
+                    class="family-view-edge fill-none {edgeClass(edge)}"
                     vector-effect="non-scaling-stroke"
                 />
             {/each}
@@ -852,14 +952,16 @@
             {#if person}
                 <div
                     class="group/card absolute {cardOnPath(node.personId)
-                        ? 'family-view-onpath rounded ring-2 ring-accent/70'
-                        : ''}"
+                        ? 'family-view-onpath rounded'
+                        : ''} {smoothDiff ? 'family-view-smooth-card' : ''}"
                     data-on-path={cardOnPath(node.personId) ? "true" : undefined}
                     data-consang-duplicate={consangCardDuplicate(node.personId)
                         ? "true"
                         : undefined}
-                    style:left="{node.x * UNIT}px"
-                    style:top="{node.y * UNIT}px"
+                    data-smooth-diff={smoothDiff ? "true" : undefined}
+                    style:left="0"
+                    style:top="0"
+                    style:transform="translate3d({node.x * UNIT}px, {node.y * UNIT}px, 0)"
                     style:width="{CARD_W_PX}px"
                     style:height="{(node.h ?? CARD_H) * UNIT}px"
                 >
@@ -1011,20 +1113,52 @@
                                 data-union-picker="menu"
                                 role="menu"
                                 class="border-line bg-canvas-elev absolute top-full right-0 z-40 mt-1
-                                       min-w-32 rounded border py-1 text-xs shadow-md"
+                                       min-w-48 rounded border py-1 text-xs shadow-md"
                             >
                                 {#each m.alternates as alt (alt.coupleIndex)}
+                                    {@const isExpandedSecondary = expandedSecondariesFor(
+                                        m.mateId,
+                                    ).includes(alt.coupleIndex)}
                                     <button
                                         type="button"
                                         role="menuitem"
                                         data-union-picker-alt={alt.coupleIndex}
+                                        data-union-picker-action="set-primary"
                                         class="text-fg hover:bg-canvas-hover block w-full
                                                px-2 py-1 text-left"
                                         onclick={(e) =>
                                             onPickerSelect(m.mateId, alt.coupleIndex, e)}
                                     >
-                                        switch to {partnerLabel(alt.partnerId)}
+                                        set primary to {partnerLabel(alt.partnerId)}
                                     </button>
+                                    {#if secondaryUnion && !isExpandedSecondary}
+                                        <button
+                                            type="button"
+                                            role="menuitem"
+                                            data-union-picker-alt={alt.coupleIndex}
+                                            data-union-picker-action="show-alongside"
+                                            class="text-fg-muted hover:bg-canvas-hover block w-full
+                                                   px-2 py-1 pl-4 text-left"
+                                            onclick={(e) =>
+                                                onPickerShowAlongside(m.mateId, alt.coupleIndex, e)}
+                                        >
+                                            also show {partnerLabel(alt.partnerId)} alongside
+                                        </button>
+                                    {/if}
+                                    {#if secondaryUnion && isExpandedSecondary}
+                                        <button
+                                            type="button"
+                                            role="menuitem"
+                                            data-union-picker-alt={alt.coupleIndex}
+                                            data-union-picker-action="hide-alongside"
+                                            class="text-fg-muted hover:bg-canvas-hover block w-full
+                                                   px-2 py-1 pl-4 text-left"
+                                            onclick={(e) =>
+                                                onPickerHideAlongside(m.mateId, alt.coupleIndex, e)}
+                                        >
+                                            hide {partnerLabel(alt.partnerId)}
+                                        </button>
+                                    {/if}
                                 {/each}
                                 {#if m.alternates.length === 0}
                                     <span class="text-fg-muted block px-2 py-1"
@@ -1043,12 +1177,15 @@
                 type="button"
                 data-badge-id={badge.id}
                 data-on-path={isBadgeOnPath(badge) ? "true" : undefined}
+                data-smooth-diff={smoothDiff ? "true" : undefined}
                 class="border-line bg-canvas-elev text-fg hover:border-accent
                        absolute flex items-center justify-center gap-1 rounded-full
                        border px-2 py-0.5 text-xs shadow-sm
-                       {isBadgeOnPath(badge) ? 'ring-2 ring-accent/70 border-accent' : ''}"
-                style:left="{badge.x * UNIT}px"
-                style:top="{badge.y * UNIT}px"
+                       {isBadgeOnPath(badge) ? 'family-view-onpath border-accent' : ''}
+                       {smoothDiff ? 'family-view-smooth-card' : ''}"
+                style:left="0"
+                style:top="0"
+                style:transform="translate3d({badge.x * UNIT}px, {badge.y * UNIT}px, 0)"
                 style:width="{CARD_W_PX}px"
                 style:height="{CARD_H_PX}px"
                 aria-label={`expand ${String(badge.members.length)} hidden persons starting with ${badge.sampleName}`}
