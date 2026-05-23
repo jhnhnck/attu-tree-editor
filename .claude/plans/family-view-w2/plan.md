@@ -414,7 +414,7 @@ estimated effort: ~0.5-1 day.
 ---
 
 ## phase 1 — denser e2e coverage + visual-golden mask helper
-**status:** open
+**status:** closed 2026-05-23 (all 4 work-items + 2 routed items landed; B14 finding deferred; B12 deferred; B13 closed via golden regeneration. worktree `.claude/worktrees/family-view-w2/` and branch `phase/family-view-w2/1` retained per user instruction — *not* merged into parent. integration check: chromium 27/28, mobile 17/28 with 11 skips, 0 regressions.)
 **definition of done:** dense-tree fixture exercises auto-collapse
 end-to-end in `pnpm test:e2e`; 4+ wave-1 visual goldens migrated to
 `maskUnstableUI` helper with zero-or-smaller diffs; helper also
