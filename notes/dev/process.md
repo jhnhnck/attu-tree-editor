@@ -28,8 +28,6 @@ Plans live in `.claude/plans/<slug>/` as a four-file directory. each file has a 
 
 bug log lives at `<plan-dir>/bugs.md`, not in `plan.md`. anything qa or the programmer finds that's outside the current phase's scope goes there. never sneaks into the next phase's scope without `bug-triage`.
 
-legacy single-file plans at `notes/plans/<slug>.md` (the six in flight as of May 2026) keep their existing flat shape — work in place, do not migrate unsolicited.
-
 ---
 
 ## the phase loop
