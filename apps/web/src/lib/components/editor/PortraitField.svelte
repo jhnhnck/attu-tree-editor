@@ -20,8 +20,17 @@
 
     let { treeId, personId, currentBlobId, portraitUrls, onchange, onerror }: Props = $props();
 
+    // upper bound on incoming files. matches the inline error copy below.
+    const MAX_SOURCE_BYTES = 20 * 1024 * 1024;
+
     let pendingSource = $state<Blob | undefined>(undefined);
     let inputEl: HTMLInputElement | undefined = $state();
+    // hover ring during drag-over; cleared on dragleave/drop.
+    let dragHover = $state(false);
+    // focus gate for the window-level paste listener so we don't intercept
+    // pastes elsewhere in the inspector or document.
+    let focused = $state(false);
+    let rootEl: HTMLDivElement | undefined = $state();
 
     let url = $derived(portraitUrls.get(currentBlobId));
 
@@ -29,17 +38,80 @@
         inputEl?.click();
     }
 
+    // shared admission gate: validates a candidate Blob/File and either opens
+    // the cropper (returning true) or routes an error through onerror.
+    function admitSource(f: Blob | File | null | undefined, label: string): boolean {
+        if (!f) return false;
+        if (!f.type.startsWith("image/")) {
+            onerror?.(`expected an image ${label}, got ${f.type || "unknown"}`);
+            return false;
+        }
+        if (f.size > MAX_SOURCE_BYTES) {
+            const mb = (f.size / (1024 * 1024)).toFixed(1);
+            onerror?.(`image is too large (${mb} mb, max 20 mb)`);
+            return false;
+        }
+        pendingSource = f;
+        return true;
+    }
+
     function onFile(e: Event): void {
         const t = e.currentTarget as HTMLInputElement;
-        const f = t.files?.[0];
-        if (!f) return;
-        if (!f.type.startsWith("image/")) {
-            onerror?.(`expected an image file, got ${f.type || "unknown"}`);
+        const ok = admitSource(t.files?.[0], "file");
+        if (!ok) {
             t.value = "";
             return;
         }
-        pendingSource = f;
         t.value = ""; // allow picking the same file again later
+    }
+
+    function onDragOver(e: DragEvent): void {
+        // only meaningful when a file is being dragged; pre-flight via dataTransfer.types
+        if (!e.dataTransfer) return;
+        if (!Array.from(e.dataTransfer.types).includes("Files")) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "copy";
+        dragHover = true;
+    }
+
+    function onDragLeave(): void {
+        dragHover = false;
+    }
+
+    function onDrop(e: DragEvent): void {
+        dragHover = false;
+        if (!e.dataTransfer) return;
+        const f = e.dataTransfer.files?.[0];
+        if (!f) return;
+        e.preventDefault();
+        admitSource(f, "drop");
+    }
+
+    // window-level paste listener: only handles paste when the field has focus,
+    // so other inspector inputs keep their default paste behavior.
+    function onPaste(e: ClipboardEvent): void {
+        if (!focused) return;
+        if (!e.clipboardData) return;
+        for (const item of e.clipboardData.items) {
+            if (item.kind === "file" && item.type.startsWith("image/")) {
+                const f = item.getAsFile();
+                if (admitSource(f, "paste")) {
+                    e.preventDefault();
+                }
+                return;
+            }
+        }
+    }
+
+    function onFocusIn(): void {
+        focused = true;
+    }
+
+    function onFocusOut(e: FocusEvent): void {
+        // re-check on the next tick: focus may have moved to a child element.
+        const next = e.relatedTarget as Node | null;
+        if (next && rootEl?.contains(next)) return;
+        focused = false;
     }
 
     async function onCropped(bytes: Uint8Array, mime: string): Promise<void> {
@@ -59,8 +131,24 @@
     }
 </script>
 
-<div class="flex flex-col gap-2">
-    <div class="bg-canvas border-line aspect-square w-full overflow-hidden rounded border">
+<svelte:window onpaste={onPaste} />
+
+<div
+    bind:this={rootEl}
+    class="flex flex-col gap-2"
+    tabindex="-1"
+    role="region"
+    aria-label="portrait"
+    onfocusin={onFocusIn}
+    onfocusout={onFocusOut}
+    ondragover={onDragOver}
+    ondragleave={onDragLeave}
+    ondrop={onDrop}
+>
+    <div
+        class="bg-canvas border-line aspect-square w-full overflow-hidden rounded border transition-shadow"
+        class:drag-hover={dragHover}
+    >
         {#if url}
             <img src={url} alt="" class="h-full w-full object-cover" />
         {:else}
@@ -98,3 +186,10 @@
     onsave={(bytes: Uint8Array, mime: string) => void onCropped(bytes, mime)}
     onclose={() => (pendingSource = undefined)}
 />
+
+<style>
+    .drag-hover {
+        border-color: var(--color-accent);
+        box-shadow: 0 0 0 2px rgb(from var(--color-accent) r g b / 0.4);
+    }
+</style>
