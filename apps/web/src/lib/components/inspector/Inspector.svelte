@@ -291,7 +291,7 @@
 </script>
 
 <aside
-    class="bg-canvas-elev border-line text-fg flex shrink-0 flex-col"
+    class="bg-canvas-elev border-line text-fg flex min-h-0 shrink-0 flex-col overflow-hidden"
     class:h-full={!isSheet}
     class:w-90={!isSheet}
     class:border-l={!isSheet && side === "right"}
@@ -422,7 +422,7 @@
             {/each}
         </div>
 
-        <div id="inspector-panel" role="tabpanel" class="flex-1 overflow-y-auto">
+        <div id="inspector-panel" role="tabpanel" class="min-h-0 flex-1 overflow-y-auto">
             {#if activeTab === "personal"}
                 <PersonalTab
                     {person}
@@ -513,7 +513,7 @@
             <p class="text-fg-muted mt-0.5 text-[10px]">tree summary</p>
         </header>
 
-        <div class="flex-1 overflow-y-auto px-4 py-3">
+        <div class="min-h-0 flex-1 overflow-y-auto px-4 py-3">
             <dl class="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
                 <dt class="text-fg-muted">people</dt>
                 <dd class="text-fg tabular-nums">{summary.people}</dd>

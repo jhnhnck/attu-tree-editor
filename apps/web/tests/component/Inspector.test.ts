@@ -133,6 +133,42 @@ describe("Inspector", () => {
         expect(props.onclose).toHaveBeenCalled();
     });
 
+    describe("scroll containment", () => {
+        // regression: the inspector must scroll its own tab body, not push
+        // the page height past the viewport. the aside owns the height
+        // bound (min-h-0 + overflow-hidden); the tab body inside is the
+        // actual scroll surface (min-h-0 + overflow-y-auto). without the
+        // min-h-0 the flex parent ignores the overflow rule and the
+        // content forces the aside to grow.
+        it("aside is height-constrained and clips its overflow", () => {
+            render(Inspector, { ...baseProps(), tree: tree(), selectedId: "AAAAA" });
+            const aside = screen.getByLabelText("person inspector");
+            expect(aside.classList.contains("min-h-0")).toBe(true);
+            expect(aside.classList.contains("overflow-hidden")).toBe(true);
+            expect(aside.classList.contains("flex-col")).toBe(true);
+        });
+
+        it("the tab body inside the aside is the scroll surface", () => {
+            render(Inspector, { ...baseProps(), tree: tree(), selectedId: "AAAAA" });
+            const panel = document.getElementById("inspector-panel");
+            expect(panel).not.toBeNull();
+            expect(panel?.classList.contains("min-h-0")).toBe(true);
+            expect(panel?.classList.contains("flex-1")).toBe(true);
+            expect(panel?.classList.contains("overflow-y-auto")).toBe(true);
+        });
+
+        it("empty-state summary panel also bounds and scrolls itself", () => {
+            render(Inspector, { ...baseProps(), tree: tree(), selectedId: undefined });
+            const aside = screen.getByLabelText("person inspector");
+            expect(aside.classList.contains("min-h-0")).toBe(true);
+            expect(aside.classList.contains("overflow-hidden")).toBe(true);
+            // empty-state scroll surface is the sibling div with the summary dl
+            const summary = screen.getByText("people").closest("div");
+            expect(summary?.classList.contains("min-h-0")).toBe(true);
+            expect(summary?.classList.contains("overflow-y-auto")).toBe(true);
+        });
+    });
+
     describe("header more-actions menu", () => {
         // user-event simulates the full pointerdown -> pointerup -> click
         // sequence. the inspector registers a capture-phase pointerdown
