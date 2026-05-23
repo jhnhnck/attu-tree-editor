@@ -489,7 +489,7 @@ estimated effort: ~1 day.
 ---
 
 ## phase 2 — crossing-minimisation in family-view layout
-**status:** open
+**status:** closed 2026-05-23 (barycentric pass + monotone gate landed; measured no-op on every production fixture, see phase 2 retro for the heuristic-vs-geometry gap routed as B15; worktree `.claude/worktrees/family-view-w2/` and branch `phase/family-view-w2/2` retained per user instruction — *not* merged into parent. integration check: chromium 27/28, mobile 17/28, 919 unit tests, 0 regressions, 0 baseline updates.)
 **definition of done:** pre-spike outcome recorded with **measured**
 crossing counts; if "defer", phase closes with a one-line retro +
 follow-up bug-log entry; if implemented, `pnpm verify` green, all
@@ -769,6 +769,27 @@ estimated effort: ~3-4 days.
   one rank below the union-box; switch to layered, verify same
   children still render (existing layered code already handles
   multi-parent children via `parentIds[]`).
+- **(phase 2 plan-revise, 2026-05-23) re-run `crossings-baseline.test.ts`
+  against the phase-4 expansion fixtures (B15 follow-up).** the
+  phase-2 barycentric crossing-min pass is a measured no-op on every
+  current production fixture because each rank typically has ≤1
+  parent-couple slot containing the focus's parents — there's no
+  inversion potential for the heuristic to fix. secondary-union
+  expansion is exactly the configuration where multiple parent-couple
+  slots appear at rank -1 (focus's partners are siblings + their own
+  parents at rank -2 may anchor differently). if the pass now starts
+  accepting non-zero reorders (`countLayoutCrossings(on) <
+  countLayoutCrossings(off)`), the heuristic finally activates;
+  document the per-fixture delta in the phase 4 retro. if still
+  zero, B15 escalates to algorithm-upgrade scope (median barycentric,
+  alternating inward sweep, or per-swap geometric-crossing
+  transposition pass).
+- **(phase 2 plan-revise, 2026-05-23) B14 patch fits cleanly into
+  phase 4's subset.ts work.** the 2-3-line `pickCollapseVictim`
+  patch extending `protect` to skip already-protected sources is
+  natural to land alongside `subset.ts`'s secondary-union changes
+  since both touch the auto-collapse / expansion edge. not blocking
+  — fold in only if the diff is incidental; otherwise leave deferred.
 
 ### definition of done
 

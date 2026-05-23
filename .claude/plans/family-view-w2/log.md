@@ -435,3 +435,210 @@ next phase: per the user's discretion. natural candidates: phase 0b
 (zoom 100% contract; quick), phase 2 (crossing-min; risk-first),
 phase 3 (smooth-diff; spike-gated), or phase 4 (secondary-union
 expansion; biggest scope).
+
+## starting phase 2 — 2026-05-23
+
+- worktree: `.claude/worktrees/family-view-w2/` (same slot reused);
+  branch `phase/family-view-w2/2` from `phase/family-view-w2/1` tip
+  at `0910bac`. phase 0 + phase 1 commits are the base — phase 2
+  inherits the on-path tokens, the playwright build chain, the
+  dense-tree fixture, and the `maskUnstableUI` helper.
+- scope re-confirmed against `plan.md` phase 2 (post-phase-1 plan-
+  revise, 2026-05-23). spec carries the pre-spike (measure crossings
+  on akarians + 2 off-default foci; introduce `pickLeftRight` helper
+  preempting B11), then the defer-vs-implement decision gate, then
+  (if implemented) a barycentric pass in the family-view pipeline
+  between `planRank` → `placeAt`, behind
+  `fte.layout.familyViewCrossingMin` (default on), with 4+ unit cases
+  and full family-view-golden re-baseline.
+- **DoD (cross-phase check):** pre-spike crossing counts measured
+  and recorded for the akarians fixture + 2 off-default foci; either
+  (defer) phase closes with a one-line retro + bug-log entry, or
+  (implement) `pnpm verify` green, all family-view visual goldens
+  re-baselined with per-golden retro notes, 4+ unit cases pass, flag
+  default applied, idle-machine pre/post-pass perf measured against
+  the phase-6 baseline (12-22 ms), not the phase-0 75 ms flake pad.
+- rev-2 contracts to respect at the hook point: cumulative rank-y
+  (`max(CARD_H, maxHByRank[r]) + RANK_GUTTER`); `emitAnchorsAndEdges
+  (rowGeometry)` consumes `topY`/`bottomY` per rank (reorders don't
+  invalidate edge anchoring); new edge-id shapes
+  (`stem:union:…`/`bus:union:…`/`stub:union:…|kid`, NOT legacy
+  `drop:union:…`).
+- merge policy for this run: **do not merge** at step 5 (match phase
+  0 + phase 1 pattern; user pre-declared at this `/phase-loop`
+  invocation). worktree and branch stay in place for explicit
+  follow-up.
+
+## phase 2 retro — 2026-05-23
+
+### spec delta
+
+- delivered: barycentric crossing-min pass (slot-index, two-sweep
+  iterate-to-fixpoint) wired into `computeLayout` between `planRank`
+  and the placement pass; monotone gate compares pre/post geometric
+  crossing counts and only commits the candidate reorder when it
+  strictly reduces crossings; `LayoutOptions.crossingMin?: boolean`
+  default true; `fte.layout.familyViewCrossingMin` localStorage flag
+  wired through App.svelte → FamilyViewCanvas → `engine.layout(...)`;
+  6 unit cases (DoD-mandated 4 + opt-out contract + default-eq);
+  `pickLeftRight(layout, ids)` test helper at
+  `tests/_helpers/family-view.ts` (preempts B11); `countLayoutCrossings`
+  exported from layout.ts so the unit + baseline tests share the same
+  crossing-detection logic that drives the gate;
+  `crossings-baseline.test.ts` measures crossings on akarians (3 foci)
+  + dense-tree + multi-union with monotone assertions;
+  `crossingMin-overhead.test.ts` records the perf delta inline.
+- missed / deferred: none from the DoD checklist. visual goldens did
+  not require re-baselining because the pass is a measured no-op on
+  every production fixture (see surprise #1).
+- extra: refactored `computeLayout`'s placement / rank-y / centering
+  / emit / overlay-build pipeline into an inner `materialiseLayout(plans, ctx)`
+  helper so the monotone gate can call it twice without code
+  duplication. opportunistic but small; no scope creep.
+
+### surprises
+
+- the heuristic was expected to reduce crossings on existing fixtures
+  → in fact, on akarians (root=1, dense=4, leaf=0 crossings), dense-tree
+  (9), and multi-union (0), the candidate layouts either match the
+  pre-pass slot order exactly (`planMapsDiffer` returns false → gate
+  short-circuits) or produce equal-or-worse counts that the gate
+  rejects → net delta is zero slot reorders accepted across every
+  production fixture. the pass becomes useful in synthetic cases
+  where `tree.couples` field order disagrees with the natural rank
+  ordering — exercised by the DoD case-2 test, where the pass holds
+  monotonicity but the test asserts ≤ rather than strict <. this is
+  inherent to the heuristic's "slot-inversion minimisation" goal
+  diverging from family-view's bus-and-stub *geometric* crossing
+  count; in layered graph drawing the two metrics align, but the
+  family-view bus geometry makes endpoint-touching pairs (vertical
+  stem touching another union's horizontal bus at the same y) NOT
+  count as crossings, so heuristic improvements may be reordering
+  things that don't translate to fewer geometric crossings.
+- the monotone gate was expected to add ~2× layout latency → reality
+  measured 1.09-1.11× (median over 10 samples). the `planMapsDiffer`
+  early-exit catches the case where the pass produces zero slot
+  changes (the common case on production fixtures), and even when
+  the candidate is built, `materialiseLayout` is cheap at ≤30 visible
+  cards. 3-expand on akarians: off=10.62ms, on=11.77ms, delta=+1.15ms.
+  well within the 50ms rollback budget.
+- the heuristic was expected to require iteration → reality: most
+  ranks converge in 1 sweep on real fixtures. MAX_ITERS=16 was a
+  defensive cap; the test runs all converge before hitting it.
+- the playwright cache skew flagged in phase 1's retro turned out
+  to be non-blocking: the pnpm-lock in the worktree resolved
+  `@playwright/test@1.59.1` (matching the warm cache chromium-1217),
+  not 1.60.0 as phase 1 saw. cache `~/.cache/ms-playwright/` actually
+  carries both 1217 and 1223 builds, so either version would have
+  worked. phase 1's note still stands for fresh machines with empty
+  caches, but inside this worktree it's a non-issue.
+
+### residual debt
+
+- the pass is a measured no-op on production fixtures · routed to
+  `bugs.md` as **B15** (heuristic-vs-geometry gap; revisit when phase
+  4's secondary-union expansion exposes new crossing sources, or when
+  bounded-window cap is lifted in wave-3). either accept as
+  infrastructure-only ("framework in place; activate when crossings
+  actually appear") or upgrade the heuristic in a future phase (e.g.
+  median barycentric, alternating inward sweep, or a per-swap
+  transposition pass that uses geometric crossings as the cost
+  function rather than slot-inversions).
+- `parentsOfPerson` / `childrenOfPerson` in layout.ts walk
+  `tree.couples` and `getUnions(tree)` linearly each call · routed
+  to `bugs.md` as **B16** (perf nit; acceptable today at ≤30 visible
+  cards, would matter at 200+). no fix needed in phase 2; would
+  matter if wave-3 lifts the bounded-window cap.
+- the on/off baseline check in `crossings-baseline.test.ts` runs
+  `computeLayout` twice per focus to compare; that's intentional
+  (measurement) but it means the test couples the on-path layout to
+  the off-path layout. if the off-path layout breaks, the on-path
+  metric is misleading. consider isolating once the pass becomes
+  non-no-op. logged inline in the test file's header; not in bugs.md.
+
+### implications for downstream phases
+
+- **phase 3 (smooth-diff animation):** the path-highlight overlay's
+  `data-on-path` swap is unchanged by phase 2 — the pass operates on
+  slot order, not edge identity, so on-path / off-path edge sets are
+  byte-identical to pre-phase-2. spike work can proceed against the
+  current geometry.
+- **phase 4 (secondary-union expansion):** expanding a second union
+  per focus brings 2+ partners' children into the bounded subset
+  side-by-side; this is exactly the configuration where barycentric
+  crossing-min should help (multiple children-rank slots that anchor
+  different ancestor-rank slots). phase 4 should re-run
+  `crossings-baseline.test.ts` on its new fixtures and check whether
+  the gate now accepts non-zero reorders; if yes, the heuristic
+  finally activates. if still no, B15 escalates to an algorithm
+  upgrade.
+- **phase 0b (zoom contract):** unaffected; pass operates in unit
+  space pre-zoom-transform.
+
+### audit: was this actually two phases?
+
+no. spec delta + surprises + debt fit comfortably under the half-page
+limit; the unit-of-work was tight (one pass + one gate + one flag +
+tests). the no-op result on existing fixtures is a single observation,
+not a separate phase.
+
+## revision after phase 2 — 2026-05-23
+
+phase 2 closed with all DoD items landing + 2 new findings (B15, B16).
+plan.md changes folded in by this revision:
+
+- **phase 2** flipped to `**status:** closed 2026-05-23` with the
+  no-merge caveat (worktree retained per user instruction;
+  integration-check tallies inline; B15 routed for phase-4 revisit).
+- **phase 4** (secondary-union expansion) gains two work-items:
+  - re-run `crossings-baseline.test.ts` against the phase-4
+    expansion fixtures (B15 follow-up) — if the pass starts accepting
+    non-zero reorders, the heuristic finally activates; if still
+    zero, B15 escalates to algorithm-upgrade scope.
+  - B14 patch (`pickCollapseVictim` extending `protect` to skip
+    already-protected sources) fits cleanly into phase 4's subset.ts
+    work; fold in only if the diff is incidental.
+- **phases 0b, 3** unchanged in scope. phase 3's spike work is
+  unaffected by phase 2 — the path-highlight overlay's `data-on-path`
+  swap operates on edge identity, not slot order; on-path / off-path
+  edge sets are byte-identical to pre-phase-2.
+
+bug log gc summary:
+
+- 1 wave-1 carryover moved from `## open` to `## closed`: "family-
+  view layout has no crossing-minimisation" closed via the barycentric
+  pass + monotone gate.
+- 1 item moved from `## open` to `## closed`: B11 (`orientCouple`
+  lex-order swap) preempted via `pickLeftRight` + `leftmostAtRank`
+  helpers at `tests/_helpers/family-view.ts`.
+- 1 phase-1 finding moved from `## open` to `## closed`: playwright
+  cache skew (re-verified at phase 2 start; the worktree's pnpm-lock
+  actually resolved 1.59.1 matching the warm cache — phase 1's
+  recorded skew did not reproduce).
+- 1 item rerouted within `## open`: B14 (badge-click no-op for
+  ancestor sources) — from "phase 2 or later" to "phase 4 or wave-3"
+  with a phase-4 work-item note since phase 2 did not touch
+  `pickCollapseVictim`.
+- 2 new items added to `## open`: B15 (crossing-min heuristic-vs-
+  geometry gap — pass is a measured no-op; revisit phase 4); B16
+  (`parentsOfPerson` / `childrenOfPerson` linear walk per call — perf
+  nit, defer).
+- gc pass: 6 phase-0 closeds dropped from `## closed` (aged >1
+  phase boundary; vite-preview workflow, spike-test resolution,
+  aria-label lesson, on-path tokens, mobile inspector e2e, family-
+  view-latency). 1 phase-1-listed gc candidate dropped: visual-
+  akarians baseline snapshot. all recoverable via `git log` of this
+  file.
+- 1 closed entry retained as gc candidate: RV-Phase-3b (close after
+  phase 4 closes).
+
+merge / worktree status: per the user's `/phase-loop` invocation,
+the worktree is **NOT** merged back into `trunk` or any prior phase
+branch. branch `phase/family-view-w2/2` and the shared worktree
+`.claude/worktrees/family-view-w2/` remain in place. mandatory
+go-ahead prompt skipped (user pre-declared "no merge at end").
+
+next phase: per the user's discretion. natural candidates: phase 0b
+(zoom 100% contract; quick), phase 3 (smooth-diff; spike-gated), or
+phase 4 (secondary-union expansion; biggest scope and the one that
+will activate B15 if any).
