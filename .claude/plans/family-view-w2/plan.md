@@ -161,7 +161,7 @@ resolved (see `log.md`).
 ---
 
 ## phase 0 — stability + janitorial sweep
-**status:** open
+**status:** closed 2026-05-23 (7 of 8 DoD items landed; zoom-100% split to phase 0b per design-note gate; worktree `.claude/worktrees/family-view-w2/` and branch `phase/family-view-w2/0` retained per user instruction — *not* merged into parent. integration check: chromium 14/14, mobile 8/8, 3 skips, 0 regressions.)
 **definition of done:** all 8 items in the phase-0 done-checklist tick
 (latency budget, mobile e2e, agents.md updates, no untracked files,
 theme tokens, zoom 100% contract, spike-test resolution, akarians
@@ -222,6 +222,45 @@ estimated effort: ~1 day.
   phase 0b and phase 0 closes without it. carry-over from wave-1's
   bug log; medium priority, low effort *only if* the design-note gate
   closes cleanly.
+  **phase 0 (2026-05-23) — design-note gate tripped; split to phase
+  0b.** partial sketch of the three questions:
+  *(a) anchor mode.* the wheel + pinch paths in
+  `FamilyViewCanvas.svelte:373-389` are already cursor-anchored (the
+  standard `panX = px - (px - panX) * ratio` formula), and so is
+  `TreeCanvas.svelte` (layered/hyperbolic share the canvas-controller
+  surface). the drift is only in the widget +/- buttons + slider +
+  exact-percent entry, which call `setScale(next)` on the controller
+  (FamilyViewCanvas.svelte:418-419) without re-anchoring. fix:
+  reshape `setScale` to take an optional anchor argument and default
+  to viewport-center; the widget callers pass no anchor (so they get
+  viewport-center) while wheel keeps its pointer anchor. proposed
+  controller-surface change is small but cross-engine (layered +
+  hyperbolic controllers expose the same `setScale`), so it crosses
+  engine boundaries cleanly and needs a per-engine smoke check.
+  *(b) widget label.* the displayed `Math.round(scale * 100)%` reads
+  the raw transform today. moving to a "one card at design size"
+  semantic means defining the design size in CSS pixels (`CARD_W_PX
+  = PERSON_W × UNIT = 320 px`) and rendering the % as the ratio of
+  on-screen card width to design width. for a 1× DPR display this is
+  identical to today; for a 2× DPR display (retina), the user sees
+  the same visual size at the same %, which is the whole point. but
+  the change is invisible to most users (DPR ratios are sticky
+  per-monitor); whether to update the glyph alongside the semantic
+  is a UX-research question. preference: ship the semantic, leave
+  the label glyph unchanged (still `%`), with the slider markings
+  reading `25 / 50 / 100 / 200 / 400` like today. revisit if a user
+  reports the % feels wrong.
+  *(c) rollback path.* if users do rely on the 100% = transform=1
+  mental model, the cleanest fallback is a `fte.zoom.semantic100`
+  localStorage flag, default-true; flipping to false restores the
+  raw-transform interpretation. cost is +1 flag in a settings panel
+  that already has 8+ flags; benefit is users who built workflows on
+  the old definition can keep them. preference: ship with the flag.
+  **why this split:** (b) and (c) both need UX/research input that's
+  outside a janitorial phase's mandate. (a) is implementable today
+  but lands cleaner alongside the semantic change. ship phase 0b
+  as a single landed PR with all three answered after research; it's
+  ~0.5-1 day of focused work, not 30 min of polish.
 - **˅ aria-label lesson captured in `notes/agents.md`.** phase 2
   rephrased "view-time" → "session-only" to avoid colliding with the
   existing `getByRole("button", { name: "View" })` selector. add a
@@ -310,6 +349,70 @@ most likely place for an inadvertent regression.
 
 ---
 
+## phase 0b — zoom 100% contract (split from phase 0)
+**status:** open
+**definition of done:** zoom widget `+` / `−` / slider / exact-percent
+paths anchor on viewport-center by default (wheel + pinch keep their
+pointer anchor); 100% reads as "one standard card at design size"
+derived from `CARD_W_PX = PERSON_W × UNIT`; `fte.zoom.semantic100`
+localStorage flag (default true) toggles back to canvas-transform=1
+semantic; manual smoke on layered + family-view + hyperbolic engines
+confirms the controller-surface change doesn't regress per-engine
+zoom; unit test asserts displayed % == measured-card-width /
+design-card-width.
+**scope:** the zoom item that tripped phase 0's design-note gate
+(`plan.md` phase 0 work-item; 30 min sketch in place but (b) widget-
+label glyph and (c) rollback path needed UX/research input outside
+a janitorial mandate). split here as its own phase so phase 0 closes
+clean and phase 0b can land the semantic + the anchor fix in one PR.
+distinct from phase 1's e2e-signal-tightening; both can run in
+parallel if needed.
+
+estimated effort: ~0.5-1 day.
+
+### work
+
+- reshape `CanvasController.setScale` (FamilyViewCanvas.svelte:418,
+  TreeCanvas.svelte:603, HyperbolicCanvas's equivalent) to accept an
+  optional `{ anchorPx?: {x, y} }` argument; default behaviour pans
+  to keep the viewport center fixed at the new scale. widget +/- /
+  slider / exact-percent paths call with no anchor argument (=>
+  viewport center). wheel keeps its pointer anchor.
+- introduce `--fte-design-card-width: 320px` token in `app.css` so
+  the semantic-100% calculator has a single source for design size.
+- compute displayed `%` in ZoomWidget as `Math.round(measured /
+  design × 100)`. measured = the rendered card's `getBoundingClientRect`
+  width on a sample non-portrait card; design = the token value. on
+  1× DPR this is identical to today.
+- add `fte.zoom.semantic100` localStorage flag (default true);
+  flipping false restores the raw-transform interpretation. settings
+  panel gets an unobtrusive "use semantic 100%" checkbox under the
+  existing zoom section.
+- visual goldens are likely unaffected (no card-on-screen-size
+  change at 1× DPR), but re-baseline if any pixel shift exceeds
+  `maxDiffPixels` on a fresh run.
+
+### definition of done
+
+- widget paths (+/-, slider, exact-percent entry) no longer drift
+  the focal point at fixed canvas position; manual repro on the
+  akarians fixture at viewport center, top-left, bottom-right.
+- displayed % derived from card-width ratio (unit test).
+- flag exists default-on; flag-off restores canvas-transform=1.
+- B5 zoom-matrix verification (`bugs.md`) runs at 0.5× / 2.0× and
+  the result is recorded — apply `shape-rendering: crispEdges`
+  fallback iff the half-pixel grid issue reappears at non-1 scales.
+
+### rollback criterion
+
+- if the semantic 100% confuses more users than it helps (>1
+  user-reported "why does my zoom feel wrong now" within a release
+  cycle), flip the flag default to false and ship the semantic as
+  opt-in. controller-surface change for the anchor fix stays as-is
+  (no user-visible regression, fixes the actual drift bug).
+
+---
+
 ## phase 1 — denser e2e coverage + visual-golden mask helper
 **status:** open
 **definition of done:** dense-tree fixture exercises auto-collapse
@@ -344,6 +447,23 @@ estimated effort: ~1 day.
   `path-highlight-multi-union.png`, `add-relative-menu-open.png`) +
   the cross-engine continuity snapshot. visual diffs should be
   identical or strictly smaller after migration.
+- **(phase 0 plan-revise, 2026-05-23) audit region-bounds
+  determinism for `visual-path-highlight.spec.ts` (B13).** phase 0
+  found the captured region growing 920×806 → 920×1241 on a fresh
+  worktree without any source change in scope. either tighten the
+  golden-region selector so the captured bbox is content-bounded
+  (not flex-1-driven), or pin the viewport explicitly per spec,
+  or mask the variable-height region. fold the resolution into the
+  `maskUnstableUI` helper work — the helper exists precisely to
+  absorb this kind of environment-specific instability without
+  re-baselining.
+- **(phase 0 plan-revise, 2026-05-23) `.is-portrait-pending`
+  background transition (B12).** phase 0 did not touch PersonNode
+  portrait-slot rules; the tiny CSS guard fits naturally here when
+  PersonNode is exercised by the dense-tree fixture work. add
+  `transition: background-image 80ms ease-out` to the
+  `.is-portrait-pending` rule iff the fixture work surfaces the
+  snap.
 
 ### definition of done
 
@@ -404,6 +524,13 @@ estimated effort: ~2-3 days.
 - if non-zero, pick the heuristic: barycentric (sum-of-parent-x ÷
   count, iterate to fixpoint) is the standard. median is the other
   option. record the choice + reasoning.
+- **(phase 0 plan-revise, 2026-05-23) introduce
+  `tests/_helpers/family-view.ts` `pickLeftRight(layout, ids)`
+  (B11) BEFORE the first crossing-min unit assertion.** the helper
+  is ~10 lines and the new pass needs to assert "leftmost-at-rank-N
+  is X"; without the helper, `orientCouple`'s lex-order swap will
+  bite the third test in a row (visual fix-up phases 2 + 3
+  already; phase 2 is the predicted third instance).
 
 ### implementation
 
