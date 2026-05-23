@@ -926,3 +926,84 @@ will activate B15 if any).
   B13 path-highlight golden). git history is the trace.
 - bugs.md additions: B18 (edges jump-cut), B19 (cards mount/unmount
   jump-cut), B20 (no UI toggle for smoothDiff) — all deferred polish.
+
+## starting phase 4 — 2026-05-23
+
+- branch: `phase/family-view-w2/4` cut from `phase/family-view-w2/3`
+  tip (`ac619c0`), continuing in the same worktree slot
+  `.claude/worktrees/family-view-w2/` per user-instructed no-merge
+  retention.
+- phase-4 pre-mortem appended to `pre-mortem.md` (symbol-overlap
+  audit with `aba7de0` recorded; no symbol collisions; risk surface
+  documented with mitigations). adopted three scope revisions:
+  (a) ship 2-expanded-unions-max (1 primary + 1 secondary) as v1
+  per the plan's rollback partner — 3+ stays routed to a follow-up;
+  (b) defer the 3-union focus golden, ship 2-union golden instead;
+  (c) fold B14 / B6 only if incidental.
+- DoD restated: `RankSlot.kind === "secondary-mate"` slot lands;
+  `useSecondaryUnionState` state hook + localStorage key live with
+  the 2-max cap enforced in the setter;
+  `expandedSecondaryUnionsOf(tree, personId, expanded)` helper in
+  `couples.ts`; subset selector pulls in the expanded secondary
+  partner + their union's children; `emitAnchorsAndEdges` produces
+  a UnionAnchor for the focus + secondary partner; `˅` picker
+  menu gains "show alongside" / "hide" actions beside the existing
+  swap; `fte.layout.familyViewSecondaryUnion` flag default-on (flag-
+  off restores `˅`-cycling-only); unit tests for state + helper;
+  one e2e for the expand-alongside flow; one visual golden for
+  the 2-expanded focus; `crossings-baseline.test.ts` re-run on the
+  new fixture to verify B15's prediction; inspector + gedcom round-
+  trip unchanged.
+
+## phase 4 retro — 2026-05-23
+
+### spec delta
+- delivered: `useSecondaryUnionState` state hook + `fte.family-view.secondary-union.v1:{treeId}:{focusId}` localStorage key with the 1-expanded-secondary-per-person cap enforced in the setter; `expandedSecondaryUnions` option on `SubsetOptions` + `LayoutOptions`; `subset.ts` walks the map at focus rank and pulls in the other partner + the union's children; `fte.layout.familyViewSecondaryUnion` flag default-on in App.svelte; `˅` picker menu gains "also show ... alongside" / "hide ..." actions per alternate; existing "set primary to ..." retained; `data-union-picker-action` attribute distinguishes the three actions in the rendered menu so e2e selectors stay unambiguous. 16 unit cases (state hook + subset pull-in + computeLayout end-to-end). 2 e2e cases × chromium = 4 green (mobile skips per B4); 1 new visual golden. B15 follow-up measurement recorded.
+- missed / deferred: union-fan ordering — the rendered layout places focus at the edge of rank 0 (focus + primary partner + secondary partner) rather than focus in the middle. visible in the new visual golden as diagonal couple-bus connectors crossing the middle partner card. → routed to bugs.md as **B21** (deferred polish; needs a phase 4-specific reorder in planRank that puts focus between its two partners). also missed: a half-sibling-specific test case (the multi-union fixture already exhibits half-sibling rendering — Calen and Iva share Aron only — so the new golden + the e2e cover it implicitly; a separate dedicated test would belong with the union-fan ordering improvement). dedicated GEDCOM round-trip spot-check not added (the change is render-time only; gedcom serialisation untouched).
+- extra: B15 follow-up test landed inside `crossings-baseline.test.ts` so the measurement is reproducible at every future phase boundary. existing `family-view-multi-union.spec.ts` selector tightened to `[data-union-picker-action='set-primary']` — small regression hygiene improvement not strictly in scope but unblocking.
+
+### surprises
+
+- the implementation footprint was much smaller than the pre-mortem suggested. the pre-mortem predicted a new `RankSlot.kind === "secondary-mate"` slot kind plus `barycenterOfSlot` / `slotPersons` extensions plus a manual second `UnionAnchor` emit. reality: `emitAnchorsAndEdges` walks `tree.couples` directly (not `RankSlot[]`), so once both partners of a secondary couple are visible at the same rank, the second anchor + couple-bus + sibling-bus drop falls out automatically. all the heavy lifting reduced to a one-line addition in `subset.ts`. the pre-mortem's symbol-overlap audit was still valuable — it forced the careful walk through `layout.ts` that revealed this.
+- B15 stays no-op on the multi-union fixture *with* secondary expanded. the phase-2 plan-revise note predicted this configuration would "finally let the barycentric pass matter", but the geometry stays trivial (visible=5, edges=8, off=0 crossings) because the couple-bus + stub edges count as shared-person under the strict-cross definition (shared on focus). this confirms B15's diagnostic from phase 2: the heuristic-vs-geometry gap is structural; algorithm upgrade is required, not just a richer fixture.
+- TypeScript's `exactOptionalPropertyTypes: true` distinguishes "field absent" from "field present with value `undefined`". my first attempt passed `expandedSecondaryUnions: undefined` when the flag was off; the type required either the field present-with-value or absent entirely. fixed by switching to a conditional spread (`...(secondaryUnion ? { expandedSecondaryUnions: ... } : {})`). lesson for future engine-options additions: structural conditionality lands cleaner than nullable defaults.
+- the union-fan ordering is sub-optimal but the visual golden captures it honestly. previously I might have asked "should I fix this in scope?"; phase-loop's "ship the rollback partner as v1" framing made it natural to land the working v1 and route the geometric polish as a follow-up bug rather than scope-creeping.
+
+### residual debt
+
+- **B21** union-fan ordering: the 2-expanded layout puts focus at the rank's leftmost position (between primary on one side and secondary on the other side) rather than focus in the middle. fixing it requires planRank to recognise a focus with expanded secondary unions and emit slots in `[primary-partner, focus, secondary-partner]` order rather than `[oriented-couple, secondary-partner-as-single]`. ~10-line patch in planRank. → **deferred** (low-priority polish; the v1 ship is functionally correct, visually busy).
+- **B15 escalation**: still measured no-op on every fixture including phase-4-expanded multi-union. the heuristic-vs-geometry gap is structural — algorithm upgrade required. → routed to wave-3 or follow-up phase (median barycentric / alternating-direction sweep / per-swap geometric-crossing transposition). not blocking.
+- **3+ expanded secondary unions**: the v1 ship caps at 1 expanded secondary per person. → routed to a follow-up (when user feedback says 2-max is insufficient).
+- **no UI toggle** for `fte.layout.familyViewSecondaryUnion`: same precedent as crossingMin / smoothDiff / semantic100. → folded into the same View-menu-submenu wishlist (B20).
+- **inspector + gedcom round-trip**: not exercised by a dedicated spec because the secondary-union state is purely render-time UI (lives in localStorage; doesn't mutate domain). would be valuable for completeness but absorbing into wave-3 ship-readiness rather than retroactively bolting on. → noted in retro, no bugs.md entry.
+
+### implications for downstream phases / ship-readiness
+
+- **ship-readiness next**. with phase 4 closed, only `ship-readiness` remains before wave-2 merges back. the wave-2 ship-gate runs against the *parent branch* (main) after a rebase, and the user's standing instruction is to retain the worktree without merging — so the actual merge to parent + ship-readiness gate is a future-session call.
+- **B14 fold-in evaluated, declined**: the pre-mortem flagged that B14's `pickCollapseVictim` patch *could* fold into phase 4's subset.ts work, but only if incidental. it wasn't — phase 4 didn't touch the collapse-victim selector. stays deferred.
+- **B6 fold-in evaluated, declined**: the explicit-sibling-bus `role: "blood"` uniformity also stays deferred; phase 4 didn't touch the sibling-bus rendering path.
+- the new visual golden `visual-secondary-union.spec.ts-snapshots/secondary-union-expanded-chromium-linux.png` becomes the regression guard for the secondary-union feature. when B21 lands, this golden re-baselines with the focus moved to centre.
+
+## revision after phase 4 — 2026-05-23
+
+- **all phases now closed.** wave-2 has no open phases; only
+  `ship-readiness` remains. per the standing user no-merge
+  instruction the worktree + per-phase branches stay retained;
+  the actual rebase + merge to parent is a future-session call.
+- bugs.md gc: dropped 4 phase-2 closed entries aged through phase 3
+  + phase 4 boundaries (crossing-minimisation closer; B11; playwright
+  cache skew; RV-3b note). git history retains the trace.
+- bugs.md additions: B21 (union-fan ordering puts focus at the
+  edge of rank 0 instead of centre); B15's note revised to record
+  that the phase-4-secondary-union fixture also produces a measured
+  no-op, escalating it to algorithm-upgrade scope rather than
+  fixture-dependent.
+- the wave-1 ship-gate carryover list (`## open (carried in from
+  wave-1 ship-gate)`) is now empty — both carryover items
+  (smooth-diff in phase 3, multi-union-at-a-time in phase 4) closed.
+  the section header stays as a "(empty.)" placeholder for future
+  ship-gate analyses.
+- no downstream-phase revisions are possible because there are no
+  downstream phases. the remaining open items (B6/B12/B14/B15/B16/
+  B17/B18/B19/B20/B21) all sit under "deferred polish or wave-3
+  scope" and will be triaged at ship-readiness.

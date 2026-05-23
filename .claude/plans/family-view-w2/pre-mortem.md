@@ -208,3 +208,198 @@ the post-rev-1 numbering. when reading: phase-2-in-this-doc usually
 means crossing-min (the layout-quality phase) post-rev-1, and
 phase-3-in-this-doc usually means smooth-diff (the animation phase)
 post-rev-1.
+## phase 4 pre-mortem — 2026-05-23
+
+**bottom line:** proceed with revisions. the original wave-2 pre-
+mortem (14 May 2026) flagged phase 4's biggest risk — terminology
+overlap with `aba7de0`'s already-shipped *N-partner* polycule
+renderer — and the plan's rev-1 renamed the phase to "secondary-
+union expansion" to fix it. that rename held; the remaining risks
+below are scope / geometry / state-management, all manageable. one
+new revision: ship the rollback partner (2-expanded-unions-max) as
+v1 and route 3+ expanded unions to a follow-up.
+
+### symbol-overlap audit (preconditioned at phase start)
+
+`aba7de0` (RV phase 3b, 14 May 2026) ships:
+- `RankSlot.kind === "multi-union"` (`layout.ts:134`) — N>2 partners
+  in ONE union (polycule), with `unionId` + `partnerIds: readonly PersonId[]`.
+- `partnersInMultiUnionsOf(tree, personId)` (`couples.ts:114`) —
+  returns partners from N>2-partner unions.
+- `subset.ts:99` (`for (const pid of partnersInMultiUnionsOf(...))`)
+  pulls polycule members into the focus rank.
+- `layout.ts:planRank` filters `getUnions(tree).filter(u => u.partnerIds.length > 2)`
+  for `multi-union` slots.
+
+phase 4 introduces (no symbol re-use):
+- `RankSlot.kind === "secondary-mate"` — a secondary partner card
+  placed adjacent to the focus on the same rank, distinct from
+  `couple` (paired 2-partner anchor) and `multi-union` (N>2 polycule
+  partners). carries the secondary partner's `personId` + the
+  `coupleIndex` of the secondary 2-partner union linking them to
+  the focus. the focus card itself stays in its primary `couple`
+  slot; the renderer reads both for the union-fan geometry.
+- `expandedSecondaryUnionsOf(tree, personId, expandedSet)` — new
+  helper. takes a per-person set of `coupleIndex`es marked as
+  expanded; returns the partner ids and child ids reachable through
+  those unions. mirrors `partnersInMultiUnionsOf`'s shape but
+  scoped to 2-partner unions (the inverse partition).
+- `useSecondaryUnionState(treeId, focusId)` — new state hook,
+  parallel to `usePrimaryUnionState`, storage key
+  `fte.family-view.secondary-union.v1:{treeId}:{focusId}`. shape:
+  `{ byPerson: { [personId]: number[] } }` (sets of expanded
+  coupleIndex). distinct from the expansion-set localStorage key
+  (`fte.family-view.expansion.v1:...`) which gates `+/-`/badge
+  children/parents reveals — totally different semantic.
+
+no symbol collides. `multi-union` semantics ("N partners, one
+union") and `secondary-mate` semantics ("one person, N unions")
+stay terminologically and structurally separated.
+
+### risks
+
+- [high] geometry — the union-fan layout for 2 expanded secondary
+  unions adds a third card at rank 0 (focus + primary partner +
+  secondary partner). the bounded ≤30-card window cap currently
+  treats partner-of-focus as ONE card; expanding a secondary union
+  bumps it to TWO partner cards at rank 0 plus the secondary
+  union's children at rank 1. risk: a focus with 2 expanded unions
+  + full ancestor spine could exceed the 30-card cap, triggering
+  auto-collapse on ancestor branches. **mitigation:** auto-collapse
+  is already correct here — it'll demote the lowest-DOI ancestor
+  block, which is the right answer. document this in the retro.
+
+- [high] state-management — the `˅` picker semantics change. today
+  the picker has alternates that *swap* the primary; phase 4 adds
+  "show alongside" / "hide secondary" options. risk: users who
+  used the picker for swapping get confused by the new options
+  appearing alongside. **mitigation:** keep the swap action as
+  the primary action (top of menu) and add an "also show {partner}"
+  affordance as a separate menu item below. the action labels stay
+  unambiguous.
+
+- [medium] scope — the plan's DoD requires "visual goldens cover 3-
+  union focus + half-sibling case". 3+ expanded unions is the
+  rollback partner per the plan's rollback criterion ("if union-fan
+  geometry produces unavoidable card overlaps at the bounded window
+  for 3+ expanded unions, ship the phase as 2-expanded-unions-max").
+  shipping with the rollback partner from the start (cap at 2
+  expanded secondary unions, leave 3+ as `˅`-cycling) is more
+  honest than ship-then-rollback. **mitigation:** in this phase,
+  ship 2-max. the cap is enforced in `useSecondaryUnionState`'s
+  setter (rejects expansion if already 2 are expanded). 3+ stays
+  routed to a follow-up bug-log entry.
+
+- [medium] terminology — "primary union" vs "secondary union" in
+  the UI: the `˅` button's tooltip currently says "switch primary
+  union for {partner} (session-only; doesn't change record)".
+  adding "show alongside" requires the tooltip to expand. risk:
+  tooltip text grows past readability. **mitigation:** rename the
+  picker menu's affordances to action-words ("set as primary" /
+  "show alongside" / "hide alongside") and rely on the visual
+  state (presence of secondary card + bus) for context rather
+  than tooltip prose.
+
+- [medium] crossing-min interaction (B15 follow-up) — the plan's
+  phase-2-plan-revise note flagged that secondary-union expansion
+  is "exactly the configuration where multiple parent-couple slots
+  appear at rank -1" and may finally let the barycentric pass
+  matter. risk: the new `secondary-mate` slot kind isn't recognised
+  by `crossingMinPass`'s `barycenterOfSlot` (which knows about
+  `single` / `couple` / `multi-union` only). without an entry for
+  the new kind, the pass treats it as having no anchors and falls
+  through to "no incentive to move" → still no-op. **mitigation:**
+  extend `barycenterOfSlot` + `slotPersons` to recognise
+  `secondary-mate`, then re-run `crossings-baseline.test.ts` to
+  measure if the pass activates. if still no-op, document and
+  route to B15's escalation path.
+
+- [medium] inspector / gedcom round-trip — the DoD says "inspector
+  + gedcom round-trip unchanged". secondary-union expansion is
+  purely a render-time UI state (lives in localStorage, doesn't
+  mutate `CoupleRecord`); inspector reads the same domain data
+  it always has, gedcom serializes the same. **mitigation:** no
+  domain changes needed; integration check spot-checks the inspector
+  open + close on a 2-expanded-union focus and runs the gedcom
+  round-trip e2e to confirm parity.
+
+- [low] B14 fold-in (phase-2 plan-revise note) — the plan said
+  "B14 patch fits cleanly into phase 4's subset.ts work, fold in
+  if incidental". the patch is 2-3 lines in `pickCollapseVictim`
+  extending `protect` to skip already-picked sources. subset.ts
+  edits in this phase touch the *subset* selector, not the
+  *collapse-victim* picker — different function in the same file.
+  **mitigation:** fold-in if the diff stays small; otherwise
+  leave deferred. cheap call, no need to gate.
+
+- [low] dependency — RV phase 3c (GEDCOM `_TREES_UNION`) was
+  in-flight at plan time. **mitigation:** at phase 4 start (now),
+  verify by reading the current `tree.ts` writers + the
+  GEDCOM importer. if 3c shipped, phase 4 is unblocked; if not,
+  phase 4 still doesn't depend on it (the new secondary-union
+  state is render-time, never serialised to gedcom).
+
+### walking-skeleton check
+
+still applies from wave-2 start: family-view engine renders end-
+to-end with selection, expansion, focus shift, path-highlight, and
+crossing-min. phase 4 adds **rendering geometry** + **state**
+parallel to existing geometry — the walking skeleton itself stays
+unchanged (focus, primary partner, primary children render
+identically when no secondary union is expanded; the new code paths
+only activate via the new picker action).
+
+### scope revisions adopted
+
+- **ship 2-expanded-unions-max as v1 (rollback partner)**. 3+
+  expanded unions stays as 1-at-a-time + `˅` cycling, routed to
+  bugs.md as a follow-up. closes the wave-1 bug-log item "multi-
+  union renderer commits to one-union-at-a-time" — the contract is
+  "secondary unions render alongside when expanded", which is true
+  for the 2-max case. 3+ is the bug only if user feedback says 2-
+  max is insufficient.
+
+- **defer the 3-union focus golden**. the plan's DoD asked for a
+  3-union focus visual golden; with 2-max as v1 the relevant golden
+  is the 2-union focus (one primary + one expanded secondary).
+  ship that golden; 3-union is part of the 3+ follow-up.
+
+- **fold-in B14 only if incidental**. the patch is small but
+  touches a different function (`pickCollapseVictim`); skip unless
+  the diff is incidental.
+
+- **fold-in B6 follow-up only if incidental**. the visual-fix-up
+  residual B6 (explicit sibling bus emits role: "blood" uniformly)
+  also landed near subset.ts; same fold-in-if-incidental rule.
+
+### definition-of-done
+
+- secondary-union expansion ships as 2-max behind a
+  `fte.layout.familyViewSecondaryUnion` flag default-on; flag-off
+  restores `˅`-cycling-only behaviour.
+- `useSecondaryUnionState` state hook + localStorage key live, with
+  the 2-max cap enforced in the setter.
+- `RankSlot.kind === "secondary-mate"` lands in `layout.ts`;
+  `planRank` + `emitAnchorsAndEdges` + `materialiseLayout` handle
+  the new kind without breaking the existing `couple` / `single` /
+  `multi-union` paths.
+- subset.ts pulls in secondary partners + their children when
+  expanded.
+- `˅` picker gains "show alongside" / "hide alongside" actions
+  beside the existing swap action.
+- 2-3 unit tests for the new state + slot kind.
+- 1 e2e covering the 2-expanded flow + an inspector / gedcom
+  round-trip spot-check.
+- visual golden for 2-expanded-union focus (half-sibling rendering
+  emerges naturally if both unions have children).
+- crossings-baseline.test.ts re-run on the new fixture; document
+  the delta in the retro (B15 follow-up).
+- inspector + gedcom round-trip unchanged.
+
+### rollback criterion (carried from plan)
+
+if the secondary-mate slot kind produces unavoidable card overlaps
+at the bounded window for the 2-expanded case (not just 3+), revert
+the wiring + ship with the flag default-off; restore wave-1's
+`˅`-cycling-only behaviour. the bounded ≤30-card window remains
+the geometric backstop.

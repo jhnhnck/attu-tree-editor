@@ -679,7 +679,7 @@ estimated effort: ~1-2 days.
 ---
 
 ## phase 4 — secondary-union expansion
-**status:** open
+**status:** closed 2026-05-23 (2-expanded-unions-max shipped per the rollback partner; `useSecondaryUnionState` hook + `fte.family-view.secondary-union.v1:{treeId}:{focusId}` localStorage + `fte.layout.familyViewSecondaryUnion` flag default-on; `˅` picker gained "show alongside" / "hide" actions alongside the existing swap-primary; 16 unit cases + 2 e2e cases (chromium-only per B4) + 1 visual golden; B15 follow-up measurement = still no-op, escalates to algorithm upgrade; B21 routed for union-fan ordering follow-up. integration check: chromium 33/34, mobile 21/34 (13 platform-skips), 944 unit tests, 0 regressions, 1 new baseline. worktree `.claude/worktrees/family-view-w2/` and branch `phase/family-view-w2/4` retained per user instruction — *not* merged into parent.)
 **definition of done:** phase-start pre-mortem run; symbol-overlap
 audit with `aba7de0` recorded; secondary unions render side-by-side
 in family-view when both unions are expanded; primary union still

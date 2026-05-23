@@ -8,10 +8,7 @@ boundary (git history is the trace).
 
 ## open (carried in from wave-1 ship-gate)
 
-- multi-union renderer commits to one-union-at-a-time → **phase 4
-  (secondary-union expansion; RV phase 3b shipped in `aba7de0`)**
-  (rev 1: was "commits to N=2; blocked on RV 3b" — renamed for
-  terminology disambiguation, dep updated).
+(empty.)
 
 ## open (carried in from visual fix-up plan residual debt — 2026-05-22)
 
@@ -72,22 +69,22 @@ boundary (git history is the trace).
 ## open (phase 2 findings — 2026-05-23)
 
 - **B15** family-view crossing-min pass is a measured no-op on every
-  production fixture (akarians root=1/dense=4/leaf=0, dense-tree=9,
-  multi-union=0; all delta=0). monotone gate correctly rejects
-  candidate layouts that don't strictly reduce geometric crossings,
-  but the slot-index barycentric heuristic's reorderings either match
-  the pre-pass slot order (`planMapsDiffer` returns false) or produce
-  equal-or-worse geometric counts. root cause: in family-view's
-  bus-and-stub geometry, endpoint-touching pairs (vertical stem
-  touching another union's horizontal bus at the same y) don't count
-  as geometric crossings, so heuristic improvements on slot-inversion
-  metric don't always translate to fewer geometric crossings. →
-  **revisit in phase 4** (secondary-union expansion brings 2+ partners'
-  children into the bounded subset side-by-side — the configuration
-  where barycentric *should* activate; re-run `crossings-baseline.test.ts`
-  with phase-4 fixtures and observe). if still no-op, escalate to
-  algorithm upgrade (median barycentric, alternating inward sweep, or
-  per-swap geometric-crossing transposition pass).
+  production fixture *including the phase-4 secondary-union-expanded
+  configuration* (akarians root=1/dense=4/leaf=0, dense-tree=9, multi-
+  union=0 closed-form / 0 with secondary expanded; all delta=0).
+  monotone gate correctly rejects candidate layouts that don't
+  strictly reduce geometric crossings, but the slot-index barycentric
+  heuristic's reorderings either match the pre-pass slot order
+  (`planMapsDiffer` returns false) or produce equal-or-worse
+  geometric counts. root cause: in family-view's bus-and-stub
+  geometry, edges sharing a person (couple-bus + parent-stem + sibling-
+  bus + per-kid stubs all share the partner pair) are filtered out
+  of the strict-cross definition. heuristic-vs-geometry gap is
+  *structural*, not fixture-dependent. → **escalated to wave-3 or
+  follow-up phase** (algorithm upgrade required: median barycentric,
+  alternating inward sweep, or per-swap geometric-crossing
+  transposition). phase-2-plan-revise's hypothesis ("phase-4 fixture
+  will activate it") closed: measured, didn't.
 
 - **B16** `parentsOfPerson` / `childrenOfPerson` in `engines/family-view/layout.ts`
   walk `tree.couples` and `getUnions(tree)` linearly per call.
@@ -131,7 +128,28 @@ boundary (git history is the trace).
   wave-2 phase-internal flags have View-menu surface. → **deferred**
   (low-priority polish; if/when 4 flags exist together, surface
   them as a View > Advanced submenu rather than dripping individual
-  toggles).
+  toggles). phase 4 added a 4th flag-without-toggle (`secondaryUnion`)
+  to the same backlog — the View > Advanced submenu wishlist is
+  ripe for harvesting.
+
+## open (phase 4 findings — 2026-05-23)
+
+- **B21** union-fan ordering puts focus at the *edge* of rank 0
+  instead of the centre. when a 2-expanded focus renders with
+  primary + secondary, planRank iterates `tree.couples` and emits
+  a `couple` slot for the primary union (containing both focus +
+  primary partner per the orientation rule) followed by a `single`
+  slot for the secondary partner. visual result: focus is leftmost
+  (or rightmost depending on orientation), primary partner middle,
+  secondary partner far side — secondary couple-bus runs diagonally
+  across primary partner's card. visible in
+  `tests/e2e/visual-secondary-union.spec.ts-snapshots/`. ideal:
+  focus in the middle with both partners flanking, both buses short
+  + non-crossing. fix is ~10 lines in planRank: detect a focus with
+  expanded secondary unions and emit slots in
+  `[primary-partner, focus, secondary-partner]` order. → **deferred**
+  (functionally correct v1 ship; visually busy polish; lands when
+  prioritised. visual golden re-baselines on close).
 
 ## owned elsewhere (handed off, not duplicated here)
 
@@ -146,6 +164,18 @@ boundary (git history is the trace).
 
 ## closed
 
+- **multi-union renderer commits to one-union-at-a-time** (wave-1
+  ship-gate carryover) → closed in phase 4 (2026-05-23). 2-expanded-
+  unions-max (1 primary + 1 secondary) via `useSecondaryUnionState`
+  state hook +
+  `fte.family-view.secondary-union.v1:{treeId}:{focusId}` localStorage
+  key + `expandedSecondaryUnions` option on `LayoutOptions` +
+  `subset.ts` pull-in at focus rank + `˅` picker menu's new "also
+  show ... alongside" / "hide ..." actions. `fte.layout.familyView
+  SecondaryUnion` flag default-on. 16 unit cases + 2 e2e cases
+  (chromium-only per B4) + 1 new visual golden. B15 follow-up
+  recorded inside `crossings-baseline.test.ts`. 3+ expansion stays
+  routed to follow-up.
 - **no smooth-diff animation** (wave-1 ship-gate carryover) → closed
   in phase 3 (2026-05-23). CSS-transition-on-transform (250ms
   cubic-bezier) on card + badge wrapper divs;
@@ -156,28 +186,3 @@ boundary (git history is the trace).
   motion-sensitive users. 3 e2e cases × 2 projects = 6 green; 1
   visual golden re-baselined (add-relative), 5 byte-identical.
   edges + mount/unmount jump-cut → B18/B19; flag has no UI → B20.
-- **family-view layout has no crossing-minimisation** (wave-1 ship-
-  gate carryover) → closed in phase 2 (2026-05-23). barycentric
-  slot-index pass with monotone geometric-crossing gate landed at
-  `apps/web/src/lib/layout/engines/family-view/layout.ts`;
-  `fte.layout.familyViewCrossingMin` localStorage flag default-on;
-  6 unit cases + cross-fixture baseline; perf overhead 1-2ms /
-  9-11% on akarians 3-expand. follow-up routed to B15.
-- **B11** `orientCouple` swaps left/right by personId lex order →
-  closed in phase 2 (2026-05-23) via `tests/_helpers/family-view.ts`
-  `pickLeftRight(layout, ids)` + `leftmostAtRank(layout, rank)`
-  helpers. routes test assertions through observed `layout.nodes[].x`
-  instead of `tree.couples`-field-order assumptions. 6 helper unit
-  tests at `tests/unit/_helpers/family-view.test.ts`; consumed by
-  the new `crossingMin.test.ts` opt-out contract case.
-- **playwright cache skew on fresh worktree** (phase 1 finding) →
-  closed in phase 2 (2026-05-23, no-action). re-verified at phase
-  2 start: the worktree's `pnpm-lock` actually resolved
-  `@playwright/test@1.59.1` (chromium-1217), matching the warm
-  cache — phase 1's recorded version skew did not reproduce. cache
-  `~/.cache/ms-playwright/` carries both 1217 and 1223 builds. note
-  still useful for fresh-machine onboarding; not a code finding.
-- RV-Phase-3b treeDiff round-trip WIP (wave-1 ship-gate blocker)
-  → shipped in `aba7de0` (14 May 2026); always-on `tree.unions[]`
-  + family-view N>2-partner renderer landed together. gc candidate
-  after phase 4 closes.
