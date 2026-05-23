@@ -47,4 +47,48 @@ per user direction, phase 1 starts immediately without waiting for hardware prob
 - golden-baseline item demoted from "blocker (phase 0a DoD)" to "important (gates phase 4)" — the harness exists; capturing the baseline is per-phase work.
 - `visual-path-highlight` regression triaged as "deferred / pre-existing" pending verification on `trunk`. not a cropper regression.
 
+no phase reordered, rewritten, inserted, or deleted. next: **phase 1 — pan/zoom interaction**.
+
+## starting phase 1 — 2026-05-23
+
+- worktree: `.claude/worktrees/portrait-cropper-rewrite-phase1` (distinct path because phase 0a's worktree is being preserved per user instruction)
+- branch: `phase/portrait-cropper-rewrite/1` (off `phase/portrait-cropper-rewrite/0a` @ `f5d5578`)
+- scope re-confirmed against `plan.md`. no drift; pan/zoom math is built on top of phase 0a's `cropperMath.ts` and `CropperCanvas.svelte`.
+- DoD (cross-phase shape):
+  1. desktop drag-pan moves the image under a still crop frame; wheel-zoom anchored to the cursor; min zoom = cover, max zoom = 4×.
+  2. touch one-finger drag-pan and two-finger pinch-zoom (centroid-anchored).
+  3. image always covers the crop frame across every gesture combination.
+  4. saved output matches what's framed at commit time.
+  5. existing 600×600 portraits render unchanged through `PortraitUrlCache.get(blobId)` — integration check at end of phase.
+- **open risk:** multi-touch hardware probe still pending (phase 0a bug log). phase 1 ships and verifies on desktop unconditionally; mobile-pinch path is implemented per spec but the "tester on a touch device" half of the DoD remains unverified until the probe lands. rollback criterion (drop `<dialog>` for a custom overlay) stays armed.
+- merge gate: deferred per user instruction (`do not merge`). worktree + branch will be left in place after step 5.
+
 no phase reordered, rewritten, inserted, or deleted. phase 0a marked "closed (code) / open (hardware probes + golden baseline routed to bugs.md)". next: **phase 1 — pan/zoom interaction**.
+
+## phase 1 retro — 2026-05-23
+
+**what landed vs spec**
+- math: `panTransform`, `anchorZoom`, `clampTransform` in `cropperMath.ts` with 6 new unit cases (12 total, all pass). `MAX_ZOOM_MULTIPLE` exported as the named constant for cover×4 max.
+- interaction: single-pointer pan, two-pointer centroid-anchored pinch-zoom (incremental factor pattern keeps each move close to 1.0), wheel-zoom anchored to the cursor with `ctrl/no-ctrl` intensities matching `TreeCanvas`. `setPointerCapture` on each pointerdown — capture redirects move/up events even off-canvas, so no window-level listeners needed.
+- cursor states: `grab` default, `grabbing` while `dragging` flag is set.
+- cover-clamp: an explicit `$effect` re-clamps when the source swaps, so a fresh bitmap can never start outside its cover bounds.
+- dialog change: transform demoted from `$derived(bitmap)` to `$state`, seeded in `loadSource` alongside the bitmap. cleanup resets it. public props unchanged.
+
+**what was not closed (open risk)**
+- DoD parts (2) and "tester on a touch device" — multi-touch hardware probe still pending from phase 0a. mobile-pinch code is implemented per spec but unverified on real ios safari. rollback criterion (custom-overlay fallback) stays armed.
+- integration check item (5) — existing portraits render unchanged through `PortraitUrlCache.get(blobId)`. verified by construction (no code along that path changed) rather than by a live click-through. could become a live e2e flow once the placeholder spec is upgraded out of `test.skip`.
+
+**surprises**
+- typecheck caught an unused `pinchStartScale` variable on the first run. the incremental-factor pattern (reset baseline each move) doesn't need a saved scale; original sketch did and i forgot to clean it up. small but illustrative of the cost of carrying premature state.
+- prettier picked up enough formatting drift on the touched files (notably the dialog) to be worth a `pnpm format` pass before lint. consider adding an editorconfig nudge in future setup notes.
+- bundle delta from the phase: +1.79 kB (524.63 → 526.42 kB) for the gesture handlers + math. inside the 500 kB warning band already, so no new noise.
+
+**residual debt**
+- no new bug-log entries from phase 1. all blockers carry over from phase 0a (hardware probes, golden baseline, `visual-path-highlight` deferred).
+- the `$bindable` transform + the cover-clamp `$effect` could plausibly thrash if a future phase makes the dialog write transform on every prop change. note for phase 4: be careful adding theming controls that touch the transform.
+
+## revision after phase 1 — 2026-05-23
+
+plan shape unchanged. phase 0b (cropperjs removal) is the next phase by plan order but remains gated on the hardware probes returning green — those have not been run. if probes are still pending when phase-loop resumes, **propose skipping 0b and starting phase 2a (entry ergonomics)**, leaving 0b for after the probes land. 2a does not depend on 0b.
+
+no phase reordered, rewritten, inserted, or deleted. bugs.md carries the same three open items from phase 0a. next (by plan): **phase 0b — cropperjs removal**, gated on probes. alternative (if probes still pending): **phase 2a — entry ergonomics**.
