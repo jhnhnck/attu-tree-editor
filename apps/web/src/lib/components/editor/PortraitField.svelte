@@ -31,6 +31,11 @@
     // pastes elsewhere in the inspector or document.
     let focused = $state(false);
     let rootEl: HTMLDivElement | undefined = $state();
+    // stable ref on the upload/replace button so we can return focus there
+    // after the cropper dialog closes. used by onDialogClose(); guarded for
+    // staleness because a parent re-render (e.g., personId swap) can replace
+    // the button mid-flight, leaving the ref pointing at a detached node.
+    let replaceBtn: HTMLButtonElement | undefined = $state();
 
     let url = $derived(portraitUrls.get(currentBlobId));
 
@@ -129,6 +134,22 @@
     function onRemove(): void {
         onchange(undefined);
     }
+
+    // restore focus to the upload/replace button when the cropper dialog closes
+    // so the keyboard user lands somewhere meaningful. if the stable ref has
+    // gone stale (parent re-rendered, e.g., personId swapped while open), warn
+    // loudly in dev rather than silently leaking focus to document.body —
+    // matches pre-mortem risk #6.
+    function onDialogClose(): void {
+        pendingSource = undefined;
+        if (replaceBtn && replaceBtn.isConnected) {
+            replaceBtn.focus();
+        } else if (import.meta.env.DEV) {
+            console.warn(
+                "PortraitField: replace-button ref stale on dialog close; focus not restored",
+            );
+        }
+    }
 </script>
 
 <svelte:window onpaste={onPaste} />
@@ -162,6 +183,7 @@
     </div>
     <div class="flex gap-1.5">
         <button
+            bind:this={replaceBtn}
             type="button"
             onclick={pickFile}
             class="text-fg bg-canvas border-line hover:border-accent inline-flex items-center rounded border px-2 py-1 text-xs"
@@ -184,7 +206,7 @@
 <CropperDialog
     source={pendingSource}
     onsave={(bytes: Uint8Array, mime: string) => void onCropped(bytes, mime)}
-    onclose={() => (pendingSource = undefined)}
+    onclose={onDialogClose}
 />
 
 <style>

@@ -9,6 +9,7 @@
     import { loadSourceBitmap, type SourceBitmap } from "$lib/components/editor/loadSourceBitmap";
     import { encodePortrait } from "$lib/components/editor/encodePortrait";
     import {
+        coverScale,
         extractSourceRect,
         initialCoverTransform,
         type Transform,
@@ -41,11 +42,35 @@
     // user-mutable; the canvas updates this via $bindable as the user pans/zooms.
     // re-initialized each time a fresh bitmap is loaded.
     let transform = $state<Transform | undefined>(undefined);
+    // raised to true on dialog open so CropperCanvas takes initial focus; reset
+    // when the dialog closes so the next open re-triggers the focus effect.
+    let canvasAutofocus = $state(false);
+    // aria-live readout text, debounced so screen readers don't fire on every
+    // mouse-wheel tick.
+    let liveZoom = $state("");
+    let liveTimer: ReturnType<typeof setTimeout> | undefined;
+
+    let zoomPercent = $derived.by(() => {
+        if (!bitmap || !transform) return 100;
+        const cover = coverScale({ w: bitmap.width, h: bitmap.height }, { w: FRAME_W, h: FRAME_H });
+        if (cover <= 0) return 100;
+        return Math.round((transform.scale / cover) * 100);
+    });
+
+    $effect(() => {
+        // debounced aria-live update. fires ~250ms after the last zoom change.
+        const pct = zoomPercent;
+        if (liveTimer) clearTimeout(liveTimer);
+        liveTimer = setTimeout(() => {
+            liveZoom = `${pct}% zoom`;
+        }, 250);
+    });
 
     $effect(() => {
         if (!dialogEl) return;
         if (source && !dialogEl.open) {
             dialogEl.showModal();
+            canvasAutofocus = true;
             void loadSource(source);
         }
         if (!source && dialogEl.open) {
@@ -106,6 +131,9 @@
         bitmap = undefined;
         transform = undefined;
         lastLoaded = undefined;
+        canvasAutofocus = false;
+        if (liveTimer) clearTimeout(liveTimer);
+        liveZoom = "";
     }
 
     onDestroy(cleanup);
@@ -134,8 +162,18 @@
         </header>
 
         <div class="bg-canvas flex items-center justify-center p-6">
-            <CropperCanvas source={bitmap} frameW={FRAME_W} frameH={FRAME_H} bind:transform />
+            <CropperCanvas
+                source={bitmap}
+                frameW={FRAME_W}
+                frameH={FRAME_H}
+                bind:transform
+                autofocus={canvasAutofocus}
+                oncommit={() => void save()}
+                oncancel={() => onclose()}
+            />
         </div>
+
+        <output aria-live="polite" class="sr-only">{liveZoom}</output>
 
         {#if !bitmap && !error}
             <p class="text-fg-muted px-5 py-1 text-xs">loading image…</p>
@@ -145,7 +183,10 @@
             <p class="px-5 py-2 text-xs text-red-400" role="alert">{error}</p>
         {/if}
 
-        <footer class="border-line bg-canvas-elev flex justify-end gap-2 border-t px-5 py-3">
+        <footer
+            class="border-line bg-canvas-elev flex items-center justify-end gap-2 border-t px-5 py-3"
+        >
+            <span class="text-fg-muted mr-auto text-xs" aria-hidden="true">{zoomPercent}%</span>
             <Button type="button" variant="ghost" onclick={() => onclose()}>
                 {#snippet children()}cancel{/snippet}
             </Button>

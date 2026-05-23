@@ -1,8 +1,8 @@
 <!--
-    FamilyTreeEditor - canvas-backed cropper renderer with pan/zoom (phase 1)
-    single-pointer pan, two-pointer pinch-zoom (centroid-anchored), wheel-zoom
-    (cursor-anchored). transform is mutated in place via $bindable so the
-    dialog can read it for the encode step.
+    FamilyTreeEditor - canvas-backed cropper renderer with pan/zoom + keyboard
+    pointer/wheel from phase 1; phase-3 adds arrow-pan, +/- zoom, 0 reset,
+    enter/esc commit/cancel, focus management, and an aria-live zoom %.
+    transform is mutated via $bindable so the dialog can read it on save.
     licensed under the MIT license; see LICENSE.md for full text
 -->
 <script lang="ts">
@@ -10,6 +10,7 @@
     import {
         anchorZoom,
         clampTransform,
+        initialCoverTransform,
         panTransform,
         type Transform,
     } from "$lib/components/editor/cropperMath";
@@ -20,9 +21,23 @@
         frameH: number;
         /** bindable transform; mutated by gestures, read by the dialog on save */
         transform: Transform | undefined;
+        /** keyboard commit (enter) — caller saves the framed crop */
+        oncommit?: () => void;
+        /** keyboard cancel (esc) — caller closes the dialog */
+        oncancel?: () => void;
+        /** focus-on-mount: dialog sets this to true when it opens */
+        autofocus?: boolean;
     }
 
-    let { source, frameW, frameH, transform = $bindable() }: Props = $props();
+    let {
+        source,
+        frameW,
+        frameH,
+        transform = $bindable(),
+        oncommit,
+        oncancel,
+        autofocus = false,
+    }: Props = $props();
 
     let canvasEl: HTMLCanvasElement | undefined = $state();
     let dpr = $state(1);
@@ -161,6 +176,67 @@
         transform = withClamp(anchorZoom(transform, cx, cy, factor));
     }
 
+    // keyboard map: arrow keys pan (shift = 10× step), +/- zoom around the
+    // canvas center, 0 resets to cover-fit, enter saves, esc cancels.
+    function onKeyDown(e: KeyboardEvent): void {
+        if (!transform || !source) return;
+        const step = e.shiftKey ? 10 : 1;
+        const zoomStep = 1.1;
+        const cx = frameW / 2;
+        const cy = frameH / 2;
+        switch (e.key) {
+            case "ArrowLeft":
+                e.preventDefault();
+                transform = withClamp(panTransform(transform, step, 0));
+                return;
+            case "ArrowRight":
+                e.preventDefault();
+                transform = withClamp(panTransform(transform, -step, 0));
+                return;
+            case "ArrowUp":
+                e.preventDefault();
+                transform = withClamp(panTransform(transform, 0, step));
+                return;
+            case "ArrowDown":
+                e.preventDefault();
+                transform = withClamp(panTransform(transform, 0, -step));
+                return;
+            case "+":
+            case "=":
+                e.preventDefault();
+                transform = withClamp(anchorZoom(transform, cx, cy, zoomStep));
+                return;
+            case "-":
+            case "_":
+                e.preventDefault();
+                transform = withClamp(anchorZoom(transform, cx, cy, 1 / zoomStep));
+                return;
+            case "0":
+                e.preventDefault();
+                transform = initialCoverTransform(
+                    { w: source.width, h: source.height },
+                    { w: frameW, h: frameH },
+                    cx,
+                    cy,
+                );
+                return;
+            case "Enter":
+                e.preventDefault();
+                oncommit?.();
+                return;
+            case "Escape":
+                e.preventDefault();
+                oncancel?.();
+                return;
+        }
+    }
+
+    $effect(() => {
+        if (autofocus && canvasEl) {
+            canvasEl.focus();
+        }
+    });
+
     $effect(() => {
         void frameW;
         void frameH;
@@ -189,16 +265,23 @@
     });
 </script>
 
+<!-- svelte-ignore a11y_no_interactive_element_to_noninteractive_role -->
+<!-- the cropper is a custom widget with arrow / +/- / enter / esc keyboard
+     semantics that don't match any standard control; role=application tells
+     ATs to defer to the widget's own key handling. -->
 <canvas
     bind:this={canvasEl}
     class="cropper-canvas block touch-none select-none"
     class:dragging
-    aria-label="portrait crop preview"
+    role="application"
+    tabindex="0"
+    aria-label="portrait crop preview. arrow keys pan, plus and minus zoom, zero resets, enter saves, escape cancels."
     onpointerdown={onPointerDown}
     onpointermove={onPointerMove}
     onpointerup={onPointerUp}
     onpointercancel={onPointerUp}
     onwheel={onWheel}
+    onkeydown={onKeyDown}
 ></canvas>
 
 <style>
@@ -209,5 +292,9 @@
     }
     .cropper-canvas.dragging {
         cursor: grabbing;
+    }
+    .cropper-canvas:focus-visible {
+        outline: 2px solid var(--color-accent);
+        outline-offset: 2px;
     }
 </style>

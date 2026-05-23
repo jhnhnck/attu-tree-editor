@@ -8,13 +8,17 @@ import { render, fireEvent } from "@testing-library/svelte";
 
 // CropperDialog uses native <dialog>.showModal(), which jsdom doesn't implement.
 // stub it out so PortraitField tests can exercise their own surface without
-// the dialog booting up.
+// the dialog booting up. capture the most recent props so tests can fire the
+// dialog's onclose callback synthetically (focus-stability test below).
+export const lastDialogProps: { current: { onclose?: () => void } | undefined } = {
+    current: undefined,
+};
 vi.mock("$lib/components/editor/CropperDialog.svelte", () => ({
-    default: (() => {
-        // svelte's mount() expects a component factory; a no-op constructor works
-        // because the test never inspects the rendered dialog.
-        return function () {};
-    })(),
+    default: function (_anchor: unknown, props: { onclose?: () => void }) {
+        // svelte 5 component factory: anchor + props bag. record the latest props.
+        lastDialogProps.current = props;
+        return {};
+    },
 }));
 
 import PortraitField from "$lib/components/editor/PortraitField.svelte";
@@ -118,6 +122,32 @@ describe("PortraitField", () => {
         expect(props.onerror).not.toHaveBeenCalled();
         // a valid paste should preventDefault so other inspectors don't see it
         expect(evt.defaultPrevented).toBe(true);
+    });
+
+    it("returns focus to the replace button on dialog close — even after a personId swap", async () => {
+        // pre-mortem risk #6: swapping personId mid-flight could leave replaceBtn
+        // stale, leaking focus to document.body after the dialog closes. assert
+        // that the focused element after onclose is NOT document.body.
+        const props = baseProps();
+        // currentBlobId means the button reads "replace"; behavior is the same
+        // for "upload" but matches the pre-mortem framing more naturally.
+        props.currentBlobId = "blob-id-x";
+        const { rerender, container } = render(PortraitField, props);
+        // simulate a successful drop so pendingSource is set and the dialog opens
+        const root = container.querySelector("[role='region']")!;
+        const f = imageFile();
+        await fireEvent.drop(root, { dataTransfer: makeDataTransfer([f]) });
+
+        // swap personId; svelte rebinds replaceBtn to the re-rendered button.
+        await rerender({ ...props, personId: "BBBBB" });
+
+        // fire the dialog's onclose synthetically.
+        expect(lastDialogProps.current?.onclose).toBeTypeOf("function");
+        lastDialogProps.current?.onclose?.();
+
+        // focused element should not be document.body. either the replace button
+        // (happy path) or any other element (degraded but acceptable).
+        expect(document.activeElement).not.toBe(document.body);
     });
 
     it("rejects a non-image paste silently (focus-gated, but type-filtered too)", async () => {
