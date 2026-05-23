@@ -7,7 +7,8 @@ recoverable via git history), plus the `tooling / infra` section of
 [../to-do.md](../to-do.md). The layered engine is demoted to a power-
 user toggle once family-view ships, but the three bugs degrade it
 visibly today and the tooling work helps the upcoming phase work on
-the [family-view-w2.md](./family-view-w2.md) successor plan.
+the family-view-w2 successor plan (retired 23 May 2026; recoverable
+via git history).
 
 This plan is intentionally scoped narrow: no new features, no engine
 rework, no schema bumps. Every item is bounded to a single pass file,
@@ -119,7 +120,7 @@ the relationship-vocabulary.md schema work landed alongside it (see
 notes below remain as planning context describing why this plan
 stayed out of certain files and where coordination boundaries
 landed; the successor plan for ongoing family-view work is
-[family-view-w2.md](./family-view-w2.md)._
+family-view-w2 (retired 23 May 2026; recoverable via git history)._
 
 - **family-view.md Phase 2** (union-as-anchor) will adopt the same
   father-left orientation rule. Phase 1 of this plan delivers the
@@ -1005,8 +1006,8 @@ Low. Doc + decision work; no code paths touched.
 - [to-do.md](../to-do.md) — the `tooling / infra` section.
 - `notes/plans/family-view.md` (retired; recoverable via git
   history) — coordination on spouse orientation (Phase 2), engine
-  quick-switch (Phase 6). Successor plan is
-  [family-view-w2.md](./family-view-w2.md).
+  quick-switch (Phase 6). Successor plan family-view-w2 also
+  retired 23 May 2026; recoverable via git history.
 - `notes/plans/relationship-vocabulary.md` (retired; recoverable
   via git history) — bounds on `layer.ts` work this plan does NOT
   touch (Phase 2 there); pre-Phase-2 ordering check. Shipped
