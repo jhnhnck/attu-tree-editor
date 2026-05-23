@@ -288,12 +288,22 @@
     }
 
     let dragAnchor: Complex | undefined;
+    // pointerdown position + background-target flag, used to classify the
+    // matching pointerup as either a real drag (commit Möbius) or a tap on
+    // disk background (clear selection).
+    const TAP_THRESHOLD_PX = 4;
+    let pointerDownPx: { x: number; y: number; onBackground: boolean } | null = null;
 
     function onPointerDown(e: PointerEvent): void {
+        pointerDownPx = null;
         // Only LMB pans; ignore clicks on PersonNode (handled there).
         if (e.button !== 0) return;
         const target = e.target as Element | null;
         if (target?.closest(".hyp-person")) return;
+        // cluster glyphs and the tuning panel handle their own clicks;
+        // a pointerdown landing on them is not a background tap.
+        if (target?.closest(".hyp-cluster")) return;
+        if (target?.closest(".hyp-tuning")) return;
         const rect = hostEl?.getBoundingClientRect();
         if (!rect) return;
         const px = e.clientX - rect.left;
@@ -302,6 +312,7 @@
         const r = Math.hypot(px - diskCx, py - diskCy);
         if (r > diskRadius + 8) return;
         dragAnchor = pixelToLayoutDisk(px, py);
+        pointerDownPx = { x: e.clientX, y: e.clientY, onBackground: true };
         (e.target as Element).setPointerCapture?.(e.pointerId);
         e.preventDefault();
     }
@@ -333,22 +344,36 @@
         dragLive = translationFromTo(viewedAnchor, clampedPointer);
     }
 
-    function onPointerUp(_e: PointerEvent): void {
+    function onPointerUp(e: PointerEvent): void {
         if (!dragAnchor) {
             dragLive = undefined;
+            pointerDownPx = null;
             return;
+        }
+        // classify tap vs drag from the actual pointer travel; a tiny
+        // jitter under the threshold still counts as a tap even if
+        // onPointerMove already created a dragLive translation.
+        let wasTap = false;
+        if (pointerDownPx?.onBackground) {
+            const dx = e.clientX - pointerDownPx.x;
+            const dy = e.clientY - pointerDownPx.y;
+            wasTap = Math.hypot(dx, dy) <= TAP_THRESHOLD_PX;
         }
         // Bake what the user has been seeing — dragLive ∘ viewBase — into
         // a single canonical Mobius. Composition of two pure translations
         // is not itself a pure translation (it picks up a rotation), so we
-        // recover (a, θ) from sampling rather than algebraically.
-        if (dragLive) {
+        // recover (a, θ) from sampling rather than algebraically. Skip
+        // the bake on a tap so a sub-threshold drift doesn't subtly
+        // rotate the disk on every background click.
+        if (dragLive && !wasTap) {
             const live = dragLive;
             const base = viewBase;
             viewBase = mobiusFromFn((z) => live(applyMobius(base, z)));
         }
         dragLive = undefined;
         dragAnchor = undefined;
+        pointerDownPx = null;
+        if (wasTap) ondeselect?.();
     }
 
     // ---------- recenter on a person ------------------------------------

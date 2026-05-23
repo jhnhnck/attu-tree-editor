@@ -40,7 +40,6 @@
 - :o: `medium priority` `low effort` PersonNode portraits render stretched inside the card portrait slot - portrait region itself is correct at `CARD_H * 2 = 2.4u` (fixed 22 May 2026) but the image fill uses the wrong `object-fit` mode in some cases. switch to `object-fit: cover` and crop excess vertical
 - :o: `medium priority` `low effort` toasts (top-right corner) overlap the inspector panel when the inspector docks right - toast content becomes unreachable. fix: anchor toasts top-center, or offset by the inspector width when the inspector is open on that side
 - :o: `medium priority` `no effort` inspector Connections-tab "trace path to…" sets `traceTargetId` but no canvas highlight paints - button at `ConnectionsTab.svelte:705` invokes `onsetTraceTarget` (line 240); the consumer downstream is missing or broken. suggested fix: remove the action (subsumed by the "selectable lineage trace" feature in to-do.md) unless we wire it through
-- :o: `low priority` `low effort` clicking the empty canvas background doesn't clear the current selection - tap on empty space should fire `setSelection(null)`; today the selection persists. add a pointerup-with-no-drag handler on the canvas root
 - :o: `low priority` `low effort` Tree > "center on root" recentres viewport on the root person but doesn't also select them - users often want both. add `setSelection(rootId)` alongside the existing `centerOn(rootId)` call in the command handler
 - :o: `medium priority` `low effort` zoom fit-to-window overflows the canvas UI box - the fit calculation doesn't account for the inspector/menu/topbar chrome, so the fitted tree extends underneath them. include the visible chrome insets when computing fit bounds
 - :o: `medium priority` `low effort` auto-fit (fit-to-window) doesn't vertically centre the tree in the viewport - tree lands top-aligned with empty space below. correct the y-offset in the fit computation to centre tree height within available viewport height
@@ -50,6 +49,7 @@
 
 ## fixed
 
+- :red_circle: `23 May 2026` clicking the empty canvas background doesn't clear the selection - pointerup-with-no-drag deselect added to TreeCanvas / FamilyViewCanvas / HyperbolicCanvas; cards / cluster glyphs / tuning panel filtered out.
 - :red_circle: `23 May 2026` family-view zoom is not centered and 100% is not a stable reference - anchor-aware `setScale` shipped across all 3 engine canvases (FamilyViewCanvas, TreeCanvas, HyperbolicCanvas); widget +/- / slider / exact-percent paths default to viewport-center, wheel + pinch keep cursor anchors. semantic 100% derived from `getBoundingClientRect().width / DESIGN_CARD_WIDTH_PX (320)`; `fte.zoom.semantic100` localStorage flag default-on. closed by family-view-w2 (retired plan; see git history) phase 0b.
 - :red_circle: `23 May 2026` on-path stroke and ring are raw Tailwind classes - `--fte-on-path-stroke-width` + `--fte-on-path-ring-color` theme tokens added in `app.css`; consumed by `.family-view-onpath-edge` + `.family-view-onpath` rules. closed by family-view-w2 (retired plan; see git history) phase 0.
 - :red_circle: `23 May 2026` smooth-diff animation absent - CSS-transition-on-transform (250ms cubic-bezier) on card + badge wrapper divs; `fte.overlays.smoothDiff` localStorage flag default-on; `.family-view-smooth-card` class + `data-smooth-diff="true"` attribute drive declarative wiring; global `prefers-reduced-motion: reduce` zeroes the transition. SVG edges + mount/unmount jump-cut as known scope-bounds (see to-do.md for the completeness follow-ups). closed by family-view-w2 (retired plan; see git history) phase 3.
@@ -101,5 +101,5 @@ if a feature in `to-do.md` turns up a defect during implementation, file the def
 
 ```yaml
 last_updated: 23 May 2026
-total_fixed: 7
+total_fixed: 8
 ```

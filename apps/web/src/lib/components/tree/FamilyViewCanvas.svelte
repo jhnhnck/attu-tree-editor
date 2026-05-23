@@ -391,7 +391,9 @@
 
     // ---------- pointer / wheel handlers ----------
 
-    let dragStart: { x: number; y: number; pX: number; pY: number } | undefined;
+    /** pixels of pointer travel below which a pointerup counts as a tap. */
+    const DRAG_THRESHOLD_PX = 4;
+    let dragStart: { x: number; y: number; pX: number; pY: number; moved: boolean } | undefined;
 
     function onPointerDown(e: PointerEvent): void {
         const target = e.target as HTMLElement | null;
@@ -403,18 +405,31 @@
         // Click outside any picker closes it.
         if (pickerOpenFor !== null) pickerOpenFor = null;
         if (addOpenFor !== null) addOpenFor = null;
-        dragStart = { x: e.clientX, y: e.clientY, pX: panX, pY: panY };
+        dragStart = { x: e.clientX, y: e.clientY, pX: panX, pY: panY, moved: false };
         (e.target as Element).setPointerCapture?.(e.pointerId);
     }
 
     function onPointerMove(e: PointerEvent): void {
         if (!dragStart) return;
-        panX = dragStart.pX + (e.clientX - dragStart.x);
-        panY = dragStart.pY + (e.clientY - dragStart.y);
+        const dx = e.clientX - dragStart.x;
+        const dy = e.clientY - dragStart.y;
+        if (!dragStart.moved && Math.hypot(dx, dy) > DRAG_THRESHOLD_PX) {
+            dragStart.moved = true;
+        }
+        if (dragStart.moved) {
+            panX = dragStart.pX + dx;
+            panY = dragStart.pY + dy;
+        }
     }
 
     function onPointerUp(_e: PointerEvent): void {
+        if (!dragStart) return;
+        const wasDrag = dragStart.moved;
         dragStart = undefined;
+        // pointerdown's card / control filters above mean we only reach
+        // here on the canvas background; a no-drag pointerup is a tap on
+        // empty space, which clears the current selection.
+        if (!wasDrag) ondeselect?.();
     }
 
     function onWheel(e: WheelEvent): void {

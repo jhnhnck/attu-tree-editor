@@ -391,10 +391,11 @@
         }
     }
 
-    /** deselect when clicking the canvas background (not a card) */
-    function onHostClick(e: MouseEvent): void {
-        if (e.target === hostEl || e.target === panEl) ondeselect?.();
-    }
+    // deselect-on-background-click is now handled in onWindowPointerUp,
+    // which sees both a "no drag" flag and the original pointerdown
+    // target. that path is reliable when the click event has been
+    // suppressed (e.g. after a drag) and avoids ambiguity with the
+    // pointer-events-none svg layer above the cards.
 
     /** Escape deselects; arrow keys move selection geometrically */
     function onHostKeyDown(e: KeyboardEvent): void {
@@ -768,7 +769,25 @@
         startPanX: number;
         startPanY: number;
         moved: boolean;
+        // true when pointerdown's initial target was the canvas host / pan
+        // stage / inner svg - i.e. background, not a card or other control.
+        // a pointerup with no drag movement from such a target clears
+        // the current selection.
+        onBackground: boolean;
     } | null = null;
+
+    // true if `el` is the canvas background (host, pan stage, or the
+    // pointer-events-none svg layer beneath the cards). cards bind their
+    // own onclick handlers but don't stop pointerdown, so we have to
+    // distinguish here rather than relying on event propagation.
+    function isBackgroundTarget(el: EventTarget | null): boolean {
+        if (el === hostEl || el === panEl) return true;
+        if (el instanceof Element && el.tagName.toLowerCase() === "svg") {
+            // the in-stage svg is the only descendant svg
+            return panEl?.contains(el) === true;
+        }
+        return false;
+    }
 
     function onPointerDown(e: PointerEvent): void {
         if (e.button !== 0) return;
@@ -803,6 +822,7 @@
             startPanX: panX,
             startPanY: panY,
             moved: false,
+            onBackground: isBackgroundTarget(e.target),
         };
         window.addEventListener("pointermove", onWindowPointerMove);
         window.addEventListener("pointerup", onWindowPointerUp);
@@ -867,6 +887,9 @@
                         startPanX: panX,
                         startPanY: panY,
                         moved: false,
+                        // reseeded from a pinch; never treat the residual
+                        // single-finger up as a background-tap deselect.
+                        onBackground: false,
                     };
                 } else {
                     cleanupDrag();
@@ -877,6 +900,7 @@
 
         if (!dragState || e.pointerId !== dragState.pointerId) return;
         const moved = dragState.moved;
+        const onBackground = dragState.onBackground;
         cleanupDrag();
         if (moved) {
             // suppress the click that would otherwise fire on a card after a pan
@@ -886,6 +910,11 @@
                 window.removeEventListener("click", suppressNext, true);
             };
             window.addEventListener("click", suppressNext, true);
+        } else if (onBackground) {
+            // tap on the empty canvas (no drag, no card hit) clears
+            // the current selection. card clicks set their own onclick
+            // and never set onBackground.
+            ondeselect?.();
         }
     }
 
@@ -903,6 +932,7 @@
                         startPanX: panX,
                         startPanY: panY,
                         moved: false,
+                        onBackground: false,
                     };
                 } else {
                     cleanupDrag();
@@ -1111,7 +1141,6 @@
     aria-label="family tree canvas"
     onwheel={onWheel}
     onpointerdown={onPointerDown}
-    onclick={onHostClick}
     onkeydown={onHostKeyDown}
     oncontextmenu={(e) => e.preventDefault()}
 >

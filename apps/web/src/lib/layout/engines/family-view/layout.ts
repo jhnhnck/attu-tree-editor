@@ -199,7 +199,14 @@ export function computeLayout(
         const scores = computeDoiScores({ tree, focus: focusId });
         const protect = new Set<PersonId>([focusId, ...expanded]);
         while (visibleCount > threshold) {
-            const victim = pickCollapseVictim(tree, working, scores, protect, autoCollapsed, expanded);
+            const victim = pickCollapseVictim(
+                tree,
+                working,
+                scores,
+                protect,
+                autoCollapsed,
+                expanded,
+            );
             if (!victim) break;
             autoCollapsed.add(victim);
             working = recomputeAfterCollapse(
