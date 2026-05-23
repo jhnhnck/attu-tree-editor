@@ -8,8 +8,6 @@ boundary (git history is the trace).
 
 ## open (carried in from wave-1 ship-gate)
 
-- no smooth-diff animation → **phase 3 (spike-gated)** (rev 1: was
-  phase 2, swapped to phase 3).
 - multi-union renderer commits to one-union-at-a-time → **phase 4
   (secondary-union expansion; RV phase 3b shipped in `aba7de0`)**
   (rev 1: was "commits to N=2; blocked on RV 3b" — renamed for
@@ -100,6 +98,41 @@ boundary (git history is the trace).
   Map<PersonId, PersonId[]>` would amortise. → **deferred** (perf
   nit; revisit if/when bounded cap changes).
 
+## open (phase 3 findings — 2026-05-23)
+
+- **B18** family-view edges (SVG `<path>` `d` attribute) jump-cut
+  while cards slide via the phase-3 CSS-transition-on-transform.
+  visually noticeable on a careful watch — not flicker, just motion
+  mismatch (cards translate over 250ms; the polylines connecting
+  them snap to their new shape instantly). resolution options if
+  it bothers users: (a) tween `d` via `requestAnimationFrame` path
+  interpolation (~50 lines, some perf cost on dense layouts);
+  (b) ship a small lib (e.g. motion's SVG plugin, ~5 KB) — engages
+  reactive cycle though, so revisits the svelte-5 composition risk
+  the spike intentionally avoided; (c) extract endpoints from card
+  positions and route edges through `<line>` primitives instead of
+  `<path>` so CSS-transition handles them — most invasive. →
+  **deferred** (low-priority polish; revisit on user feedback or
+  if phase 4's secondary-union expansion makes the disconnect more
+  prominent — two parent-couple slots both shifting amplifies the
+  card-vs-edge motion gap).
+- **B19** family-view cards and collapse badges mount/unmount jump-
+  cut when expansion changes the visible set. svelte's
+  `transition:fade={{ duration: 200 }}` directive on the keyed each
+  would give a clean entrance/exit, but adds reactivity-cycle
+  interaction that the phase-3 spike intentionally avoided to
+  satisfy "simplest possible approach". → **deferred** (same
+  trigger as B18; would bundle naturally with it).
+- **B20** no UI toggle for the `fte.overlays.smoothDiff` flag. flag
+  exists in localStorage with `null → on` default; rollback path is
+  to flip the read fallback in App.svelte to `false`, or to
+  individually `localStorage.setItem(key, "false")` for power-users.
+  same precedent as B17 (semantic100), crossingMin — none of the
+  wave-2 phase-internal flags have View-menu surface. → **deferred**
+  (low-priority polish; if/when 4 flags exist together, surface
+  them as a View > Advanced submenu rather than dripping individual
+  toggles).
+
 ## owned elsewhere (handed off, not duplicated here)
 
 - `emitFinding` lacks server-side persistence → RV workstream's
@@ -113,6 +146,16 @@ boundary (git history is the trace).
 
 ## closed
 
+- **no smooth-diff animation** (wave-1 ship-gate carryover) → closed
+  in phase 3 (2026-05-23). CSS-transition-on-transform (250ms
+  cubic-bezier) on card + badge wrapper divs;
+  `fte.overlays.smoothDiff` localStorage flag default-on;
+  `.family-view-smooth-card` class + `data-smooth-diff="true"`
+  attribute drive declarative wiring. global
+  `prefers-reduced-motion: reduce` zeroes the transition for
+  motion-sensitive users. 3 e2e cases × 2 projects = 6 green; 1
+  visual golden re-baselined (add-relative), 5 byte-identical.
+  edges + mount/unmount jump-cut → B18/B19; flag has no UI → B20.
 - **family-view layout has no crossing-minimisation** (wave-1 ship-
   gate carryover) → closed in phase 2 (2026-05-23). barycentric
   slot-index pass with monotone geometric-crossing gate landed at
@@ -134,23 +177,6 @@ boundary (git history is the trace).
   cache — phase 1's recorded version skew did not reproduce. cache
   `~/.cache/ms-playwright/` carries both 1217 and 1223 builds. note
   still useful for fresh-machine onboarding; not a code finding.
-- **collapse-badge e2e skipped on akarians** → closed in phase 1
-  (2026-05-23). new spec `tests/e2e/collapse-badge-end-to-end.spec.ts`
-  + new deterministic `dense-tree.ged` fixture (52 indi, 13 FAMs,
-  bounded subset = 52 cards forcing auto-collapse on default load).
-  three contracts asserted: badge renders on default load; click
-  writes to expansion localStorage; engine-swap round-trip survives
-  with badge present. B14 (badge-click no-op for ancestor sources)
-  routed separately.
-- **shared visual-golden mask helper** → closed in phase 1
-  (2026-05-23). `tests/e2e/_helpers/visual-mask.ts` exposes
-  `maskUnstableUI(page, opts?)` with typed `MaskOptions`. 5 existing
-  goldens migrated; 4 byte-identical, 1 (path-highlight) regenerated
-  to absorb B13.
-- **B13** `visual-path-highlight.spec.ts` golden mismatch → closed
-  in phase 1 (2026-05-23) via golden regeneration. underlying cause
-  — `region.toHaveScreenshot()` capturing document-height-extended
-  bounds — documented but unaddressed.
 - RV-Phase-3b treeDiff round-trip WIP (wave-1 ship-gate blocker)
   → shipped in `aba7de0` (14 May 2026); always-on `tree.unions[]`
   + family-view N>2-partner renderer landed together. gc candidate

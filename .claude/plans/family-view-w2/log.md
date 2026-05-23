@@ -780,3 +780,149 @@ will activate B15 if any).
 - **phase 4 (secondary-union expansion)**: the new
   `--fte-design-card-width` token is reusable if phase 4's union-fan
   geometry needs a design-size reference. no other overlap.
+
+## starting phase 3 — 2026-05-23
+
+- branch: `phase/family-view-w2/3` cut from `phase/family-view-w2/2`
+  tip (`84850ce`), continuing in the same worktree slot
+  `.claude/worktrees/family-view-w2/` per user-instructed no-merge
+  retention (phases 0, 0b, 1, 2 commits all stacked on this branch's
+  ancestry).
+- DoD restated from plan.md:
+  1. spike outcome recorded inline (which approach won, which lost,
+     why) — covers FLIP / view-transitions / motion library choice.
+  2. compositional gate (path-highlight overlay composes without
+     flicker) + mobile gate (Pixel 7 emulator) both closed.
+  3. if shipped: `fte.overlays.smoothDiff` flag default-on; visual +
+     perf e2e probes green on desktop *and* Pixel 7 emulator.
+  4. if deferred: written re-attempt trigger.
+- entry premises re-confirmed: phase 2 closed with monotone gate in
+  place (no layout-pass churn between phases); phase 0b closed with
+  anchor-aware `setScale` + `--fte-design-card-width` token (zoom
+  semantics stable); path-highlight overlay continues to drive
+  `data-on-path` attributes + `.family-view-onpath` ring class swap
+  on card divs (compositional question lands on whether *position*
+  animation fights *class-swap* animation in the same tick).
+- spike strategy: start with the **simplest** approach per the
+  plan's svelte 5 caveat — CSS `transition` on `transform:
+  translate3d(…)` for card position changes. it's the only candidate
+  that (a) needs no library, (b) runs entirely outside svelte's
+  reactivity ordering (the browser owns the tween), (c) is GPU-
+  accelerated by default so should be mobile-safe, and (d) composes
+  trivially with the `data-on-path` class swap (separate CSS
+  properties on the same element, no fight). FLIP / view-transitions /
+  motion library are documented as fallbacks if CSS transition
+  doesn't compose or doesn't hit the fps gate.
+
+## phase 3 retro — 2026-05-23
+
+### spec delta
+- delivered: spike outcome recorded inline (CSS-transition-on-transform
+  wins; FLIP / view-transitions / motion library never spiked because
+  the simplest approach passed compositional + mobile gates on first
+  try). `fte.overlays.smoothDiff` localStorage flag default-on with
+  same null-reads-as-on shape as `pathHighlight` / `crossingMin` /
+  `semantic100`. card positioning switched from `style:left/top` to
+  `style:transform="translate3d(x*UNIT, y*UNIT, 0)"`; the wrapper
+  div gains `.family-view-smooth-card` + `data-smooth-diff="true"`
+  when the flag is on. badges get the same treatment for parity.
+  CSS rule in `app.css` applies a 250ms cubic-bezier transition on
+  `transform` only; the global `prefers-reduced-motion: reduce` rule
+  zeroes it for users who opt out. 3 e2e cases (default-on / flag-off /
+  badges-on-dense-fixture), 2 projects (chromium + mobile) = 6 green.
+- missed / deferred: edges (SVG `<path>` `d` attribute) jump-cut.
+  the SVG path commands aren't directly CSS-transitionable; smoothly
+  animating them would need either a tween library or SMIL or manual
+  rAF interpolation — all of which break the spike's "simplest possible"
+  bound. routed to bugs.md as a known limitation; revisit if user
+  feedback says the disconnect between card-slides and edge-jumps is
+  visually jarring. badge / card mount + unmount also jump-cut (no
+  `transition:fade` directive added) — same rationale.
+- extra: bonus regression coverage — the new spec's flag-off case
+  doubles as a smoke check that the rendering still works when the
+  feature is fully disabled, catching the "I broke the unconditional
+  path while toggling" failure mode that would otherwise need a
+  separate test.
+
+### surprises
+
+- the plan's framing assumed all three approaches (FLIP /
+  view-transitions / motion library) would need spiking, with svelte 5
+  composition as the differentiator. reality: a pure-CSS approach
+  (transition on `transform`) that the plan didn't even name was
+  the right answer. it sidesteps every svelte-5 concern in the plan
+  because the browser owns the tween entirely — there's no `$effect`
+  ordering question (no JS in the loop), no view-transition-API
+  composition with per-component diffs (no API call at all), no
+  motion-library bundle cost (no dependency added). the plan's
+  rev-1 caveat ("spike the *simplest* transition first") was the
+  right instinct, applied harder than the plan expected.
+- 1 visual golden re-baselined (visual-add-relative). predicted it
+  would be more — `transform: translate3d` rasterizes slightly
+  differently than `left/top` at sub-pixel boundaries on every card.
+  reality: 5/6 visual goldens are byte-identical because their
+  tolerance budgets are large enough (`maxDiffPixels: 200+` for most,
+  `100` for add-relative). the strict-budget golden is the only
+  one that tripped; the rest absorbed the sub-pixel drift silently.
+  data point for future positioning refactors: aim the strict golden
+  at a fresh fixture that doesn't share surface with positioning
+  changes.
+- the "compositional gate" turned out to be a non-issue. cards have
+  `.family-view-onpath` setting `box-shadow`; cards have
+  `.family-view-smooth-card` setting `transition: transform`. they
+  target different CSS properties on the same element — they're
+  fully orthogonal, not "composing" in any active sense. the plan's
+  worry was based on a worst-case from svelte 5 + transition
+  libraries, but pure CSS doesn't engage svelte's reactive cycle at
+  all so there's nothing to compose.
+
+### residual debt
+
+- **edges jump-cut** while cards slide during expand/collapse/refocus.
+  visually noticeable on a careful watch; not flicker, just movement
+  mismatch. options if it bothers users: (a) tween SVG `d`
+  attribute via `requestAnimationFrame` interpolation (~50 lines,
+  some perf cost on dense layouts), (b) ship a small lib like
+  `motion`'s SVG plugin (~5 KB), or (c) extract edge endpoints from
+  card positions and let CSS-transition the SVG `<line>` elements
+  instead of computed-path `<path>` (most invasive). · routed to
+  bugs.md as **B18**.
+- **cards mount/unmount jump-cut** when expansion changes the visible
+  set. svelte's built-in `transition:fade={{ duration: 200 }}` would
+  give a clean entrance/exit but adds reactivity-cycle interaction
+  that the spike intentionally avoided. · routed to bugs.md as
+  **B19**.
+- **no UI toggle for the smoothDiff flag.** same precedent as
+  semantic100, crossingMin — flags exist in localStorage for power-
+  users / rollback path; surfacing them in the View menu would need
+  4 entries together rather than dripping them in one at a time. ·
+  routed to bugs.md as **B20**.
+
+### implications for downstream phases
+
+- **phase 4 (secondary-union expansion)**: the smooth-diff animation
+  applies automatically — every card in a newly-expanded secondary
+  union slides from its source position. no extra wiring needed.
+  the edge jump-cut limitation (B18) is more visible during
+  secondary-union expansion because two parent-couple slots both
+  shift; if user feedback complains specifically about edge motion
+  in that flow, B18 escalates from polish to phase-4-blocker.
+
+## revision after phase 3 — 2026-05-23
+
+- **phase 4 (secondary-union expansion): unchanged.** the smooth-diff
+  animation applies automatically to every card position change
+  (no extra wiring needed at phase 4). the retro's downstream-
+  implications bullet flagged that B18 (edges jump-cut) becomes
+  more visible during secondary-union expansion because two parent-
+  couple slots both shift; the existing phase-4 plan already
+  references the smooth-diff phase as a dependency. no edit
+  required — phase 4 absorbs the new behaviour without scope
+  change.
+- no phases reordered or deleted. wave-2 now has only phase 4 left
+  before ship-readiness.
+- bugs.md gc: dropped 3 phase-1 closed entries aged through phase 0b,
+  phase 2, phase 3 boundaries (collapse-badge e2e, visual-mask helper,
+  B13 path-highlight golden). git history is the trace.
+- bugs.md additions: B18 (edges jump-cut), B19 (cards mount/unmount
+  jump-cut), B20 (no UI toggle for smoothDiff) — all deferred polish.

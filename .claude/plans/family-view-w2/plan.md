@@ -598,7 +598,7 @@ estimated effort: ~2-3 days.
 ---
 
 ## phase 3 — smooth-diff animation spike + ship
-**status:** open
+**status:** closed 2026-05-23 (CSS-transition-on-transform spike won on first try; `fte.overlays.smoothDiff` flag default-on; 3 e2e cases × chromium + mobile = 6 green; 1 visual golden re-baselined for sub-pixel rasterization, 5 byte-identical; edges + mount/unmount jump-cut routed to B18/B19/B20. worktree `.claude/worktrees/family-view-w2/` and branch `phase/family-view-w2/3` retained per user instruction — *not* merged into parent. integration check: chromium 30/30, mobile 20/20 (with 11 platform-skips per B4), 927 unit tests, 0 regressions, 1 baseline update.)
 **definition of done:** spike outcome recorded inline (which approach
 won + which lost + why); compositional + mobile gates both closed;
 if shipped, `fte.overlays.smoothDiff` flag exists default-on,
