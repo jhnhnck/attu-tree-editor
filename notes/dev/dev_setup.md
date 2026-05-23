@@ -49,7 +49,7 @@ cd ../..
 pnpm verify
 ```
 
-`pnpm verify` runs typecheck + lint + unit tests + build + server lint + server tests in order. expect green on a clean checkout.
+`pnpm verify` runs typecheck + lint + the no-hyperbolic-imports gate + unit tests + build + server setup + server lint + server tests in order. expect green on a clean checkout.
 
 ---
 
@@ -77,7 +77,7 @@ docker compose up --build
 # http://127.0.0.1:8000/health  (or via the wiki caddy at https://dev.attuproject.org/trees/)
 ```
 
-the dockerfile is multi-stage (uv builder + slim runtime) and runs as a non-root user. the image bakes `VITE_BASE=/trees/` and serves both the spa and the api from a single container; the wiki's caddy strips `/trees/` before proxying. the same image works in the attu-wiki-dev compose stack via the include directive in [`notes/features/wiki-integration.md`](../features/wiki-integration.md).
+the dockerfile is multi-stage (uv builder + slim runtime) and runs as a non-root user. the image bakes `VITE_BASE=/trees/` and serves both the spa and the api from a single container; the wiki's caddy strips `/trees/` before proxying. the same image works in the attu-wiki-dev compose stack via the include directive in [`notes/features/attu-wiki.md`](../features/attu-wiki.md).
 
 ---
 
@@ -103,5 +103,5 @@ never commit `data/trees-config.toml` - it carries `[secrets]`. ask the operator
 ## metadata
 
 ```yaml
-last_updated: 2 May 2026
+last_updated: 23 May 2026
 ```

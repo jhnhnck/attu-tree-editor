@@ -68,7 +68,7 @@ run each pass over the scoped changes. they're orthogonal.
 - ...
 
 ### Documentation
-- notes/features/wiki-integration.md §2.1 still says editor-side ports map; the compose change removed that.
+- notes/features/attu-wiki.md "routing" section: when changing the compose/caddy plumbing, sweep the snippets there in the same commit.
 
 ### Security
 - [blocker] ...

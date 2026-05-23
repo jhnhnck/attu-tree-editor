@@ -35,21 +35,27 @@ client-side typescript spa (svelte 5, vite, tailwind v4) for viewing and editing
 
 | Module | Role |
 | :--- | :--- |
-| `src/lib/domain/` | typed person/tree model (`types.ts`), in-memory ops (`tree.ts`), id generator (`ids.ts`), validation (`validate.ts`), schema-version registry + migration runner (`schema.ts`) |
+| `src/lib/domain/` | typed person/tree model (`types.ts`), in-memory ops (`tree.ts`), id generator (`ids.ts`), validation (`validate.ts`), schema-version registry + migration runner (`schema.ts`), consanguinity (`consanguinity.ts`), findings (`findings.ts`), instance identity (`personIdentity.ts`), structural diff (`treeDiff.ts`) |
 | `src/lib/date/` | `HaracalndeDate` class, gregorian conversion (cosmetic) |
 | `src/lib/io/familyscript/` | import-only parser for family echo `.txt` (serializer retired - see section 8) |
-| `src/lib/io/gedcom/` | parser wraps `read-gedcom`'s low-level tree; serializer is hand-rolled, called only by `bundle/write.ts` |
+| `src/lib/io/gedcom/` | parser wraps `read-gedcom`'s low-level tree; serializer is hand-rolled, called only by `bundle/write.ts`; `extensions.ts` registers the `_TREES_*` extension tag namespace (see §8.4) |
 | `src/lib/io/bundle/` | GEDZIP `.gdz` reader / writer using `fflate`; ships `manifest.json` with `schemaVersion` |
 | `src/lib/io/merge/` | dual-import merge: pair persons by name+year, union spouses + couples, configurable conflict resolution |
 | `src/lib/io/detect.ts` | filename + magic-byte format sniffer |
 | `src/lib/io/warnings.ts` | per-target `fieldsDroppedFor()` helper |
 | `src/lib/utils/result.ts` | `Result<T, E>` discriminated union for parser / validator returns |
 | `src/lib/persistence/` | dexie schema (`db.ts`), trees + blobs + settings CRUD; autosave coordinator lives in `state/autosave.ts` |
-| `src/lib/layout/` | `relativesTreeAdapter.ts` translates a `Tree` into `relatives-tree` input + runs layout |
-| `src/lib/state/` | runes-based stores: `tree.svelte.ts` (snapshot undo/redo + dirty flag), `selection.svelte.ts`, `viewport.svelte.ts`, `toasts.svelte.ts`, `portraitUrls.svelte.ts` (blob → object-URL cache); `autosave.ts` debounces tree changes into Dexie writes |
-| `src/lib/components/tree/` | `TreeCanvas.svelte` (svg + panzoom), `PersonNode.svelte` (foreignObject card), `EdgeLayer.svelte` (svg connectors) |
-| `src/lib/components/editor/` | `PersonEditor.svelte` (`<dialog>` form, set-or-delete patches), `PortraitField.svelte` (upload + thumb), `CropperDialog.svelte` (lazy `cropperjs` import; outputs webp) |
-| `src/lib/components/shell/` | `RecentTrees.svelte` (top-bar dropdown of recently-saved trees, new/delete actions) |
+| `src/lib/layout/` | four-pass IR pipeline (`ir.ts`, `passes/{layer,order,place,route}.ts`) plus the engine boundary (`engine.ts`) and the three engines under `engines/{layered-hv,family-view,hyperbolic-lr}/`. `layout.worker.ts` runs the pipeline off the main thread. shared utilities: `edgeRouter.ts`, `kinship.ts`, `pathHighlight.ts`, `probandTree.ts`. see the `tree-layout-ir` and `tree-debugger` skills |
+| `src/lib/layout/hyperbolic/` | hyperbolic-disk math + lamping-rao implementation used by the hyperbolic-lr engine. see the `hyperbolic-geometry` skill |
+| `src/lib/state/` | runes-based stores: `tree.svelte.ts` (snapshot undo/redo + dirty flag), `selection.svelte.ts`, `viewport.svelte.ts`, `toasts.svelte.ts`, `progress.svelte.ts`, `portraitUrls.svelte.ts` (blob -> object-URL cache), `auth.svelte.ts`, `sync.svelte.ts` (server revision tracking), `preferences.svelte.ts`, `engine.ts` (active layout engine), `preferredUnionMigration.ts`; `autosave.ts` debounces tree changes into Dexie writes |
+| `src/lib/api/` | typed http client for the fastapi backend (`client.ts`) |
+| `src/lib/components/tree/` | `TreeCanvas.svelte`, `FamilyViewCanvas.svelte`, `HyperbolicCanvas.svelte` (per-engine renderers), `PersonNode.svelte` (foreignObject card), `EdgeLayer.svelte` + `edgePath.ts` (svg connectors), `canvasController.ts` (pan/zoom/focus), `DebugOverlay.svelte` (Ctrl+Shift+D), `InstancePopover.svelte` |
+| `src/lib/components/editor/` | `PersonEditor.svelte` (`<dialog>` form, set-or-delete patches), `PortraitField.svelte` (upload + thumb), `CropperDialog.svelte` + `CropperCanvas.svelte` (canvas-based portrait cropper; cropperjs removed), `cropperMath.ts` / `loadSourceBitmap.ts` / `encodePortrait.ts` (pure helpers; output webp via OffscreenCanvas) |
+| `src/lib/components/inspector/` | tabbed inspector sidebar: `Inspector.svelte` + `PersonalTab.svelte` / `ConnectionsTab.svelte` / `DetailsTab.svelte` / `RelationshipsTab.svelte` / `GroupsTab.svelte` / `SibshipTab.svelte` + `PersonChooser.svelte` |
+| `src/lib/components/shell/` | top-bar chrome: `MenuBar.svelte` + `Menu.svelte` + `menu.ts` (action registry), `AuthBar.svelte`, `AdminPanel.svelte`, `SaveStatusPill.svelte`, `ProgressStrip.svelte`, dialogs (`OpenDialog`, `ShareDialog`, `SettingsDialog`, `LinkCodeDialog`) |
+| `src/lib/components/canvas/` | canvas chrome: `ZoomWidget.svelte`, `BackButton.svelte` |
+| `src/lib/components/palette/` | `CommandPalette.svelte` + `commands.ts` (Ctrl+P quick-jump + Ctrl+Shift+P command palette) |
+| `src/lib/components/help/` | `ShortcutsOverlay.svelte` (the `?` overlay) |
 | `src/lib/components/form/` | `DateInput.svelte` (parses on blur via `HaracalndeDate.parseNarrative`), `Field.svelte` |
 | `src/lib/components/ui/` | `Button.svelte` and other primitives |
 | `src/lib/wiki/` | `linkResolver.ts` builds `<base>/wiki/<title>` URLs; reads `window.__TREES_CONFIG__?.wikiBaseUrl` (server-injected from `data/trees-config.toml`), falls back to `VITE_WIKI_BASE_URL` for tests, then `https://attuproject.org` |
@@ -58,14 +64,15 @@ client-side typescript spa (svelte 5, vite, tailwind v4) for viewing and editing
 
 | Module | Role |
 | :--- | :--- |
-| `attu_tree/main.py` | fastapi app + middleware + routes |
-| `attu_tree/db.py` | aiosqlite pool + migrations |
+| `attu_tree/main.py` | fastapi app + middleware + routes; templates `window.__TREES_CONFIG__` into the served `index.html` |
+| `attu_tree/settings.py` | pydantic-settings + `TomlConfigSettingsSource` loader for `data/trees-config.toml` |
+| `attu_tree/db.py` | aiosqlite pool + connection helpers |
+| `attu_tree/migrations/` | numbered `.sql` schema migrations applied on startup |
 | `attu_tree/models.py` | pydantic schemas for the wire |
-| `attu_tree/auth/` | discord magic-code flow + session cookies |
-| `attu_tree/trees/` | crud + share grants |
-| `attu_tree/sync/` | revision-checked autosave merge |
-| `attu_tree/calendar.py` | mirror of doom-bot's haracalnde math |
-| `attu_tree/wiki.py` | mediawiki client for link previews |
+| `attu_tree/auth/` | discord magic-code flow (`link.py`), session cookies (`session.py`), hmac verification (`hmac.py`), and the asgi middleware (`middleware.py`) |
+| `attu_tree/routers/` | http routers: `auth.py`, `trees.py`, `admin.py`, `bot.py` (the `/api/bot/*` surface; see [`notes/features/doom-bot.md`](features/doom-bot.md)) |
+| `attu_tree/trees/` | tree crud + share grants (`access.py`) |
+| `attu_tree/sync/` | revision-checked autosave merge (`autosave.py`) |
 
 ---
 
@@ -282,73 +289,131 @@ tools that don't understand SCHMA skip it; FamilyTree Editor's own permissive pa
 
 ## 10. reference notes
 
-commit conventions, comment style, file headers, the feature-completion checklist, and the pydantic v2 reference card live as skills under `.claude/skills/`; load via the skill name. they are canonical when they diverge from this guide.
+commit conventions, comment style, file headers, the feature-completion checklist, the four-pass IR contract, the hyperbolic-disk math, the tree debugger workflow, the config-tier topology, and the pydantic v2 reference card live as skills under `.claude/skills/`; load via the skill name. they are canonical when they diverge from this guide.
 
 **`notes/features/`**
 
-- [`notes/features/attu-wiki.md`](features/attu-wiki.md) - parent project context (containers, services, architecture)
-- [`notes/features/doom-bot.md`](features/doom-bot.md) - sibling discord bot; family-tree integration touch points
+- [`notes/features/attu-wiki.md`](features/attu-wiki.md) - parent mediawiki project context + routing / cors / link wiring
+- [`notes/features/doom-bot.md`](features/doom-bot.md) - sibling discord bot context + `/trees` slash-command contract
+- [`notes/features/keyboard-shortcuts.md`](features/keyboard-shortcuts.md) - planning notes for the canonical shortcut set
+- [`notes/features/relationship-vocabulary.md`](features/relationship-vocabulary.md) - design study for first-class non-traditional family shapes
 
 **`notes/dev/`**
 
 - [`notes/dev/dev_setup.md`](dev/dev_setup.md) - one-time install steps (node, pnpm, python, uv, playwright)
 - [`notes/dev/testing.md`](dev/testing.md) - test layout, fixtures, how to run subsets
-- [`notes/dev/process.md`](dev/process.md) - the phased-plan / phase-loop / ship-gate development process; lists generic shared skills (`pre-mortem`, `phase-retro`, `bug-triage`, `integration-check`, `plan-revise`, `ship-readiness`, `pre-merge`) used at each step
+- [`notes/dev/process.md`](dev/process.md) - the phased-plan / phase-loop / ship-gate development process; lists the shared skills (`pre-mortem`, `phase-retro`, `bug-triage`, `integration-check`, `plan-revise`, `ship-readiness`, `pre-merge`) used at each step
+
+**`notes/profiles/`** - historic phase-0 metric snapshots from retired plans
+
+- [`notes/profiles/layered-baseline.md`](profiles/layered-baseline.md), [`route-stub-paths.md`](profiles/route-stub-paths.md), [`ghost-contiguity-spike.md`](profiles/ghost-contiguity-spike.md) - baselines from the (retired) layered-and-tooling plan, kept as reference fixtures
+
+**`notes/reports/`**
+
+- [`notes/reports/state-and-audit-2026-04-26.md`](reports/state-and-audit-2026-04-26.md) - dated repo-state + multi-agent audit snapshot
 
 **`notes/`**
 
 - [`notes/.meta.md`](.meta.md) - guide to this documentation system
 - [`notes/to-do.md`](to-do.md) - open items
+- [`notes/bugs.md`](bugs.md) - known defects
+- [`notes/design-issues.md`](design-issues.md) - undecided ui / ux items
 - `notes/plans/` - gitignored implementation plans; ask the user before publishing
 
 ---
 
 ## 11. file & directory layout
 
-```txt
+```text
 FamilyTreeEditor/
 ├── apps/
-│   ├── web/
+│   ├── web/                                  # svelte 5 spa, vite, tailwind v4
+│   │   ├── src/
+│   │   │   ├── App.svelte
+│   │   │   ├── app.css                       # tailwind v4 entry + tokens
+│   │   │   ├── main.ts
+│   │   │   ├── vite-env.d.ts                 # TreesRuntimeConfig surface
+│   │   │   └── lib/
+│   │   │       ├── api/                      # typed http client
+│   │   │       ├── components/
+│   │   │       │   ├── canvas/               # ZoomWidget, BackButton
+│   │   │       │   ├── editor/               # canvas-based portrait cropper
+│   │   │       │   ├── form/                 # DateInput, Field
+│   │   │       │   ├── help/                 # ShortcutsOverlay
+│   │   │       │   ├── inspector/            # tabbed sidebar
+│   │   │       │   ├── palette/              # CommandPalette + commands
+│   │   │       │   ├── shell/                # menu bar, dialogs, save-status
+│   │   │       │   ├── tree/                 # per-engine canvases + edges
+│   │   │       │   └── ui/                   # primitives
+│   │   │       ├── date/                     # HaracalndeDate
+│   │   │       ├── domain/                   # tree model + ops + validation + schema migrations
+│   │   │       ├── io/
+│   │   │       │   ├── bundle/               # GEDZIP read/write
+│   │   │       │   ├── familyscript/         # import-only
+│   │   │       │   ├── gedcom/               # parser + serializer + _TREES_* extensions
+│   │   │       │   └── merge/                # dual-import merge
+│   │   │       ├── layout/
+│   │   │       │   ├── engines/              # family-view, hyperbolic-lr, layered-hv
+│   │   │       │   ├── hyperbolic/           # poincare-disk math
+│   │   │       │   ├── passes/               # layer, order, place, route
+│   │   │       │   ├── spikes/               # one-off metric scripts
+│   │   │       │   └── layout.worker.ts
+│   │   │       ├── persistence/              # dexie (db, trees, blobs, settings)
+│   │   │       ├── state/                    # runes-based stores (12 modules)
+│   │   │       ├── utils/                    # Result<T,E>
+│   │   │       └── wiki/                     # linkResolver
+│   │   ├── tests/{unit,component,e2e,fixtures,spikes}/
+│   │   ├── public/probes/                    # ios touch / exif standalone probes
 │   │   ├── eslint.config.js
 │   │   ├── index.html
 │   │   ├── package.json
 │   │   ├── playwright.config.ts
 │   │   ├── .prettierrc.json
-│   │   ├── src/
-│   │   │   ├── App.svelte
-│   │   │   ├── app.css
-│   │   │   ├── main.ts
-│   │   │   ├── vite-env.d.ts
-│   │   │   └── lib/                 ← grows phase 1+
 │   │   ├── svelte.config.js
-│   │   ├── tests/{unit,e2e}/
 │   │   ├── tsconfig.json
 │   │   ├── vite.config.ts
 │   │   └── vitest.config.ts
-│   └── server/
+│   └── server/                               # fastapi + aiosqlite
 │       ├── attu_tree/
 │       │   ├── __init__.py
-│       │   └── main.py
+│       │   ├── main.py                       # app + middleware + index.html templating
+│       │   ├── settings.py                   # pydantic-settings + toml loader
+│       │   ├── db.py                         # aiosqlite pool
+│       │   ├── models.py                     # pydantic wire schemas
+│       │   ├── auth/                         # hmac, link codes, session, middleware
+│       │   ├── migrations/                   # numbered .sql
+│       │   ├── routers/                      # auth, trees, admin, bot
+│       │   ├── sync/                         # autosave merge
+│       │   └── trees/                        # crud + access (share grants)
+│       ├── tests/test_*.py
 │       ├── docker-compose.yml
 │       ├── Dockerfile
 │       ├── pyproject.toml
-│       ├── tests/test_health.py
 │       └── uv.lock
-├── examples/                        ← reference .ged, .txt, .html exports
+├── packages/
+│   └── api-client/                           # generated typed client (`pnpm gen:api`)
+├── data/                                     # gitignored runtime: trees-config.toml, attu_tree.db
 ├── notes/
-│   ├── agents.md                    ← this file
-│   ├── .meta.md                     ← documentation system guide
+│   ├── agents.md                             # this file
+│   ├── bugs.md                               # known defects
+│   ├── to-do.md                              # features + polish
+│   ├── design-issues.md                      # undecided ui / ux (gitignored)
+│   ├── .meta.md                              # documentation system guide
 │   ├── .template.to-do.md
-│   ├── to-do.md
-│   ├── features/
-│   │   ├── attu-wiki.md
-│   │   └── doom-bot.md
-│   └── dev/
-│       ├── dev_setup.md
-│       └── testing.md
-├── package.json                     ← pnpm workspace root
-├── packages/                        ← shared workspace packages (phase 5)
+│   ├── features/                             # attu-wiki, doom-bot, keyboard-shortcuts, relationship-vocabulary
+│   ├── dev/                                  # dev_setup, testing, process
+│   ├── profiles/                             # historic metric snapshots
+│   ├── reports/                              # dated repo-state snapshots
+│   ├── examples/                             # reference .ged / .txt / .html / .gdz
+│   └── plans/                                # gitignored implementation plans
+├── .claude/
+│   ├── plans/                                # gitignored active plan dirs
+│   └── skills/                               # project-specific skills
+├── trees-config.example.toml                 # template for data/trees-config.toml
+├── docker-compose.yml                        # joins parent wiki via include
+├── package.json                              # pnpm workspace root
 ├── pnpm-workspace.yaml
+├── .markdownlint.jsonc
 ├── .editorconfig
 ├── .gitignore
 ├── LICENSE.md
@@ -371,5 +436,5 @@ FamilyTreeEditor/
 ## metadata
 
 ```yaml
-last_updated: 26 April 2026 (phase 4)
+last_updated: 23 May 2026
 ```

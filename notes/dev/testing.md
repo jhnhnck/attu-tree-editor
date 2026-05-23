@@ -6,16 +6,20 @@ three test layers across two stacks. each layer has a clear purpose and a single
 
 ## layout
 
-```txt
+```text
 apps/web/tests/
-├── unit/          ← vitest, jsdom; pure ts logic and svelte runes modules
-├── component/     ← vitest browser mode; svelte components in real chromium (phase 3)
-├── e2e/           ← playwright; full app, real network, real persistence
-└── fixtures/      ← symlinks to ../../examples; golden serializer outputs (phase 2)
+├── unit/          # vitest, jsdom; pure ts logic and svelte runes modules
+├── component/     # vitest + jsdom + @testing-library/svelte
+├── e2e/           # playwright (chromium + mobile); full app, real persistence
+├── spikes/        # one-off measurement scripts (e.g. layered-metrics.spike.test.ts)
+├── fixtures/      # ged/.txt symlinks into ../../../notes/examples/, plus
+│                  # the golden/ snapshot directory and a handful of small
+│                  # repro fixtures (layered-bug-repros.ts, multi-union.ged,
+│                  # head-schma-probe.ged, exif-orientation-6.jpg, etc.)
+└── setup.ts       # registers jest-dom matchers and per-test cleanup
 
 apps/server/tests/
-├── test_*.py      ← pytest; httpx asgi for in-process api, respx for outbound mocks
-└── fixtures/      ← shared sample tree json (phase 5)
+└── test_*.py      # pytest; httpx asgi for in-process api, respx for outbound mocks
 ```
 
 ---
@@ -44,9 +48,9 @@ if a test needs a real db or network, put it under an integration marker and ski
 pnpm verify
 
 # web only
-pnpm test:unit                                           # vitest
-pnpm test:unit:watch                                     # watch mode
-pnpm exec vitest run tests/unit/date/                    # subset
+pnpm test:unit                                           # vitest (unit + component)
+pnpm -F web test:unit:watch                              # watch mode (web only)
+pnpm -F web exec vitest run tests/unit/date/             # subset
 pnpm test:e2e                                            # playwright, all projects
 pnpm test:e2e --project=chromium                         # single project
 pnpm test:e2e --grep "import"                            # by test name
@@ -63,13 +67,9 @@ uv run pytest --cov=attu_tree --cov-report=term-missing  # coverage
 
 ## fixtures
 
-phase 2 onward, the example exports live at the repo root and are symlinked into the test tree:
+the example exports live at `notes/examples/` and are symlinked into the fixtures tree by name (`Akarians.ged`, `Akarians.txt`). small purpose-built fixtures (`tiny.ged`, `multi-union.ged`, `head-schma-probe.ged`, `layered-bug-repros.ts`) sit alongside them, and binary visual + image fixtures (`portrait-blue.png`, `exif-orientation-6.jpg`, `hyperbolic-demo.svg`) live in the same directory.
 
-```bash
-ln -s ../../../../examples apps/web/tests/fixtures/examples
-```
-
-golden outputs (post-import re-serialization) live next to the test that generated them as `*.golden.txt`. update with `UPDATE_GOLDEN=1 pnpm test:unit`.
+golden outputs live under `apps/web/tests/fixtures/golden/`. update with `UPDATE_GOLDEN=1 pnpm test:unit` for vitest snapshots; playwright visual snapshots update via `pnpm test:e2e --update-snapshots`.
 
 ---
 
@@ -94,5 +94,5 @@ golden outputs (post-import re-serialization) live next to the test that generat
 ## metadata
 
 ```yaml
-last_updated: 25 April 2026
+last_updated: 23 May 2026
 ```
