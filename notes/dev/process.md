@@ -46,6 +46,8 @@ Each phase repeats this five-step cycle:
 
 Before declaring a project done, run `ship-readiness`. it walks the bug log, classifies each remaining item as blocker or follow-up, produces an explicit cut-line, and emits a deferred-bug list for the next project. "we have bugs left" is normal. "we don't know which ones block ship" is the failure mode this catches.
 
+After `ship-readiness` returns `ship`, run `pre-merge` before the actual merge. it rebases the branch on trunk (handing back on conflicts), migrates the deferred-bug list into `notes/bugs.md` / `notes/to-do.md` / `notes/design-issues.md` (so it survives the plan dir's archival), promotes any durable invariants discovered during the plan into `notes/` reference docs, fixes stale cross-references that pointed into the plan dir, and archives the plan directory itself. it does not push, merge, open a PR, or force-push - those stay user-driven.
+
 ---
 
 ## skill cheat sheet
@@ -60,6 +62,7 @@ Before declaring a project done, run `ship-readiness`. it walks the bug log, cla
 | bug log management | `bug-triage` | shared |
 | update plan after retro/triage | `plan-revise` | shared |
 | end-of-project gate | `ship-readiness` | shared |
+| post-ship pre-merge cleanup | `pre-merge` | shared |
 | commit message format | `commit-style` | project (generic version in shared) |
 | working tree → commits | `commit-split` | project (generic version in shared) |
 | comment conventions | `comment-style` | project |
@@ -75,6 +78,7 @@ if a plan is small (one or two phases) the full loop is overkill. the floor is:
 - `bugs.md` present with empty `## open`, even if it stays empty.
 - run `feature-completion` + a brief integration check at phase end.
 - run `ship-readiness` before declaring done.
+- run `pre-merge` after `ship-readiness` returns `ship` — the deferred-item migration and cross-ref fixes matter even on small plans; the rebase step is the cheap part.
 
 larger plans (three+ phases, especially anything with cross-phase dependencies or perf budgets) get the full loop.
 
@@ -82,7 +86,7 @@ larger plans (three+ phases, especially anything with cross-phase dependencies o
 
 ## generating the project-specific skills
 
-The shared skills (`pre-mortem`, `phase-retro`, `bug-triage`, `integration-check`, `plan-revise`, `ship-readiness`) work in any project. The skills below are project-specific - each one needs to be derived from this project's actual conventions, log, and architecture. The prompts here are short briefs you can paste into Claude inside a new project to generate that skill at `.claude/skills/<name>/SKILL.md`.
+The shared skills (`pre-mortem`, `phase-retro`, `bug-triage`, `integration-check`, `plan-revise`, `ship-readiness`, `pre-merge`) work in any project. The skills below are project-specific - each one needs to be derived from this project's actual conventions, log, and architecture. The prompts here are short briefs you can paste into Claude inside a new project to generate that skill at `.claude/skills/<name>/SKILL.md`.
 
 ### commit-style
 

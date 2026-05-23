@@ -290,7 +290,7 @@ commit conventions, comment style, file headers, the feature-completion checklis
 **`notes/dev/`**
 - [`notes/dev/dev_setup.md`](dev/dev_setup.md) - one-time install steps (node, pnpm, python, uv, playwright)
 - [`notes/dev/testing.md`](dev/testing.md) - test layout, fixtures, how to run subsets
-- [`notes/dev/process.md`](dev/process.md) - the phased-plan / phase-loop / ship-gate development process; lists generic shared skills (`pre-mortem`, `phase-retro`, `bug-triage`, `integration-check`, `plan-revise`, `ship-readiness`) used at each step
+- [`notes/dev/process.md`](dev/process.md) - the phased-plan / phase-loop / ship-gate development process; lists generic shared skills (`pre-mortem`, `phase-retro`, `bug-triage`, `integration-check`, `plan-revise`, `ship-readiness`, `pre-merge`) used at each step
 
 **`notes/`**
 - [`notes/.meta.md`](.meta.md) - guide to this documentation system
