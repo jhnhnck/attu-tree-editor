@@ -27,6 +27,8 @@
         oncancel?: () => void;
         /** focus-on-mount: dialog sets this to true when it opens */
         autofocus?: boolean;
+        /** show the rule-of-thirds grid overlay (default true) */
+        showGrid?: boolean;
     }
 
     let {
@@ -37,6 +39,7 @@
         oncommit,
         oncancel,
         autofocus = false,
+        showGrid = true,
     }: Props = $props();
 
     let canvasEl: HTMLCanvasElement | undefined = $state();
@@ -90,6 +93,32 @@
         if (source && transform) {
             source.draw(ctx, transform);
         }
+        if (showGrid && source && transform) {
+            drawGrid(ctx);
+        }
+        ctx.restore();
+    }
+
+    // rule-of-thirds grid: two horizontal + two vertical lines at 1/3 and 2/3.
+    // semi-transparent white so it reads on both light and dark sources.
+    function drawGrid(ctx: CanvasRenderingContext2D): void {
+        ctx.save();
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        const v1 = frameW / 3;
+        const v2 = (frameW * 2) / 3;
+        const h1 = frameH / 3;
+        const h2 = (frameH * 2) / 3;
+        ctx.moveTo(v1, 0);
+        ctx.lineTo(v1, frameH);
+        ctx.moveTo(v2, 0);
+        ctx.lineTo(v2, frameH);
+        ctx.moveTo(0, h1);
+        ctx.lineTo(frameW, h1);
+        ctx.moveTo(0, h2);
+        ctx.lineTo(frameW, h2);
+        ctx.stroke();
         ctx.restore();
     }
 
@@ -296,5 +325,10 @@
     .cropper-canvas:focus-visible {
         outline: 2px solid var(--color-accent);
         outline-offset: 2px;
+    }
+    /* accent-themed border around the crop frame; visible in both dark and
+       light themes via the --color-accent token. */
+    .cropper-canvas {
+        box-shadow: 0 0 0 1px var(--color-accent);
     }
 </style>

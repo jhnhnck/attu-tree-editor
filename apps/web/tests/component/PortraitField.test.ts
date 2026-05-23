@@ -36,7 +36,7 @@ function baseProps() {
     return {
         treeId: "test-tree",
         personId: "AAAAA",
-        currentBlobId: undefined,
+        currentBlobId: undefined as string | undefined,
         portraitUrls,
         onchange: vi.fn(),
         onerror: vi.fn(),

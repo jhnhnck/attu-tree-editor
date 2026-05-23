@@ -161,26 +161,47 @@
             </button>
         </header>
 
-        <div class="bg-canvas flex items-center justify-center p-6">
-            <CropperCanvas
-                source={bitmap}
-                frameW={FRAME_W}
-                frameH={FRAME_H}
-                bind:transform
-                autofocus={canvasAutofocus}
-                oncommit={() => void save()}
-                oncancel={() => onclose()}
-            />
+        <div class="bg-canvas relative flex items-center justify-center p-6">
+            {#if error}
+                <div
+                    role="alert"
+                    class="border-line bg-canvas-elev flex flex-col items-center gap-3 rounded border p-6 text-center"
+                    style="width: {FRAME_W}px; height: {FRAME_H}px; justify-content: center;"
+                >
+                    <p class="text-sm text-red-400">{error}</p>
+                    <button
+                        type="button"
+                        onclick={() => onclose()}
+                        class="text-fg bg-canvas border-line hover:border-accent inline-flex items-center rounded border px-2 py-1 text-xs"
+                    >
+                        try another image
+                    </button>
+                </div>
+            {:else}
+                <CropperCanvas
+                    source={bitmap}
+                    frameW={FRAME_W}
+                    frameH={FRAME_H}
+                    bind:transform
+                    autofocus={canvasAutofocus}
+                    oncommit={() => void save()}
+                    oncancel={() => onclose()}
+                />
+                {#if !bitmap}
+                    <div
+                        class="absolute inset-0 flex items-center justify-center"
+                        aria-hidden="true"
+                    >
+                        <div class="cropper-spinner" aria-label="loading image"></div>
+                    </div>
+                {/if}
+            {/if}
         </div>
 
         <output aria-live="polite" class="sr-only">{liveZoom}</output>
 
         {#if !bitmap && !error}
-            <p class="text-fg-muted px-5 py-1 text-xs">loading image…</p>
-        {/if}
-
-        {#if error}
-            <p class="px-5 py-2 text-xs text-red-400" role="alert">{error}</p>
+            <p class="text-fg-muted px-5 py-1 text-xs" aria-live="polite">loading image…</p>
         {/if}
 
         <footer
@@ -216,5 +237,26 @@
     }
     .cropper-dialog::backdrop {
         background: rgb(0 0 0 / 0.55);
+    }
+    .cropper-spinner {
+        width: 2rem;
+        height: 2rem;
+        border-radius: 9999px;
+        border: 2px solid var(--color-line);
+        border-top-color: var(--color-accent);
+        animation: cropper-spin 0.8s linear infinite;
+    }
+    @keyframes cropper-spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+    /* respect prefers-reduced-motion so screen-reader / vestibular users
+       don't get an indefinitely spinning element. */
+    @media (prefers-reduced-motion: reduce) {
+        .cropper-spinner {
+            animation: none;
+            border-top-color: var(--color-accent);
+        }
     }
 </style>
