@@ -9,6 +9,8 @@
         label: string;
         onclick: () => void;
         disabled?: boolean;
+        // native tooltip shown on hover; useful for explaining a disabled entry
+        title?: string;
     }
     export interface ContextMenuDivider {
         divider: true;
@@ -77,6 +79,7 @@
                 role="menuitem"
                 class="hover:bg-canvas focus:bg-canvas block w-full px-3 py-1.5 text-left text-sm outline-none disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={btn.disabled ?? false}
+                title={btn.title ?? null}
                 onclick={() => {
                     if (btn.disabled) return;
                     btn.onclick();

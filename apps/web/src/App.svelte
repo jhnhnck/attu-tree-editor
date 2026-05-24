@@ -740,6 +740,34 @@
         focusPerson(newId);
     }
 
+    function addSibling(id: PersonId): void {
+        const t = treeStore.tree;
+        const anchor = t.people[id];
+        if (!anchor) return;
+        // a sibling shares at least one parent; without any parent there's
+        // nothing to attach the new person to. the context-menu entry is
+        // disabled in this case, so this is a defensive guard.
+        const refs = getParents(anchor);
+        if (refs.length === 0) {
+            toasts.push("cannot add sibling: anchor has no parent to share", "error");
+            return;
+        }
+        const { tree, id: newId } = addPerson(t, blankPerson());
+        let next = tree;
+        // mirror the anchor's parent refs (role + pedi preserved) so the new
+        // sibling sits in the same sibship under the same parents
+        for (const ref of refs) {
+            const linked = linkParentRef(next, newId, { ...ref });
+            if (!linked.ok) {
+                toasts.push(linked.error, "error");
+                return;
+            }
+            next = linked.value;
+        }
+        treeStore.set(next);
+        focusPerson(newId);
+    }
+
     function addUnattached(): void {
         const t = treeStore.tree;
         const { tree, id: newId } = addPerson(t, blankPerson());
@@ -988,7 +1016,11 @@
 
     function menuItems(personId: PersonId): ContextMenuItem[] {
         if (readOnly) return [{ label: "edit person", onclick: () => focusPerson(personId) }];
-        return [
+        // a sibling needs a shared parent; disable the entry when the
+        // anchor has none and surface the reason via a hover tooltip
+        const anchor = treeStore.tree.people[personId];
+        const hasParent = anchor ? getParents(anchor).length > 0 : false;
+        const items: ContextMenuItem[] = [
             { label: "edit person", onclick: () => focusPerson(personId, "personal") },
             {
                 label: "edit connections",
@@ -999,9 +1031,18 @@
             { label: "add parent", onclick: () => addParent(personId) },
             { label: "add partner", onclick: () => addPartner(personId) },
             { label: "add child", onclick: () => addChild(personId) },
+            hasParent
+                ? { label: "add sibling", onclick: () => addSibling(personId) }
+                : {
+                      label: "add sibling",
+                      onclick: () => {},
+                      disabled: true,
+                      title: "add a parent first - a sibling shares at least one parent",
+                  },
             { divider: true },
             { label: "delete person", onclick: () => deletePerson(personId) },
         ];
+        return items;
     }
 
     function triggerImport(): void {

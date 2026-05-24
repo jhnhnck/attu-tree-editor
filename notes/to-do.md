@@ -48,7 +48,6 @@
 - :o: `medium priority` `high effort` hide unrelated branches based on the selected person - needs a "related-to" rule (default: ancestors + descendants + spouses); expose as a View menu toggle so users can flip between full tree and focused view
 - :o: `medium priority` `medium effort` selectable lineage trace - clicking an edge (or a person + an "trace" action) highlights a chain through the graph in a unique color so the user can see where a relationship goes; pairs naturally with the "hide unrelated branches" toggle. **Partially addressed**: selection→focus path highlight ships (on by default, toggleable via View > Overlays > Path highlight). True any-to-any "trace" action remains open.
 - :o: `medium priority` `low effort` minimap + search-by-name popover
-- :o: `medium priority` `low effort` add `add sibling` to the per-person right-click context menu; currently the menu offers add parent / partner / child but not sibling, even though the Insert menu / shortcut path supports it
 
 ### shell + UI
 
@@ -111,6 +110,7 @@
 - :red_circle: `24 May 2026` family-view wheel-zoom sensitivity tuned - replaced the fixed 1.1-per-tick multiplier in `FamilyViewCanvas.onWheel` with the exp-based `factor = exp(-deltaY * intensity)` curve already used by `TreeCanvas.onWheel` (0.0018 for mouse wheel, 0.0045 for ctrl+wheel / trackpad pinch). small deltas now produce proportionally small zoom changes; pinch path was always ctrl+wheel here and is dampened separately so it stays responsive.
 - :red_circle: `24 May 2026` PersonNode at far zoom (level 4 initials, level 5 dot) now carries a native `title` tooltip with full name + lifespan so users can identify cards on hover before zooming in. lower levels stay clean - the name is already on the card, so no duplicate tooltip. cheap path; no new deps.
 - :red_circle: `24 May 2026` female (gender `f` / rose-tone) PersonNode cards now use the `pink-*` tailwind palette instead of `rose-*` - `rose-700/35` read as dark blood-red against the canvas; `pink-700/35` (level <5 fill + border) and `pink-500` (level 5 dot) sit in the intended pink-red family. married/divorced edge strokes still use rose-400 (different semantic). decorator boundary unchanged - PersonNode is still the single mapper from `fillTone` to tailwind classes. no `design-issues.md` exists, so no cross-reference needed.
+- :red_circle: `24 May 2026` per-person right-click context menu now offers `add sibling` alongside add parent / partner / child. action mirrors the anchor's `parentIds` refs (role + pedi preserved) onto the new person so they sit in the same sibship under the same parents. entry is disabled with a tooltip when the anchor has no parent, since a sibling needs a shared parent to attach to.
 
 ### inspector
 
