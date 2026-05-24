@@ -81,6 +81,7 @@
         type SibshipPatch,
         type UnionPatch,
     } from "$lib/domain/tree";
+    import { displayName } from "$lib/layout/kinship";
     import { migratePreferredUnion } from "$lib/state/preferredUnionMigration";
     import { createTreeStore } from "$lib/state/tree.svelte";
     import { createSelectionStore } from "$lib/state/selection.svelte";
@@ -980,7 +981,9 @@
 
     function setRootAction(id: PersonId): void {
         treeStore.update((t) => ({ ...t, rootId: id }));
-        toasts.push("root updated", "info", 1500);
+        // resolve the name after the update so the toast reflects the just-promoted person
+        const name = displayName(treeStore.tree, id);
+        toasts.push(`${name} is now the tree root`, "info", 2500);
     }
 
     function menuItems(personId: PersonId): ContextMenuItem[] {

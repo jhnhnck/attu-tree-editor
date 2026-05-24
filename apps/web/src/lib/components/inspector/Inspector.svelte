@@ -304,7 +304,19 @@
         <header class="border-line border-b px-3 py-2">
             <div class="flex items-start gap-2">
                 <div class="min-w-0 flex-1">
-                    <h2 class="text-fg truncate text-sm font-semibold">{fullName(person)}</h2>
+                    <h2 class="text-fg flex items-center gap-1 truncate text-sm font-semibold">
+                        <span class="truncate">{fullName(person)}</span>
+                        {#if person.id === tree.rootId}
+                            <!-- tree-root crown badge, mirrors the set-as-root action affordance -->
+                            <span
+                                class="shrink-0 text-amber-400"
+                                title="tree root"
+                                aria-label="tree root"
+                            >
+                                <Crown size={12} />
+                            </span>
+                        {/if}
+                    </h2>
                     <p class="text-fg-muted truncate font-mono text-[10px]">id {person.id}</p>
                 </div>
                 {#if onfocus}
