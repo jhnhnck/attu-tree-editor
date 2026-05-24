@@ -47,7 +47,6 @@ space-deselects (an earlier idea) **conflicts with the universal space-pan conve
 | click | select person | - |
 | Esc | deselect / close dialog / dismiss menu | universal |
 | Enter | open editor for selected | excel-ish |
-| F2 | open editor for selected | excel, vs code (rename) |
 | double-click | open editor | already wired |
 | Delete, Backspace | delete selected person (with confirm) | universal |
 | Ctrl + D | duplicate selected | figma |
@@ -109,7 +108,7 @@ an earlier idea was "tab opens search" - drop that. Tab must remain focus traver
 
 - everywhere `Ctrl` is listed, use `Cmd` on macOS. detect once at boot, render labels in help overlay accordingly.
 - on linux/windows, Insert is a real key. on macOS laptops it's not - provide Ctrl+Enter (add child) / Ctrl+Shift+Enter (add parent) as the mac alternates.
-- avoid binding F1–F12 except for Excel-style F2-edits-selected. real laptops bury function keys behind `fn`.
+- avoid binding F1–F12. real laptops bury function keys behind `fn`, and the Excel-style F2-edits-selected binding we considered was dropped because Enter / double-click already cover open-editor.
 
 ## what to drop from earlier guesses
 

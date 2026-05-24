@@ -77,7 +77,6 @@ export const SHORTCUTS: readonly ShortcutDef[] = [
         scope: "global",
     },
     { group: "Selection", combo: "Enter", label: "Open editor", actionId: "select.edit" },
-    { group: "Selection", combo: "F2", label: "Open editor", actionId: "select.edit" },
     { group: "Selection", combo: "Delete", label: "Delete selected", actionId: "select.delete" },
     { group: "Selection", combo: "Backspace", label: "Delete selected", actionId: "select.delete" },
     {

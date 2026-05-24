@@ -71,7 +71,6 @@
 - :o: `low priority` `low effort` menu items need re-sorting and better dividers - current order is mostly insertion-order; group conceptually (e.g. zoom controls together, overlays together) with dividers between groups
 - :o: `low priority` `low effort` View > Overlays icons are nearly invisible at default contrast (transparent fill, no outline) - add a 1px outline or raise opacity so the on/off state reads
 - :o: `low priority` `low effort` auto-fit (fit-to-window) is only reachable via the small fit button inside the zoom widget popover - surface it as a top-level pill in the canvas chrome alongside the zoom percent, so it's one click instead of two
-- :o: `low priority` `no effort` remove the F2 keyboard shortcut entry from the registry (`lib/shortcuts.ts:80`) - selecting a person already opens the inspector, so F2 (mapped to `select.edit`) is redundant noise in the shortcuts overlay
 - :o: `low priority` `no effort` File > "Delete this tree…" item uses a pink danger color instead of red - either align with the standard destructive-action red, or settle on pink as the project's danger color and update other destructive actions (Delete person, etc.) to match
 
 ### portrait cropper
@@ -121,6 +120,10 @@
 
 - :red_circle: `23 May 2026` PersonNode portrait area was too short (rendered as a thin band) - portrait card is `CARD_H * 2 = 2.4u` with a 3:4 slot; silhouette placeholder dropped.
 
+### shell + UI
+
+- :red_circle: `24 May 2026` removed the F2 keyboard shortcut entry from the registry - Enter (and double-click) already open the editor for the selected person, so the F2 binding was redundant noise in the shortcuts overlay.
+
 ### schema evolution
 
 - :red_circle: `14 May 2026` replaced `motherId` / `fatherId` with `parentIds: ParentRef[]` (each entry carries optional `role` and `pedi`); supports asexual / multi-parent / non-binary single parents; shipped with the v1 -> v2 migration in `domain/schema.ts`. Inspector + GEDCOM round-trip lands at commit `c6845dc`.
@@ -161,5 +164,5 @@ items are grouped first by view if specific to one, then by component. within ea
 
 ```yaml
 last_updated: 24 May 2026
-total_completed: 2
+total_completed: 3
 ```
