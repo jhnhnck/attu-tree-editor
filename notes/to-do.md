@@ -66,7 +66,6 @@
 - :o: `low priority` `low effort` View > Overlays should be a submenu rather than ~7 toggle items in the View menu root - bundles naturally with the View > Advanced submenu item under family-view; combine into one View-menu reorg
 - :o: `low priority` `low effort` menu items need re-sorting and better dividers - current order is mostly insertion-order; group conceptually (e.g. zoom controls together, overlays together) with dividers between groups
 - :o: `low priority` `low effort` auto-fit (fit-to-window) is only reachable via the small fit button inside the zoom widget popover - surface it as a top-level pill in the canvas chrome alongside the zoom percent, so it's one click instead of two
-- :o: `low priority` `no effort` File > "Delete this tree…" item uses a pink danger color instead of red - either align with the standard destructive-action red, or settle on pink as the project's danger color and update other destructive actions (Delete person, etc.) to match
 
 ### portrait cropper
 
@@ -126,6 +125,7 @@
 - :red_circle: `24 May 2026` removed the F2 keyboard shortcut entry from the registry - Enter (and double-click) already open the editor for the selected person, so the F2 binding was redundant noise in the shortcuts overlay.
 - :red_circle: `24 May 2026` command palette now matches a typed person id directly - `#XYZ12` prefix is people-only id-lookup with a distinct empty state, and a bare id query also surfaces the person at the top of the list.
 - :red_circle: `24 May 2026` View > Overlays toggle items now render a tri-state trailing indicator (filled check when on, outlined empty box when off, nothing when not a toggle) so the on/off state reads at a glance instead of relying on the absence of a checkmark.
+- :red_circle: `24 May 2026` confirmed pink (`text-pink-400`) is the project's settled danger color for destructive actions - File > Delete this tree, Inspector > Delete person, and the remove-relationship / remove-group / remove-bond buttons across inspector tabs all use the same token. red / rose stays reserved for error states (form validation, save-status pill). no code change needed; the to-do's premise (that there was a standard destructive red the File menu was failing to match) was wrong.
 
 ### schema evolution
 
