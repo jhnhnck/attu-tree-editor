@@ -47,6 +47,10 @@ test("File > Open tree dialog lists the saved tree", async ({ page }) => {
     await expect(page.getByText(/loaded \d+ people/)).toBeVisible();
     await page.waitForTimeout(2500);
 
+    // dismiss the lingering import-success toast so it doesn't overlap the
+    // dropdown menu on narrower mobile viewports
+    await page.getByRole("button", { name: /dismiss notification/i }).click();
+
     // open the File menu and trigger Open tree…
     await page.getByRole("button", { name: /^File$/ }).click();
     await page.getByRole("menuitem", { name: /Open tree/i }).click();
