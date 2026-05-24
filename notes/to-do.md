@@ -88,6 +88,20 @@
 - :o: `future idea` `low effort` add `birthOrder?: number` on `Person` for twin / triplet / cohort ordering inside a sibship (currently lost - sibship is derived from shared parents only); ships with a v3 -> v4 migration
 - :o: `future idea` `low effort` add optional `name?: string` to `CoupleRecord` so families can be referenced by a chosen surname / household name (currently no way to rename families); ships with a v? -> v? migration and an Inspector Connections-tab UI to set it
 
+### family echo / familyscript coverage
+
+tracked gaps in the FamilyScript spec the parser does not yet model. each line item is a single tag family the parser silently drops (or stores as a round-trip extra). add a domain slot before wiring; many require a schema bump.
+
+- :o: `low priority` `low effort` contact tags (`e w B P t k u a C`): email, website, blog url, photo site, home/work/mobile phone, address (multiline), other contact. no domain slot. add a `contact?: { email?: string; web?: string; phone?: { home?, work?, mobile? }; address?: string; }` block on `Person`.
+- :o: `low priority` `low effort` pet metadata (`R`): pet type (dog, cat, etc.). no slot. file alongside species when species/kind picker grows a "pet" path.
+- :o: `low priority` `low effort` bio narrative (`o`): free-form notes. consider mapping to `wikiTitle`-adjacent slot or a new `notes?: string`.
+- :o: `low priority` `low effort` color label (`G`): per-person hex or named color. consider a `colorLabel?: string` slot used by the inspector tint.
+- :o: `low priority` `low effort` custom fields (`1`-`9`) + their `f l<label>` declarations: user-defined key-value pairs. no slot; would need a `custom?: Record<string, string>` and a UI to surface them.
+- :o: `low priority` `low effort` couple lifecycle dates beyond marriage (`r b w t n y s d a f z` on `p<id1 id2>` records): engagement, start, marriage location, restart, remarriage date+location, separation, divorce, annulment, first-end, final-end. `CoupleRecord` / `UnionRecord` has `marriageDate` only. would need a small lifecycle-events sub-record on the union.
+- :o: `low priority` `low effort` couple `g` type code (`m e r f d s a n c o`): married / engaged / relationship / friendship / divorced / separated / annulled / remarried / reconciled / other. partly captured by `UnionRecord.kind`, but the FS values don't line up 1:1; needs a mapping table.
+- :o: `low priority` `low effort` cause of death (`Z`) and burial details (`U` place + `F` date): no slots. consider a `death?: { date?, place?, cause?, burial?: { place?, date? } }` consolidation.
+- :o: `low priority` `low effort` extended FS date forms (`B`-prefixed BCE works today, plus partials and `~` approx). still unsupported: ranges (`20030428-20040115`), before/after suffixes (`<` / `>`), 4-9 digit years (parser hard-requires 4). would extend `HaracalndeDate.parseFamilyScript`.
+
 ### tooling + docs
 
 - :o: `medium priority` `medium effort` symbols and icons used across the UI need a reference key - users see Crown / Star / Heart / Crosshair / Link2 / etc. without a legend. add either a Help > Icons & symbols dialog or an entry in `notes/features/`

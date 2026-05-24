@@ -58,6 +58,9 @@ export const TREES_EXTENSION_TAGS: ReadonlyMap<string, string> = new Map([
     // Phase 6b — schema 3.3.0 -> 3.4.0
     ["_TREES_SIBSHIP", "sibship"],
     ["_TREES_BIRTH_ORDER", "birth-order"],
+    // import-wizard-and-family-echo plan — schema 3.4.0 -> 3.5.0
+    ["_TREES_BIRTH_SURNAME", "birth-surname"],
+    ["_TREES_BIRTH_GIVN", "birth-given"],
 ]);
 
 /** Full URI for a short-form extension tag. Returns `undefined` for unknown tags. */

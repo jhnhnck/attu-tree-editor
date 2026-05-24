@@ -22,7 +22,7 @@ export type SchemaVersion = string;
  * of `Tree` changes in a way that needs migration. Each bump is paired with
  * a `Migration` in the registry below.
  */
-export const CURRENT_SCHEMA_VERSION: SchemaVersion = "3.4.0";
+export const CURRENT_SCHEMA_VERSION: SchemaVersion = "3.5.0";
 
 export interface Migration {
     from: SchemaVersion;
@@ -208,6 +208,14 @@ export const migrations: Migration[] = [
         from: "3.3.0",
         to: "3.4.0",
         description: "add tree.sibshipDecorators[] + Person.birthOrder (Phase 6b)",
+        migrate: identity,
+    },
+    {
+        from: "3.4.0",
+        to: "3.5.0",
+        description:
+            "add Person.{givenAtBirth,nickname,suffix,surnameAtBirth,birthPlace,deathPlace}",
+        // additive: every new field is optional, no data transform required.
         migrate: identity,
     },
 ];

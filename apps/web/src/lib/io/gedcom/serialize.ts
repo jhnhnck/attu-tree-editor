@@ -444,6 +444,17 @@ function appendIndi(
     if (person.given.length > 0) lines.push(`2 GIVN ${person.given}`);
     if (person.surname.length > 0) lines.push(`2 SURN ${person.surname}`);
     if (person.title !== undefined) lines.push(`2 NPFX ${person.title}`);
+    if (person.suffix !== undefined) lines.push(`2 NSFX ${person.suffix}`);
+    if (person.nickname !== undefined) lines.push(`2 NICK ${person.nickname}`);
+    // _TREES_BIRTH_NAME / _TREES_BIRTH_GIVN: surname-at-birth / given-at-birth.
+    // No canonical GEDCOM tag pair maps cleanly; emit as the project's
+    // standard _TREES_ extension so round-trip survives.
+    if (person.surnameAtBirth !== undefined) {
+        lines.push(`1 _TREES_BIRTH_SURNAME ${person.surnameAtBirth}`);
+    }
+    if (person.givenAtBirth !== undefined) {
+        lines.push(`1 _TREES_BIRTH_GIVN ${person.givenAtBirth}`);
+    }
 
     // SEX (GEDCOM 7 vocabulary: M/F/X/U). Phase 5: non-canonical identity
     // strings (anything other than male/female/unknown) emit `SEX X` so the
@@ -457,14 +468,16 @@ function appendIndi(
     // still surface the values on import.
     appendIdentityExtensions(lines, person);
 
-    // BIRT / DEAT
-    if (person.birth) {
+    // BIRT / DEAT: emit the block when either the date or place is present.
+    if (person.birth || person.birthPlace !== undefined) {
         lines.push("1 BIRT");
-        lines.push(`2 DATE ${HaracalndeDate.of(person.birth).toGedcom()}`);
+        if (person.birth) lines.push(`2 DATE ${HaracalndeDate.of(person.birth).toGedcom()}`);
+        if (person.birthPlace !== undefined) lines.push(`2 PLAC ${person.birthPlace}`);
     }
-    if (person.death) {
+    if (person.death || person.deathPlace !== undefined) {
         lines.push("1 DEAT Y");
-        lines.push(`2 DATE ${HaracalndeDate.of(person.death).toGedcom()}`);
+        if (person.death) lines.push(`2 DATE ${HaracalndeDate.of(person.death).toGedcom()}`);
+        if (person.deathPlace !== undefined) lines.push(`2 PLAC ${person.deathPlace}`);
     }
 
     if (person.occupation !== undefined) lines.push(`1 OCCU ${person.occupation}`);

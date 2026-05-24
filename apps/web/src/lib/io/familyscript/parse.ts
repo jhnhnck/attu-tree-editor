@@ -268,6 +268,21 @@ function parsePerson(
                 // names under a location field; the slot lands here now.
                 person.surnameAtBirth = value;
                 break;
+            case "n":
+                person.givenAtBirth = value;
+                break;
+            case "N":
+                person.nickname = value;
+                break;
+            case "J":
+                person.suffix = value;
+                break;
+            case "v":
+                person.birthPlace = value;
+                break;
+            case "y":
+                person.deathPlace = value;
+                break;
             case "T":
                 person.title = value;
                 break;

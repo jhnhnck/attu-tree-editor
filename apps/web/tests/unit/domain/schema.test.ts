@@ -62,7 +62,7 @@ describe("migrateToCurrent", () => {
         expect(r.ok).toBe(false);
     });
 
-    it("registers six identity-transform stubs for future schema bumps", () => {
+    it("registers identity-transform stubs for every queued schema bump", () => {
         const expected: [string, string][] = [
             ["1.0.0", "2.0.0"],
             ["2.0.0", "3.0.0"],
@@ -70,6 +70,7 @@ describe("migrateToCurrent", () => {
             ["3.1.0", "3.2.0"],
             ["3.2.0", "3.3.0"],
             ["3.3.0", "3.4.0"],
+            ["3.4.0", "3.5.0"],
         ];
         for (const [from, to] of expected) {
             const found = migrations.find((m) => m.from === from && m.to === to);
@@ -79,12 +80,12 @@ describe("migrateToCurrent", () => {
 });
 
 describe("migration chain (Phase 0 identity-stub round-trip)", () => {
-    it("walks every registered stub from 1.0.0 to 3.4.0 without data loss", () => {
+    it("walks every registered stub from 1.0.0 to CURRENT without data loss", () => {
         // The 1.0.0 → 2.0.0 step is real (Phase 2a populates parentIds);
-        // the rest are identity stubs. Use _migrateBetween to walk the
-        // entire chain to its current tail (3.4.0).
+        // the rest are identity stubs. Walk the entire chain to its
+        // current tail.
         const original = { name: "x", people: {}, couples: {} };
-        const r = _migrateBetween(original, "1.0.0", "3.4.0");
+        const r = _migrateBetween(original, "1.0.0", "3.5.0");
         expect(r.ok).toBe(true);
         if (!r.ok) return;
         // The non-identity 1.0.0 → 2.0.0 step mutates in place when there
@@ -98,6 +99,7 @@ describe("migration chain (Phase 0 identity-stub round-trip)", () => {
             "3.1.0->3.2.0",
             "3.2.0->3.3.0",
             "3.3.0->3.4.0",
+            "3.4.0->3.5.0",
         ]);
     });
 });
