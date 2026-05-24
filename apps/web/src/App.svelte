@@ -1823,6 +1823,7 @@
                                 syncMode={syncStore.mode}
                                 {syncedFlashUntil}
                                 {lastError}
+                                dirty={treeStore.dirty}
                                 onretry={() => void forceSave()}
                                 onconflict={() =>
                                     toasts.push("save conflict — see console for details", "error")}

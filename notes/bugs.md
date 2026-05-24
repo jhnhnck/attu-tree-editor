@@ -39,7 +39,6 @@
 
 - :o: `high priority` `medium effort` picking a person from the command palette / find-person search closes the palette but doesn't update selection - canvas may re-centre via `focusSelection()` (`App.svelte:1156`) but the selection-store write either doesn't fire or doesn't propagate. trace the `select.person` action path
 - :o: `medium priority` `medium effort` selected person is lost on page reload - selection state isn't persisted. add a `fte.selection.lastPersonId` localStorage key restored on tree load (gate restoration on the loaded tree containing that id)
-- :o: `medium priority` `low effort` SaveStatusPill reads "not saved yet" on first paint even when the tree was loaded clean and the user hasn't edited anything - the initial dirty-tracking state doesn't differentiate "loaded clean, idle" from "edited, pending flush", so the pill defaults to the unsaved label until the first autosave cycle resolves. expected: silent / "saved" label until the user actually mutates the tree. trace the pill's state derivation from the autosave / sync stores in `SaveStatusPill.svelte`.
 
 ### portrait cropper
 
@@ -86,6 +85,7 @@
 
 ### shell
 
+- :red_circle: `24 May 2026` SaveStatusPill read "not saved yet" on first paint after a clean tree load - added a `dirty` prop sourced from `treeStore.dirty`; when `lastSavedAt` is undefined and the tree hasn't been mutated, the pill now reports "Saved" instead of the misleading unsaved label.
 - :red_circle: `24 May 2026` "set as tree root" success toast intercepted subsequent inspector / file-menu pointer events on mobile e2e - dropped the `Toasts.svelte` container z-index from `z-50` to `z-30` so open menus (z-40) and modals / context menus (z-50) reliably overlay the toast; the existing `pointer-events-none` container + `pointer-events-auto` toast-body pattern stays in place. `inspector-more-actions-smoke.spec.ts` + `persistence.spec.ts` now pass on both chromium and mobile.
 - :red_circle: `24 May 2026` toasts (top-right corner) overlapped the inspector panel when it docked right - re-anchored the toast container to top-center (`top-12 left-1/2 -translate-x-1/2`) in `Toasts.svelte`, sidestepping the inspector regardless of dock side.
 - :red_circle: `23 May 2026` Menu / command palette auto-highlighted the first item on mouse open - `activeIdx` now starts at -1; only ↑/↓/Home/End sets the highlight. ArrowDown on the menu-bar trigger still auto-focuses the first item (matches the WAI-ARIA convention).

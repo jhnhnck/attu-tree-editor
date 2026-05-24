@@ -17,6 +17,14 @@
         syncedFlashUntil: number | undefined;
         /** undefined unless the autosaver reported an error since last success */
         lastError: string | undefined;
+        /**
+         * tree-store dirty flag - true once the user has mutated the tree
+         * since the last save / hydrate. lets us distinguish "loaded clean,
+         * idle" (show "Saved") from "edited, pending flush" (show "Not saved
+         * yet"). defaults to false so a fresh paint of a clean tree stays
+         * silent until the first edit.
+         */
+        dirty?: boolean;
         onretry: () => void;
         onconflict: () => void;
         onforceSave: () => void;
@@ -27,6 +35,7 @@
         syncMode,
         syncedFlashUntil,
         lastError,
+        dirty = false,
         onretry,
         onconflict,
         onforceSave,
@@ -83,7 +92,13 @@
         if (tone === "failed") return "Save failed";
         if (tone === "saving") return "Saving…";
         if (tone === "synced") return "Synced";
-        if (lastSavedAt === undefined) return "Not saved yet";
+        if (lastSavedAt === undefined) {
+            // loaded clean and never edited - the tree on disk matches the
+            // canvas, so we report "Saved" rather than the misleading "Not
+            // saved yet". once the user mutates the tree, dirty flips true
+            // and we surface the pending-flush state until the next save.
+            return dirty ? "Not saved yet" : "Saved";
+        }
         return `Saved · ${fmtRel(lastSavedAt, tick)}`;
     });
 

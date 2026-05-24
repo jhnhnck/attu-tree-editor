@@ -58,6 +58,21 @@ describe("SaveStatusPill", () => {
         expect(props.onconflict).toHaveBeenCalled();
     });
 
+    it("renders 'Saved' (not 'Not saved yet') on first paint when the tree was loaded clean", () => {
+        // lastSavedAt undefined + dirty false = loaded clean, never edited.
+        // the tree on disk matches the canvas, so the pill should report
+        // saved rather than the misleading 'Not saved yet'.
+        render(SaveStatusPill, { ...base(), lastSavedAt: undefined, dirty: false });
+        const btn = screen.getByLabelText(/save status/i);
+        expect(btn).toHaveTextContent(/^\s*Saved\s*$/);
+        expect(btn).not.toHaveTextContent(/Not saved yet/);
+    });
+
+    it("renders 'Not saved yet' when the user has edited but no save has landed", () => {
+        render(SaveStatusPill, { ...base(), lastSavedAt: undefined, dirty: true });
+        expect(screen.getByLabelText(/save status/i)).toHaveTextContent(/Not saved yet/);
+    });
+
     it("clicking the saved pill opens a popover with a force-save button", async () => {
         const props = base();
         render(SaveStatusPill, { ...props, lastSavedAt: Date.now() });
