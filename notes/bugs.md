@@ -39,7 +39,6 @@
 
 ### shell
 
-- :o: `low priority` `no effort` SaveStatusPill uses the non-canonical tailwind class `break-words` on the error `<dd>` (`SaveStatusPill.svelte:169`) - tailwindcss-intellisense flags it as `suggestCanonicalClasses` (severity 4). swap to `wrap-break-word` to match the tailwind v4 canonical name.
 - :o: `high priority` `medium effort` picking a person from the command palette / find-person search closes the palette but doesn't update selection - canvas may re-centre via `focusSelection()` (`App.svelte:1156`) but the selection-store write either doesn't fire or doesn't propagate. trace the `select.person` action path
 - :o: `medium priority` `medium effort` selected person is lost on page reload - selection state isn't persisted. add a `fte.selection.lastPersonId` localStorage key restored on tree load (gate restoration on the loaded tree containing that id)
 
@@ -89,6 +88,7 @@
 
 ### shell
 
+- :red_circle: `24 May 2026` SaveStatusPill used the non-canonical tailwind class `break-words` on the error `<dd>` (`SaveStatusPill.svelte:169`) - swapped to `wrap-break-word` to match the tailwind v4 canonical name; clears the tailwindcss-intellisense `suggestCanonicalClasses` (severity 4) warning.
 - :red_circle: `24 May 2026` SaveStatusPill read "not saved yet" on first paint after a clean tree load - added a `dirty` prop sourced from `treeStore.dirty`; when `lastSavedAt` is undefined and the tree hasn't been mutated, the pill now reports "Saved" instead of the misleading unsaved label.
 - :red_circle: `24 May 2026` "set as tree root" success toast intercepted subsequent inspector / file-menu pointer events on mobile e2e - dropped the `Toasts.svelte` container z-index from `z-50` to `z-30` so open menus (z-40) and modals / context menus (z-50) reliably overlay the toast; the existing `pointer-events-none` container + `pointer-events-auto` toast-body pattern stays in place. `inspector-more-actions-smoke.spec.ts` + `persistence.spec.ts` now pass on both chromium and mobile.
 - :red_circle: `24 May 2026` toasts (top-right corner) overlapped the inspector panel when it docked right - re-anchored the toast container to top-center (`top-12 left-1/2 -translate-x-1/2`) in `Toasts.svelte`, sidestepping the inspector regardless of dock side.

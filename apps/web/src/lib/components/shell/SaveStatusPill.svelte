@@ -166,7 +166,7 @@
                 <dd class="text-fg">{syncMode}</dd>
                 {#if lastError}
                     <dt class="text-rose-400">error</dt>
-                    <dd class="text-rose-400 break-words">{lastError}</dd>
+                    <dd class="text-rose-400 wrap-break-word">{lastError}</dd>
                 {/if}
             </dl>
             <button
