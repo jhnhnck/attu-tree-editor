@@ -50,7 +50,6 @@
 - :o: `high priority` `medium effort` aria roles for tree (`role="tree"`, `treeitem`)
 - :o: `medium priority` `high effort` hide unrelated branches based on the selected person - needs a "related-to" rule (default: ancestors + descendants + spouses); expose as a View menu toggle so users can flip between full tree and focused view
 - :o: `medium priority` `medium effort` selectable lineage trace - clicking an edge (or a person + an "trace" action) highlights a chain through the graph in a unique color so the user can see where a relationship goes; pairs naturally with the "hide unrelated branches" toggle. **Partially addressed**: selection→focus path highlight ships (on by default, toggleable via View > Overlays > Path highlight). True any-to-any "trace" action remains open.
-- :o: `medium priority` `low effort` hover tooltip at far zoom levels - PersonNode at level 4 (initials) and 5 (dot) drops the name; add a native `title` or floating tooltip showing the full name + dates so users can identify cards before zooming in
 - :o: `medium priority` `low effort` minimap + search-by-name popover
 - :o: `medium priority` `low effort` add `add sibling` to the per-person right-click context menu; currently the menu offers add parent / partner / child but not sibling, even though the Insert menu / shortcut path supports it
 - :o: `low priority` `no effort` `gender: female` cards render in dark red instead of the intended pink-red - color token mismatch. flag for design-issues.md
@@ -115,6 +114,7 @@
 - :red_circle: `23 May 2026` PersonNode portrait area was too short (rendered as a thin band) - portrait card is `CARD_H * 2 = 2.4u` with a 3:4 slot; silhouette placeholder dropped.
 - :red_circle: `24 May 2026` arrow keys now pan the canvas (up / down / left / right) when focus is on the canvas host and no person is selected - 60 css px per press, shift+arrow for 5x. tree-view keeps arrow-key selection-move when a person is selected; family-view pans unconditionally. hyperbolic engine uses Möbius transforms and stays out of scope.
 - :red_circle: `24 May 2026` family-view wheel-zoom sensitivity tuned - replaced the fixed 1.1-per-tick multiplier in `FamilyViewCanvas.onWheel` with the exp-based `factor = exp(-deltaY * intensity)` curve already used by `TreeCanvas.onWheel` (0.0018 for mouse wheel, 0.0045 for ctrl+wheel / trackpad pinch). small deltas now produce proportionally small zoom changes; pinch path was always ctrl+wheel here and is dampened separately so it stays responsive.
+- :red_circle: `24 May 2026` PersonNode at far zoom (level 4 initials, level 5 dot) now carries a native `title` tooltip with full name + lifespan so users can identify cards on hover before zooming in. lower levels stay clean - the name is already on the card, so no duplicate tooltip. cheap path; no new deps.
 
 ### inspector
 

@@ -98,6 +98,42 @@ describe("PersonNode", () => {
         expect(visibleText(btn)).toBe("");
     });
 
+    it("at levels 4 and 5 carries a native title with full name + lifespan", () => {
+        // far-zoom cards drop the name from the visible card; the native
+        // title attribute surfaces it on hover so the user can identify a
+        // card before zooming in. level 4 = initials, level 5 = dot.
+        for (const level of [4, 5] as const) {
+            const { unmount } = render(PersonNode, { person: person(), level });
+            const btn = screen.getByRole("treeitem");
+            expect(btn.getAttribute("title")).toBe("Alpha Bravo · 1500 - 1570 PC");
+            unmount();
+        }
+    });
+
+    it("at levels 0-3 carries no title (name is already visible)", () => {
+        for (const level of [0, 1, 2, 3] as const) {
+            const { unmount } = render(PersonNode, { person: person(), level });
+            const btn = screen.getByRole("treeitem");
+            expect(btn.getAttribute("title")).toBeNull();
+            unmount();
+        }
+    });
+
+    it("at far zoom with no dates, title is just the name", () => {
+        const p = person();
+        delete p.birth;
+        delete p.death;
+        render(PersonNode, { person: p, level: 4 });
+        expect(screen.getByRole("treeitem").getAttribute("title")).toBe("Alpha Bravo");
+    });
+
+    it("at far zoom with no name, title falls back to (unnamed)", () => {
+        render(PersonNode, { person: person({ given: "", surname: "" }), level: 5 });
+        expect(screen.getByRole("treeitem").getAttribute("title")).toBe(
+            "(unnamed) · 1500 - 1570 PC",
+        );
+    });
+
     it("paints male tint blue", () => {
         render(PersonNode, { person: person({ gender: "m" }) });
         expect(document.querySelector(".bg-sky-700\\/35")).not.toBeNull();

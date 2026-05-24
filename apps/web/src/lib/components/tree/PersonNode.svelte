@@ -61,6 +61,13 @@
     let decoration = $derived(decorate(person));
     let toneClass = $derived(toneClassFor(decoration.fillTone, level));
     let isDeceased = $derived(person.death !== undefined);
+    // at levels 4 (initials) and 5 (dot) the card hides the name entirely, so
+    // surface name + lifespan via a native title tooltip so users can identify
+    // cards without zooming in. at lower levels the name is already visible on
+    // the card, so the tooltip would just duplicate what the user can read.
+    let farZoomTitle = $derived(
+        level >= 4 ? [fullName || "(unnamed)", dateRange].filter(Boolean).join(" · ") : undefined,
+    );
 
     function formatRange(
         birth: HaracalndeDateData | undefined,
@@ -140,6 +147,7 @@
     tabindex={selected ? 0 : -1}
     aria-selected={selected}
     aria-label={fullName || initials}
+    title={farZoomTitle}
     onclick={() => (isGhost ? onselect?.(person.id, { fromGhost: true }) : onselect?.(person.id))}
     ondblclick={() => onedit?.(person.id)}
     oncontextmenu={(e) => {
