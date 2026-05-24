@@ -60,6 +60,7 @@
 - :o: `low priority` `low effort` menu items need re-sorting and better dividers - current order is mostly insertion-order; group conceptually (e.g. zoom controls together, overlays together) with dividers between groups
 - :o: `low priority` `low effort` auto-fit (fit-to-window) is only reachable via the small fit button inside the zoom widget popover - surface it as a top-level pill in the canvas chrome alongside the zoom percent, so it's one click instead of two
 - :o: `low priority` `low effort` SaveStatusPill popover anchors `absolute right-0 top-full mt-1` which renders below the viewport now that the pill mounts in the bottom-left bar - flip to `bottom-full mb-1 left-0` (or `right-0`) so the popover opens upward and stays on-screen. follow-up from the 24 May 2026 physical-move
+- :o: `low priority` `low effort` Insert menu / command palette is missing a `person.addSibling` command - 24 May 2026 added "add sibling" to the right-click context menu, but the Insert menu and palette still only offer `person.addParent / addPartner / addChild / addUnattached`. mirror the new context-menu action as a palette command for keyboard parity; reuses the `addSibling()` function in `App.svelte`
 
 ### portrait cropper
 

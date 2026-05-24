@@ -35,6 +35,7 @@
 
 - :o: `high priority` `medium effort` picking a person from the command palette / find-person search closes the palette but doesn't update selection - canvas may re-centre via `focusSelection()` (`App.svelte:1156`) but the selection-store write either doesn't fire or doesn't propagate. trace the `select.person` action path
 - :o: `medium priority` `medium effort` selected person is lost on page reload - selection state isn't persisted. add a `fte.selection.lastPersonId` localStorage key restored on tree load (gate restoration on the loaded tree containing that id)
+- :o: `medium priority` `low effort` "set as tree root" success toast intercepts subsequent inspector-menu pointer events on mobile e2e - regression from the 24 May 2026 set-root feedback toast (`3d60fab`). signatures: `inspector-more-actions-smoke.spec.ts` (chromium + mobile) and `persistence.spec.ts › File > Open tree dialog lists the saved tree` (mobile) time out waiting on a click that lands on the toast layer instead of the menu. fix candidates: shorten the toast duration; route the toast through a portal layer that has `pointer-events: none` on the container and only enables them on the toast body; or move the toast to a non-overlapping anchor for the inspector-menu region. caught by the canvas-gender-female-color slice on 24 May 2026
 
 ### portrait cropper
 
