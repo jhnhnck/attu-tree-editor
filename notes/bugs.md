@@ -32,12 +32,12 @@
 - :o: `medium priority` `low effort` tree-view (layered engine) zoom doesn't behave as expected - user-reported, unspecified misbehaviour. needs concrete repro - probable candidates: zoom anchor (wheel vs. button), zoom-aware label thresholds, or perceived 100% reference (semantic 100% is correct per recent audit but cards below the 320px design width may feel "wrong")
 - :o: `medium priority` `low effort` toasts (top-right corner) overlap the inspector panel when the inspector docks right - toast content becomes unreachable. fix: anchor toasts top-center, or offset by the inspector width when the inspector is open on that side
 - :o: `medium priority` `no effort` inspector Connections-tab "trace path to…" sets `traceTargetId` but no canvas highlight paints - button at `ConnectionsTab.svelte:705` invokes `onsetTraceTarget` (line 240); the consumer downstream is missing or broken. suggested fix: remove the action (subsumed by the "selectable lineage trace" feature in to-do.md) unless we wire it through
-- :o: `medium priority` `low effort` family-view union picker dropdown ("˅ chevron") renders behind adjacent cards and is partially transparent - z-index + background-color regression; the picker should layer above all cards with a solid surface
 
 ---
 
 ## fixed
 
+- :red_circle: `24 May 2026` family-view union picker dropdown ("˅ chevron") rendered behind adjacent cards and looked partially transparent - each card container in `FamilyViewCanvas.svelte` carries a `transform: translate3d(...)` which creates a stacking context, so the picker menu's internal `z-40` could not escape and later-DOM-order sibling cards painted over it. fix: hoist the focused card container to `z-index: 50` only while `pickerOpenFor === node.personId`, and bump the menu itself to `z-50` with a `shadow-lg` for visual lift. `bg-canvas-elev` token already paints solid; no opacity changes needed.
 - :red_circle: `24 May 2026` zoom fit-to-window overflowed the canvas UI box - extracted the fit math into `lib/components/canvas/fitMath.ts` (`computeFit` + `measureCanvasChromeInsets`); both `TreeCanvas` and `FamilyViewCanvas` now subtract chrome insets from the host rect before solving scale + pan. chrome producers (bottom-pill bar, debug panel, debug readouts, mobile sheet inspector) opt in via `data-canvas-chrome`.
 - :red_circle: `24 May 2026` auto-fit (fit-to-window) did not vertically centre the tree in the viewport - `computeFit` places the content bbox at the centre of the chrome-aware visible band rather than at the host centre; `contentOriginY` accounts for family-view's negative-y ancestor rows.
 - :red_circle: `24 May 2026` debug pill was hidden under the family-view engine - the bottom-left bottom-bar wrapper rendered only when `layoutStats` was truthy *or* the user hadn't manually hidden the pill; the stats pill itself rendered unconditionally on any engine that emitted layoutStats. fix in `App.svelte`: gate the stats pill on `selectedEngine === "layered"` (no cluster analogue under family-view / hyperbolic) and keep the debug pill engine-agnostic via the `!debugPillHidden` branch, so family-view users now get the Ctrl+Shift+D entry point.
@@ -101,5 +101,5 @@ if a feature in `to-do.md` turns up a defect during implementation, file the def
 
 ```yaml
 last_updated: 24 May 2026
-total_fixed: 21
+total_fixed: 22
 ```

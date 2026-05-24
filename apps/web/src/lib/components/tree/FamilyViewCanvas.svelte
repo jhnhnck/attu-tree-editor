@@ -997,6 +997,7 @@
                     style:transform="translate3d({node.x * UNIT}px, {node.y * UNIT}px, 0)"
                     style:width="{CARD_W_PX}px"
                     style:height="{(node.h ?? CARD_H) * UNIT}px"
+                    style:z-index={pickerOpenFor === node.personId ? 50 : undefined}
                 >
                     <PersonNode
                         {person}
@@ -1145,8 +1146,8 @@
                             <div
                                 data-union-picker="menu"
                                 role="menu"
-                                class="border-line bg-canvas-elev absolute top-full right-0 z-40 mt-1
-                                       min-w-48 rounded border py-1 text-xs shadow-md"
+                                class="border-line bg-canvas-elev absolute top-full right-0 z-50 mt-1
+                                       min-w-48 rounded border py-1 text-xs shadow-lg"
                             >
                                 {#each m.alternates as alt (alt.coupleIndex)}
                                     {@const isExpandedSecondary = expandedSecondariesFor(
