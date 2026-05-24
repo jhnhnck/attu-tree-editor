@@ -49,7 +49,7 @@
     } from "$lib/layout/doi";
 
     import type { CanvasController } from "./canvasController";
-    import { onMount } from "svelte";
+    import { onMount, onDestroy } from "svelte";
 
     interface Props {
         tree: Tree;
@@ -293,6 +293,11 @@
     // disk background (clear selection).
     const TAP_THRESHOLD_PX = 4;
     let pointerDownPx: { x: number; y: number; onBackground: boolean } | null = null;
+    // tracks the active drag for the cursor: drives `.is-dragging` on the
+    // host so the cursor shows `grabbing` only while we're actually panning.
+    // we used to rely on the css `:active` pseudoclass, but it can stick if
+    // the pointer is released outside the window.
+    let isDragging = $state(false);
 
     function onPointerDown(e: PointerEvent): void {
         pointerDownPx = null;
@@ -313,6 +318,7 @@
         if (r > diskRadius + 8) return;
         dragAnchor = pixelToLayoutDisk(px, py);
         pointerDownPx = { x: e.clientX, y: e.clientY, onBackground: true };
+        isDragging = true;
         (e.target as Element).setPointerCapture?.(e.pointerId);
         e.preventDefault();
     }
@@ -348,6 +354,7 @@
         if (!dragAnchor) {
             dragLive = undefined;
             pointerDownPx = null;
+            isDragging = false;
             return;
         }
         // classify tap vs drag from the actual pointer travel; a tiny
@@ -373,6 +380,7 @@
         dragLive = undefined;
         dragAnchor = undefined;
         pointerDownPx = null;
+        isDragging = false;
         if (wasTap) ondeselect?.();
     }
 
@@ -418,12 +426,24 @@
 
     // ---------- imperative controller -----------------------------------
 
+    // if the window loses focus mid-drag (alt-tab, devtools, another app),
+    // the pointerup may never reach us. clear the drag/cursor state so the
+    // host doesn't get stuck showing `grabbing` after the user returns.
+    function onWindowBlur(): void {
+        if (!isDragging && dragAnchor === undefined && dragLive === undefined) return;
+        dragLive = undefined;
+        dragAnchor = undefined;
+        pointerDownPx = null;
+        isDragging = false;
+    }
+
     // The hyperbolic engine doesn't have a Euclidean zoom; the fisheye is
     // implicit in the projection. We surface a "centre-on-X" controller so
     // App.svelte's menu actions (centre on selection, centre on root) work
     // identically across engines, and report a fixed scale of 1 to keep the
     // shared scale state from going stale on engine switch.
     onMount(() => {
+        window.addEventListener("blur", onWindowBlur);
         oncontroller?.({
             getScale: () => 1,
             setScale: () => undefined,
@@ -442,6 +462,10 @@
             getMode: () => "select",
             setMode: () => undefined,
         });
+    });
+
+    onDestroy(() => {
+        window.removeEventListener("blur", onWindowBlur);
     });
 
     function onCardSelect(id: string): void {
@@ -504,6 +528,7 @@
 <div
     bind:this={hostEl}
     class="hyperbolic-canvas relative h-full w-full overflow-hidden"
+    class:is-dragging={isDragging}
     role="region"
     aria-label="hyperbolic canvas"
     onpointerdown={onPointerDown}
@@ -696,11 +721,18 @@
         touch-action: none;
         cursor: grab;
     }
-    .hyperbolic-canvas:active {
+    /* class-driven, not `:active`. `:active` can stick if the pointer is
+       released outside the window mid-pan, leaving the cursor stuck on
+       `grabbing` after focus returns. */
+    .hyperbolic-canvas.is-dragging {
         cursor: grabbing;
     }
     .hyp-person {
         will-change: transform;
+        /* the host's `cursor: grab` should not bleed onto cards; PersonNode
+           already sets `cursor-pointer` on its root but be explicit here so
+           the affordance doesn't depend on PersonNode's class survival. */
+        cursor: pointer;
     }
     .edge-divorced {
         stroke-dasharray: 6 4;
@@ -717,6 +749,18 @@
         pointer-events: none;
         user-select: none;
         fill: var(--color-fg-muted);
+    }
+    /* the tuning panel sits inside the canvas host whose inherited cursor
+       is `grab`. cursor is an inherited property so without these resets
+       the panel surface and its controls would all show the grab cursor. */
+    .hyp-tuning {
+        cursor: default;
+    }
+    .hyp-tuning button {
+        cursor: pointer;
+    }
+    .hyp-tuning input[type="range"] {
+        cursor: ew-resize;
     }
     .hyp-tuning-row {
         display: grid;

@@ -33,7 +33,6 @@
 ### canvas
 
 - :o: `medium priority` `medium effort` path highlight does not include the selected person's children - the selection→focus highlight covers ancestor edges but stops at the selected card; descendant edges (selected → child unions → child cards) stay unhighlighted. expected: highlight covers both directions of the visible neighbourhood. trace `pathHighlight.ts` `bundlesForPath` to confirm whether descendant edges are emitted but filtered downstream, or never emitted in the first place.
-- :o: `low priority` `low effort` cursor correctness audit - the canvas root's `cursor-grab` overrides cards / buttons inside it (should show pointer over PersonNodes), and the cursor occasionally stays in `grabbing` after a pan ends outside the window. fix the grab/grabbing/default/pointer transitions so the OS cursor always matches what's under the pointer
 - :o: `low priority` `low effort` 5 visual snapshot e2e specs drift on a fresh-worktree first run: `visual-add-relative`, `visual-dense-tree`, `visual-multi-union`, `visual-path-highlight`, `visual-secondary-union`. typical visual-golden flakiness across chromium build / antialiasing variants. fix: re-baseline on the standard CI image and commit, or move the specs behind a `playwright test --update-snapshots` opt-in until the baselines are stable. :dart: *carried in from plan: import-wizard-and-family-echo (2026-05-24)*
 
 ### shell
@@ -77,6 +76,7 @@
 
 ### canvas
 
+- :red_circle: `24 May 2026` cursor correctness audit - HyperbolicCanvas drove `grab`/`grabbing` off the `:active` pseudoclass which could stick when pointerup landed outside the window; replaced with a JS-driven `.is-dragging` class wired to the existing drag state and added a window-blur cleanup. inherited `cursor: grab` no longer bleeds onto PersonNode cards or the tuning-panel controls (explicit `cursor: pointer` / `default` / `ew-resize` on `.hyp-person`, `.hyp-tuning button`, `.hyp-tuning input[type="range"]`). TreeCanvas and FamilyViewCanvas already used window listeners + setPointerCapture so were left alone.
 - :red_circle: `24 May 2026` zoom fit-to-window overflowed the canvas UI box - extracted the fit math into `lib/components/canvas/fitMath.ts` (`computeFit` + `measureCanvasChromeInsets`); both `TreeCanvas` and `FamilyViewCanvas` now subtract chrome insets from the host rect before solving scale + pan. chrome producers (bottom-pill bar, debug panel, debug readouts, mobile sheet inspector) opt in via `data-canvas-chrome`.
 - :red_circle: `24 May 2026` auto-fit (fit-to-window) did not vertically centre the tree in the viewport - `computeFit` places the content bbox at the centre of the chrome-aware visible band rather than at the host centre; `contentOriginY` accounts for family-view's negative-y ancestor rows.
 - :red_circle: `23 May 2026` PersonNode portrait img already uses `object-cover object-top` (apps/web/src/lib/components/tree/PersonNode.svelte:175); square 600x600 source crops cleanly into the 3:4 slot, no stretch path remains.
