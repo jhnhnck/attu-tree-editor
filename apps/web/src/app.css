@@ -196,35 +196,41 @@ body {
     box-shadow: 0 0 0 2px var(--fte-on-path-ring-color);
 }
 
+/* stroke-width buckets across the family-view-overlay / -group / -sibship
+ * rules below bumped by +0.5px (some by +0.75) so edges read clearly against
+ * shrunken cards at low zoom (~25-50%). non-scaling-stroke holds the nominal
+ * widths in screen-px; cards shrink with the viewport but lines do not, so
+ * thin defaults felt "too thin" once the visual ratio shifted. relative
+ * weighting between buckets is preserved. */
 .family-view-overlay-sworn {
-    /* chained line — short dash, short gap */
+    /* chained line - short dash, short gap */
     stroke: var(--color-accent);
-    stroke-width: 2.25;
+    stroke-width: 2.75;
     stroke-dasharray: 4 3;
     opacity: 0.85;
 }
 
 .family-view-overlay-transformation {
-    /* identity-arc — long dash with a tight gap so it reads as wavy */
-    stroke: hsl(280 80% 70%); /* purple — distinct from accent / married rose */
-    stroke-width: 2;
+    /* identity-arc - long dash with a tight gap so it reads as wavy */
+    stroke: hsl(280 80% 70%); /* purple - distinct from accent / married rose */
+    stroke-width: 2.5;
     stroke-dasharray: 6 2 2 2;
     opacity: 0.85;
 }
 
 .family-view-overlay-alias {
-    /* alias-of — wavy variant, thinner stroke, dashed differently */
-    stroke: hsl(180 70% 60%); /* teal — fictional-bond family */
-    stroke-width: 1.75;
+    /* alias-of - wavy variant, thinner stroke, dashed differently */
+    stroke: hsl(180 70% 60%); /* teal - fictional-bond family */
+    stroke-width: 2.25;
     stroke-dasharray: 3 2;
     opacity: 0.7;
 }
 
 .family-view-overlay-severance {
-    /* severance line — base stroke is invisible; the doubled-slash
+    /* severance line - base stroke is invisible; the doubled-slash
      * marker is a separate <text> the renderer drops at the midpoint */
     stroke: hsl(0 80% 60%); /* red */
-    stroke-width: 1.5;
+    stroke-width: 2;
     stroke-dasharray: 2 4;
     opacity: 0.55;
 }
@@ -254,7 +260,7 @@ body {
 .family-view-group {
     fill: hsl(180 30% 50% / 0.12);
     stroke: hsl(180 50% 50% / 0.45);
-    stroke-width: 1.5px;
+    stroke-width: 2px;
     pointer-events: none;
 }
 
@@ -289,18 +295,18 @@ body {
 .family-view-sibship {
     fill: none;
     stroke: hsl(220 60% 60% / 0.7);
-    stroke-width: 1.5px;
+    stroke-width: 2px;
     pointer-events: none;
 }
 
 .family-view-sibship-tie-solid {
     stroke: hsl(220 60% 50% / 0.85);
-    stroke-width: 2px;
+    stroke-width: 2.5px;
 }
 
 .family-view-sibship-tie-dashed {
     stroke: hsl(220 60% 50% / 0.7);
-    stroke-width: 1.5px;
+    stroke-width: 2px;
     stroke-dasharray: 4 3;
 }
 
@@ -308,7 +314,7 @@ body {
     /* paired double-line via duplicated path with offsets, applied at
        render time. styling here just sets stroke. */
     stroke: hsl(280 60% 55% / 0.85);
-    stroke-width: 1.5px;
+    stroke-width: 2px;
 }
 
 /* Phase 6b: consanguinity surfacing. COI badge sits on the proband card

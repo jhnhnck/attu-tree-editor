@@ -790,12 +790,17 @@
         // An edge is on-path if every implicated person is on the path
         // (stem/bus include all parents; stub includes parents + the kid).
         const onPath = hasPath && edgeOnPath(e);
+        // base off-path stroke-width: bumped from stroke-1 (1px) to 1.5px so
+        // edges stay legible against shrunken cards at low zoom (~25-50%).
+        // strokes carry vector-effect="non-scaling-stroke" so the nominal
+        // width holds in screen-px; the on-path bucket already sits at
+        // --fte-on-path-stroke-width (2.5) and is left alone.
         if (!hasPath) {
             return e.role === "married"
-                ? "stroke-rose-400/70 stroke-1"
+                ? "stroke-rose-400/70 stroke-[1.5]"
                 : e.role === "divorced"
-                  ? "stroke-rose-400/40 stroke-1"
-                  : "stroke-fg-muted/70 stroke-1";
+                  ? "stroke-rose-400/40 stroke-[1.5]"
+                  : "stroke-fg-muted/70 stroke-[1.5]";
         }
         if (onPath) {
             // thick translucent stroke; .family-view-onpath-edge owns the
@@ -807,12 +812,12 @@
                   ? "family-view-onpath-edge stroke-rose-400/45"
                   : "family-view-onpath-edge stroke-accent/60";
         }
-        // Off-path while a path is active: dim.
+        // off-path while a path is active: dim.
         return e.role === "married"
-            ? "stroke-rose-400/25 stroke-1"
+            ? "stroke-rose-400/25 stroke-[1.5]"
             : e.role === "divorced"
-              ? "stroke-rose-400/15 stroke-1"
-              : "stroke-fg-muted/25 stroke-1";
+              ? "stroke-rose-400/15 stroke-[1.5]"
+              : "stroke-fg-muted/25 stroke-[1.5]";
     }
 
     // Phase-2 split each couple-drop into stem + bus + per-child stubs,
