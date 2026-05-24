@@ -144,7 +144,6 @@
     } from "$lib/components/canvas/zoomDisplay";
     import SaveStatusPill from "$lib/components/shell/SaveStatusPill.svelte";
     import type { Person, PersonId } from "$lib/domain/types";
-    import { shortestPath } from "$lib/layout/graph";
 
     const PLACEHOLDERS = [
         { given: "Korak", surname: "Nokar", gender: "m" as const },
@@ -209,16 +208,8 @@
     let showInspector = $state(true);
     let inspectorInitialTab = $state<"personal" | "connections" | "details" | "bio">("personal");
 
-    // path tracing state
-    let traceTargetId = $state<PersonId | undefined>(undefined);
-    let tracePath = $derived(
-        selection.selectedPersonId && traceTargetId
-            ? shortestPath(treeStore.tree, selection.selectedPersonId, traceTargetId)
-            : undefined,
-    );
-
     // debug overlay derived
-    let debugOptions = $derived(debugOpen ? { layers: debugLayers, tracePath } : undefined);
+    let debugOptions = $derived(debugOpen ? { layers: debugLayers } : undefined);
 
     // command palette
     let showPalette = $state(false);
@@ -1728,9 +1719,6 @@
                     }}
                     onscalechange={(s: number) => (canvasScale = s)}
                     onmodechange={(m: "select" | "hand") => (canvasMode = m)}
-                    traceIds={selection.selectedPersonId && traceTargetId
-                        ? [selection.selectedPersonId, traceTargetId]
-                        : undefined}
                     {debugOptions}
                     ontimings={(t: import("$lib/layout/engines/layered-hv").LayeredEngineTimings) =>
                         (debugTimings = t)}
@@ -2070,8 +2058,6 @@
                 ondelete={deletePerson}
                 onclose={() => (showInspector = false)}
                 onerror={(msg: string) => toasts.push(msg, "error")}
-                {traceTargetId}
-                onsetTraceTarget={(id: PersonId | undefined) => (traceTargetId = id)}
                 onfocus={() => withCanvas((c) => c.focusSelection())}
             />
         {/if}

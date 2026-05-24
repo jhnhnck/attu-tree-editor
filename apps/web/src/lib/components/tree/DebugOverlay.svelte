@@ -9,7 +9,6 @@
     let {
         layout,
         segments,
-        tracePath,
         selectedId,
         layers,
         unit,
@@ -505,44 +504,6 @@
                 vector-effect="non-scaling-stroke"
             />
         {/key}
-    {/if}
-
-    <!-- path step labels (renders when tracePath is set, no separate toggle) -->
-    {#if tracePath}
-        <!-- highlight person nodes in path -->
-        {#each tracePath.ids as id (id)}
-            {@const pos = layout.positions.get(id)}
-            {#if pos}
-                <circle
-                    cx={(pos.x + CARD_W_U / 2) * unit}
-                    cy={(pos.y + CARD_H_U / 2) * unit}
-                    r={6}
-                    fill="#FBBF24"
-                    opacity="0.35"
-                />
-            {/if}
-        {/each}
-
-        <!-- label steps -->
-        {#each tracePath.steps as step (step.from + "-" + step.to)}
-            {@const fromPos = layout.positions.get(step.from)}
-            {@const toPos = layout.positions.get(step.to)}
-            {#if fromPos && toPos}
-                {@const mx = ((fromPos.x + CARD_W_U / 2 + (toPos.x + CARD_W_U / 2)) / 2) * unit}
-                {@const my = ((fromPos.y + CARD_H_U / 2 + (toPos.y + CARD_H_U / 2)) / 2) * unit}
-                <text
-                    x={mx}
-                    y={my}
-                    font-size="9px"
-                    fill="#FBBF24"
-                    font-weight="bold"
-                    text-anchor="middle"
-                    opacity="0.85"
-                >
-                    {step.via}
-                </text>
-            {/if}
-        {/each}
     {/if}
 </g>
 

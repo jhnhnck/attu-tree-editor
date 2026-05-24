@@ -26,7 +26,6 @@
 
 - :o: `high priority` `medium effort` editing a person's gender silently drops them from their children's `parentIds` - user-reported data-loss bug. `updatePerson()` in `lib/domain/tree.ts:150` is a field-level patch with no `parentIds` mutation, so the disconnect can't be in the domain layer. suspected: a `PersonPatch` derivation somewhere in `PersonalTab.svelte` commit chain that re-infers couple/parent assignments from gender. needs urgent repro and root-cause trace; treat as data-loss class
 - :o: `medium priority` `low effort` Inspector date fields are unreachable by keyboard - tabbing into a `DateInput` neither opens the calendar popup nor lets you type into the box; should do one or the other (probably: focus opens an editable text field, with the picker still available via click / down-arrow)
-- :o: `medium priority` `no effort` inspector Connections-tab "trace path to…" sets `traceTargetId` but no canvas highlight paints - button at `ConnectionsTab.svelte:705` invokes `onsetTraceTarget` (line 240); the consumer downstream is missing or broken. suggested fix: remove the action (subsumed by the "selectable lineage trace" feature in to-do.md) unless we wire it through
 
 ### canvas
 
@@ -66,6 +65,7 @@
 
 ### inspector
 
+- :red_circle: `24 May 2026` Connections-tab "trace path to…" action set `traceTargetId` but no canvas highlight painted - removed the action; the in-flight "selectable lineage trace" feature in to-do.md is the canonical replacement and selection→focus path highlight already ships. cleaned up the full prop chain (`traceTargetId` / `onsetTraceTarget` from `ConnectionsTab.svelte` + `Inspector.svelte`, `traceIds` / `tracePath` plumbing in `App.svelte` + `TreeCanvas.svelte` + `DebugOverlay.svelte` + `debugTypes.ts`). `__treeDebug.findPath` console helper kept; `pathHighlight.ts` `bundlesForPath` util kept as a building block for the upcoming feature.
 - :red_circle: `23 May 2026` inspector panel grew the document height instead of scrolling internally - `<aside aria-label="person inspector">` gained `min-h-0 overflow-hidden` so it stays bounded by the flex row, and the tab body gained `min-h-0` so `flex-1 overflow-y-auto` actually engages. empty-state summary panel got the same min-h-0 fix.
 - :red_circle: `23 May 2026` inspector panel content couldn't scroll - same fix as the document-height bug above. flex children need `min-height: 0` to allow `overflow-y: auto` to clip their content; without it the panel grows past its parent and neither wheel nor drag intercepts a scrollable surface.
 - :red_circle: `23 May 2026` inspector header more-actions menu items (duplicate / set as root / copy id / delete) fire correctly.
@@ -126,5 +126,5 @@ items are grouped first by view if specific to one (family-view, tree-view, hype
 
 ```yaml
 last_updated: 24 May 2026
-total_fixed: 24
+total_fixed: 25
 ```

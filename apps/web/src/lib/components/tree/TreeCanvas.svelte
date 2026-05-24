@@ -30,8 +30,7 @@
     } from "$lib/layout/ir";
     import type { Segment } from "$lib/layout/edgeRouter";
     import type { LayeredEngineTimings } from "$lib/layout/engines/layered-hv";
-    import { shortestPath, type Path } from "$lib/layout/graph";
-    import { bundlesForPath } from "$lib/layout/pathHighlight";
+    import { shortestPath } from "$lib/layout/graph";
     import EdgeLayer from "$lib/components/tree/EdgeLayer.svelte";
     import DebugOverlay from "$lib/components/tree/DebugOverlay.svelte";
     import PersonNode from "$lib/components/tree/PersonNode.svelte";
@@ -62,15 +61,12 @@
         onmodechange?: ((m: "select" | "hand") => void) | undefined;
         /** path-trace overlay: ids of edge bundles to draw highlighted */
         highlightedBundleIds?: ReadonlySet<string> | undefined;
-        /** pair of people to trace path between; highlights the path on canvas */
-        traceIds?: readonly [PersonId, PersonId] | undefined;
         // ontoggleinspector removed: the stats pill (the only caller)
         // moved out to App.svelte's shared bottom-left bar.
         /** debug overlay options (if undefined, debug overlay is not rendered) */
         debugOptions?:
             | {
                   layers: DebugLayerOptions;
-                  tracePath?: Path | undefined;
               }
             | undefined;
         /** invoked on every layout response with per-pass timings (ms) */
@@ -97,7 +93,6 @@
         onscalechange,
         onmodechange,
         highlightedBundleIds,
-        traceIds,
         debugOptions,
         ontimings,
         lastEditedId,
@@ -1086,12 +1081,7 @@
         cullNodes(layout.positions, visibleRect, layout.ghosts, layout.isolated),
     );
 
-    let computedTracePath = $derived(
-        traceIds ? shortestPath(tree, traceIds[0], traceIds[1]) : undefined,
-    );
-    let computedHighlightedBundles = $derived(
-        computedTracePath ? bundlesForPath(computedTracePath, routedEdges) : highlightedBundleIds,
-    );
+    let computedHighlightedBundles = $derived(highlightedBundleIds);
 
     function levelFromScale(s: number): PersonNodeLevel {
         if (s >= 0.55) return 0;
@@ -1197,7 +1187,6 @@
                 <DebugOverlay
                     {layout}
                     segments={routedEdges}
-                    tracePath={debugOptions.tracePath}
                     {selectedId}
                     layers={debugOptions.layers}
                     unit={UNIT}

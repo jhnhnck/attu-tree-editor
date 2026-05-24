@@ -5,7 +5,6 @@
 
 import type { HvLayoutResult } from "$lib/components/tree/canvasLayout";
 import type { RenderedSegment } from "$lib/components/tree/edges";
-import type { Path } from "$lib/layout/graph";
 import type { PersonId, Tree } from "$lib/domain/types";
 import type { LayeredGraph, PlacedGraph } from "$lib/layout/ir";
 
@@ -30,7 +29,6 @@ export interface DebugLayerOptions {
 export interface DebugOverlayProps {
     layout: HvLayoutResult;
     segments: readonly RenderedSegment[];
-    tracePath?: Path | undefined;
     selectedId?: PersonId | undefined;
     layers: DebugLayerOptions;
     unit: number;

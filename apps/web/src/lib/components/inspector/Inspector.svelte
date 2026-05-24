@@ -135,10 +135,6 @@
         ondelete: (id: PersonId) => void;
         onclose: () => void;
         onerror?: (msg: string) => void;
-        /** for path tracing: currently selected trace target, if any */
-        traceTargetId?: PersonId | undefined;
-        /** callback to set the trace target (path will be drawn on canvas) */
-        onsetTraceTarget?: ((id: PersonId | undefined) => void) | undefined;
         /** centre the canvas on the currently-selected person (no-op when undefined). */
         onfocus?: (() => void) | undefined;
     }
@@ -187,8 +183,6 @@
         ondelete,
         onclose,
         onerror,
-        traceTargetId,
-        onsetTraceTarget,
         onfocus,
     }: Props = $props();
 
@@ -453,8 +447,6 @@
                     {onpatchUnion}
                     {onsetPreferredUnion}
                     {oncreateAndLinkUnionPartner}
-                    {traceTargetId}
-                    {onsetTraceTarget}
                 />
             {:else if activeTab === "relationships"}
                 <RelationshipsTab

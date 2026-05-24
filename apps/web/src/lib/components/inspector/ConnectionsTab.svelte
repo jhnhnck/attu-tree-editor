@@ -5,14 +5,12 @@
 -->
 <script lang="ts">
     import {
-        ArrowRight,
         ArrowRightLeft,
         Eye,
         Plus,
         Star,
         Users,
         X,
-        XCircle,
         UserPlus,
         Heart,
         Baby,
@@ -108,10 +106,6 @@
             | ((unionId: string, personId: PersonId, preferred: boolean) => void)
             | undefined;
         oncreateAndLinkUnionPartner?: ((unionId: string) => void) | undefined;
-        /** currently selected trace target, if any */
-        traceTargetId?: PersonId | undefined;
-        /** callback to set the trace target (path will be drawn on canvas) */
-        onsetTraceTarget?: ((id: PersonId | undefined) => void) | undefined;
     }
 
     let {
@@ -134,12 +128,9 @@
         onpatchUnion,
         onsetPreferredUnion,
         oncreateAndLinkUnionPartner,
-        traceTargetId,
-        onsetTraceTarget,
     }: Props = $props();
 
     let chooserSlot = $state<Slot | UnionAddSlot | undefined>();
-    let traceMode = $state(false);
 
     const allPeople = $derived(Object.values(tree.people));
 
@@ -226,8 +217,7 @@
         return ex;
     }
 
-    function chooserTitle(slot: Slot | UnionAddSlot | "trace"): string {
-        if (slot === "trace") return "trace path to…";
+    function chooserTitle(slot: Slot | UnionAddSlot): string {
         if (slot.kind === "parent") return slot.role === "mother" ? "set mother" : "set father";
         if (slot.kind === "parent-extra") return "add parent";
         if (slot.kind === "partner") return "add partner";
@@ -236,11 +226,6 @@
     }
 
     function onpickFromChooser(id: PersonId): void {
-        if (traceMode) {
-            onsetTraceTarget?.(id);
-            traceMode = false;
-            return;
-        }
         const slot = chooserSlot;
         if (!slot) return;
         if (slot.kind === "parent") onsetParent(person.id, id, slot.role);
@@ -693,47 +678,18 @@
         </div>
     </section>
 
-    <!-- trace path -->
-    <section class="space-y-1">
-        <button
-            type="button"
-            class={addBtnCls}
-            onclick={() => (traceMode = true)}
-            title="open person chooser to trace path"
-        >
-            <ArrowRight size={12} />
-            trace path to…
-        </button>
-        {#if traceTargetId}
-            {@const targetName =
-                Object.values(tree.people).find((p) => p.id === traceTargetId)?.given || "?"}
-            <div class="flex items-center gap-1 px-1.5 py-1 text-xs text-fg-muted">
-                <span>tracing to {targetName}</span>
-                <button
-                    type="button"
-                    class={iconBtnCls}
-                    title="clear trace target"
-                    onclick={() => onsetTraceTarget?.(undefined)}
-                >
-                    <XCircle size={12} />
-                </button>
-            </div>
-        {/if}
-    </section>
-
-    {#if chooserSlot || traceMode}
+    {#if chooserSlot}
         <!-- positioned absolute relative to the inspector body; renders as an overlay -->
         <div class="fixed inset-0 z-30 pointer-events-none">
             <div class="absolute right-3 top-32 pointer-events-auto">
                 <PersonChooser
                     people={allPeople}
-                    excludeIds={traceMode ? [person.id] : chooserExcludes(chooserSlot!)}
-                    title={traceMode ? "trace path to…" : chooserTitle(chooserSlot!)}
+                    excludeIds={chooserExcludes(chooserSlot)}
+                    title={chooserTitle(chooserSlot)}
                     onpick={onpickFromChooser}
-                    oncreate={traceMode ? () => {} : oncreateFromChooser}
+                    oncreate={oncreateFromChooser}
                     onclose={() => {
                         chooserSlot = undefined;
-                        traceMode = false;
                     }}
                 />
             </div>
