@@ -40,7 +40,6 @@
 - :o: `medium priority` `low effort` pronouns, AGAB, and fluid-identity should collapse under gender by default - currently each is a top-level field in the Personal tab, inflating the form for the common case. collapse the other three behind a "more identity fields" disclosure
 - :o: `low priority` `low effort` wiki title field should autocomplete from the wiki - query `/w/api.php?action=opensearch&search=...` and offer suggestions in the person editor / inspector Details tab
 - :o: `low priority` `low effort` combine inspector Personal + Details tabs into one - Details only carries occupation, location, wiki title, and display dropdown; folding into Personal under a "more" disclosure trims a tab without losing access
-- :o: `low priority` `low effort` remove the AGAB "inferred from identity" option - blank/unset already means the same thing; the extra explicit-inferred option just lengthens the dropdown
 - :o: `low priority` `low effort` PersonalTab portrait field takes too much vertical space at the top of the tab - shrink the default portrait widget footprint, or move it inline with the name field
 - :o: `low priority` `low effort` person ID should be hidden by default in the inspector header - show on hover / behind a "show id" toggle. shifts the casual-user view toward names and away from internal IDs
 - :o: `low priority` `low effort` "set as tree root" gives no visual indicator that the action succeeded - users press the action and aren't sure whether it took effect. add a toast ("Alice is now the tree root") + an inline crown badge on the new root's inspector header
@@ -117,6 +116,10 @@
 - :red_circle: `23 May 2026` PersonNode portrait area was too short (rendered as a thin band) - portrait card is `CARD_H * 2 = 2.4u` with a 3:4 slot; silhouette placeholder dropped.
 - :red_circle: `24 May 2026` arrow keys now pan the canvas (up / down / left / right) when focus is on the canvas host and no person is selected - 60 css px per press, shift+arrow for 5x. tree-view keeps arrow-key selection-move when a person is selected; family-view pans unconditionally. hyperbolic engine uses Möbius transforms and stays out of scope.
 - :red_circle: `24 May 2026` family-view wheel-zoom sensitivity tuned - replaced the fixed 1.1-per-tick multiplier in `FamilyViewCanvas.onWheel` with the exp-based `factor = exp(-deltaY * intensity)` curve already used by `TreeCanvas.onWheel` (0.0018 for mouse wheel, 0.0045 for ctrl+wheel / trackpad pinch). small deltas now produce proportionally small zoom changes; pinch path was always ctrl+wheel here and is dampened separately so it stays responsive.
+
+### inspector
+
+- :red_circle: `24 May 2026` dropped the verbose "inferred from identity" entry from the AGAB dropdown in the Personal tab - blank/unset already means inferred (the field label already tags it with "(inferred)"), so the option now just reads "(unset)" and the dropdown sheds a noisy line.
 
 ### shell + UI
 

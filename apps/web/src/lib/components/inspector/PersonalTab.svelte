@@ -12,7 +12,6 @@
         getAssignedAtBirth,
         getFluid,
         getIdentity,
-        getInferredAssignedAtBirth,
         getPronouns,
         isAssignedAtBirthInferred,
         toGenderStruct,
@@ -162,7 +161,6 @@
     let pronouns = $derived(getPronouns(person) ?? "");
     let assignedAtBirth = $derived(getAssignedAtBirth(person));
     let aabInferred = $derived(isAssignedAtBirthInferred(person));
-    let aabInferredValue = $derived(getInferredAssignedAtBirth(person));
     let fluid = $derived(getFluid(person));
 </script>
 
@@ -256,9 +254,7 @@
                         commitAssignedAtBirth(e.currentTarget.value)}
                     class={inputCls}
                 >
-                    <option value=""
-                        >({aabInferredValue.toLowerCase()} — inferred from identity)</option
-                    >
+                    <option value="">(unset)</option>
                     <option value="AMAB">AMAB</option>
                     <option value="AFAB">AFAB</option>
                     <option value="UAAB">UAAB</option>
