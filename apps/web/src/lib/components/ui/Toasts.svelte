@@ -12,9 +12,15 @@
     let { store }: Props = $props();
 </script>
 
-<!-- anchored top-center to avoid overlapping the inspector when it docks right -->
+<!--
+    anchored top-center to avoid overlapping the inspector when it docks right.
+    z-30 puts the toast above canvas chrome but below interactive overlays
+    (menus z-40, modals / context menus z-50) so a lingering toast never
+    steals a click meant for an open menu or dialog. the toast body still
+    re-enables pointer-events-auto for the dismiss button.
+-->
 <div
-    class="pointer-events-none fixed top-12 left-1/2 z-50 flex w-80 max-w-[calc(100vw-1.5rem)] -translate-x-1/2 flex-col gap-2"
+    class="pointer-events-none fixed top-12 left-1/2 z-30 flex w-80 max-w-[calc(100vw-1.5rem)] -translate-x-1/2 flex-col gap-2"
     aria-live="polite"
     aria-atomic="false"
 >
