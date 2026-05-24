@@ -35,7 +35,6 @@
 
 - :o: `high priority` `medium effort` picking a person from the command palette / find-person search closes the palette but doesn't update selection - canvas may re-centre via `focusSelection()` (`App.svelte:1156`) but the selection-store write either doesn't fire or doesn't propagate. trace the `select.person` action path
 - :o: `medium priority` `medium effort` selected person is lost on page reload - selection state isn't persisted. add a `fte.selection.lastPersonId` localStorage key restored on tree load (gate restoration on the loaded tree containing that id)
-- :o: `medium priority` `low effort` toasts (top-right corner) overlap the inspector panel when the inspector docks right - toast content becomes unreachable. fix: anchor toasts top-center, or offset by the inspector width when the inspector is open on that side
 
 ### portrait cropper
 
@@ -81,6 +80,7 @@
 
 ### shell
 
+- :red_circle: `24 May 2026` toasts (top-right corner) overlapped the inspector panel when it docked right - re-anchored the toast container to top-center (`top-12 left-1/2 -translate-x-1/2`) in `Toasts.svelte`, sidestepping the inspector regardless of dock side.
 - :red_circle: `23 May 2026` Menu / command palette auto-highlighted the first item on mouse open - `activeIdx` now starts at -1; only ↑/↓/Home/End sets the highlight. ArrowDown on the menu-bar trigger still auto-focuses the first item (matches the WAI-ARIA convention).
 - :red_circle: `23 May 2026` Tree > "center on root" recentred viewport without selecting the root - `viewCenterRoot` command handler in `App.svelte` now calls `selection.select(treeStore.tree.rootId)` alongside `c.centerOnRoot()`.
 - :red_circle: `14 May 2026` command-palette pick left canvas in place - `App.svelte:1156` now calls `canvasController?.focusSelection()` after `focusPerson`; all three engines recenter on the picked person.
