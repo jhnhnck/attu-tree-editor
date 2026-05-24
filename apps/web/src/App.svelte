@@ -1672,20 +1672,8 @@
             <HelpCircle size={15} />
         </button>
 
-        <!-- save + auth -->
-        <div class="ml-auto flex items-center gap-2">
-            {#if !readOnly}
-                <SaveStatusPill
-                    {lastSavedAt}
-                    syncMode={syncStore.mode}
-                    {syncedFlashUntil}
-                    {lastError}
-                    onretry={() => void forceSave()}
-                    onconflict={() =>
-                        toasts.push("save conflict — see console for details", "error")}
-                    onforceSave={() => void forceSave()}
-                />
-            {/if}
+        <!-- auth (save-status pill mounts in the bottom-left chrome bar) -->
+        <div class="ml-auto">
             <AuthBar
                 onSignedIn={() => void authStore.fetch()}
                 onerror={(msg: string) => toasts.push(msg, "error")}
@@ -1784,17 +1772,32 @@
             <!-- ZoomWidget moved out of the canvas into the toolbar; the
                  toolbar slot mounts its trigger button + popover. -->
 
-            <!-- Shell bottom-left bar: stats pill (layered engine only —
-                 family-view / hyperbolic have no cluster analogue) and the
-                 debug toolbox pill (lucide Bug, all engines, visible unless
-                 the user hides it from the panel). Built as a flex row so
-                 future pills slot in without rewiring positions. -->
-            {#if statsPillVisible || !debugPillHidden}
+            <!-- Shell bottom-left bar: save-status pill (writable trees),
+                 stats pill (layered engine only — family-view / hyperbolic
+                 have no cluster analogue), and the debug toolbox pill
+                 (lucide Bug, all engines, visible unless the user hides it
+                 from the panel). Built as a flex row so future pills slot
+                 in without rewiring positions. -->
+            {#if !readOnly || statsPillVisible || !debugPillHidden}
                 <div
                     class="pointer-events-none absolute bottom-3 left-3 z-30 flex items-center gap-2"
                     data-testid="canvas-bottom-bar"
                     data-canvas-chrome
                 >
+                    {#if !readOnly}
+                        <div class="pointer-events-auto">
+                            <SaveStatusPill
+                                {lastSavedAt}
+                                syncMode={syncStore.mode}
+                                {syncedFlashUntil}
+                                {lastError}
+                                onretry={() => void forceSave()}
+                                onconflict={() =>
+                                    toasts.push("save conflict — see console for details", "error")}
+                                onforceSave={() => void forceSave()}
+                            />
+                        </div>
+                    {/if}
                     {#if statsPillVisible && layoutStats}
                         <button
                             type="button"

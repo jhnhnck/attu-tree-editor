@@ -60,7 +60,6 @@
 - :o: `low priority` `low effort` View > Overlays should be a submenu rather than ~7 toggle items in the View menu root - bundles naturally with the View > Advanced submenu item under family-view; combine into one View-menu reorg
 - :o: `low priority` `low effort` menu items need re-sorting and better dividers - current order is mostly insertion-order; group conceptually (e.g. zoom controls together, overlays together) with dividers between groups
 - :o: `low priority` `low effort` auto-fit (fit-to-window) is only reachable via the small fit button inside the zoom widget popover - surface it as a top-level pill in the canvas chrome alongside the zoom percent, so it's one click instead of two
-- :o: `low priority` `low effort` move the save-status pill out of the title-strip and into the bottom-left pill bar alongside stats + debug - the three already share `.fte-pill` chrome (24 May 2026), but the save-status pill still mounts in the header at `App.svelte:1675` rather than the `data-canvas-chrome` bottom-bar wrapper. physical co-location frees up header space and groups all three "ambient status" pills together. preserve the tone-colored icon/label spans; just relocate the mount point
 
 ### portrait cropper
 
@@ -127,6 +126,7 @@
 - :red_circle: `24 May 2026` command palette now matches a typed person id directly - `#XYZ12` prefix is people-only id-lookup with a distinct empty state, and a bare id query also surfaces the person at the top of the list.
 - :red_circle: `24 May 2026` View > Overlays toggle items now render a tri-state trailing indicator (filled check when on, outlined empty box when off, nothing when not a toggle) so the on/off state reads at a glance instead of relying on the absence of a checkmark.
 - :red_circle: `24 May 2026` unified the bottom-left stats and debug pills and the title-strip save-status pill under a shared `.fte-pill` class in `app.css` (border, radius, padding, elevated background, text-xs, hover-border-accent). debug-pill variant `.fte-pill-icon` keeps the fixed-square icon-only form; save-status pill keeps its tone-colored icon/label spans on top of the shared chrome.
+- :red_circle: `24 May 2026` save-status pill physically relocated from the title-strip into the bottom-left `data-canvas-chrome` bar alongside the stats and debug pills - all three "ambient status" pills now group together and contribute to the same chrome-aware fit-to-window inset. header keeps only the auth bar on the right; SaveStatusPill component is unchanged (tone-colored icon/label spans intact).
 
 ### schema evolution
 
