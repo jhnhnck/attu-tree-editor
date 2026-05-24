@@ -19,6 +19,7 @@
     --color-fg: hsl(220 10% 88%); /* #dde0e5 - cool light grey */
     --color-fg-muted: hsl(220 15% 72%); /* #a4afc1 - brightened for legibility */
     --color-line: hsl(220 25% 22%); /* #2b3548 - subtle border */
+    --color-tree-trunk: hsl(220 25% 44%); /* #54678c - title-bar tree icon trunk fill */
     --color-accent: hsl(220 100% 65%); /* #4d8aff - link blue */
     --color-accent-strong: hsl(220 100% 75%); /* #80acff - hover/active */
 
@@ -83,6 +84,9 @@
         --color-fg: hsl(220 12% 18%); /* #282d35 */
         --color-fg-muted: hsl(220 12% 35%); /* #4e5769 - darkened for legibility */
         --color-line: hsl(220 25% 78%); /* #b8c2d4 */
+        --color-tree-trunk: hsl(
+            220 25% 56%
+        ); /* #7385ab - tree icon trunk, darker than line for light bg */
         --color-accent: hsl(220 100% 45%); /* #0057e6 */
         --color-accent-strong: hsl(220 100% 35%); /* #0044b3 */
         --fte-on-path-ring-color: hsl(220 100% 45% / 0.35);
@@ -95,6 +99,7 @@
     --color-fg: hsl(220 12% 18%);
     --color-fg-muted: hsl(220 12% 35%);
     --color-line: hsl(220 25% 78%);
+    --color-tree-trunk: hsl(220 25% 56%);
     --color-accent: hsl(220 100% 45%);
     --color-accent-strong: hsl(220 100% 35%);
     --fte-on-path-ring-color: hsl(220 100% 45% / 0.35);
@@ -106,6 +111,7 @@
     --color-fg: hsl(220 10% 88%);
     --color-fg-muted: hsl(220 15% 72%);
     --color-line: hsl(220 25% 22%);
+    --color-tree-trunk: hsl(220 25% 44%);
     --color-accent: hsl(220 100% 65%);
     --color-accent-strong: hsl(220 100% 75%);
     --fte-on-path-ring-color: hsl(220 100% 65% / 0.35);

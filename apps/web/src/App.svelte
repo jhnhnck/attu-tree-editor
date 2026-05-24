@@ -37,7 +37,6 @@
         HelpCircle,
         Share2,
         Shield,
-        TreePine,
         Layers,
         CircleDot,
         Network,
@@ -125,6 +124,7 @@
     import OpenDialog from "$lib/components/shell/OpenDialog.svelte";
     import AuthBar from "$lib/components/shell/AuthBar.svelte";
     import ShareDialog from "$lib/components/shell/ShareDialog.svelte";
+    import AboutDialog from "$lib/components/shell/AboutDialog.svelte";
     import AdminPanel from "$lib/components/shell/AdminPanel.svelte";
     import SettingsDialog from "$lib/components/shell/SettingsDialog.svelte";
     import MenuBar from "$lib/components/shell/MenuBar.svelte";
@@ -166,6 +166,7 @@
     let recents = $state<TreeListing[]>([]);
     let firstLoadComplete = $state(false);
     let showShare = $state(false);
+    let showAbout = $state(false);
     let showAdmin = $state(false);
     let showHelp = $state(false);
     let showSettings = $state(false);
@@ -1477,7 +1478,7 @@
             {
                 label: "About",
                 icon: Info,
-                onclick: () => stub("About"),
+                onclick: () => (showAbout = true),
             },
         ] satisfies MenuEntry[],
     });
@@ -1503,7 +1504,51 @@
 <div class="bg-canvas text-fg flex h-dvh flex-col">
     <header class="border-line bg-canvas-elev flex h-9 items-center gap-0.5 border-b px-2">
         <!-- identity -->
-        <TreePine size={16} class="text-accent mr-1 shrink-0" aria-label="family tree editor" />
+        <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="22"
+            height="25"
+            viewBox="1749 135 438 489"
+            class="mr-1 shrink-0"
+            aria-label="family tree editor"
+        >
+            <polygon
+                fill="var(--color-tree-trunk)"
+                stroke="var(--color-line)"
+                stroke-width="12"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-miterlimit="10"
+                points="2149.367,368.782 2139.871,359.289 2008.219,478.622 1996.79,322.486 1975.788,322.486 1961.608,516.185 1858.209,424.05 1848.711,433.542 1958.628,556.899 1954.167,617.83 2018.409,617.83 2011.329,521.102"
+            />
+            <path
+                fill="#0ea5e9"
+                stroke="#0369a1"
+                stroke-width="12"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-miterlimit="10"
+                d="M2083.975,238.967c0,70.953-26.738,97.688-97.687,97.688c-70.949,0-97.687-26.735-97.687-97.688c0-70.952,26.738-97.687,97.687-97.687C2057.237,141.281,2083.975,168.015,2083.975,238.967z"
+            />
+            <path
+                fill="#f43f5e"
+                stroke="#be123c"
+                stroke-width="12"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-miterlimit="10"
+                d="M1915.633,404.205c0,58.393-22.005,80.395-80.394,80.395c-58.39,0-80.395-22.002-80.395-80.395c0-58.392,22.005-80.395,80.395-80.395C1893.628,323.811,1915.633,345.813,1915.633,404.205z"
+            />
+            <path
+                fill="#fbbf24"
+                stroke="#d97706"
+                stroke-width="12"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-miterlimit="10"
+                d="M2181.424,388.904c0,42.997-16.204,59.198-59.197,59.198c-42.994,0-59.197-16.201-59.197-59.198c0-42.996,16.204-59.197,59.197-59.197C2165.22,329.707,2181.424,345.908,2181.424,388.904z"
+            />
+        </svg>
         {#if titleEditing}
             <input
                 bind:this={titleEl}
@@ -2091,6 +2136,10 @@
 
     {#if showShare}
         <ShareDialog treeId={treeStore.tree.id} onClose={() => (showShare = false)} />
+    {/if}
+
+    {#if showAbout}
+        <AboutDialog onClose={() => (showAbout = false)} />
     {/if}
 
     {#if showAdmin}
