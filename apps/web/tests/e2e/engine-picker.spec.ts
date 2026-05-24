@@ -15,6 +15,7 @@
 
 import { resolve } from "node:path";
 import { expect, test } from "@playwright/test";
+import { importViaWizard } from "./_helpers/importViaWizard";
 
 const TINY = resolve(process.cwd(), "tests/fixtures/tiny.ged");
 
@@ -33,8 +34,8 @@ test.beforeEach(async ({ page }) => {
 
 test("engine picker switches canvas and persists across reload", async ({ page }) => {
     await page.goto("/");
-    await page.locator('[data-testid="import-input"]').setInputFiles(TINY);
-    await expect(page.getByText(/loaded \d+ people/)).toBeVisible();
+    await importViaWizard(page, TINY);
+    await expect(page.getByText(/imported \d+ people/)).toBeVisible();
 
     // Layered canvas is the default — at least one PersonNode is rendered.
     const cards = page.locator("[data-person-id]");
@@ -68,8 +69,8 @@ test("engine picker switches canvas and persists across reload", async ({ page }
 
 test("hyperbolic canvas shows the proband at disk centre", async ({ page }) => {
     await page.goto("/");
-    await page.locator('[data-testid="import-input"]').setInputFiles(TINY);
-    await expect(page.getByText(/loaded \d+ people/)).toBeVisible();
+    await importViaWizard(page, TINY);
+    await expect(page.getByText(/imported \d+ people/)).toBeVisible();
 
     await page.getByRole("button", { name: "View" }).click();
     await page.getByRole("menuitem", { name: /hyperbolic engine/ }).click();

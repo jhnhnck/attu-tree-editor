@@ -6,6 +6,7 @@
 <script lang="ts">
     import { Upload, FileText, X } from "@lucide/svelte";
     import Button from "$lib/components/ui/Button.svelte";
+    import { composeImports } from "$lib/io/import/composeImports";
     import { importFile, type ImportPayload } from "$lib/io/importFile";
     import { persistImportPayload, type ImportApplyMode } from "$lib/io/persistImportPayload";
     import type { Tree } from "$lib/domain/types";
@@ -14,6 +15,10 @@
     interface Props {
         store: TreeStore;
         currentTree: Tree | undefined;
+        /** the host knows whether the active tree is a real user-edited one
+         *  vs the placeholder seed. when false, the replace/merge radio is
+         *  hidden and the wizard treats this as a fresh import. */
+        currentTreeDirty: boolean;
         initialFile?: File | undefined;
         onclose: () => void;
         onsuccess: (info: { treeId: string; sourceFormat: string; count: number }) => void;
@@ -24,13 +29,28 @@
         onsaveCurrent?: (() => Promise<void>) | undefined;
     }
 
-    const { store, currentTree, initialFile, onclose, onsuccess, onfailure, onsaveCurrent }: Props =
-        $props();
+    const {
+        store,
+        currentTree,
+        currentTreeDirty,
+        initialFile,
+        onclose,
+        onsuccess,
+        onfailure,
+        onsaveCurrent,
+    }: Props = $props();
 
     interface Row {
+        id: string;
         file: File;
         payload?: ImportPayload;
         error?: string;
+    }
+
+    let rowSeq = 0;
+    function newRowId(): string {
+        rowSeq += 1;
+        return `r${String(rowSeq)}`;
     }
 
     let rows = $state<Row[]>([]);
@@ -41,29 +61,27 @@
     let busy = $state(false);
     let dragHover = $state(false);
 
-    const hasOpenTree = $derived(
-        currentTree !== undefined && Object.keys(currentTree.people).length > 0,
-    );
+    const hasOpenTree = $derived(currentTreeDirty);
     const parsedRows = $derived(rows.filter((r) => r.payload !== undefined));
     const canImport = $derived(parsedRows.length > 0 && !busy);
 
     async function addFile(file: File): Promise<void> {
-        const row: Row = { file };
-        rows.push(row);
+        const id = newRowId();
+        // append a placeholder row (parsing...) and reassign so $derived
+        // recomputes immediately
+        rows = [...rows, { id, file }];
         const result = await importFile(file);
-        if (!result.ok) {
-            row.error = result.error;
-        } else {
-            row.payload = result.value;
-            // first parsed file's detected name seeds the name field
-            if (!treeName) treeName = result.value.tree.name;
-        }
-        // svelte 5 runes - replace the array to force reactivity
-        rows = [...rows];
+        const final: Row = result.ok
+            ? { id, file, payload: result.value }
+            : { id, file, error: result.error };
+        // replace by id so the new payload propagates through $derived even
+        // if the Svelte 5 proxy makes the placeholder object reference shift.
+        rows = rows.map((r) => (r.id === id ? final : r));
+        if (result.ok && !treeName) treeName = result.value.tree.name;
     }
 
-    function removeRow(index: number): void {
-        rows = rows.filter((_, i) => i !== index);
+    function removeRow(id: string): void {
+        rows = rows.filter((r) => r.id !== id);
         if (rows.length === 0) treeName = "";
     }
 
@@ -95,8 +113,10 @@
 
     async function onImport(): Promise<void> {
         if (!canImport) return;
-        const first = parsedRows[0];
-        if (!first || !first.payload) return;
+        const payloads = parsedRows
+            .map((r) => r.payload)
+            .filter((p): p is ImportPayload => p !== undefined);
+        if (payloads.length === 0) return;
         busy = true;
         try {
             // user clarified: "replace" means save the current tree first,
@@ -104,20 +124,23 @@
             if (mode === "replace" && hasOpenTree && onsaveCurrent) {
                 await onsaveCurrent();
             }
+            // fold multi-file imports into one payload before persisting.
+            // single-file imports pass through unchanged.
+            const composed = composeImports(payloads);
             const applyMode: ImportApplyMode =
                 mode === "merge" && hasOpenTree && currentTree
                     ? { kind: "merge", into: currentTree }
                     : { kind: "replace" };
             const result = await persistImportPayload({
-                payload: first.payload,
+                payload: composed.payload,
                 treeName,
                 mode: applyMode,
                 store,
             });
             onsuccess({
                 treeId: result.treeId,
-                sourceFormat: first.payload.sourceFormat,
-                count: first.payload.count,
+                sourceFormat: composed.payload.sourceFormat,
+                count: composed.payload.count,
             });
             onclose();
         } catch (e) {
@@ -198,7 +221,7 @@
             <!-- file rows -->
             {#if rows.length > 0}
                 <ul class="flex flex-col gap-1" data-testid="import-rows">
-                    {#each rows as row, i (i)}
+                    {#each rows as row (row.id)}
                         <li
                             class="border-line bg-canvas flex items-center gap-2 rounded border px-2 py-1.5 text-xs"
                             class:border-red-500={row.error !== undefined}
@@ -229,7 +252,7 @@
                                 type="button"
                                 class="text-fg-muted hover:text-fg shrink-0"
                                 aria-label="remove"
-                                onclick={() => removeRow(i)}
+                                onclick={() => removeRow(row.id)}
                                 disabled={busy}
                             >
                                 <X size={12} />

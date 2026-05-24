@@ -2205,6 +2205,7 @@
         <ImportWizard
             store={treeStore}
             currentTree={treeStore.tree}
+            currentTreeDirty={treeStore.dirty}
             initialFile={importInitialFile}
             onclose={() => {
                 showImportWizard = false;

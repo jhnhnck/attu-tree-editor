@@ -16,6 +16,7 @@
 
 import { resolve } from "node:path";
 import { expect, test } from "@playwright/test";
+import { importViaWizard } from "./_helpers/importViaWizard";
 
 const MULTI = resolve(process.cwd(), "tests/fixtures/multi-union.ged");
 
@@ -36,8 +37,8 @@ test.describe("family view — Phase 3 path highlight", () => {
     test("selecting a relative marks the path with data-on-path", async ({ page }) => {
         test.setTimeout(60_000);
         await page.goto("/");
-        await page.locator('[data-testid="import-input"]').setInputFiles(MULTI);
-        await expect(page.getByText(/loaded \d+ people/)).toBeVisible({ timeout: 30_000 });
+        await importViaWizard(page, MULTI);
+        await expect(page.getByText(/imported \d+ people/)).toBeVisible({ timeout: 30_000 });
 
         const region = page.getByRole("region", { name: /family view canvas/ });
         await expect(region).toBeVisible();
@@ -71,8 +72,8 @@ test.describe("family view — Phase 3 path highlight", () => {
         test.skip(isMobile, "B4: inspector sheet intercepts second click on focus card");
         test.setTimeout(60_000);
         await page.goto("/");
-        await page.locator('[data-testid="import-input"]').setInputFiles(MULTI);
-        await expect(page.getByText(/loaded \d+ people/)).toBeVisible({ timeout: 30_000 });
+        await importViaWizard(page, MULTI);
+        await expect(page.getByText(/imported \d+ people/)).toBeVisible({ timeout: 30_000 });
 
         const region = page.getByRole("region", { name: /family view canvas/ });
         await expect(region).toBeVisible();

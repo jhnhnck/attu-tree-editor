@@ -17,6 +17,7 @@
 
 import { resolve } from "node:path";
 import { expect, test } from "@playwright/test";
+import { importViaWizard } from "./_helpers/importViaWizard";
 import { maskUnstableUI } from "./_helpers/visual-mask";
 
 const MULTI = resolve(process.cwd(), "tests/fixtures/multi-union.ged");
@@ -41,8 +42,8 @@ test.describe("add-relative visual golden", () => {
         test.setTimeout(60_000);
 
         await page.goto("/");
-        await page.locator('[data-testid="import-input"]').setInputFiles(MULTI);
-        await expect(page.getByText(/loaded \d+ people/)).toBeVisible({ timeout: 30_000 });
+        await importViaWizard(page, MULTI);
+        await expect(page.getByText(/imported \d+ people/)).toBeVisible({ timeout: 30_000 });
 
         const region = page.getByRole("region", { name: /family view canvas/ });
         await expect(region).toBeVisible();

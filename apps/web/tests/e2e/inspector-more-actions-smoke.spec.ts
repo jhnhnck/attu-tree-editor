@@ -10,6 +10,7 @@
 
 import { resolve } from "node:path";
 import { expect, test } from "@playwright/test";
+import { importViaWizard } from "./_helpers/importViaWizard";
 
 const TINY = resolve(process.cwd(), "tests/fixtures/tiny.ged");
 
@@ -25,8 +26,8 @@ test.beforeEach(async ({ page }) => {
 
 test("inspector more-actions menu items fire their handlers", async ({ page }) => {
     await page.goto("/");
-    await page.locator('[data-testid="import-input"]').setInputFiles(TINY);
-    await expect(page.getByText(/loaded \d+ people/)).toBeVisible();
+    await importViaWizard(page, TINY);
+    await expect(page.getByText(/imported \d+ people/)).toBeVisible();
 
     // open inspector by clicking a card; we use the first visible person card
     const firstCard = page.locator("[data-person-id]").first();

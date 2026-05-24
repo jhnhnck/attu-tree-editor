@@ -5,6 +5,7 @@
 
 import { resolve } from "node:path";
 import { expect, test } from "@playwright/test";
+import { importViaWizard } from "./_helpers/importViaWizard";
 
 const TINY = resolve(process.cwd(), "tests/fixtures/tiny.ged");
 
@@ -23,10 +24,10 @@ test.beforeEach(async ({ page }) => {
 test("import a tiny ged file, render person cards, focus the inspector", async ({ page }) => {
     await page.goto("/");
 
-    await page.locator('[data-testid="import-input"]').setInputFiles(TINY);
+    await importViaWizard(page, TINY);
 
     // toast confirms parse + load
-    await expect(page.getByText(/loaded \d+ people/)).toBeVisible();
+    await expect(page.getByText(/imported \d+ people/)).toBeVisible();
 
     // at least one PersonNode button rendered
     const cards = page.locator("[data-person-id]");
