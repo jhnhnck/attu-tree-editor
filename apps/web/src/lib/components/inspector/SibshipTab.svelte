@@ -134,7 +134,7 @@
                         />
                         <button
                             type="button"
-                            class="text-fg-muted hover:text-pink-400"
+                            class="text-fg-muted hover:text-danger"
                             aria-label="delete sibship"
                             title="delete this sibship"
                             onclick={() => onremoveSibshipDecorator?.(d.id)}
@@ -158,7 +158,7 @@
                                 >
                                 <button
                                     type="button"
-                                    class="text-fg-muted hover:text-pink-400"
+                                    class="text-fg-muted hover:text-danger"
                                     aria-label="remove sibling"
                                     onclick={() => onremoveSibshipMember?.(d.id, sid)}
                                 >

@@ -63,7 +63,6 @@
 - :o: `low priority` `low effort` View > Overlays should be a submenu rather than ~7 toggle items in the View menu root - bundles naturally with the View > Advanced submenu item under family-view; combine into one View-menu reorg
 - :o: `low priority` `low effort` menu items need re-sorting and better dividers - current order is mostly insertion-order; group conceptually (e.g. zoom controls together, overlays together) with dividers between groups
 - :o: `low priority` `low effort` auto-fit (fit-to-window) is only reachable via the small fit button inside the zoom widget popover - surface it as a top-level pill in the canvas chrome alongside the zoom percent, so it's one click instead of two
-- :o: `low priority` `no effort` destructive actions across the shell use `text-pink-400` (File > Delete this tree, Inspector > Delete person, the remove-relationship / remove-group / remove-bond buttons in Sibship / Groups / Relationships tabs, the `Menu.svelte` `danger: true` style) - switch them all to red instead. red is the conventional danger color; pink reads as decorative. keep red/rose tokens out of error-only territory by picking a destructive-specific red token (e.g. `text-red-500` or a `--color-danger` theme token) rather than re-using a validation-error red
 - :o: `low priority` `low effort` move the save-status pill out of the title-strip and into the bottom-left pill bar alongside stats + debug - the three already share `.fte-pill` chrome (24 May 2026), but the save-status pill still mounts in the header at `App.svelte:1675` rather than the `data-canvas-chrome` bottom-bar wrapper. physical co-location frees up header space and groups all three "ambient status" pills together. preserve the tone-colored icon/label spans; just relocate the mount point
 
 ### portrait cropper
@@ -123,6 +122,7 @@
 
 ### shell + UI
 
+- :red_circle: `24 May 2026` destructive actions across the shell (File > Delete this tree via `Menu.svelte` `danger: true`, Inspector > Delete person, the remove-X buttons in Sibship / Groups / Relationships tabs) now use a new `--color-danger` theme token (`text-danger`) instead of `text-pink-400`. distinct from the lighter `text-red-400` validation-error red so destructive vs invalid stay readable side-by-side; light-theme override darkens for legibility.
 - :red_circle: `24 May 2026` removed the F2 keyboard shortcut entry from the registry - Enter (and double-click) already open the editor for the selected person, so the F2 binding was redundant noise in the shortcuts overlay.
 - :red_circle: `24 May 2026` command palette now matches a typed person id directly - `#XYZ12` prefix is people-only id-lookup with a distinct empty state, and a bare id query also surfaces the person at the top of the list.
 - :red_circle: `24 May 2026` View > Overlays toggle items now render a tri-state trailing indicator (filled check when on, outlined empty box when off, nothing when not a toggle) so the on/off state reads at a glance instead of relying on the absence of a checkmark.

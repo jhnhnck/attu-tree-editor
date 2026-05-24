@@ -172,7 +172,7 @@
                         />
                         <button
                             type="button"
-                            class="text-fg-muted hover:text-pink-400"
+                            class="text-fg-muted hover:text-danger"
                             aria-label="delete group"
                             title="delete this group"
                             onclick={() => onremoveGroup?.(g.id)}
@@ -201,7 +201,7 @@
                                 >
                                 <button
                                     type="button"
-                                    class="text-fg-muted hover:text-pink-400"
+                                    class="text-fg-muted hover:text-danger"
                                     aria-label="remove member"
                                     onclick={() => onremoveGroupMember?.(g.id, mid)}
                                 >
@@ -236,7 +236,7 @@
                                     >
                                     <button
                                         type="button"
-                                        class="text-fg-muted hover:text-pink-400"
+                                        class="text-fg-muted hover:text-danger"
                                         aria-label="clear founder"
                                         onclick={() => clearFounder(g)}
                                     >

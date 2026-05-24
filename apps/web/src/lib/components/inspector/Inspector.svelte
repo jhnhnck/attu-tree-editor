@@ -380,7 +380,7 @@
                                 <div class="border-line my-1 border-t"></div>
                                 <button
                                     type="button"
-                                    class="text-pink-400 hover:bg-canvas flex w-full items-center gap-2 px-3 py-1 text-left text-xs"
+                                    class="text-danger hover:bg-canvas flex w-full items-center gap-2 px-3 py-1 text-left text-xs"
                                     onclick={() => {
                                         ondelete(person.id);
                                         menuOpen = false;

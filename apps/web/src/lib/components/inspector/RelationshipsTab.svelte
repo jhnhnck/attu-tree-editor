@@ -175,7 +175,7 @@
                         </select>
                         <button
                             type="button"
-                            class="ml-auto text-fg-muted hover:text-pink-400"
+                            class="ml-auto text-fg-muted hover:text-danger"
                             aria-label="delete relationship"
                             title="delete this relationship"
                             onclick={() => onremoveRelationship?.(rel.id)}
@@ -198,7 +198,7 @@
                                 >
                                 <button
                                     type="button"
-                                    class="text-fg-muted hover:text-pink-400"
+                                    class="text-fg-muted hover:text-danger"
                                     aria-label="remove from sources"
                                     onclick={() => removeSourceChip(rel, sid)}
                                 >
@@ -229,7 +229,7 @@
                                 >
                                 <button
                                     type="button"
-                                    class="text-fg-muted hover:text-pink-400"
+                                    class="text-fg-muted hover:text-danger"
                                     aria-label="remove from targets"
                                     onclick={() => removeTargetChip(rel, tid)}
                                 >

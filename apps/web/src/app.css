@@ -22,6 +22,12 @@
     --color-tree-trunk: hsl(220 25% 44%); /* #54678c - title-bar tree icon trunk fill */
     --color-accent: hsl(220 100% 65%); /* #4d8aff - link blue */
     --color-accent-strong: hsl(220 100% 75%); /* #80acff - hover/active */
+    --color-danger: hsl(
+        0 75% 55%
+    ); /* #df3b3b - destructive-action red (delete tree, remove person, etc).
+        * intentionally distinct from the lighter `text-red-400` used for
+        * validation-error copy so destructive vs invalid stay readable
+        * side-by-side. */
 
     /* on-path overlay tokens. consumed by .family-view-onpath (card ring)
      * and .family-view-onpath-edge (edge stroke width). dark-theme defaults
@@ -89,6 +95,7 @@
         ); /* #7385ab - tree icon trunk, darker than line for light bg */
         --color-accent: hsl(220 100% 45%); /* #0057e6 */
         --color-accent-strong: hsl(220 100% 35%); /* #0044b3 */
+        --color-danger: hsl(0 70% 45%); /* #c22929 - darker red for light bg legibility */
         --fte-on-path-ring-color: hsl(220 100% 45% / 0.35);
     }
 }
@@ -102,6 +109,7 @@
     --color-tree-trunk: hsl(220 25% 56%);
     --color-accent: hsl(220 100% 45%);
     --color-accent-strong: hsl(220 100% 35%);
+    --color-danger: hsl(0 70% 45%);
     --fte-on-path-ring-color: hsl(220 100% 45% / 0.35);
 }
 
@@ -114,6 +122,7 @@
     --color-tree-trunk: hsl(220 25% 44%);
     --color-accent: hsl(220 100% 65%);
     --color-accent-strong: hsl(220 100% 75%);
+    --color-danger: hsl(0 75% 55%);
     --fte-on-path-ring-color: hsl(220 100% 65% / 0.35);
 }
 

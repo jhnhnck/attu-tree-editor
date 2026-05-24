@@ -185,7 +185,7 @@
                         data-idx={i}
                         disabled={item.disabled ?? false}
                         class="hover:bg-canvas focus:bg-canvas group flex w-full items-center gap-2 px-3 py-1 text-left text-sm outline-none disabled:cursor-not-allowed disabled:opacity-40"
-                        class:text-pink-400={item.danger}
+                        class:text-danger={item.danger}
                         onclick={() => selectItem(item)}
                         tabindex="-1"
                     >
