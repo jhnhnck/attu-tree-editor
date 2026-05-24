@@ -191,6 +191,10 @@
     let activeTab = $state<Tab>("personal");
     let menuOpen = $state(false);
     let menuEl: HTMLDivElement | undefined = $state();
+    // person id chip is hidden by default; revealed on header hover (desktop)
+    // or by clicking the chip itself (covers no-hover devices). copy-id in the
+    // more-actions menu still works without revealing here.
+    let idRevealed = $state(false);
 
     // responsive mode: "sheet" on narrow viewports, "side" otherwise
     const mql =
@@ -235,6 +239,8 @@
     $effect.pre(() => {
         void selectedId;
         activeTab = initialTab;
+        // re-hide the id chip whenever the selected person changes
+        idRevealed = false;
     });
 
     function copyId(): void {
@@ -301,7 +307,7 @@
     data-canvas-chrome={isSheet ? "" : undefined}
 >
     {#if person}
-        <header class="border-line border-b px-3 py-2">
+        <header class="group border-line border-b px-3 py-2">
             <div class="flex items-start gap-2">
                 <div class="min-w-0 flex-1">
                     <h2 class="text-fg flex items-center gap-1 truncate text-sm font-semibold">
@@ -317,7 +323,22 @@
                             </span>
                         {/if}
                     </h2>
-                    <p class="text-fg-muted truncate font-mono text-[10px]">id {person.id}</p>
+                    <!--
+                        id chip - hidden by default to keep the casual-user view on names.
+                        desktop: revealed by group-hover on the header.
+                        mobile / no-hover: tap to toggle (covers touch devices).
+                        copy-id lives in the more-actions menu and works regardless.
+                    -->
+                    <button
+                        type="button"
+                        class="text-fg-muted hover:text-fg block max-w-full truncate font-mono text-[10px] opacity-0 transition-opacity group-hover:opacity-100"
+                        class:opacity-100={idRevealed}
+                        aria-label={idRevealed ? "hide id" : "show id"}
+                        title={idRevealed ? "click to hide" : "click to reveal id"}
+                        onclick={() => (idRevealed = !idRevealed)}
+                    >
+                        id {person.id}
+                    </button>
                 </div>
                 {#if onfocus}
                     <button

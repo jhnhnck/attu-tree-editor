@@ -40,7 +40,6 @@
 - :o: `medium priority` `low effort` pronouns, AGAB, and fluid-identity should collapse under gender by default - currently each is a top-level field in the Personal tab, inflating the form for the common case. collapse the other three behind a "more identity fields" disclosure
 - :o: `low priority` `low effort` wiki title field should autocomplete from the wiki - query `/w/api.php?action=opensearch&search=...` and offer suggestions in the person editor / inspector Details tab
 - :o: `low priority` `low effort` combine inspector Personal + Details tabs into one - Details only carries occupation, location, wiki title, and display dropdown; folding into Personal under a "more" disclosure trims a tab without losing access
-- :o: `low priority` `low effort` person ID should be hidden by default in the inspector header - show on hover / behind a "show id" toggle. shifts the casual-user view toward names and away from internal IDs
 
 ### canvas
 
@@ -119,6 +118,7 @@
 - :red_circle: `24 May 2026` "set as tree root" now gives visible feedback - the action fires a toast ("<name> is now the tree root") and the inspector header renders a crown badge next to the name whenever the inspected person is the current `tree.rootId`. badge is derived state so it also shows for whoever the current root is, regardless of how the action was invoked (inspector more-actions menu, command palette, context menu).
 - :red_circle: `24 May 2026` dropped the verbose "inferred from identity" entry from the AGAB dropdown in the Personal tab - blank/unset already means inferred (the field label already tags it with "(inferred)"), so the option now just reads "(unset)" and the dropdown sheds a noisy line.
 - :red_circle: `24 May 2026` PersonalTab portrait widget shrunk to a compact 80px thumbnail with upload/clear buttons stacked beside it (was a full-width aspect-square preview that dominated the top of the tab). thumbnail itself is the click target for upload/replace; drag-drop and paste still admit images over the whole region. dropped the redundant "portrait" section header.
+- :red_circle: `24 May 2026` person id chip is hidden by default in the inspector header - the `id <person-id>` line now sits at `opacity-0` and reveals on header hover via `group-hover:opacity-100` (desktop), or by clicking the chip itself which toggles an `idRevealed` state (covers touch devices without hover). reveal state resets whenever the selected person changes. copy-id in the more-actions menu still works without revealing the chip first; the crown root badge is untouched.
 
 ### shell + UI
 
