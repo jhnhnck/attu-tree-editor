@@ -285,6 +285,8 @@ tools that don't understand SCHMA skip it; FamilyTree Editor's own permissive pa
     - `data-era-underline="true"` (1-px century-banded strip at card bottom - phase 5)
     Aria-label substrings are *also* selector surface (phase 2 hit a collision when `˅`'s aria-label contained "view-time" and lit up the existing `getByRole("button", { name: "View" })` selector). When adding an affordance, scan existing aria-label / role selectors before settling on copy.
 
+17. **auth dry-run debug toggle**: the debug panel's `shell > auth dry-run` chip flips `authStore` into a client-side-only synthetic session (`DRY_RUN_USER` in `state/auth.svelte.ts`, role `admin`). useful for exercising protected-action UI paths without discord linking. persisted in `localStorage["fte.debug.authDryRun"]`; only client-side gating is faked, so any real backend call still 401s. `authStore.realUser` distinguishes from the effective `user`; `AuthBar`'s sign-out short-circuits when only the synthetic session is active.
+
 ---
 
 ## 10. reference notes

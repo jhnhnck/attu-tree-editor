@@ -104,7 +104,6 @@ tracked gaps in the FamilyScript spec the parser does not yet model. each line i
 
 - :o: `medium priority` `medium effort` symbols and icons used across the UI need a reference key - users see Crown / Star / Heart / Crosshair / Link2 / etc. without a legend. add either a Help > Icons & symbols dialog or an entry in `notes/features/`
 - :o: `medium priority` `low effort` update `notes/features/keyboard-shortcuts.md` to reflect what actually shipped: drop Mod+N (browser new-window), Mod+Shift+N (browser private-window) and Mod+1 (browser tab-1) from the canonical spec; document the soft-conflict pattern where Mod+S/O/P/D/I/E/0 work via `preventDefault` like Figma/VS Code; add a "browser-safe" rule of thumb for future bindings
-- :o: `medium priority` `medium effort` debug-mode toggle to enable a "dry-run" auth mode for testing protected actions without going through Discord linking - synthesise a fake session per the `AuthBar` flow; gate behind the existing debug flag. re-flagged 24 May 2026.
 - :o: `low priority` `low effort` debug toolbox residual - shipped in `916078f` + `d3243c4`: anchor (bottom-left unified bar), discovery pill, chip toggles, 4 sections, layout-timing readout, cycle-nodes, bond/centroid-delta, orphan badge, rank-gutter labels, last-edit halo, copy-snapshot, dump/load-tree-json, force-conflict. two sub-bullets remain open:
   - `topology hash` corner readout - current `editRev` + content hash from `layout.worker.ts`; verifies the worker-cache key
   - `engine quick-switch` row - one-click toggle between layered / hyperbolic without going through View menu
@@ -150,6 +149,10 @@ tracked gaps in the FamilyScript spec the parser does not yet model. each line i
 ### schema evolution
 
 - :red_circle: `14 May 2026` replaced `motherId` / `fatherId` with `parentIds: ParentRef[]` (each entry carries optional `role` and `pedi`); supports asexual / multi-parent / non-binary single parents; shipped with the v1 -> v2 migration in `domain/schema.ts`. Inspector + GEDCOM round-trip lands at commit `c6845dc`.
+
+### tooling + docs
+
+- :red_circle: `24 May 2026` debug panel now exposes an `auth dry-run` chip (new `shell` section) that flips `authStore` into a client-side synthetic session - `DRY_RUN_USER` (id `dry-run-user`, role admin) is surfaced via `authStore.user` when the toggle is on and no real session is signed in. persisted in `localStorage["fte.debug.authDryRun"]`; backend calls are not faked, only UI gating. `AuthBar` sign-out short-circuits when only the synthetic session is active.
 
 ---
 

@@ -176,6 +176,43 @@
     // debug overlay state
     let debugOpen = $state(false);
     let debugPillHidden = $state(false);
+
+    // auth dry-run debug toggle. localStorage-persisted so a session
+    // that opted in stays in dry-run across reloads (useful for poking
+    // protected paths without re-doing discord linking each time). on
+    // boot we hand the persisted value to the auth store via
+    // setDryRun(); the store derives the effective `user` from
+    // realUser || (dryRun && syntheticUser). only client-side gating
+    // is faked - any backend call still hits the real /api/auth/me
+    // surface and 401s if there's no session cookie.
+    const AUTH_DRY_RUN_LS_KEY = "fte.debug.authDryRun";
+    function readAuthDryRunPref(): boolean {
+        try {
+            const raw =
+                typeof localStorage === "undefined"
+                    ? null
+                    : localStorage.getItem(AUTH_DRY_RUN_LS_KEY);
+            return raw === "true";
+        } catch {
+            return false;
+        }
+    }
+    function writeAuthDryRunPref(on: boolean): void {
+        try {
+            if (typeof localStorage !== "undefined") {
+                localStorage.setItem(AUTH_DRY_RUN_LS_KEY, on ? "true" : "false");
+            }
+        } catch {
+            // ignore - quota / disabled storage is non-fatal
+        }
+    }
+    let authDryRunEnabled = $state(readAuthDryRunPref());
+    // sync the auth store with the toggle so consumers reading
+    // authStore.user immediately see the synthetic session.
+    $effect(() => {
+        authStore.setDryRun(authDryRunEnabled);
+    });
+
     let debugLayers = $state<DebugLayerOptions>({
         showGrid: false,
         showNodeBounds: true,
@@ -2062,6 +2099,31 @@
                                 data-testid="debug-load-json"
                             >
                                 load
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- shell section: session/auth shims for ui testing -->
+                    <div class="mb-2">
+                        <div
+                            class="mb-1 text-[9px] font-semibold uppercase tracking-wider text-fg-muted"
+                        >
+                            shell
+                        </div>
+                        <div class="flex flex-wrap gap-1">
+                            <button
+                                type="button"
+                                class="border-line text-fg-muted hover:text-fg rounded border px-1.5 py-0.5"
+                                class:text-accent={authDryRunEnabled}
+                                class:border-accent={authDryRunEnabled}
+                                onclick={() => {
+                                    authDryRunEnabled = !authDryRunEnabled;
+                                    writeAuthDryRunPref(authDryRunEnabled);
+                                }}
+                                data-testid="debug-toggle-authDryRun"
+                                title="synthesise a client-side session so protected-action gating flows without discord linking. backend calls still 401."
+                            >
+                                auth dry-run
                             </button>
                         </div>
                     </div>
