@@ -126,5 +126,5 @@ items are grouped first by view if specific to one (family-view, tree-view, hype
 
 ```yaml
 last_updated: 24 May 2026
-total_fixed: 25
+total_fixed: 26
 ```
