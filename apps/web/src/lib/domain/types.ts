@@ -131,6 +131,12 @@ export interface Person {
     occupation?: string;
     location?: string;
     locationOrigin?: string;
+    /**
+     * Surname recorded at birth (e.g. maiden name). Distinct from `surname`,
+     * which holds the surname-as-currently-used. Populated by FamilyScript's
+     * `q` tag; the GEDCOM mapping for this slot lands in a later phase.
+     */
+    surnameAtBirth?: string;
     /** open string (e.g. "human", "dragon", "chimera"). Phase 5; schema 3.2.0. */
     species?: string;
     /** see `PersonKind`. Phase 5; schema 3.2.0. */

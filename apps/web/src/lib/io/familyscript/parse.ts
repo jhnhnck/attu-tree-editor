@@ -28,7 +28,10 @@ export interface FsParseResult {
     coupleExtras: FsCoupleExtras[][];
 }
 
-const ID_RE = /^[A-Z0-9]{5}$/;
+// FamilyScript spec: any-length alphanumeric, case-sensitive. The old
+// 5-uppercase regex rejected legal IDs (e.g. Family Echo's mixed-case bot
+// outputs); allowing 1+ alphanumeric per spec.
+const ID_RE = /^[A-Za-z0-9]+$/;
 
 export function parseFamilyScript(text: string): Result<FsParseResult, string> {
     const lines = splitLines(text);
@@ -146,6 +149,13 @@ function parsePerson(
                 if (value.length > 0) person.anchorParentId = value;
                 break;
             case "g": {
+                // FamilyScript spec also defines `g o[ <description>]` for
+                // "other"; map that to GenderStruct since the legacy Gender
+                // enum is "m" | "f" | "u" only.
+                if (value.startsWith("o")) {
+                    person.gender = { identity: "other" };
+                    break;
+                }
                 const g = FS_GENDER_FROM_CODE[value];
                 if (g) person.gender = g;
                 else findings.push({ kind: "unknown-tag", from: id, tag, value });
@@ -208,7 +218,10 @@ function parsePerson(
                 person.surname = value;
                 break;
             case "q":
-                person.locationOrigin = value;
+                // FamilyScript spec: surname at birth. The previous mapping
+                // wrote this to `locationOrigin` which silently put maiden
+                // names under a location field; the slot lands here now.
+                person.surnameAtBirth = value;
                 break;
             case "T":
                 person.title = value;
@@ -236,6 +249,10 @@ function parsePerson(
     return { person, extras };
 }
 
+// FamilyScript date shape: optional B (TT era) + 4-digit-or-more year + 2 mo + 2 day + optional ~.
+// Used to disambiguate couple `m` between a marriage date and a (legacy) child-id reference.
+const FS_DATE_SHAPE_RE = /^B?\d{8}~?$/;
+
 function parseCouple(
     leftId: PersonId,
     rightId: PersonId,
@@ -244,6 +261,7 @@ function parseCouple(
     let unionIndex = 0;
     const childIds: PersonId[] = [];
     const extras: FsCoupleExtras[] = [];
+    let marriageDate: CoupleRecord["marriageDate"] | undefined;
 
     for (const token of rest) {
         if (token.length === 0) continue;
@@ -257,19 +275,29 @@ function parseCouple(
             unionIndex = Number.isFinite(n) ? n : 0;
             continue;
         }
-        // child references occasionally appear via `m<id>` on couple records
-        if (tag === "m" && ID_RE.test(value)) {
-            childIds.push(value);
-            continue;
+        if (tag === "m") {
+            // Spec: marriage date YYYYMMDD. Some prior fixtures wrote child
+            // references as `m<personId>`; we disambiguate by date shape so
+            // both forms still work.
+            if (FS_DATE_SHAPE_RE.test(value)) {
+                const parsed = HaracalndeDate.parseFamilyScript(value);
+                if (parsed.ok && parsed.value !== null) {
+                    marriageDate = parsed.value.toJSON();
+                    continue;
+                }
+            }
+            if (ID_RE.test(value)) {
+                childIds.push(value);
+                continue;
+            }
         }
         // gender hint and anything else - preserve for round-trip
         extras.push({ tag, value });
     }
 
-    return {
-        couple: { leftId, rightId, unionIndex, childIds },
-        extras,
-    };
+    const couple: CoupleRecord = { leftId, rightId, unionIndex, childIds };
+    if (marriageDate !== undefined) couple.marriageDate = marriageDate;
+    return { couple, extras };
 }
 
 function deriveNameFromHeader(header: FsHeader): string {
