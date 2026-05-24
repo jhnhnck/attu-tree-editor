@@ -21,9 +21,14 @@ export interface MenuItem {
     disabled?: boolean | undefined;
     danger?: boolean | undefined;
     /**
-     * When true, render a trailing checkmark — used for radio-style choices
-     * (e.g. "active layout engine") so the user can see which option is
-     * currently selected without opening the menu twice.
+     * Tri-state toggle indicator on the trailing edge:
+     *   - `true`  - render a filled check (item is on)
+     *   - `false` - render an outlined empty box (item is off but toggleable)
+     *   - omitted - render nothing (not a toggle)
+     * used for both radio-style choices (e.g. active layout engine) and
+     * persistent on/off toggles (e.g. View > Overlay: path highlight). the
+     * outlined off-state was added so the user can tell at a glance which
+     * overlays are off without scanning for the absence of a checkmark.
      */
     checked?: boolean | undefined;
 }

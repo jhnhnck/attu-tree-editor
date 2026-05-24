@@ -4,7 +4,7 @@
 -->
 <script lang="ts">
     import { tick } from "svelte";
-    import { Check } from "@lucide/svelte";
+    import { Check, Square } from "@lucide/svelte";
     import { formatCombo } from "$lib/keyboard";
     import type { IconComponent, MenuEntry, MenuItem } from "./menu";
 
@@ -195,8 +195,17 @@
                             <span class="w-3.5 shrink-0"></span>
                         {/if}
                         <span class="flex-1">{item.label}</span>
-                        {#if item.checked}
+                        {#if item.checked === true}
                             <Check size={12} strokeWidth={2.5} class="text-accent shrink-0" />
+                        {:else if item.checked === false}
+                            <!-- explicit off-state for toggleable items so the user can
+                                 tell at a glance which overlays are off without scanning
+                                 for the absence of a checkmark -->
+                            <Square
+                                size={12}
+                                strokeWidth={1.75}
+                                class="text-fg-muted shrink-0 opacity-60"
+                            />
                         {/if}
                         {#if sc}
                             <span class="text-fg-muted ml-3 font-mono text-[11px] tracking-tight">

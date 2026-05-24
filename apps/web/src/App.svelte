@@ -1444,7 +1444,10 @@
             if (c.danger) item.danger = true;
             const enabled = c.enabled ? c.enabled() : true;
             if (!enabled) item.disabled = true;
-            if (c.checked?.()) item.checked = true;
+            // toggleable items (those declaring a `checked` callback) pass the
+            // live boolean through so Menu.svelte can render an explicit off-
+            // state indicator; non-toggle items leave `checked` undefined
+            if (c.checked) item.checked = c.checked();
             item.onclick = () => c.run();
             entries.push(item);
         }

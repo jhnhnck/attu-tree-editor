@@ -67,7 +67,6 @@
 - :o: `low priority` `low effort` bottom-left pills (stats, debug, save status) don't share a theme - colors, padding, radii drift between the three. unify under a single pill component / theme token set
 - :o: `low priority` `low effort` View > Overlays should be a submenu rather than ~7 toggle items in the View menu root - bundles naturally with the View > Advanced submenu item under family-view; combine into one View-menu reorg
 - :o: `low priority` `low effort` menu items need re-sorting and better dividers - current order is mostly insertion-order; group conceptually (e.g. zoom controls together, overlays together) with dividers between groups
-- :o: `low priority` `low effort` View > Overlays icons are nearly invisible at default contrast (transparent fill, no outline) - add a 1px outline or raise opacity so the on/off state reads
 - :o: `low priority` `low effort` auto-fit (fit-to-window) is only reachable via the small fit button inside the zoom widget popover - surface it as a top-level pill in the canvas chrome alongside the zoom percent, so it's one click instead of two
 - :o: `low priority` `no effort` File > "Delete this tree…" item uses a pink danger color instead of red - either align with the standard destructive-action red, or settle on pink as the project's danger color and update other destructive actions (Delete person, etc.) to match
 
@@ -123,6 +122,7 @@
 
 - :red_circle: `24 May 2026` removed the F2 keyboard shortcut entry from the registry - Enter (and double-click) already open the editor for the selected person, so the F2 binding was redundant noise in the shortcuts overlay.
 - :red_circle: `24 May 2026` command palette now matches a typed person id directly - `#XYZ12` prefix is people-only id-lookup with a distinct empty state, and a bare id query also surfaces the person at the top of the list.
+- :red_circle: `24 May 2026` View > Overlays toggle items now render a tri-state trailing indicator (filled check when on, outlined empty box when off, nothing when not a toggle) so the on/off state reads at a glance instead of relying on the absence of a checkmark.
 
 ### schema evolution
 
