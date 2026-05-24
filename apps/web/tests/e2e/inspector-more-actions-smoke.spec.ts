@@ -52,10 +52,10 @@ test("inspector more-actions menu items fire their handlers", async ({ page }) =
     await page.getByRole("button", { name: /copy id/i }).click();
     await expect(page.getByRole("menu")).toBeHidden();
 
-    // 3) Set as tree root — toast "root updated" appears
+    // 3) Set as tree root — toast confirms the just-promoted person
     await moreBtn.click();
     await page.getByRole("button", { name: /set as tree root/i }).click();
-    await expect(page.getByText("root updated")).toBeVisible();
+    await expect(page.getByText(/is now the tree root/i)).toBeVisible();
 
     // 4) Delete person — people count drops
     const afterDupText = await peopleBadge.textContent();
