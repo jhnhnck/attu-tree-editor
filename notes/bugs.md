@@ -28,11 +28,13 @@
 
 - :o: `high priority` `medium effort` editing a person's gender silently drops them from their children's `parentIds` - user-reported data-loss bug. `updatePerson()` in `lib/domain/tree.ts:150` is a field-level patch with no `parentIds` mutation, so the disconnect can't be in the domain layer. suspected: a `PersonPatch` derivation somewhere in `PersonalTab.svelte` commit chain that re-infers couple/parent assignments from gender. needs urgent repro and root-cause trace; treat as data-loss class
 - :o: `medium priority` `low effort` Inspector date fields are unreachable by keyboard - tabbing into a `DateInput` neither opens the calendar popup nor lets you type into the box; should do one or the other (probably: focus opens an editable text field, with the picker still available via click / down-arrow)
+- :o: `low priority` `low effort` `tests/e2e/inspector-more-actions-smoke.spec.ts:59` asserts `getByText("root updated")` but `setRootAction` in `App.svelte:1015` toasts `"${name} is now the tree root"`. mismatch predates the import-wizard-and-family-echo plan; the spec has never matched its target. fix: either change the toast to a stable "root updated" string or rewrite the assertion as `expect(page.getByText(/is now the tree root/))`. :dart: *carried in from plan: import-wizard-and-family-echo (2026-05-24)*
 
 ### canvas
 
 - :o: `medium priority` `medium effort` path highlight does not include the selected person's children - the selection→focus highlight covers ancestor edges but stops at the selected card; descendant edges (selected → child unions → child cards) stay unhighlighted. expected: highlight covers both directions of the visible neighbourhood. trace `pathHighlight.ts` `bundlesForPath` to confirm whether descendant edges are emitted but filtered downstream, or never emitted in the first place.
 - :o: `low priority` `low effort` cursor correctness audit - the canvas root's `cursor-grab` overrides cards / buttons inside it (should show pointer over PersonNodes), and the cursor occasionally stays in `grabbing` after a pan ends outside the window. fix the grab/grabbing/default/pointer transitions so the OS cursor always matches what's under the pointer
+- :o: `low priority` `low effort` 5 visual snapshot e2e specs drift on a fresh-worktree first run: `visual-add-relative`, `visual-dense-tree`, `visual-multi-union`, `visual-path-highlight`, `visual-secondary-union`. typical visual-golden flakiness across chromium build / antialiasing variants. fix: re-baseline on the standard CI image and commit, or move the specs behind a `playwright test --update-snapshots` opt-in until the baselines are stable. :dart: *carried in from plan: import-wizard-and-family-echo (2026-05-24)*
 
 ### shell
 
