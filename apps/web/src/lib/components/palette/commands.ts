@@ -107,6 +107,7 @@ export interface CommandHandlers {
     personAddChild: () => void;
     personAddPartner: () => void;
     personAddParent: () => void;
+    personAddSibling: () => void;
     personAddUnattached: () => void;
     paletteFindPerson: () => void;
     paletteCommands: () => void;
@@ -147,6 +148,13 @@ export interface CommandEnabledFlags {
     overlayGroupFramesActive?: () => boolean;
     /** Phase 6b: is the consanguinity overlay currently enabled? */
     overlayConsanguinityActive?: () => boolean;
+    /**
+     * person.addSibling needs a selected anchor whose record carries at
+     * least one parent ref - a sibling shares a parent. Mirrors the
+     * disabled state of the canvas right-click context menu so the Insert
+     * menu and palette surface the same affordance.
+     */
+    personAddSiblingEnabled?: () => boolean;
 }
 
 export function buildCommands(
@@ -415,6 +423,14 @@ export function buildCommands(
             group: "Insert",
             icon: icons["person.addParent"],
             run: h.personAddParent,
+        },
+        {
+            id: "person.addSibling",
+            label: "Add sibling of selected",
+            group: "Insert",
+            icon: icons["person.addSibling"],
+            enabled: enabled.personAddSiblingEnabled,
+            run: h.personAddSibling,
         },
         {
             id: "person.addUnattached",

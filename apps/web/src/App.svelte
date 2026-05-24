@@ -27,6 +27,7 @@
         Heart,
         Baby,
         UserPlus2,
+        Users,
         SidebarOpen,
         Pencil,
         Crown,
@@ -1363,6 +1364,7 @@
         personAddChild: () => withSelected((id) => addChild(id)),
         personAddPartner: () => withSelected((id) => addPartner(id)),
         personAddParent: () => withSelected((id) => addParent(id)),
+        personAddSibling: () => withSelected((id) => addSibling(id)),
         personAddUnattached: () => addUnattached(),
         paletteFindPerson: () => openPalette("anything"),
         paletteCommands: () => openPalette("commands"),
@@ -1400,6 +1402,7 @@
         "person.addChild": Baby,
         "person.addPartner": Heart,
         "person.addParent": UserPlus,
+        "person.addSibling": Users,
         "person.addUnattached": UserPlus2,
         "tree.rename": Pencil,
         "tree.setRoot": Crown,
@@ -1423,6 +1426,15 @@
             overlayGroupFramesActive: () => groupFramesEnabled,
             overlayConsanguinityActive: () => consanguinityEnabled,
             engineHyperbolicActive: () => selectedEngine === "hyperbolic",
+            // mirror the canvas context menu's disabled state: sibling
+            // needs a selected anchor with at least one parent ref
+            personAddSiblingEnabled: () => {
+                const sid = selection.selectedPersonId;
+                if (!sid) return false;
+                const anchor = treeStore.tree.people[sid];
+                if (!anchor) return false;
+                return getParents(anchor).length > 0;
+            },
         }),
     );
 
