@@ -165,8 +165,8 @@
 </script>
 
 <div class="space-y-5 px-4 py-3">
-    <section class="space-y-2">
-        <h3 class="text-fg-muted text-[10px] font-semibold tracking-widest uppercase">portrait</h3>
+    <section>
+        <!-- compact portrait widget; no section header since the thumbnail is self-explanatory -->
         <PortraitField
             {treeId}
             personId={person.id}

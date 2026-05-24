@@ -154,9 +154,11 @@
 
 <svelte:window onpaste={onPaste} />
 
+<!-- compact layout: 80px square thumbnail with buttons stacked beside it.
+     keeps drag/drop + paste over the whole region (thumb + buttons). -->
 <div
     bind:this={rootEl}
-    class="flex flex-col gap-2"
+    class="flex items-start gap-3"
     tabindex="-1"
     role="region"
     aria-label="portrait"
@@ -166,27 +168,30 @@
     ondragleave={onDragLeave}
     ondrop={onDrop}
 >
-    <div
-        class="bg-canvas border-line aspect-square w-full overflow-hidden rounded border transition-shadow"
+    <button
+        type="button"
+        onclick={pickFile}
+        aria-label={currentBlobId ? "replace portrait" : "upload portrait"}
+        class="bg-canvas border-line hover:border-accent h-20 w-20 flex-none overflow-hidden rounded border transition-shadow focus:outline-none focus-visible:border-accent"
         class:drag-hover={dragHover}
     >
         {#if url}
             <img src={url} alt="" class="h-full w-full object-cover" />
         {:else}
             <div
-                class="text-fg-muted flex h-full w-full flex-col items-center justify-center gap-2"
+                class="text-fg-muted flex h-full w-full flex-col items-center justify-center gap-1"
             >
-                <User size={40} strokeWidth={1.25} />
-                <span class="text-[10px]">no portrait</span>
+                <User size={28} strokeWidth={1.25} />
+                <span class="text-[9px] leading-none">no portrait</span>
             </div>
         {/if}
-    </div>
-    <div class="flex gap-1.5">
+    </button>
+    <div class="flex min-w-0 flex-1 flex-col gap-1.5">
         <button
             bind:this={replaceBtn}
             type="button"
             onclick={pickFile}
-            class="text-fg bg-canvas border-line hover:border-accent inline-flex items-center rounded border px-2 py-1 text-xs"
+            class="text-fg bg-canvas border-line hover:border-accent inline-flex w-fit items-center rounded border px-2 py-1 text-xs"
         >
             {currentBlobId ? "replace" : "upload"}
         </button>
@@ -194,7 +199,7 @@
             <button
                 type="button"
                 onclick={onRemove}
-                class="text-fg-muted bg-canvas border-line hover:border-accent hover:text-fg inline-flex items-center rounded border px-2 py-1 text-xs"
+                class="text-fg-muted bg-canvas border-line hover:border-accent hover:text-fg inline-flex w-fit items-center rounded border px-2 py-1 text-xs"
             >
                 clear
             </button>
