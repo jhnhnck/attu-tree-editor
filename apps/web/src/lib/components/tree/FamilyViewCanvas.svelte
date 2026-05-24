@@ -453,7 +453,11 @@
 
     function onWheel(e: WheelEvent): void {
         e.preventDefault();
-        const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+        // ctrl+wheel = trackpad pinch gesture in chrome/safari (larger deltas);
+        // sensitivity is lower than mouse wheel to avoid snap-zooming. matches
+        // TreeCanvas.onWheel so the two views feel consistent.
+        const intensity = e.ctrlKey ? 0.0045 : 0.0018;
+        const factor = Math.exp(-e.deltaY * intensity);
         const next = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale * factor));
         if (next === scale) return;
         const rect = hostEl?.getBoundingClientRect();

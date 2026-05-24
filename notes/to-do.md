@@ -54,7 +54,6 @@
 - :o: `medium priority` `low effort` hover tooltip at far zoom levels - PersonNode at level 4 (initials) and 5 (dot) drops the name; add a native `title` or floating tooltip showing the full name + dates so users can identify cards before zooming in
 - :o: `medium priority` `low effort` minimap + search-by-name popover
 - :o: `medium priority` `low effort` add `add sibling` to the per-person right-click context menu; currently the menu offers add parent / partner / child but not sibling, even though the Insert menu / shortcut path supports it
-- :o: `low priority` `low effort` wheel-zoom sensitivity is too high - small wheel deltas produce large zoom jumps, making fine-tuning hard. tune the per-tick zoom multiplier (search `setScaleAnchored` callers in the canvas wheel handler) and/or add a momentum-decay curve
 - :o: `low priority` `no effort` `gender: female` cards render in dark red instead of the intended pink-red - color token mismatch. flag for design-issues.md
 
 ### shell + UI
@@ -117,6 +116,7 @@
 
 - :red_circle: `23 May 2026` PersonNode portrait area was too short (rendered as a thin band) - portrait card is `CARD_H * 2 = 2.4u` with a 3:4 slot; silhouette placeholder dropped.
 - :red_circle: `24 May 2026` arrow keys now pan the canvas (up / down / left / right) when focus is on the canvas host and no person is selected - 60 css px per press, shift+arrow for 5x. tree-view keeps arrow-key selection-move when a person is selected; family-view pans unconditionally. hyperbolic engine uses Möbius transforms and stays out of scope.
+- :red_circle: `24 May 2026` family-view wheel-zoom sensitivity tuned - replaced the fixed 1.1-per-tick multiplier in `FamilyViewCanvas.onWheel` with the exp-based `factor = exp(-deltaY * intensity)` curve already used by `TreeCanvas.onWheel` (0.0018 for mouse wheel, 0.0045 for ctrl+wheel / trackpad pinch). small deltas now produce proportionally small zoom changes; pinch path was always ctrl+wheel here and is dampened separately so it stays responsive.
 
 ### shell + UI
 
