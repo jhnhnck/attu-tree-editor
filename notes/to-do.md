@@ -64,7 +64,6 @@
 - :o: `medium priority` `medium effort` user-settings dialog (localStorage-backed) - theme override (light / dark / auto; today the app follows `prefers-color-scheme` only), inspector side (left / right), and any other ergonomic toggles that don't need server persistence; replaces the stubbed `app.settings` shortcut and Edit > Settings menu item
 - :o: `medium priority` `medium effort` initial tree load flashes the default sample tree for ~1s before the real tree paints - block rendering until the loaded tree resolves, or paint a generic spinner over an empty canvas. natural pairing with the unified loading-bar item below
 - :o: `medium priority` `low effort` unified loading-bar / progress indicator - generic UI for long operations (import, autosave flush, server push, layout recompute on big trees); replaces the scattered `reading file…` toast pattern with a top-of-canvas progress strip
-- :o: `medium priority` `low effort` command palette and find-person should match a typed person ID (e.g. `#KRK57`) directly - today they search by name only, so users who copy an ID from elsewhere have no way to jump to that person
 - :o: `medium priority` `low effort` destructive actions (Delete person, Delete tree, Set as root) should require a confirmation step - currently single-click and they happen. add either a native `confirm()` (cheap) or a small in-app confirm dialog (consistent with the rest of the shell)
 - :o: `low priority` `low effort` bottom-left pills (stats, debug, save status) don't share a theme - colors, padding, radii drift between the three. unify under a single pill component / theme token set
 - :o: `low priority` `low effort` View > Overlays should be a submenu rather than ~7 toggle items in the View menu root - bundles naturally with the View > Advanced submenu item under family-view; combine into one View-menu reorg
@@ -123,6 +122,7 @@
 ### shell + UI
 
 - :red_circle: `24 May 2026` removed the F2 keyboard shortcut entry from the registry - Enter (and double-click) already open the editor for the selected person, so the F2 binding was redundant noise in the shortcuts overlay.
+- :red_circle: `24 May 2026` command palette now matches a typed person id directly - `#XYZ12` prefix is people-only id-lookup with a distinct empty state, and a bare id query also surfaces the person at the top of the list.
 
 ### schema evolution
 

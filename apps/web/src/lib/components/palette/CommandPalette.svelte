@@ -1,7 +1,8 @@
 <!--
     FamilyTreeEditor - command palette overlay (Mod+P / Mod+Shift+P)
     one component, two modes: "anything" (people first, then commands)
-    and "commands". prefix toggles: `>` jumps to commands, `@` to people.
+    and "commands". prefix toggles: `>` jumps to commands, `@` to people,
+    `#` to people by exact id. a bare id also matches when present.
     licensed under the MIT license; see LICENSE.md for full text
 -->
 <script lang="ts">
@@ -53,22 +54,43 @@
 
     /**
      * derive the "effective" mode + the user-visible filter portion of the input
-     * after stripping a leading `>` or `@`. those prefixes override the mode prop.
+     * after stripping a leading `>`, `@`, or `#`. those prefixes override the
+     * mode prop. `#` is people-only and signals "lookup by id" so a miss surfaces
+     * a distinct empty-state message rather than the generic "no matches".
      */
     interface View {
         effectiveMode: Mode;
         peopleOnly: boolean;
+        idLookup: boolean;
         q: string;
     }
     const view = $derived.by<View>(() => {
         const raw = query;
         if (raw.startsWith(">")) {
-            return { effectiveMode: "commands", peopleOnly: false, q: raw.slice(1).trim() };
+            return {
+                effectiveMode: "commands",
+                peopleOnly: false,
+                idLookup: false,
+                q: raw.slice(1).trim(),
+            };
         }
         if (raw.startsWith("@")) {
-            return { effectiveMode: "anything", peopleOnly: true, q: raw.slice(1).trim() };
+            return {
+                effectiveMode: "anything",
+                peopleOnly: true,
+                idLookup: false,
+                q: raw.slice(1).trim(),
+            };
         }
-        return { effectiveMode: mode, peopleOnly: false, q: raw.trim() };
+        if (raw.startsWith("#")) {
+            return {
+                effectiveMode: "anything",
+                peopleOnly: true,
+                idLookup: true,
+                q: raw.slice(1).trim(),
+            };
+        }
+        return { effectiveMode: mode, peopleOnly: false, idLookup: false, q: raw.trim() };
     });
 
     function fullName(p: Person): string {
@@ -94,6 +116,16 @@
 
     const people = $derived(Object.values(tree.people));
 
+    // a 3+ char run of [A-Z0-9] looks like a person id. used to short-circuit
+    // a bare query into an id lookup when the name search would return nothing.
+    const ID_SHAPE = /^[A-Z0-9]{3,}$/;
+
+    function idMatch(q: string): Person | undefined {
+        if (!q) return undefined;
+        const key = q.toUpperCase();
+        return tree.people[key];
+    }
+
     const rows = $derived.by<Row[]>(() => {
         const v = view;
         const limit = 50;
@@ -104,8 +136,17 @@
         const wantCommands =
             v.effectiveMode === "commands" || (v.effectiveMode === "anything" && !v.peopleOnly);
 
+        // direct id match: `#XYZ12` always, or a bare query that looks like an id
+        // and points at a real person. score 200 keeps it above any name match.
+        const directId = v.idLookup
+            ? idMatch(v.q)
+            : v.q && ID_SHAPE.test(v.q.toUpperCase())
+              ? idMatch(v.q)
+              : undefined;
+
         if (wantPeople || v.peopleOnly) {
             for (const p of people) {
+                if (directId && p.id === directId.id) continue;
                 const name = fullName(p);
                 const score = fuzzyScore(name, v.q);
                 if (v.q && score === 0) continue;
@@ -118,6 +159,15 @@
                 });
             }
             peopleRows.sort((a, b) => b.score - a.score || a.label.localeCompare(b.label));
+            if (directId) {
+                peopleRows.unshift({
+                    kind: "person",
+                    id: directId.id,
+                    label: fullName(directId),
+                    secondary: directId.id,
+                    score: 200,
+                });
+            }
         }
 
         if (wantCommands && !v.peopleOnly) {
@@ -229,6 +279,7 @@
 
     function placeholder(): string {
         const v = view;
+        if (v.idLookup) return "person id…";
         if (v.peopleOnly) return "find a person…";
         if (v.effectiveMode === "commands") return "type a command…";
         return "find a person or type > for commands…";
@@ -268,17 +319,25 @@
                 autocomplete="off"
             />
             <span class="text-fg-muted hidden font-mono text-[10px] sm:inline">
-                {view.peopleOnly
-                    ? "@ people"
-                    : view.effectiveMode === "commands"
-                      ? "> commands"
-                      : "any"}
+                {view.idLookup
+                    ? "# id"
+                    : view.peopleOnly
+                      ? "@ people"
+                      : view.effectiveMode === "commands"
+                        ? "> commands"
+                        : "any"}
             </span>
         </header>
 
         <div bind:this={listEl} class="max-h-[50vh] overflow-y-auto py-1">
             {#if rows.length === 0}
-                <div class="text-fg-muted px-3 py-6 text-center text-xs">no matches</div>
+                <div class="text-fg-muted px-3 py-6 text-center text-xs">
+                    {#if view.idLookup && view.q}
+                        no person with id {view.q.toUpperCase()}
+                    {:else}
+                        no matches
+                    {/if}
+                </div>
             {:else}
                 {#each rows as row, i (row.kind + ":" + row.id)}
                     {@const Icon = row.kind === "person" ? User : (row.icon ?? CommandIcon)}
@@ -326,6 +385,8 @@
                 commands
                 <kbd class="border-line bg-canvas rounded border px-1 font-mono">@</kbd>
                 people
+                <kbd class="border-line bg-canvas rounded border px-1 font-mono">#</kbd>
+                id
             </span>
         </footer>
     </div>

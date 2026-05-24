@@ -177,4 +177,75 @@ describe("CommandPalette", () => {
         expect(rows[1]?.classList.contains("bg-canvas")).toBe(true);
         expect(rows[0]?.classList.contains("bg-canvas")).toBe(false);
     });
+
+    it("`#` prefix surfaces the person by exact id and hides commands", async () => {
+        render(CommandPalette, {
+            tree: tinyTree(),
+            commands: cmds("Save"),
+            mode: "anything",
+            onpick: vi.fn(),
+            onclose: vi.fn(),
+        });
+        const input = screen.getByLabelText<HTMLInputElement>("palette search");
+        await fireEvent.input(input, { target: { value: "#BBBBB" } });
+        expect(screen.getByText("Beta Jones")).toBeInTheDocument();
+        expect(screen.queryByText("Alpha Smith")).toBeNull();
+        expect(screen.queryByText("Save")).toBeNull();
+    });
+
+    it("`#` lookup is case-insensitive", async () => {
+        render(CommandPalette, {
+            tree: tinyTree(),
+            commands: cmds("Save"),
+            mode: "anything",
+            onpick: vi.fn(),
+            onclose: vi.fn(),
+        });
+        const input = screen.getByLabelText<HTMLInputElement>("palette search");
+        await fireEvent.input(input, { target: { value: "#bbbbb" } });
+        expect(screen.getByText("Beta Jones")).toBeInTheDocument();
+    });
+
+    it("`#` with unknown id shows an id-specific empty state", async () => {
+        render(CommandPalette, {
+            tree: tinyTree(),
+            commands: cmds("Save"),
+            mode: "anything",
+            onpick: vi.fn(),
+            onclose: vi.fn(),
+        });
+        const input = screen.getByLabelText<HTMLInputElement>("palette search");
+        await fireEvent.input(input, { target: { value: "#ZZZZZ" } });
+        expect(screen.getByText(/no person with id ZZZZZ/i)).toBeInTheDocument();
+    });
+
+    it("a bare id query that matches a person surfaces them at the top", async () => {
+        const onpick = vi.fn();
+        render(CommandPalette, {
+            tree: tinyTree(),
+            commands: cmds("Save"),
+            mode: "anything",
+            onpick,
+            onclose: vi.fn(),
+        });
+        const input = screen.getByLabelText<HTMLInputElement>("palette search");
+        await fireEvent.input(input, { target: { value: "BBBBB" } });
+        await fireEvent.keyDown(input, { key: "Enter" });
+        expect(onpick).toHaveBeenCalledWith("person", "BBBBB");
+    });
+
+    it("Enter on a `#` id match fires onpick with kind=person and the id", async () => {
+        const onpick = vi.fn();
+        render(CommandPalette, {
+            tree: tinyTree(),
+            commands: cmds("Save"),
+            mode: "anything",
+            onpick,
+            onclose: vi.fn(),
+        });
+        const input = screen.getByLabelText<HTMLInputElement>("palette search");
+        await fireEvent.input(input, { target: { value: "#AAAAA" } });
+        await fireEvent.keyDown(input, { key: "Enter" });
+        expect(onpick).toHaveBeenCalledWith("person", "AAAAA");
+    });
 });
