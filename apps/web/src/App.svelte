@@ -1795,7 +1795,7 @@
                     {#if statsPillVisible && layoutStats}
                         <button
                             type="button"
-                            class="text-fg-muted bg-canvas-elev/80 border-line hover:border-accent pointer-events-auto cursor-pointer rounded-md border px-2.5 py-1 font-mono text-xs"
+                            class="fte-pill pointer-events-auto cursor-pointer font-mono"
                             title={layoutStats.components > 1
                                 ? `${String(layoutStats.components)} clusters` +
                                   (layoutStats.isolated > 0
@@ -1820,7 +1820,7 @@
                     {#if !debugPillHidden}
                         <button
                             type="button"
-                            class="text-fg hover:text-accent bg-canvas-elev/80 border-line pointer-events-auto flex h-6 w-6 items-center justify-center rounded-md border"
+                            class="fte-pill fte-pill-icon pointer-events-auto"
                             aria-label="toggle debug panel"
                             title="debug panel (Ctrl+Shift+D)"
                             data-testid="debug-pill"

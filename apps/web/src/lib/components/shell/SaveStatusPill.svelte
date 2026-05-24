@@ -115,7 +115,7 @@
 <div bind:this={containerEl} class="relative">
     <button
         type="button"
-        class="hover:bg-canvas inline-flex items-center gap-1.5 rounded px-1.5 py-0.5 text-xs"
+        class="fte-pill gap-1.5"
         title={label}
         aria-label="save status: {label}"
         onclick={handleClick}
