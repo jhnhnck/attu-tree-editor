@@ -277,10 +277,15 @@
     // changes persist immediately.
     let selectedEngine = $state<EngineKind>(DEFAULT_ENGINE);
 
-    // stats pill is a layered-engine concept (cluster + isolated counts);
-    // family-view / hyperbolic have no cluster analogue so the pill stays
-    // layered-only by design. the debug pill is engine-agnostic.
-    let statsPillVisible = $derived(selectedEngine === "layered" && layoutStats !== undefined);
+    // stats pill mounts in the bottom-left chrome bar whenever the active
+    // engine emits onlayoutstats (layered + family-view today; hyperbolic
+    // doesn't yet). cluster + isolated counts are layered-only — family-view
+    // reports components=1 / isolated=0 so the pill renders as a compact
+    // "N people" with no cluster suffix. the debug pill is engine-agnostic.
+    let statsPillVisible = $derived(
+        (selectedEngine === "layered" || selectedEngine === "family-view") &&
+            layoutStats !== undefined,
+    );
 
     // engine-compatibility for debug-panel toggles. layered-only toggles
     // target layered IR (positions, ghosts, segments, ranks, placedGraph)
@@ -1842,11 +1847,11 @@
                  toolbar slot mounts its trigger button + popover. -->
 
             <!-- Shell bottom-left bar: save-status pill (writable trees),
-                 stats pill (layered engine only — family-view / hyperbolic
-                 have no cluster analogue), and the debug toolbox pill
-                 (lucide Bug, all engines, visible unless the user hides it
-                 from the panel). Built as a flex row so future pills slot
-                 in without rewiring positions. -->
+                 stats pill (any engine that emits onlayoutstats — layered
+                 + family-view today; hyperbolic doesn't yet), and the
+                 debug toolbox pill (lucide Bug, all engines, visible
+                 unless the user hides it from the panel). Built as a flex
+                 row so future pills slot in without rewiring positions. -->
             {#if !readOnly || statsPillVisible || !debugPillHidden}
                 <div
                     class="pointer-events-none absolute bottom-3 left-3 z-30 flex items-center gap-2"
