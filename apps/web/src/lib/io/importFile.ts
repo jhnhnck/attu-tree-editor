@@ -1,28 +1,35 @@
 /*
- * FamilyTreeEditor - shared file -> Tree importer used by the file-input handler
- * AND the canvas drag-drop overlay. detects format, parses, returns a Result.
+ * FamilyTreeEditor - shared file -> ImportPayload importer used by the wizard.
+ * detects format, parses, returns a Result carrying both the tree and any
+ * embedded portrait blobs so callers route persistence consistently.
  * licensed under the MIT license; see LICENSE.md for full text
  */
 
-import { detectFormat } from "$lib/io/detect";
+import type { Tree } from "$lib/domain/types";
+import { readBundle } from "$lib/io/bundle/read";
+import type { PortraitBlob } from "$lib/io/bundle/write";
+import { detectFormat, type FormatKind } from "$lib/io/detect";
 import { parseFamilyScript } from "$lib/io/familyscript/parse";
 import { parseGedcom } from "$lib/io/gedcom/parse";
-import { readBundle } from "$lib/io/bundle/read";
-import type { Tree } from "$lib/domain/types";
 import { err, ok, type Result } from "$lib/utils/result";
 
-export interface ImportSuccess {
+export type ImportSourceFormat = Exclude<FormatKind, "unknown">;
+
+export interface ImportPayload {
     tree: Tree;
+    portraits: PortraitBlob[];
+    sourceFormat: ImportSourceFormat;
+    /** person count at parse time; convenience for preview rows */
     count: number;
-    format: "gedzip" | "gedcom" | "familyscript";
 }
 
 /**
- * read a File -> Tree, sniffing format by extension+magic bytes. returns a
- * structured Result so the caller can route the toast/error UX without
- * caring about the parse internals.
+ * Read a File -> ImportPayload, sniffing format by extension + magic bytes.
+ * `portraits` is empty for formats that don't carry images; GEDZIP populates
+ * it from the bundle's media/ entries so the wizard's persistence helper can
+ * write them to IDB without re-parsing.
  */
-export async function importFile(file: File): Promise<Result<ImportSuccess, string>> {
+export async function importFile(file: File): Promise<Result<ImportPayload, string>> {
     const buffer = await file.arrayBuffer();
     const bytes = new Uint8Array(buffer);
     const format = detectFormat({
@@ -36,8 +43,9 @@ export async function importFile(file: File): Promise<Result<ImportSuccess, stri
         if (!r.ok) return err(r.error);
         return ok({
             tree: r.value.tree,
+            portraits: r.value.portraits,
+            sourceFormat: format,
             count: Object.keys(r.value.tree.people).length,
-            format,
         });
     }
     if (format === "gedcom") {
@@ -46,8 +54,9 @@ export async function importFile(file: File): Promise<Result<ImportSuccess, stri
         if (!r.ok) return err(r.error);
         return ok({
             tree: r.value.tree,
+            portraits: [],
+            sourceFormat: format,
             count: Object.keys(r.value.tree.people).length,
-            format,
         });
     }
     if (format === "familyscript") {
@@ -56,8 +65,9 @@ export async function importFile(file: File): Promise<Result<ImportSuccess, stri
         if (!r.ok) return err(r.error);
         return ok({
             tree: r.value.tree,
+            portraits: [],
+            sourceFormat: format,
             count: Object.keys(r.value.tree.people).length,
-            format,
         });
     }
     return err(`unrecognized file format: ${file.name}`);
