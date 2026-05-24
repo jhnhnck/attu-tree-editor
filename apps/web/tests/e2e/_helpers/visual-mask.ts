@@ -71,16 +71,21 @@ export function maskUnstableUI(page: Page, opts: MaskOptions = {}): Locator[] {
         defaults.push(page.locator('[role="alert"]'));
     }
     if (!omit.has("saveStatusPill")) {
-        // Autosave pill text drifts between "Saving…" and "Saved · just
-        // now" depending on test timing. The `.save-status-pill` class
-        // is set on the wrapper.
-        defaults.push(page.locator(".save-status-pill"));
+        // Autosave pill text drifts between "Saving…", "Saved · just
+        // now", and "Not saved yet" depending on test timing. The pill
+        // exposes a stable `aria-label` prefix and now lives inside the
+        // bottom-left chrome bar (`[data-canvas-chrome]`), which also
+        // hosts the stats and debug pills — mask the wrapper so any
+        // pill added later is covered too.
+        defaults.push(page.locator("[data-canvas-chrome]"));
     }
     if (!omit.has("statsPill")) {
         // Bottom-left people-count pill ("1802 people · 4 clusters")
         // varies by fixture and animates in once layout-stats arrive.
-        // Targeted via the people-count button's accessible name.
-        defaults.push(page.getByRole("button", { name: /people/ }));
+        // Covered by the chrome-bar wrapper above; kept here so the
+        // public mask API still has a `statsPill` knob, and to target
+        // the testid directly in case the wrapper opts out.
+        defaults.push(page.locator('[data-testid="stats-pill"]'));
     }
     const extras = opts.extra ?? [];
     return [...defaults, ...extras];
