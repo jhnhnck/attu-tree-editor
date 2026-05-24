@@ -131,6 +131,23 @@ export interface Person {
     occupation?: string;
     location?: string;
     locationOrigin?: string;
+    /**
+     * Surname recorded at birth (e.g. maiden name). Distinct from `surname`,
+     * which holds the surname-as-currently-used. Populated by FamilyScript's
+     * `q` tag and emitted via the `_TREES_BIRTH_SURNAME` GEDCOM extension.
+     * Schema 3.5.0.
+     */
+    surnameAtBirth?: string;
+    /** Given name(s) recorded at birth. FamilyScript `n`. Schema 3.5.0. */
+    givenAtBirth?: string;
+    /** Nickname. FamilyScript `N`, GEDCOM standard `2 NICK`. Schema 3.5.0. */
+    nickname?: string;
+    /** Name suffix (Jr, Sr, etc.). FamilyScript `J`, GEDCOM standard `2 NSFX`. Schema 3.5.0. */
+    suffix?: string;
+    /** Place of birth. FamilyScript `v`, GEDCOM `2 PLAC` under `1 BIRT`. Schema 3.5.0. */
+    birthPlace?: string;
+    /** Place of death. FamilyScript `y`, GEDCOM `2 PLAC` under `1 DEAT`. Schema 3.5.0. */
+    deathPlace?: string;
     /** open string (e.g. "human", "dragon", "chimera"). Phase 5; schema 3.2.0. */
     species?: string;
     /** see `PersonKind`. Phase 5; schema 3.2.0. */

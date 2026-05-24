@@ -3,7 +3,7 @@
  * licensed under the MIT license; see LICENSE.md for full text
  */
 
-import type { DisplayFlag, Gender } from "$lib/domain/types";
+import type { DisplayFlag, Gender, ParentPedi } from "$lib/domain/types";
 
 export const FS_PERSON_TAGS = [
     "i",
@@ -27,6 +27,22 @@ export type FsPersonTag = (typeof FS_PERSON_TAGS)[number];
 
 export const FS_GENDER_FROM_CODE: Record<string, Gender> = { m: "m", f: "f", u: "u" };
 export const FS_DISPLAY_FROM_CODE: Record<string, DisplayFlag> = { "0": "z0", "1": "z1" };
+
+/**
+ * FamilyScript V/W/Q pedi codes -> domain ParentPedi.
+ *
+ * Spec codes: b biological / a adopted / d guardian / s step / f foster /
+ *             r surrogate / g godparent / o other.
+ *
+ * Only the codes that land on an existing `ParentPedi` value are mapped.
+ * `s`, `d`, `g`, `r`, `o` have no canonical equivalent yet; phase-3 callers
+ * default to `birth` and emit a finding so the data is still importable.
+ */
+export const FS_PEDI_FROM_CODE: Record<string, ParentPedi> = {
+    b: "birth",
+    a: "adopted",
+    f: "foster",
+};
 
 export interface FsHeader {
     /** Verbatim # comment lines from the top of the file. */

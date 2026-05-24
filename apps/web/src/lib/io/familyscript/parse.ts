@@ -5,11 +5,20 @@
 
 import { HaracalndeDate } from "$lib/date/HaracalndeDate";
 import { ROOT_ID } from "$lib/domain/ids";
-import type { CoupleRecord, Gender, ParentRef, Person, PersonId, Tree } from "$lib/domain/types";
+import type {
+    CoupleRecord,
+    Gender,
+    ParentPedi,
+    ParentRef,
+    Person,
+    PersonId,
+    Tree,
+} from "$lib/domain/types";
 import { validate, type Finding } from "$lib/domain/validate";
 import {
     FS_DISPLAY_FROM_CODE,
     FS_GENDER_FROM_CODE,
+    FS_PEDI_FROM_CODE,
     type FsCoupleExtras,
     type FsHeader,
 } from "$lib/io/familyscript/tokens";
@@ -28,7 +37,10 @@ export interface FsParseResult {
     coupleExtras: FsCoupleExtras[][];
 }
 
-const ID_RE = /^[A-Z0-9]{5}$/;
+// FamilyScript spec: any-length alphanumeric, case-sensitive. The old
+// 5-uppercase regex rejected legal IDs (e.g. Family Echo's mixed-case bot
+// outputs); allowing 1+ alphanumeric per spec.
+const ID_RE = /^[A-Za-z0-9]+$/;
 
 export function parseFamilyScript(text: string): Result<FsParseResult, string> {
     const lines = splitLines(text);
@@ -135,6 +147,24 @@ function parsePerson(
     };
     const extras: { tag: string; value: string }[] = [];
 
+    // staging for the three parent-set inputs (m/f + V; X/Y + W; K/L + Q).
+    // collected during the scan and flushed into person.parentIds[] at the
+    // end because the pedi tag (V/W/Q) can appear in any token order
+    // relative to its mother/father ids.
+    interface ParentSet {
+        mother?: PersonId;
+        father?: PersonId;
+        pedi?: ParentPedi;
+    }
+    const sets: [ParentSet, ParentSet, ParentSet] = [{}, {}, {}];
+    function readPedi(value: string, tag: string): ParentPedi {
+        const mapped = FS_PEDI_FROM_CODE[value];
+        if (mapped) return mapped;
+        findings.push({ kind: "unknown-tag", from: id, tag, value });
+        // permissive: keep the data, fall back to "birth"
+        return "birth";
+    }
+
     for (const token of rest) {
         if (token.length === 0) continue;
         const tag = token[0];
@@ -146,6 +176,13 @@ function parsePerson(
                 if (value.length > 0) person.anchorParentId = value;
                 break;
             case "g": {
+                // FamilyScript spec also defines `g o[ <description>]` for
+                // "other"; map that to GenderStruct since the legacy Gender
+                // enum is "m" | "f" | "u" only.
+                if (value.startsWith("o")) {
+                    person.gender = { identity: "other" };
+                    break;
+                }
                 const g = FS_GENDER_FROM_CODE[value];
                 if (g) person.gender = g;
                 else findings.push({ kind: "unknown-tag", from: id, tag, value });
@@ -179,27 +216,45 @@ function parsePerson(
                 break;
             }
             case "m":
-                if (ID_RE.test(value)) {
-                    const refs: ParentRef[] = person.parentIds ?? [];
-                    if (!refs.some((r) => r.personId === value)) {
-                        person.parentIds = [
-                            ...refs,
-                            { personId: value, role: "mother", pedi: "birth" },
-                        ];
-                    }
-                } else findings.push({ kind: "unknown-tag", from: id, tag, value });
+                if (ID_RE.test(value)) sets[0].mother = value;
+                else findings.push({ kind: "unknown-tag", from: id, tag, value });
                 break;
             case "f":
-                if (ID_RE.test(value)) {
-                    const refs: ParentRef[] = person.parentIds ?? [];
-                    if (!refs.some((r) => r.personId === value)) {
-                        person.parentIds = [
-                            ...refs,
-                            { personId: value, role: "father", pedi: "birth" },
-                        ];
-                    }
-                } else findings.push({ kind: "unknown-tag", from: id, tag, value });
+                if (ID_RE.test(value)) sets[0].father = value;
+                else findings.push({ kind: "unknown-tag", from: id, tag, value });
                 break;
+            case "V":
+                sets[0].pedi = readPedi(value, tag);
+                break;
+            case "X":
+                if (ID_RE.test(value)) sets[1].mother = value;
+                else findings.push({ kind: "unknown-tag", from: id, tag, value });
+                break;
+            case "Y":
+                if (ID_RE.test(value)) sets[1].father = value;
+                else findings.push({ kind: "unknown-tag", from: id, tag, value });
+                break;
+            case "W":
+                sets[1].pedi = readPedi(value, tag);
+                break;
+            case "K":
+                if (ID_RE.test(value)) sets[2].mother = value;
+                else findings.push({ kind: "unknown-tag", from: id, tag, value });
+                break;
+            case "L":
+                if (ID_RE.test(value)) sets[2].father = value;
+                else findings.push({ kind: "unknown-tag", from: id, tag, value });
+                break;
+            case "Q":
+                sets[2].pedi = readPedi(value, tag);
+                break;
+            case "O": {
+                // birth order; spec permits decimals, domain stores int
+                const n = Number(value);
+                if (Number.isFinite(n)) person.birthOrder = Math.floor(n);
+                else findings.push({ kind: "unknown-tag", from: id, tag, value });
+                break;
+            }
             case "s":
                 if (ID_RE.test(value)) person.spouseIds.push(value);
                 else findings.push({ kind: "unknown-tag", from: id, tag, value });
@@ -208,7 +263,25 @@ function parsePerson(
                 person.surname = value;
                 break;
             case "q":
-                person.locationOrigin = value;
+                // FamilyScript spec: surname at birth. The previous mapping
+                // wrote this to `locationOrigin` which silently put maiden
+                // names under a location field; the slot lands here now.
+                person.surnameAtBirth = value;
+                break;
+            case "n":
+                person.givenAtBirth = value;
+                break;
+            case "N":
+                person.nickname = value;
+                break;
+            case "J":
+                person.suffix = value;
+                break;
+            case "v":
+                person.birthPlace = value;
+                break;
+            case "y":
+                person.deathPlace = value;
                 break;
             case "T":
                 person.title = value;
@@ -216,8 +289,11 @@ function parsePerson(
             case "j":
                 person.occupation = value;
                 break;
-            case "V":
-                // no domain slot; preserved verbatim for round-trip
+            case "r":
+                // family echo photo reference: "<imageid> <width> <height>".
+                // imageid is the only useful part for pairing with embedded
+                // image bytes from a .html export. captured as an extra so
+                // the html wrapper can look it up; never persisted on Person.
                 extras.push({ tag, value });
                 break;
             default:
@@ -226,8 +302,25 @@ function parsePerson(
         }
     }
 
+    // flush collected parent sets into ParentRef[]
+    const refs: ParentRef[] = [];
+    for (const set of sets) {
+        const pedi: ParentPedi = set.pedi ?? "birth";
+        if (set.mother && !refs.some((r) => r.personId === set.mother)) {
+            refs.push({ personId: set.mother, role: "mother", pedi });
+        }
+        if (set.father && !refs.some((r) => r.personId === set.father)) {
+            refs.push({ personId: set.father, role: "father", pedi });
+        }
+    }
+    if (refs.length > 0) person.parentIds = refs;
+
     return { person, extras };
 }
+
+// FamilyScript date shape: optional B (TT era) + 4-digit-or-more year + 2 mo + 2 day + optional ~.
+// Used to disambiguate couple `m` between a marriage date and a (legacy) child-id reference.
+const FS_DATE_SHAPE_RE = /^B?\d{8}~?$/;
 
 function parseCouple(
     leftId: PersonId,
@@ -237,6 +330,7 @@ function parseCouple(
     let unionIndex = 0;
     const childIds: PersonId[] = [];
     const extras: FsCoupleExtras[] = [];
+    let marriageDate: CoupleRecord["marriageDate"] | undefined;
 
     for (const token of rest) {
         if (token.length === 0) continue;
@@ -250,19 +344,29 @@ function parseCouple(
             unionIndex = Number.isFinite(n) ? n : 0;
             continue;
         }
-        // child references occasionally appear via `m<id>` on couple records
-        if (tag === "m" && ID_RE.test(value)) {
-            childIds.push(value);
-            continue;
+        if (tag === "m") {
+            // Spec: marriage date YYYYMMDD. Some prior fixtures wrote child
+            // references as `m<personId>`; we disambiguate by date shape so
+            // both forms still work.
+            if (FS_DATE_SHAPE_RE.test(value)) {
+                const parsed = HaracalndeDate.parseFamilyScript(value);
+                if (parsed.ok && parsed.value !== null) {
+                    marriageDate = parsed.value.toJSON();
+                    continue;
+                }
+            }
+            if (ID_RE.test(value)) {
+                childIds.push(value);
+                continue;
+            }
         }
         // gender hint and anything else - preserve for round-trip
         extras.push({ tag, value });
     }
 
-    return {
-        couple: { leftId, rightId, unionIndex, childIds },
-        extras,
-    };
+    const couple: CoupleRecord = { leftId, rightId, unionIndex, childIds };
+    if (marriageDate !== undefined) couple.marriageDate = marriageDate;
+    return { couple, extras };
 }
 
 function deriveNameFromHeader(header: FsHeader): string {

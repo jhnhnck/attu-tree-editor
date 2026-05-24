@@ -32,8 +32,9 @@ describe("importFile", () => {
         const r = await importFile(fileFrom("tiny.ged", TINY_GED));
         expect(r.ok).toBe(true);
         if (!r.ok) return;
-        expect(r.value.format).toBe("gedcom");
+        expect(r.value.sourceFormat).toBe("gedcom");
         expect(r.value.count).toBe(3);
+        expect(r.value.portraits).toEqual([]);
     });
 
     it("returns an err for an unrecognised filename + content", async () => {

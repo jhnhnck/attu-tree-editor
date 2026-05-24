@@ -18,6 +18,7 @@
 
 import { resolve } from "node:path";
 import { expect, test } from "@playwright/test";
+import { importViaWizard } from "./_helpers/importViaWizard";
 
 const TINY = resolve(process.cwd(), "tests/fixtures/tiny.ged");
 
@@ -42,8 +43,8 @@ test.describe("family view — cross-engine continuity", () => {
         // the View-menu dropdown on Pixel 7; pre-existing, not a regression.
         test.skip(isMobile, "B4: View-menu dropdown blocked by inspector sheet on Pixel 7");
         await page.goto("/");
-        await page.locator('[data-testid="import-input"]').setInputFiles(TINY);
-        await expect(page.getByText(/loaded \d+ people/)).toBeVisible();
+        await importViaWizard(page, TINY);
+        await expect(page.getByText(/imported \d+ people/)).toBeVisible();
 
         // Family-view region is mounted (the new walking-skeleton renderer).
         const familyRegion = page.getByRole("region", { name: /family view canvas/ });
@@ -80,8 +81,8 @@ test.describe("family view — cross-engine continuity", () => {
 
     test("Overlay: path highlight is enabled and togglable in the View menu", async ({ page }) => {
         await page.goto("/");
-        await page.locator('[data-testid="import-input"]').setInputFiles(TINY);
-        await expect(page.getByText(/loaded \d+ people/)).toBeVisible();
+        await importViaWizard(page, TINY);
+        await expect(page.getByText(/imported \d+ people/)).toBeVisible();
 
         await page.getByRole("button", { name: "View" }).click();
         const overlay = page.getByRole("menuitem", { name: /overlay: path highlight/i });
@@ -95,8 +96,8 @@ test.describe("family view — cross-engine continuity", () => {
         // path is gone; this test asserts the new contract (expand-toggle
         // button surface exists when the card has un-shown adjacents).
         await page.goto("/");
-        await page.locator('[data-testid="import-input"]').setInputFiles(TINY);
-        await expect(page.getByText(/loaded \d+ people/)).toBeVisible();
+        await importViaWizard(page, TINY);
+        await expect(page.getByText(/imported \d+ people/)).toBeVisible();
 
         // tiny.ged + family-view focused on rootId (Alpha) renders Alpha
         // + Gamma (the child). Alpha has no parents shown → north-edge
@@ -121,8 +122,8 @@ test.describe("family view — cross-engine continuity", () => {
         test.skip(isMobile, "B4: View-menu dropdown blocked by inspector sheet on Pixel 7");
         // Phase 6 cross-engine continuity: edits persist when you swap engines.
         await page.goto("/");
-        await page.locator('[data-testid="import-input"]').setInputFiles(TINY);
-        await expect(page.getByText(/loaded \d+ people/)).toBeVisible();
+        await importViaWizard(page, TINY);
+        await expect(page.getByText(/imported \d+ people/)).toBeVisible();
 
         // tiny.ged root is Alpha Smith. Select the focus card.
         const alphaCard = page.locator("[data-person-id]").filter({ hasText: "Alpha" }).first();
@@ -159,8 +160,8 @@ test.describe("family view — cross-engine continuity", () => {
         // Phase 6: canvasController.focusSelection() is called after palette pick.
         // The observable effect is the inspector opening for the picked person.
         await page.goto("/");
-        await page.locator('[data-testid="import-input"]').setInputFiles(TINY);
-        await expect(page.getByText(/loaded \d+ people/)).toBeVisible();
+        await importViaWizard(page, TINY);
+        await expect(page.getByText(/imported \d+ people/)).toBeVisible();
 
         // Open find-person palette via Edit menu.
         await page.getByRole("button", { name: "Edit" }).click();
@@ -209,8 +210,8 @@ test.describe("family view — generation-badge toggle (phase 4)", () => {
         context,
     }) => {
         // (c) default-off on first load with cleared storage.
-        await page.locator('[data-testid="import-input"]').setInputFiles(TINY);
-        await expect(page.getByText(/loaded \d+ people/)).toBeVisible();
+        await importViaWizard(page, TINY);
+        await expect(page.getByText(/imported \d+ people/)).toBeVisible();
         await expect(page.locator("[data-generation-badge]")).toHaveCount(0);
 
         // Toggle on via the View menu; badge appears on at least one card.
@@ -229,8 +230,8 @@ test.describe("family view — generation-badge toggle (phase 4)", () => {
 
         // (a) reload — preference restored → badges still rendered.
         await page.reload();
-        await page.locator('[data-testid="import-input"]').setInputFiles(TINY);
-        await expect(page.getByText(/loaded \d+ people/)).toBeVisible();
+        await importViaWizard(page, TINY);
+        await expect(page.getByText(/imported \d+ people/)).toBeVisible();
         await expect(page.locator("[data-generation-badge]").first()).toBeVisible();
 
         // (b) close the page, open a fresh page in the same browser
@@ -239,8 +240,8 @@ test.describe("family view — generation-badge toggle (phase 4)", () => {
         await page.close();
         const reopened = await context.newPage();
         await reopened.goto(url);
-        await reopened.locator('[data-testid="import-input"]').setInputFiles(TINY);
-        await expect(reopened.getByText(/loaded \d+ people/)).toBeVisible();
+        await importViaWizard(reopened, TINY);
+        await expect(reopened.getByText(/imported \d+ people/)).toBeVisible();
         await expect(reopened.locator("[data-generation-badge]").first()).toBeVisible();
     });
 });

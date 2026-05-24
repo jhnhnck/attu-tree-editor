@@ -20,6 +20,7 @@
 
 import { resolve } from "node:path";
 import { expect, test } from "@playwright/test";
+import { importViaWizard } from "./_helpers/importViaWizard";
 
 const TINY = resolve(process.cwd(), "tests/fixtures/tiny.ged");
 
@@ -39,8 +40,8 @@ test("adding an unattached person updates the canvas badge without a reload", as
     await page.goto("/");
 
     // Load a known small fixture so we have a deterministic baseline.
-    await page.locator('[data-testid="import-input"]').setInputFiles(TINY);
-    await expect(page.getByText(/loaded \d+ people/)).toBeVisible();
+    await importViaWizard(page, TINY);
+    await expect(page.getByText(/imported \d+ people/)).toBeVisible();
 
     // tiny.ged has 3 people; the canvas badge should reflect that.
     await expect(page.getByRole("button", { name: /^3 people/ })).toBeVisible();

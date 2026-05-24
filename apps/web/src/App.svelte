@@ -94,7 +94,7 @@
     import { syncStore } from "$lib/state/sync.svelte";
     import { onUnauthorized, trees as treesApi } from "$lib/api/client";
     import { writeBundle } from "$lib/io/bundle/write";
-    import { importFile as importFileFromBytes } from "$lib/io/importFile";
+    import ImportWizard from "$lib/components/import/ImportWizard.svelte";
     import {
         deleteTree as deletePersistedTree,
         listTrees,
@@ -219,6 +219,10 @@
 
     // open-tree dialog
     let showOpenDialog = $state(false);
+
+    // import wizard
+    let showImportWizard = $state(false);
+    let importInitialFile = $state<File | undefined>(undefined);
 
     // drag-drop import overlay
     let isDraggingFile = $state(false);
@@ -494,9 +498,6 @@
 
     // read-only mode: set when loading a tree via /view/<uuid> route
     let readOnly = $state(false);
-
-    // hidden file input we trigger from File > Import (or Mod+I)
-    let importInputEl: HTMLInputElement | undefined = $state();
 
     // inline-rename state for the title in the title strip
     let titleEl: HTMLInputElement | undefined = $state();
@@ -1046,42 +1047,19 @@
     }
 
     function triggerImport(): void {
-        importInputEl?.click();
+        importInitialFile = undefined;
+        showImportWizard = true;
     }
 
-    async function importFile(file: File): Promise<void> {
-        const handle = progress.start(`reading ${file.name}…`);
-        try {
-            const r = await importFileFromBytes(file);
-            if (!r.ok) {
-                toasts.push(`import failed: ${r.error}`, "error");
-                return;
-            }
-            treeStore.reset(r.value.tree);
-            // Phase 4 / bug-log #9: a fresh import must update
-            // lastOpenedTreeId so a reload restores the imported tree
-            // instead of falling back to the previously-opened one.
-            // Without this, every imported tree is silently lost on
-            // reload because `getSetting(lastOpenedTreeId)` returns
-            // stale state.
-            await setSetting(SETTING_KEYS.lastOpenedTreeId, r.value.tree.id);
-            toasts.push(`loaded ${String(r.value.count)} people from ${file.name}`, "success");
-        } catch (err) {
-            toasts.push(`import error: ${String(err)}`, "error");
-        } finally {
-            progress.finish(handle);
-        }
-    }
-
-    async function onImport(e: Event): Promise<void> {
-        const input = e.currentTarget as HTMLInputElement;
-        const file = input.files?.[0];
-        if (!file) return;
-        try {
-            await importFile(file);
-        } finally {
-            input.value = "";
-        }
+    async function onImportSuccess(info: {
+        treeId: string;
+        sourceFormat: string;
+        count: number;
+    }): Promise<void> {
+        // a fresh import must update lastOpenedTreeId so a reload restores
+        // the imported tree instead of the previously-opened one.
+        await setSetting(SETTING_KEYS.lastOpenedTreeId, info.treeId);
+        toasts.push(`imported ${String(info.count)} people from ${info.sourceFormat}`, "success");
     }
 
     // -------- drag-drop import on canvas --------
@@ -1118,7 +1096,7 @@
         }
     }
 
-    async function onDrop(e: DragEvent): Promise<void> {
+    function onDrop(e: DragEvent): void {
         if (readOnly) return;
         if (!dtHasFiles(e.dataTransfer)) return;
         e.preventDefault();
@@ -1126,7 +1104,8 @@
         isDraggingFile = false;
         const file = e.dataTransfer?.files[0];
         if (!file) return;
-        await importFile(file);
+        importInitialFile = file;
+        showImportWizard = true;
     }
 
     function onExport(): void {
@@ -1728,7 +1707,7 @@
         ondragenter={onDragEnter}
         ondragover={onDragOver}
         ondragleave={onDragLeave}
-        ondrop={(e) => void onDrop(e)}
+        ondrop={onDrop}
     >
         <div class="relative flex-1 overflow-clip">
             <ProgressStrip {progress} />
@@ -2222,15 +2201,22 @@
         />
     {/if}
 
-    <!-- hidden file input for File > Import / Mod+I -->
-    <input
-        bind:this={importInputEl}
-        type="file"
-        class="sr-only"
-        accept=".txt,.ged,.gedcom,.gdz,.zip"
-        onchange={onImport}
-        data-testid="import-input"
-        aria-hidden="true"
-        tabindex="-1"
-    />
+    {#if showImportWizard}
+        <ImportWizard
+            store={treeStore}
+            currentTree={treeStore.tree}
+            currentTreeDirty={treeStore.dirty}
+            initialFile={importInitialFile}
+            onclose={() => {
+                showImportWizard = false;
+                importInitialFile = undefined;
+            }}
+            onsuccess={(info: { treeId: string; sourceFormat: string; count: number }) =>
+                void onImportSuccess(info)}
+            onfailure={(msg) => toasts.push(`import failed: ${msg}`, "error")}
+            onsaveCurrent={async () => {
+                await autosaver.flush();
+            }}
+        />
+    {/if}
 </div>

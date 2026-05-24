@@ -56,7 +56,10 @@ describe("parseFamilyScript - synthetic", () => {
     });
 
     it("emits an unknown-tag finding for a stray leading char", () => {
-        const text = "iSTART\tpRoot\tgm\tz1\tXunknown";
+        // `H` is not a defined FS tag; using it as a stand-in for any tag
+        // outside the parser's switch. (Was `X` historically; phase 3 turned
+        // X into 2nd-parent-set mother.)
+        const text = "iSTART\tpRoot\tgm\tz1\tHunknown";
         const r = unwrap(parseFamilyScript(text));
         const f = r.findings.find((x) => x.kind === "unknown-tag");
         expect(f).toBeDefined();
@@ -80,16 +83,71 @@ describe("parseFamilyScript - synthetic", () => {
         expect(r.findings.find((x) => x.kind === "bad-date")).toBeUndefined();
     });
 
-    it("preserves V tag as a person extra", () => {
-        const text = "iSTART\tpRoot\tgm\tz1\tVb";
+    it("applies the V code as the primary parent-set pedi when combined with m/f", () => {
+        const text = "iAAAAA\tpMom\tgf\tz1\niSTART\tpKid\tgm\tz1\tmAAAAA\tVa";
         const r = unwrap(parseFamilyScript(text));
-        expect(r.personExtras["START"]).toEqual([{ tag: "V", value: "b" }]);
+        const refs = r.tree.people["START"]?.parentIds ?? [];
+        expect(refs).toEqual([{ personId: "AAAAA", role: "mother", pedi: "adopted" }]);
     });
 
     it("captures spouse ids on the s tag", () => {
         const text = "iSTART\tpRoot\tgm\tz1\tsAAAAA\tsBBBBB";
         const r = unwrap(parseFamilyScript(text));
         expect(r.tree.people["START"]?.spouseIds).toEqual(["AAAAA", "BBBBB"]);
+    });
+
+    it("maps `q` (surname at birth) to surnameAtBirth, not locationOrigin", () => {
+        const text = "iSTART\tpHarmain\tgf\tz1\tlAfter\tqPerat";
+        const r = unwrap(parseFamilyScript(text));
+        const p = r.tree.people["START"];
+        expect(p?.surname).toBe("After");
+        expect(p?.surnameAtBirth).toBe("Perat");
+        expect(p?.locationOrigin).toBeUndefined();
+    });
+
+    it("accepts mixed-case + arbitrary-length person ids per spec", () => {
+        const text = "iabc\tpA\tgm\tz1\niX9\tpB\tgf\tz1\tsabc";
+        const r = unwrap(parseFamilyScript(text));
+        expect(r.tree.people["abc"]).toBeDefined();
+        expect(r.tree.people["X9"]).toBeDefined();
+        expect(r.tree.people["X9"]?.spouseIds).toEqual(["abc"]);
+    });
+
+    it("maps `g o` to GenderStruct.identity = 'other'", () => {
+        const text = "iSTART\tpRoot\tgo\tz1";
+        const r = unwrap(parseFamilyScript(text));
+        const p = r.tree.people["START"];
+        const gender = p?.gender;
+        expect(typeof gender).toBe("object");
+        if (gender && typeof gender === "object") {
+            expect(gender.identity).toBe("other");
+        }
+    });
+
+    it("parses couple `m<date>` as marriage date when the value is a date shape", () => {
+        const text = [
+            "iSTART\tpA\tgm\tz1",
+            "iAAAAA\tpB\tgf\tz1",
+            "pSTART AAAAA\te1\tm17570312",
+        ].join("\n");
+        const r = unwrap(parseFamilyScript(text));
+        const couple = r.tree.couples[0];
+        expect(couple?.marriageDate?.year).toBe(1757);
+        expect(couple?.marriageDate?.month).toBe(3);
+        expect(couple?.marriageDate?.day).toBe(12);
+        expect(couple?.childIds).toEqual([]);
+    });
+
+    it("preserves the legacy couple `m<personId>` child-ref form when the value is not a date shape", () => {
+        const text = [
+            "iSTART\tpA\tgm\tz1",
+            "iAAAAA\tpB\tgf\tz1",
+            "iBBBBB\tpC\tgu\tz1",
+            "pSTART AAAAA\te1\tmBBBBB",
+        ].join("\n");
+        const r = unwrap(parseFamilyScript(text));
+        expect(r.tree.couples[0]?.childIds).toEqual(["BBBBB"]);
+        expect(r.tree.couples[0]?.marriageDate).toBeUndefined();
     });
 });
 

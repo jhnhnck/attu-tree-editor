@@ -325,6 +325,12 @@ function buildPerson(
                     if (Number.isFinite(n) && n >= 1) person.birthOrder = n;
                 }
                 break;
+            case "_TREES_BIRTH_SURNAME":
+                if (sub.value) person.surnameAtBirth = sub.value;
+                break;
+            case "_TREES_BIRTH_GIVN":
+                if (sub.value) person.givenAtBirth = sub.value;
+                break;
             case "BIRT":
                 applyEvent(person, "birth", sub, findings);
                 break;
@@ -452,10 +458,16 @@ function applyName(person: Person, name: TreeNode): void {
             case "NPFX":
                 if (sub.value) person.title = sub.value;
                 break;
+            case "NSFX":
+                if (sub.value) person.suffix = sub.value;
+                break;
+            case "NICK":
+                if (sub.value) person.nickname = sub.value;
+                break;
             case "_MARNM":
                 if (sub.value) person.surname = sub.value;
                 break;
-            // ignore the rest (NICK, SPFX, NSFX) for now
+            // SPFX: surname prefix - no domain slot yet
         }
     }
 }
@@ -481,7 +493,10 @@ function applyEvent(
                     reason: parsed.error,
                 });
             }
-            return;
+        }
+        if (sub.tag === "PLAC" && sub.value) {
+            if (field === "birth") person.birthPlace = sub.value;
+            else person.deathPlace = sub.value;
         }
     }
 }

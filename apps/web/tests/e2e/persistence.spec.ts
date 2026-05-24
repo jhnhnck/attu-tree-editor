@@ -5,6 +5,7 @@
 
 import { resolve } from "node:path";
 import { expect, test } from "@playwright/test";
+import { importViaWizard } from "./_helpers/importViaWizard";
 
 const TINY = resolve(process.cwd(), "tests/fixtures/tiny.ged");
 
@@ -24,8 +25,8 @@ test("imported tree survives a page reload via dexie autosave", async ({ page })
     await page.goto("/");
 
     // import the tiny fixture and wait for the success toast
-    await page.locator('[data-testid="import-input"]').setInputFiles(TINY);
-    await expect(page.getByText(/loaded \d+ people/)).toBeVisible();
+    await importViaWizard(page, TINY);
+    await expect(page.getByText(/imported \d+ people/)).toBeVisible();
 
     // wait for the autosave debounce window to flush (the saver uses a 1s
     // default; allow a healthy buffer for the IDB write to commit)
@@ -43,8 +44,8 @@ test("imported tree survives a page reload via dexie autosave", async ({ page })
 test("File > Open tree dialog lists the saved tree", async ({ page }) => {
     await page.goto("/");
 
-    await page.locator('[data-testid="import-input"]').setInputFiles(TINY);
-    await expect(page.getByText(/loaded \d+ people/)).toBeVisible();
+    await importViaWizard(page, TINY);
+    await expect(page.getByText(/imported \d+ people/)).toBeVisible();
     await page.waitForTimeout(2500);
 
     // dismiss the lingering import-success toast so it doesn't overlap the
