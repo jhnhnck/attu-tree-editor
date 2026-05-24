@@ -190,5 +190,5 @@ items are grouped first by view if specific to one, then by component. within ea
 
 ```yaml
 last_updated: 24 May 2026
-total_completed: 17
+total_completed: 20
 ```
