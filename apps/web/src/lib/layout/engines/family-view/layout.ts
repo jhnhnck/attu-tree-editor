@@ -198,6 +198,14 @@ export function computeLayout(
     if (visibleCount > threshold) {
         const scores = computeDoiScores({ tree, focus: focusId });
         const protect = new Set<PersonId>([focusId, ...expanded]);
+        // Also shield the children of every explicitly-expanded source.
+        // Otherwise a co-parent of that source (whose children-set is the
+        // same sibship) gets picked next pass and re-emits the same badge.
+        for (const exp of expanded) {
+            for (const k of directChildrenOfInSubset(tree, exp, subset.visible)) {
+                protect.add(k);
+            }
+        }
         while (visibleCount > threshold) {
             const victim = pickCollapseVictim(
                 tree,

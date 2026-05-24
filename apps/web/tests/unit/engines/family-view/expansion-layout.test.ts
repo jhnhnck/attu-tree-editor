@@ -14,7 +14,7 @@
 
 import { describe, expect, it } from "vitest";
 import { ROOT_ID } from "$lib/domain/ids";
-import { addPerson, createTree, linkParent } from "$lib/domain/tree";
+import { addPerson, createTree, linkParent, linkSpouse } from "$lib/domain/tree";
 import { computeLayout } from "$lib/layout/engines/family-view/layout";
 import type { Person, Tree } from "$lib/domain/types";
 
@@ -163,5 +163,102 @@ describe("Phase 1 auto-collapse", () => {
             autoCollapseThreshold: 3,
         });
         expect(layout.autoCollapsed.size).toBe(0);
+    });
+
+    /**
+     * Regression: ancestor-side badge click stays sticky even when the
+     * source's co-parent is also visible. Earlier the per-source skip
+     * landed in `pickCollapseVictim`, but the co-parent's children-set is
+     * the same sibship, so on the next pass the co-parent got picked and
+     * the badge visually reappeared. Fix: protect the children of every
+     * `expanded` id, not just the source itself.
+     */
+    function makeAncestorSibshipFixture(siblingCount: number): {
+        tree: Tree;
+        ids: Record<string, string>;
+    } {
+        // focus -- parent -- {G, S}; G+S also have `siblingCount` other
+        // children (aunts/uncles of focus), all parented by both G and S.
+        let t = createTree("ancestor-sibship", blank("Focus"));
+        const ids: Record<string, string> = { focus: ROOT_ID };
+
+        const parent = addPerson(t, blank("parent", "m"));
+        t = parent.tree;
+        ids.parent = parent.id;
+        const pLink = linkParent(t, ROOT_ID, parent.id);
+        if (!pLink.ok) throw new Error(pLink.error);
+        t = pLink.value;
+
+        const g = addPerson(t, blank("G", "f"));
+        t = g.tree;
+        ids.G = g.id;
+        const s = addPerson(t, blank("S", "m"));
+        t = s.tree;
+        ids.S = s.id;
+
+        // Wire G + S as a couple so primaryChildrenOf finds the sibship.
+        const sp = linkSpouse(t, g.id, s.id);
+        if (!sp.ok) throw new Error(sp.error);
+        t = sp.value;
+
+        // Both G and S parent the focus's father.
+        const gLink = linkParent(t, parent.id, g.id);
+        if (!gLink.ok) throw new Error(gLink.error);
+        t = gLink.value;
+        const sLink = linkParent(t, parent.id, s.id);
+        if (!sLink.ok) throw new Error(sLink.error);
+        t = sLink.value;
+
+        // Aunts / uncles -- children of both G and S.
+        const sibIds: string[] = [];
+        for (let i = 0; i < siblingCount; i += 1) {
+            const a = addPerson(t, blank(`aunt${String(i)}`));
+            t = a.tree;
+            ids[`aunt${String(i)}`] = a.id;
+            sibIds.push(a.id);
+            const al1 = linkParent(t, a.id, g.id);
+            if (!al1.ok) throw new Error(al1.error);
+            t = al1.value;
+            const al2 = linkParent(t, a.id, s.id);
+            if (!al2.ok) throw new Error(al2.error);
+            t = al2.value;
+        }
+
+        // linkSpouse + linkParent leave the couple's childIds empty; splice
+        // them in so primaryChildrenOf returns the sibship.
+        t = {
+            ...t,
+            couples: t.couples.map((c) =>
+                (c.leftId === g.id && c.rightId === s.id) ||
+                (c.leftId === s.id && c.rightId === g.id)
+                    ? { ...c, childIds: [parent.id, ...sibIds] }
+                    : c,
+            ),
+        };
+        return { tree: t, ids };
+    }
+
+    it("ancestor badge click sticks even when the source's co-parent is visible", () => {
+        const { tree, ids } = makeAncestorSibshipFixture(20);
+        // Bounded default places G + S at rank -2 and parent + 20 aunts at
+        // rank -1. With threshold 5 we exceed; auto-collapse picks G or S
+        // and badges the aunts.
+        const base = computeLayout(tree, ids.focus!, { autoCollapseThreshold: 5 });
+        expect(base.badges.length).toBeGreaterThan(0);
+        const badgedSource = base.badges[0]!.sourceId;
+        expect(badgedSource === ids.G! || badgedSource === ids.S!).toBe(true);
+
+        // User clicks the badge: add the source to `expanded`.
+        const expanded = new Set([badgedSource]);
+        const after = computeLayout(tree, ids.focus!, {
+            expanded,
+            autoCollapseThreshold: 5,
+        });
+        // The same sibship must not be re-badged via the co-parent.
+        const otherParent = badgedSource === ids.G! ? ids.S! : ids.G!;
+        for (const b of after.badges) {
+            expect(b.sourceId).not.toBe(badgedSource);
+            expect(b.sourceId).not.toBe(otherParent);
+        }
     });
 });
