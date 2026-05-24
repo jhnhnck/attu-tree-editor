@@ -46,6 +46,7 @@
     import { computeAncestorOverlap } from "$lib/domain/consanguinity";
     import type { PersonId, Tree } from "$lib/domain/types";
     import type { CanvasAnchorOpts, CanvasController } from "./canvasController";
+    import { computeFit, measureCanvasChromeInsets } from "$lib/components/canvas/fitMath";
 
     interface Props {
         tree: Tree;
@@ -363,12 +364,29 @@
             panY = hostH / 2;
             return;
         }
-        const sx = (hostW - 64) / layoutWpx;
-        const sy = (hostH - 64) / layoutHpx;
-        scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, Math.min(sx, sy)));
+        // family-view's bbox is the content span; ancestors can land
+        // above y=0, so contentOriginY = minNodeY * UNIT. chrome insets
+        // come from the canvas-host's data-canvas-chrome overlays
+        // (bottom pills, debug panel, sheet-mode inspector) so the
+        // fitted tree centres inside the visible viewport rather than
+        // sliding underneath the chrome.
         const minY = minNodeY(layout);
-        panX = (hostW - layoutWpx * scale) / 2;
-        panY = (hostH - layoutHpx * scale) / 2 - minY * UNIT * scale;
+        const insets = measureCanvasChromeInsets(hostEl);
+        const fit = computeFit({
+            contentWPx: layoutWpx,
+            contentHPx: layoutHpx,
+            contentOriginX: 0,
+            contentOriginY: minY * UNIT,
+            hostW,
+            hostH,
+            padding: 32,
+            insets,
+            minScale: MIN_SCALE,
+            maxScale: MAX_SCALE,
+        });
+        scale = fit.scale;
+        panX = fit.panX;
+        panY = fit.panY;
     }
 
     function minNodeY(l: FamilyViewLayout): number {

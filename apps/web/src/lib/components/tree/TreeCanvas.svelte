@@ -37,6 +37,7 @@
     import PersonNode from "$lib/components/tree/PersonNode.svelte";
     import InstancePopover from "$lib/components/tree/InstancePopover.svelte";
     import BackButton from "$lib/components/canvas/BackButton.svelte";
+    import { computeFit, measureCanvasChromeInsets } from "$lib/components/canvas/fitMath";
     import { buildInstanceEntries, type InstanceEntry } from "$lib/layout/instanceLabels";
     import { displayName, findNeighbour } from "$lib/layout/kinship";
     import type { RenderedSegment, PersonNodeLevel } from "$lib/components/tree/edges";
@@ -360,14 +361,28 @@
         if (canvasW === 0 || canvasH === 0) return;
         cancelPanAnim();
         cancelZoomAnim();
-        const padding = 64;
-        const sx = (rect.width - padding * 2) / canvasW;
-        const sy = (rect.height - padding * 2) / canvasH;
-        const s = clamp(Math.min(sx, sy), MIN_SCALE, 1.5);
-        scale = s;
-        targetScale = s;
-        panX = (rect.width - canvasW * s) / 2;
-        panY = (rect.height - canvasH * s) / 2;
+        // layered engine: place pass normalises minX to 0 and ranks
+        // start at y=0, so content origin is (0, 0). chrome insets are
+        // measured against the canvas-host so the fit honours visible
+        // overlay chrome (bottom-pill bar, debug panel, sheet inspector)
+        // instead of letting cards slide underneath.
+        const insets = measureCanvasChromeInsets(hostEl);
+        const fit = computeFit({
+            contentWPx: canvasW,
+            contentHPx: canvasH,
+            contentOriginX: 0,
+            contentOriginY: 0,
+            hostW: rect.width,
+            hostH: rect.height,
+            padding: 64,
+            insets,
+            minScale: MIN_SCALE,
+            maxScale: 1.5,
+        });
+        scale = fit.scale;
+        targetScale = fit.scale;
+        panX = fit.panX;
+        panY = fit.panY;
     }
 
     /** 100% zoom centered on the root person (used on initial load + import) */

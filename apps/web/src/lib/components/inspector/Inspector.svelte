@@ -304,6 +304,7 @@
     class:z-50={isSheet}
     style={isSheet ? `max-height: ${String(Math.round(sheetMaxH * 0.75))}px` : undefined}
     aria-label="person inspector"
+    data-canvas-chrome={isSheet ? "" : undefined}
 >
     {#if person}
         <header class="border-line border-b px-3 py-2">

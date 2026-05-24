@@ -1754,6 +1754,7 @@
                 <div
                     class="pointer-events-none absolute bottom-3 left-3 z-30 flex items-center gap-2"
                     data-testid="canvas-bottom-bar"
+                    data-canvas-chrome
                 >
                     {#if statsPillVisible && layoutStats}
                         <button
@@ -1805,6 +1806,7 @@
                     role="dialog"
                     aria-label="debug overlay controls"
                     data-testid="debug-panel"
+                    data-canvas-chrome
                 >
                     <div class="mb-2 flex items-center justify-between gap-4">
                         <span
@@ -2005,6 +2007,7 @@
                 <div
                     class="text-fg-muted bg-canvas-elev/90 border-line pointer-events-none absolute top-3 right-3 z-40 rounded-md border px-2 py-1 text-[10px] font-mono"
                     data-testid="debug-corner-readouts"
+                    data-canvas-chrome
                 >
                     {#if debugTimings}
                         <div>

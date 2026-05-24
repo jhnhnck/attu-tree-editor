@@ -32,14 +32,14 @@
 - :o: `medium priority` `low effort` tree-view (layered engine) zoom doesn't behave as expected - user-reported, unspecified misbehaviour. needs concrete repro - probable candidates: zoom anchor (wheel vs. button), zoom-aware label thresholds, or perceived 100% reference (semantic 100% is correct per recent audit but cards below the 320px design width may feel "wrong")
 - :o: `medium priority` `low effort` toasts (top-right corner) overlap the inspector panel when the inspector docks right - toast content becomes unreachable. fix: anchor toasts top-center, or offset by the inspector width when the inspector is open on that side
 - :o: `medium priority` `no effort` inspector Connections-tab "trace path to…" sets `traceTargetId` but no canvas highlight paints - button at `ConnectionsTab.svelte:705` invokes `onsetTraceTarget` (line 240); the consumer downstream is missing or broken. suggested fix: remove the action (subsumed by the "selectable lineage trace" feature in to-do.md) unless we wire it through
-- :o: `medium priority` `low effort` zoom fit-to-window overflows the canvas UI box - the fit calculation doesn't account for the inspector/menu/topbar chrome, so the fitted tree extends underneath them. include the visible chrome insets when computing fit bounds
-- :o: `medium priority` `low effort` auto-fit (fit-to-window) doesn't vertically centre the tree in the viewport - tree lands top-aligned with empty space below. correct the y-offset in the fit computation to centre tree height within available viewport height
 - :o: `medium priority` `low effort` family-view union picker dropdown ("˅ chevron") renders behind adjacent cards and is partially transparent - z-index + background-color regression; the picker should layer above all cards with a solid surface
 
 ---
 
 ## fixed
 
+- :red_circle: `24 May 2026` zoom fit-to-window overflowed the canvas UI box - extracted the fit math into `lib/components/canvas/fitMath.ts` (`computeFit` + `measureCanvasChromeInsets`); both `TreeCanvas` and `FamilyViewCanvas` now subtract chrome insets from the host rect before solving scale + pan. chrome producers (bottom-pill bar, debug panel, debug readouts, mobile sheet inspector) opt in via `data-canvas-chrome`.
+- :red_circle: `24 May 2026` auto-fit (fit-to-window) did not vertically centre the tree in the viewport - `computeFit` places the content bbox at the centre of the chrome-aware visible band rather than at the host centre; `contentOriginY` accounts for family-view's negative-y ancestor rows.
 - :red_circle: `24 May 2026` debug pill was hidden under the family-view engine - the bottom-left bottom-bar wrapper rendered only when `layoutStats` was truthy *or* the user hadn't manually hidden the pill; the stats pill itself rendered unconditionally on any engine that emitted layoutStats. fix in `App.svelte`: gate the stats pill on `selectedEngine === "layered"` (no cluster analogue under family-view / hyperbolic) and keep the debug pill engine-agnostic via the `!debugPillHidden` branch, so family-view users now get the Ctrl+Shift+D entry point.
 - :red_circle: `24 May 2026` many debug-panel toggles silently no-op under family-view - layered-IR toggles (grid, node bounds, segment ids, components, ghost arrows, bridge hops, overlap pairs, cycle nodes, bond/centroid Δ, orphans, rank labels, last-edit halo) only render inside the layered `DebugOverlay`. fix in `App.svelte`: `layeredOnlyToggleKeys` derived set drives a `disabled` + `(layered-only)` section suffix + tooltip; runtime `expose __treeDebug` is also disabled on family-view, `copy snapshot` is disabled outside layered, while `force conflict` / `dump` / `load` stay universal.
 - :red_circle: `24 May 2026` family-view collapse-badge click was a no-op for ancestor-side badges when the source's co-parent was also visible - the prior fix (`0fc5cdf`) skipped the same source in `pickCollapseVictim`, but the co-parent's children-set is the identical sibship, so the next pass picked the co-parent and the same badge reappeared. fix: extend the `protect` set built in `computeLayout` to also include the children of every explicitly-expanded source, so any co-parent of that source gets rejected too.
@@ -101,5 +101,5 @@ if a feature in `to-do.md` turns up a defect during implementation, file the def
 
 ```yaml
 last_updated: 24 May 2026
-total_fixed: 19
+total_fixed: 21
 ```
