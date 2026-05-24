@@ -220,6 +220,13 @@ function parsePerson(
                 // no domain slot; preserved verbatim for round-trip
                 extras.push({ tag, value });
                 break;
+            case "r":
+                // family echo photo reference: "<imageid> <width> <height>".
+                // imageid is the only useful part for pairing with embedded
+                // image bytes from a .html export. captured as an extra so
+                // the html wrapper can look it up; never persisted on Person.
+                extras.push({ tag, value });
+                break;
             default:
                 findings.push({ kind: "unknown-tag", from: id, tag, value });
                 extras.push({ tag, value });

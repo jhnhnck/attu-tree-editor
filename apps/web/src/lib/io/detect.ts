@@ -3,7 +3,7 @@
  * licensed under the MIT license; see LICENSE.md for full text
  */
 
-export type FormatKind = "familyscript" | "gedcom" | "gedzip" | "unknown";
+export type FormatKind = "familyscript" | "gedcom" | "gedzip" | "familyecho-html" | "unknown";
 
 export interface DetectInput {
     filename?: string;
@@ -21,6 +21,9 @@ export function detectFormat(input: DetectInput): FormatKind {
     const head = (input.firstChars ?? "").slice(0, 256).trimStart();
     if (head.startsWith("0 HEAD")) return "gedcom";
     if (head.startsWith("# ")) return "familyscript";
+    if (head.startsWith("<HTML") || head.startsWith("<html") || head.startsWith("<!DOCTYPE")) {
+        return "familyecho-html";
+    }
 
     // 3. extension
     const lower = (input.filename ?? "").toLowerCase();
@@ -28,6 +31,7 @@ export function detectFormat(input: DetectInput): FormatKind {
     if (lower.endsWith(".zip")) return "gedzip";
     if (lower.endsWith(".ged") || lower.endsWith(".gedcom")) return "gedcom";
     if (lower.endsWith(".txt")) return "familyscript";
+    if (lower.endsWith(".html") || lower.endsWith(".htm")) return "familyecho-html";
 
     return "unknown";
 }

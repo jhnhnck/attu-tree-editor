@@ -9,6 +9,7 @@ import type { Tree } from "$lib/domain/types";
 import { readBundle } from "$lib/io/bundle/read";
 import type { PortraitBlob } from "$lib/io/bundle/write";
 import { detectFormat, type FormatKind } from "$lib/io/detect";
+import { parseFamilyEchoHtml } from "$lib/io/familyecho-html/parse";
 import { parseFamilyScript } from "$lib/io/familyscript/parse";
 import { parseGedcom } from "$lib/io/gedcom/parse";
 import { err, ok, type Result } from "$lib/utils/result";
@@ -66,6 +67,17 @@ export async function importFile(file: File): Promise<Result<ImportPayload, stri
         return ok({
             tree: r.value.tree,
             portraits: [],
+            sourceFormat: format,
+            count: Object.keys(r.value.tree.people).length,
+        });
+    }
+    if (format === "familyecho-html") {
+        const text = new TextDecoder().decode(bytes);
+        const r = parseFamilyEchoHtml(text);
+        if (!r.ok) return err(r.error);
+        return ok({
+            tree: r.value.tree,
+            portraits: r.value.portraits,
             sourceFormat: format,
             count: Object.keys(r.value.tree.people).length,
         });

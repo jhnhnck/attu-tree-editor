@@ -48,8 +48,12 @@ export async function persistImportPayload(input: PersistImportInput): Promise<{
 
     let working: Tree = payload.tree;
     if (mode.kind === "merge") {
+        // mergeTrees today knows only "familyscript" | "gedcom" - until the
+        // type widens, html/gedzip imports look like one of those for the
+        // conflict-source label. gedcom is the closer analogue.
         const sourceA: MergeSource = "gedcom";
-        const sourceB: MergeSource = payload.sourceFormat === "gedcom" ? "gedcom" : "familyscript";
+        const sourceB: MergeSource =
+            payload.sourceFormat === "familyscript" ? "familyscript" : "gedcom";
         const merged = mergeTrees(
             { tree: mode.into, source: sourceA },
             { tree: working, source: sourceB },

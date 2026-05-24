@@ -46,6 +46,16 @@ describe("detectFormat", () => {
         );
     });
 
+    it("classifies a .html filename as Family Echo HTML", () => {
+        expect(detectFormat({ filename: "tree.html" })).toBe("familyecho-html");
+    });
+
+    it("classifies an HTML content sniff regardless of extension", () => {
+        expect(detectFormat({ filename: "tree.dat", firstChars: '<HTML lang="en">\n' })).toBe(
+            "familyecho-html",
+        );
+    });
+
     it("returns unknown for empty input", () => {
         expect(detectFormat({})).toBe("unknown");
     });
