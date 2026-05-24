@@ -242,6 +242,40 @@
     // changes persist immediately.
     let selectedEngine = $state<EngineKind>(DEFAULT_ENGINE);
 
+    // stats pill is a layered-engine concept (cluster + isolated counts);
+    // family-view / hyperbolic have no cluster analogue so the pill stays
+    // layered-only by design. the debug pill is engine-agnostic.
+    let statsPillVisible = $derived(selectedEngine === "layered" && layoutStats !== undefined);
+
+    // engine-compatibility for debug-panel toggles. layered-only toggles
+    // target layered IR (positions, ghosts, segments, ranks, placedGraph)
+    // and silently no-op on other engines — disable them in the panel so
+    // the user sees they aren't applicable here. runtime actions: `copy
+    // snapshot` reads the layered placedGraph; `dump` / `load` / `force
+    // conflict` are engine-agnostic; `expose __treeDebug` is honored by
+    // the layered and hyperbolic canvases but not by family-view.
+    let layeredOnlyToggleKeys = $derived(
+        new Set<keyof DebugLayerOptions>([
+            "showGrid",
+            "showNodeBounds",
+            "showSegmentIds",
+            "showComponentBounds",
+            "showGhostArrows",
+            "showHops",
+            "showOverlapPairs",
+            "showCycleNodes",
+            "showBondCentroidDelta",
+            "showOrphanBadge",
+            "showRankGutterLabels",
+            "showLastEditHalo",
+        ]),
+    );
+    let isLayered = $derived(selectedEngine === "layered");
+    let exposeTreeDebugSupported = $derived(
+        selectedEngine === "layered" || selectedEngine === "hyperbolic",
+    );
+    let copySnapshotSupported = $derived(selectedEngine === "layered");
+
     // Phase 6 (family-view): path-highlight overlay toggle. Defaults to
     // `true` (Phase 3 ships on-by-default); persisted to localStorage so
     // the choice survives reload. Drives the View menu's "Overlay: path
@@ -1711,16 +1745,17 @@
             <!-- ZoomWidget moved out of the canvas into the toolbar; the
                  toolbar slot mounts its trigger button + popover. -->
 
-            <!-- Shell bottom-left bar: stats pill (when the layered engine
-                 reports stats), debug toolbox pill (lucide Bug, visible
-                 unless the user hides it from the panel). Built as a flex
-                 row so future pills slot in without rewiring positions. -->
-            {#if layoutStats || !debugPillHidden}
+            <!-- Shell bottom-left bar: stats pill (layered engine only —
+                 family-view / hyperbolic have no cluster analogue) and the
+                 debug toolbox pill (lucide Bug, all engines, visible unless
+                 the user hides it from the panel). Built as a flex row so
+                 future pills slot in without rewiring positions. -->
+            {#if statsPillVisible || !debugPillHidden}
                 <div
                     class="pointer-events-none absolute bottom-3 left-3 z-30 flex items-center gap-2"
                     data-testid="canvas-bottom-bar"
                 >
-                    {#if layoutStats}
+                    {#if statsPillVisible && layoutStats}
                         <button
                             type="button"
                             class="text-fg-muted bg-canvas-elev/80 border-line hover:border-accent pointer-events-auto cursor-pointer rounded-md border px-2.5 py-1 font-mono text-xs"
@@ -1785,20 +1820,29 @@
                         >
                     </div>
 
-                    <!-- layout section -->
+                    <!-- layout section (layered-only overlays) -->
                     <div class="mb-2">
                         <div
-                            class="mb-1 text-[9px] font-semibold uppercase tracking-wider text-fg-muted"
+                            class="mb-1 flex items-baseline gap-1.5 text-[9px] font-semibold uppercase tracking-wider text-fg-muted"
                         >
-                            layout
+                            <span>layout</span>
+                            {#if !isLayered}
+                                <span class="font-normal normal-case tracking-normal opacity-70"
+                                    >(layered-only)</span
+                                >
+                            {/if}
                         </div>
                         <div class="flex flex-wrap gap-1">
                             {#each [["showGrid", "grid"], ["showNodeBounds", "node bounds"], ["showSegmentIds", "segment ids"], ["showComponentBounds", "components"]] as const as [key, label] (key)}
                                 <button
                                     type="button"
-                                    class="border-line text-fg-muted hover:text-fg rounded border px-1.5 py-0.5"
+                                    class="border-line text-fg-muted hover:text-fg rounded border px-1.5 py-0.5 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-fg-muted"
                                     class:text-accent={debugLayers[key]}
                                     class:border-accent={debugLayers[key]}
+                                    disabled={layeredOnlyToggleKeys.has(key) && !isLayered}
+                                    title={layeredOnlyToggleKeys.has(key) && !isLayered
+                                        ? "layered engine only"
+                                        : undefined}
                                     onclick={() => (debugLayers[key] = !debugLayers[key])}
                                     data-testid={`debug-toggle-${key}`}
                                 >
@@ -1808,20 +1852,29 @@
                         </div>
                     </div>
 
-                    <!-- routing section -->
+                    <!-- routing section (layered-only overlays) -->
                     <div class="mb-2">
                         <div
-                            class="mb-1 text-[9px] font-semibold uppercase tracking-wider text-fg-muted"
+                            class="mb-1 flex items-baseline gap-1.5 text-[9px] font-semibold uppercase tracking-wider text-fg-muted"
                         >
-                            routing
+                            <span>routing</span>
+                            {#if !isLayered}
+                                <span class="font-normal normal-case tracking-normal opacity-70"
+                                    >(layered-only)</span
+                                >
+                            {/if}
                         </div>
                         <div class="flex flex-wrap gap-1">
                             {#each [["showGhostArrows", "ghost arrows"], ["showHops", "bridge hops"], ["showOverlapPairs", "overlap pairs"]] as const as [key, label] (key)}
                                 <button
                                     type="button"
-                                    class="border-line text-fg-muted hover:text-fg rounded border px-1.5 py-0.5"
+                                    class="border-line text-fg-muted hover:text-fg rounded border px-1.5 py-0.5 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-fg-muted"
                                     class:text-accent={debugLayers[key]}
                                     class:border-accent={debugLayers[key]}
+                                    disabled={layeredOnlyToggleKeys.has(key) && !isLayered}
+                                    title={layeredOnlyToggleKeys.has(key) && !isLayered
+                                        ? "layered engine only"
+                                        : undefined}
                                     onclick={() => (debugLayers[key] = !debugLayers[key])}
                                     data-testid={`debug-toggle-${key}`}
                                 >
@@ -1831,20 +1884,29 @@
                         </div>
                     </div>
 
-                    <!-- diagnostics section (Phase 3 new) -->
+                    <!-- diagnostics section (Phase 3 new, layered-only overlays) -->
                     <div class="mb-2">
                         <div
-                            class="mb-1 text-[9px] font-semibold uppercase tracking-wider text-fg-muted"
+                            class="mb-1 flex items-baseline gap-1.5 text-[9px] font-semibold uppercase tracking-wider text-fg-muted"
                         >
-                            diagnostics
+                            <span>diagnostics</span>
+                            {#if !isLayered}
+                                <span class="font-normal normal-case tracking-normal opacity-70"
+                                    >(layered-only)</span
+                                >
+                            {/if}
                         </div>
                         <div class="flex flex-wrap gap-1">
                             {#each [["showCycleNodes", "cycle nodes"], ["showBondCentroidDelta", "bond/centroid Δ"], ["showOrphanBadge", "orphans"], ["showRankGutterLabels", "rank labels"], ["showLastEditHalo", "last-edit halo"]] as const as [key, label] (key)}
                                 <button
                                     type="button"
-                                    class="border-line text-fg-muted hover:text-fg rounded border px-1.5 py-0.5"
+                                    class="border-line text-fg-muted hover:text-fg rounded border px-1.5 py-0.5 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-fg-muted"
                                     class:text-accent={debugLayers[key]}
                                     class:border-accent={debugLayers[key]}
+                                    disabled={layeredOnlyToggleKeys.has(key) && !isLayered}
+                                    title={layeredOnlyToggleKeys.has(key) && !isLayered
+                                        ? "layered engine only"
+                                        : undefined}
                                     onclick={() => (debugLayers[key] = !debugLayers[key])}
                                     data-testid={`debug-toggle-${key}`}
                                 >
@@ -1864,9 +1926,13 @@
                         <div class="flex flex-wrap gap-1">
                             <button
                                 type="button"
-                                class="border-line text-fg-muted hover:text-fg rounded border px-1.5 py-0.5"
+                                class="border-line text-fg-muted hover:text-fg rounded border px-1.5 py-0.5 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-fg-muted"
                                 class:text-accent={debugLayers.exposeTreeDebug}
                                 class:border-accent={debugLayers.exposeTreeDebug}
+                                disabled={!exposeTreeDebugSupported}
+                                title={exposeTreeDebugSupported
+                                    ? undefined
+                                    : "layered / hyperbolic engines only"}
                                 onclick={() =>
                                     (debugLayers.exposeTreeDebug = !debugLayers.exposeTreeDebug)}
                                 data-testid="debug-toggle-exposeTreeDebug"
@@ -1875,10 +1941,13 @@
                             </button>
                             <button
                                 type="button"
-                                class="border-line text-fg-muted hover:text-fg rounded border px-1.5 py-0.5"
+                                class="border-line text-fg-muted hover:text-fg rounded border px-1.5 py-0.5 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-fg-muted"
+                                disabled={!copySnapshotSupported}
                                 onclick={() => void copyLayoutSnapshot()}
                                 data-testid="debug-copy-snapshot"
-                                title="copy placed IR + segments to clipboard as JSON"
+                                title={copySnapshotSupported
+                                    ? "copy placed IR + segments to clipboard as JSON"
+                                    : "layered engine only"}
                             >
                                 copy snapshot
                             </button>
