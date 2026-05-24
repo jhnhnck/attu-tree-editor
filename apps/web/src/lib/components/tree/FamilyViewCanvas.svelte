@@ -183,6 +183,7 @@
     const CARD_H_PX = CARD_H * UNIT;
     const MIN_SCALE = 0.2;
     const MAX_SCALE = 2.0;
+    const PAN_KEY_STEP_PX = 60; // arrow-key pan step in host css px (shift = 5x)
 
     /**
      * Compute a font-size that compensates for the canvas scale so SVG
@@ -466,6 +467,32 @@
         panX = px - (px - panX) * ratio;
         panY = py - (py - panY) * ratio;
         scale = next;
+    }
+
+    /**
+     * Arrow-keys pan the viewport when focus is on the canvas host;
+     * shift+arrow goes 5x. Step is in host css px, matching the
+     * drag-pan path (panX += dx). Escape clears selection.
+     */
+    function onHostKeyDown(e: KeyboardEvent): void {
+        if (e.key === "Escape") {
+            ondeselect?.();
+            return;
+        }
+        let dir: "up" | "down" | "left" | "right" | undefined;
+        if (e.key === "ArrowRight") dir = "right";
+        else if (e.key === "ArrowLeft") dir = "left";
+        else if (e.key === "ArrowDown") dir = "down";
+        else if (e.key === "ArrowUp") dir = "up";
+        if (!dir) return;
+        e.preventDefault();
+        // arrow direction is viewport-relative, so content moves the
+        // opposite way (panX -= for right)
+        const step = e.shiftKey ? PAN_KEY_STEP_PX * 5 : PAN_KEY_STEP_PX;
+        if (dir === "right") panX -= step;
+        else if (dir === "left") panX += step;
+        else if (dir === "down") panY -= step;
+        else if (dir === "up") panY += step;
     }
 
     // ---------- imperative controller ----------
@@ -820,16 +847,24 @@
     });
 </script>
 
+<!-- the host already had pointer / wheel listeners on a role="region" div.
+     adding tabindex + keydown for arrow-key pan widens that pattern; the
+     dedicated tree-view canvas uses role="tree" but family-view stays
+     non-interactive until the planned roving-tabindex a11y pass lands. -->
+<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <div
     bind:this={hostEl}
     class="family-view-canvas bg-canvas relative h-full w-full overflow-clip"
     role="region"
     aria-label="family view canvas"
+    tabindex="0"
     onpointerdown={onPointerDown}
     onpointermove={onPointerMove}
     onpointerup={onPointerUp}
     onpointercancel={onPointerUp}
     onwheel={onWheel}
+    onkeydown={onHostKeyDown}
 >
     <div
         class="absolute origin-top-left"

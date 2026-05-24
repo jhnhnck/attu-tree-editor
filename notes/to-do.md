@@ -49,7 +49,6 @@
 
 - :o: `high priority` `medium effort` keyboard navigation across nodes (roving tabindex)
 - :o: `high priority` `medium effort` aria roles for tree (`role="tree"`, `treeitem`)
-- :o: `high priority` `low effort` arrow keys should pan the canvas (up / down / left / right) - currently they do nothing when focus is on the canvas
 - :o: `medium priority` `high effort` hide unrelated branches based on the selected person - needs a "related-to" rule (default: ancestors + descendants + spouses); expose as a View menu toggle so users can flip between full tree and focused view
 - :o: `medium priority` `medium effort` selectable lineage trace - clicking an edge (or a person + an "trace" action) highlights a chain through the graph in a unique color so the user can see where a relationship goes; pairs naturally with the "hide unrelated branches" toggle. **Partially addressed**: selection→focus path highlight ships (on by default, toggleable via View > Overlays > Path highlight). True any-to-any "trace" action remains open.
 - :o: `medium priority` `low effort` hover tooltip at far zoom levels - PersonNode at level 4 (initials) and 5 (dot) drops the name; add a native `title` or floating tooltip showing the full name + dates so users can identify cards before zooming in
@@ -118,6 +117,7 @@
 ### canvas
 
 - :red_circle: `23 May 2026` PersonNode portrait area was too short (rendered as a thin band) - portrait card is `CARD_H * 2 = 2.4u` with a 3:4 slot; silhouette placeholder dropped.
+- :red_circle: `24 May 2026` arrow keys now pan the canvas (up / down / left / right) when focus is on the canvas host and no person is selected - 60 css px per press, shift+arrow for 5x. tree-view keeps arrow-key selection-move when a person is selected; family-view pans unconditionally. hyperbolic engine uses Möbius transforms and stays out of scope.
 
 ### shell + UI
 

@@ -113,6 +113,7 @@
     const MIN_SCALE = 0.05;
     const MAX_SCALE = 5.0;
     const DRAG_THRESHOLD_PX = 4;
+    const PAN_KEY_STEP_PX = 60; // arrow-key pan step in host css px (shift = 5x)
     const SELECT_PAN_MS = 320; // duration of "center on selection" tween
     const ZOOM_TAU = 80; // ms time constant for wheel-zoom easing
     const ZOOM_FAR = 0.3; // below → 2× stroke
@@ -407,23 +408,37 @@
     // suppressed (e.g. after a drag) and avoids ambiguity with the
     // pointer-events-none svg layer above the cards.
 
-    /** Escape deselects; arrow keys move selection geometrically */
+    /**
+     * Escape deselects; arrow keys move selection geometrically when a
+     * person is selected, otherwise pan the viewport. shift+arrow pans
+     * 5x faster. step is CSS px on the host, matching the drag-pan path.
+     */
     function onHostKeyDown(e: KeyboardEvent): void {
         if (e.key === "Escape") {
             ondeselect?.();
             return;
         }
-        if (!selectedId) return;
         let dir: "up" | "down" | "left" | "right" | undefined;
         if (e.key === "ArrowRight") dir = "right";
         else if (e.key === "ArrowLeft") dir = "left";
         else if (e.key === "ArrowDown") dir = "down";
         else if (e.key === "ArrowUp") dir = "up";
-        if (dir) {
-            e.preventDefault();
+        if (!dir) return;
+        e.preventDefault();
+        if (selectedId) {
+            // selection-move: jump to the geometrically-nearest neighbour
             const next = findNeighbour(selectedId, dir, layout.positions);
             if (next) onselect?.(next);
+            return;
         }
+        // no selection: pan the viewport. arrow direction is viewport-
+        // relative, so content moves the opposite way (panX -= for right)
+        cancelPanAnim();
+        const step = e.shiftKey ? PAN_KEY_STEP_PX * 5 : PAN_KEY_STEP_PX;
+        if (dir === "right") panX -= step;
+        else if (dir === "left") panX += step;
+        else if (dir === "down") panY -= step;
+        else if (dir === "up") panY += step;
     }
 
     function clamp(n: number, lo: number, hi: number): number {
