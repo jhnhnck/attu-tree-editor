@@ -59,6 +59,7 @@
 - :o: `low priority` `low effort` View > Overlays should be a submenu rather than ~7 toggle items in the View menu root - bundles naturally with the View > Advanced submenu item under family-view; combine into one View-menu reorg
 - :o: `low priority` `low effort` menu items need re-sorting and better dividers - current order is mostly insertion-order; group conceptually (e.g. zoom controls together, overlays together) with dividers between groups
 - :o: `low priority` `low effort` auto-fit (fit-to-window) is only reachable via the small fit button inside the zoom widget popover - surface it as a top-level pill in the canvas chrome alongside the zoom percent, so it's one click instead of two
+- :o: `low priority` `low effort` SaveStatusPill popover anchors `absolute right-0 top-full mt-1` which renders below the viewport now that the pill mounts in the bottom-left bar - flip to `bottom-full mb-1 left-0` (or `right-0`) so the popover opens upward and stays on-screen. follow-up from the 24 May 2026 physical-move
 
 ### portrait cropper
 
@@ -168,5 +169,5 @@ items are grouped first by view if specific to one, then by component. within ea
 
 ```yaml
 last_updated: 24 May 2026
-total_completed: 11
+total_completed: 17
 ```
