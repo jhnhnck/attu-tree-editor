@@ -122,11 +122,13 @@
     function toneClassFor(tone: "sky" | "rose" | "amber", lvl: PersonNodeLevel): string {
         if (lvl >= 5) {
             if (tone === "sky") return "bg-sky-500";
-            if (tone === "rose") return "bg-rose-500";
+            // rose tone uses pink palette - rose-700 reads as dark blood-red on the
+            // card fill, pink-* sits in the intended pink-red family
+            if (tone === "rose") return "bg-pink-500";
             return "bg-amber-400";
         }
         if (tone === "sky") return "bg-sky-700/35 border-sky-400/70";
-        if (tone === "rose") return "bg-rose-700/35 border-rose-400/70";
+        if (tone === "rose") return "bg-pink-700/35 border-pink-400/70";
         return "bg-amber-600/30 border-amber-400/70";
     }
 </script>

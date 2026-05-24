@@ -139,9 +139,9 @@ describe("PersonNode", () => {
         expect(document.querySelector(".bg-sky-700\\/35")).not.toBeNull();
     });
 
-    it("paints female tint red", () => {
+    it("paints female tint pink", () => {
         render(PersonNode, { person: person({ gender: "f" }) });
-        expect(document.querySelector(".bg-rose-700\\/35")).not.toBeNull();
+        expect(document.querySelector(".bg-pink-700\\/35")).not.toBeNull();
     });
 
     it("paints unknown tint amber", () => {
