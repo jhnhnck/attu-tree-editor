@@ -138,7 +138,7 @@
 
     {#if popoverOpen}
         <div
-            class="bg-canvas-elev border-line absolute right-0 top-full z-40 mt-1 w-64 rounded-md border p-3 text-xs shadow-xl"
+            class="bg-canvas-elev border-line absolute bottom-full left-0 z-40 mb-1 w-64 rounded-md border p-3 text-xs shadow-xl"
             role="dialog"
             aria-label="save details"
         >
