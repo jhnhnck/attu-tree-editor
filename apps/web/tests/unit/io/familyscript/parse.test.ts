@@ -56,7 +56,10 @@ describe("parseFamilyScript - synthetic", () => {
     });
 
     it("emits an unknown-tag finding for a stray leading char", () => {
-        const text = "iSTART\tpRoot\tgm\tz1\tXunknown";
+        // `H` is not a defined FS tag; using it as a stand-in for any tag
+        // outside the parser's switch. (Was `X` historically; phase 3 turned
+        // X into 2nd-parent-set mother.)
+        const text = "iSTART\tpRoot\tgm\tz1\tHunknown";
         const r = unwrap(parseFamilyScript(text));
         const f = r.findings.find((x) => x.kind === "unknown-tag");
         expect(f).toBeDefined();
@@ -80,10 +83,11 @@ describe("parseFamilyScript - synthetic", () => {
         expect(r.findings.find((x) => x.kind === "bad-date")).toBeUndefined();
     });
 
-    it("preserves V tag as a person extra", () => {
-        const text = "iSTART\tpRoot\tgm\tz1\tVb";
+    it("applies the V code as the primary parent-set pedi when combined with m/f", () => {
+        const text = "iAAAAA\tpMom\tgf\tz1\niSTART\tpKid\tgm\tz1\tmAAAAA\tVa";
         const r = unwrap(parseFamilyScript(text));
-        expect(r.personExtras["START"]).toEqual([{ tag: "V", value: "b" }]);
+        const refs = r.tree.people["START"]?.parentIds ?? [];
+        expect(refs).toEqual([{ personId: "AAAAA", role: "mother", pedi: "adopted" }]);
     });
 
     it("captures spouse ids on the s tag", () => {

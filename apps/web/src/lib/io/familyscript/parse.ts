@@ -5,11 +5,20 @@
 
 import { HaracalndeDate } from "$lib/date/HaracalndeDate";
 import { ROOT_ID } from "$lib/domain/ids";
-import type { CoupleRecord, Gender, ParentRef, Person, PersonId, Tree } from "$lib/domain/types";
+import type {
+    CoupleRecord,
+    Gender,
+    ParentPedi,
+    ParentRef,
+    Person,
+    PersonId,
+    Tree,
+} from "$lib/domain/types";
 import { validate, type Finding } from "$lib/domain/validate";
 import {
     FS_DISPLAY_FROM_CODE,
     FS_GENDER_FROM_CODE,
+    FS_PEDI_FROM_CODE,
     type FsCoupleExtras,
     type FsHeader,
 } from "$lib/io/familyscript/tokens";
@@ -138,6 +147,24 @@ function parsePerson(
     };
     const extras: { tag: string; value: string }[] = [];
 
+    // staging for the three parent-set inputs (m/f + V; X/Y + W; K/L + Q).
+    // collected during the scan and flushed into person.parentIds[] at the
+    // end because the pedi tag (V/W/Q) can appear in any token order
+    // relative to its mother/father ids.
+    interface ParentSet {
+        mother?: PersonId;
+        father?: PersonId;
+        pedi?: ParentPedi;
+    }
+    const sets: [ParentSet, ParentSet, ParentSet] = [{}, {}, {}];
+    function readPedi(value: string, tag: string): ParentPedi {
+        const mapped = FS_PEDI_FROM_CODE[value];
+        if (mapped) return mapped;
+        findings.push({ kind: "unknown-tag", from: id, tag, value });
+        // permissive: keep the data, fall back to "birth"
+        return "birth";
+    }
+
     for (const token of rest) {
         if (token.length === 0) continue;
         const tag = token[0];
@@ -189,27 +216,45 @@ function parsePerson(
                 break;
             }
             case "m":
-                if (ID_RE.test(value)) {
-                    const refs: ParentRef[] = person.parentIds ?? [];
-                    if (!refs.some((r) => r.personId === value)) {
-                        person.parentIds = [
-                            ...refs,
-                            { personId: value, role: "mother", pedi: "birth" },
-                        ];
-                    }
-                } else findings.push({ kind: "unknown-tag", from: id, tag, value });
+                if (ID_RE.test(value)) sets[0].mother = value;
+                else findings.push({ kind: "unknown-tag", from: id, tag, value });
                 break;
             case "f":
-                if (ID_RE.test(value)) {
-                    const refs: ParentRef[] = person.parentIds ?? [];
-                    if (!refs.some((r) => r.personId === value)) {
-                        person.parentIds = [
-                            ...refs,
-                            { personId: value, role: "father", pedi: "birth" },
-                        ];
-                    }
-                } else findings.push({ kind: "unknown-tag", from: id, tag, value });
+                if (ID_RE.test(value)) sets[0].father = value;
+                else findings.push({ kind: "unknown-tag", from: id, tag, value });
                 break;
+            case "V":
+                sets[0].pedi = readPedi(value, tag);
+                break;
+            case "X":
+                if (ID_RE.test(value)) sets[1].mother = value;
+                else findings.push({ kind: "unknown-tag", from: id, tag, value });
+                break;
+            case "Y":
+                if (ID_RE.test(value)) sets[1].father = value;
+                else findings.push({ kind: "unknown-tag", from: id, tag, value });
+                break;
+            case "W":
+                sets[1].pedi = readPedi(value, tag);
+                break;
+            case "K":
+                if (ID_RE.test(value)) sets[2].mother = value;
+                else findings.push({ kind: "unknown-tag", from: id, tag, value });
+                break;
+            case "L":
+                if (ID_RE.test(value)) sets[2].father = value;
+                else findings.push({ kind: "unknown-tag", from: id, tag, value });
+                break;
+            case "Q":
+                sets[2].pedi = readPedi(value, tag);
+                break;
+            case "O": {
+                // birth order; spec permits decimals, domain stores int
+                const n = Number(value);
+                if (Number.isFinite(n)) person.birthOrder = Math.floor(n);
+                else findings.push({ kind: "unknown-tag", from: id, tag, value });
+                break;
+            }
             case "s":
                 if (ID_RE.test(value)) person.spouseIds.push(value);
                 else findings.push({ kind: "unknown-tag", from: id, tag, value });
@@ -229,10 +274,6 @@ function parsePerson(
             case "j":
                 person.occupation = value;
                 break;
-            case "V":
-                // no domain slot; preserved verbatim for round-trip
-                extras.push({ tag, value });
-                break;
             case "r":
                 // family echo photo reference: "<imageid> <width> <height>".
                 // imageid is the only useful part for pairing with embedded
@@ -245,6 +286,19 @@ function parsePerson(
                 extras.push({ tag, value });
         }
     }
+
+    // flush collected parent sets into ParentRef[]
+    const refs: ParentRef[] = [];
+    for (const set of sets) {
+        const pedi: ParentPedi = set.pedi ?? "birth";
+        if (set.mother && !refs.some((r) => r.personId === set.mother)) {
+            refs.push({ personId: set.mother, role: "mother", pedi });
+        }
+        if (set.father && !refs.some((r) => r.personId === set.father)) {
+            refs.push({ personId: set.father, role: "father", pedi });
+        }
+    }
+    if (refs.length > 0) person.parentIds = refs;
 
     return { person, extras };
 }
