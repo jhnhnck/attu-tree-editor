@@ -42,6 +42,14 @@
         CircleDot,
         Network,
         Bug,
+        LaptopMinimal,
+        LaptopMinimalCheck,
+        Cloud,
+        CloudCheck,
+        CloudOff,
+        CloudUpload,
+        AlertCircle,
+        AlertTriangle,
     } from "@lucide/svelte";
 
     import {
@@ -82,10 +90,13 @@
         type SibshipPatch,
         type UnionPatch,
     } from "$lib/domain/tree";
-    import { displayName } from "$lib/layout/kinship";
     import { migratePreferredUnion } from "$lib/state/preferredUnionMigration";
     import { createTreeStore } from "$lib/state/tree.svelte";
-    import { createSelectionStore } from "$lib/state/selection.svelte";
+    import {
+        createSelectionStore,
+        readPersistedSelection,
+        writePersistedSelection,
+    } from "$lib/state/selection.svelte";
     import { createToastsStore } from "$lib/state/toasts.svelte";
     import { createProgressStore } from "$lib/state/progress.svelte";
     import { createPortraitUrlCache } from "$lib/state/portraitUrls.svelte";
@@ -105,12 +116,17 @@
     import { SETTING_KEYS, getSetting, setSetting } from "$lib/persistence/settings";
     import { installShortcuts, type ShortcutBinding } from "$lib/keyboard";
     import { SHORTCUTS } from "$lib/shortcuts";
-    import type { DebugLayerOptions } from "$lib/components/tree/debugTypes";
+    import type {
+        DebugLayerOptions,
+        FamilyViewDebugLayerOptions,
+    } from "$lib/components/tree/debugTypes";
 
     import TreeCanvas from "$lib/components/tree/TreeCanvas.svelte";
     import HyperbolicCanvas from "$lib/components/tree/HyperbolicCanvas.svelte";
     import FamilyViewCanvas from "$lib/components/tree/FamilyViewCanvas.svelte";
     import { onFinding } from "$lib/domain/findings";
+    import { descendantsOf } from "$lib/domain/tree";
+    import { computeAncestorOverlap, formatCoi } from "$lib/domain/consanguinity";
     import type { CanvasController } from "$lib/components/tree/canvasController";
     import {
         DEFAULT_ENGINE,
@@ -145,6 +161,13 @@
         computeDisplayPercent,
     } from "$lib/components/canvas/zoomDisplay";
     import SaveStatusPill from "$lib/components/shell/SaveStatusPill.svelte";
+    import CanvasChromeDock from "$lib/components/canvas/CanvasChromeDock.svelte";
+    import { windowManager, NON_CLOSING_IDS } from "$lib/components/canvas/windowManager.svelte";
+    import { dockConfig } from "$lib/components/canvas/dockConfig.svelte";
+    import type { DockCorner } from "$lib/components/canvas/dockRegistry.svelte";
+    import WindowOverlay from "$lib/components/canvas/WindowOverlay.svelte";
+    import Window from "$lib/components/canvas/Window.svelte";
+    import DockRegistration from "$lib/components/canvas/DockRegistration.svelte";
     import type { Person, PersonId } from "$lib/domain/types";
 
     const PLACEHOLDERS = [
@@ -160,6 +183,38 @@
 
     const treeStore = createTreeStore(emptyTree());
     const selection = createSelectionStore();
+    // persist the currently-selected person id keyed by tree id so a reload
+    // restores the inspector's focus. restoration is done eagerly right
+    // after each `treeStore.hydrate(...)` call via `restoreSelectionForCurrentTree`;
+    // the effect below only handles writes. the bootstrap-window guard
+    // skips the write on first paint so we don't clobber a stored value
+    // before the initial hydrate runs.
+    $effect(() => {
+        const treeId = treeStore.tree.id;
+        const selectedId = selection.selectedPersonId;
+        if (!firstLoadComplete) return;
+        writePersistedSelection(treeId, selectedId);
+    });
+    function restoreSelectionForCurrentTree(): void {
+        const tree = treeStore.tree;
+        const persisted = readPersistedSelection(tree.id);
+        // clear any in-memory selection first; the previously-loaded tree's
+        // selected id has no meaning under the new tree's id-space, and the
+        // persistence $effect would otherwise write that stale id under the
+        // new tree's storage key.
+        if (persisted !== undefined && tree.people[persisted]) {
+            selection.select(persisted);
+        } else {
+            // gate restoration on the loaded tree actually containing that
+            // id; if it doesn't (or no value was stored), drop the key and
+            // clear selection so the inspector doesn't keep pointing at a
+            // person from the previous tree.
+            selection.select(undefined);
+            if (persisted !== undefined) {
+                writePersistedSelection(tree.id, undefined);
+            }
+        }
+    }
     const toasts = createToastsStore();
     const progress = createProgressStore();
     const portraitUrls = createPortraitUrlCache();
@@ -173,18 +228,67 @@
     let showHelp = $state(false);
     let showSettings = $state(false);
 
-    // debug overlay state
-    let debugOpen = $state(false);
-    let debugPillHidden = $state(false);
+    // debug overlay state. canvas-window-manager phase 3 splits these
+    // two flags apart:
+    //   - debugMode: localStorage-persisted master switch. gates the
+    //     debug pill's visibility AND every debug-effect overlay
+    //     (layered + family-view debugOptions derivations). flipped
+    //     from the help menu and from the menu body's "disable debug
+    //     mode" button. parallels authDryRunEnabled's persistence
+    //     pattern (fte.debug.authDryRun) — plain boolean, no schema
+    //     version, debug-flag precedent documented in agents.md.
+    //   - debug-menu open-state: owned by windowManager.isOpen("debug-menu")
+    //     since canvas-chrome-v2 phase 2 (one state machine for every dock
+    //     window). debug-menu is in windowManager's non-persisted set, so it
+    //     still does NOT survive a reload; closing the menu (titlebar × or
+    //     Ctrl+Shift+D off) leaves debugMode on so the overlays keep
+    //     rendering. the icon-pill aria-pressed reads isOpen; the × routes
+    //     through windowManager.closeWindow directly (no parallel flag).
+    const DEBUG_MODE_LS_KEY = "fte.debug.mode";
+    function readDebugModePref(): boolean {
+        try {
+            const raw =
+                typeof localStorage === "undefined"
+                    ? null
+                    : localStorage.getItem(DEBUG_MODE_LS_KEY);
+            return raw === "true";
+        } catch {
+            return false;
+        }
+    }
+    function writeDebugModePref(on: boolean): void {
+        try {
+            if (typeof localStorage !== "undefined") {
+                localStorage.setItem(DEBUG_MODE_LS_KEY, on ? "true" : "false");
+            }
+        } catch {
+            // ignore - quota / disabled storage is non-fatal
+        }
+    }
+    let debugMode = $state(readDebugModePref());
+    // persist debugMode whenever it flips. distinct from authDryRun's
+    // call-inline pattern because debugMode is toggled from multiple
+    // sites (help menu, "disable debug mode" button in menu body)
+    // and a centralised $effect avoids missing a writer at any toggle
+    // surface.
+    $effect(() => {
+        writeDebugModePref(debugMode);
+    });
 
-    // auth dry-run debug toggle. localStorage-persisted so a session
-    // that opted in stays in dry-run across reloads (useful for poking
-    // protected paths without re-doing discord linking each time). on
-    // boot we hand the persisted value to the auth store via
-    // setDryRun(); the store derives the effective `user` from
-    // realUser || (dryRun && syntheticUser). only client-side gating
-    // is faked - any backend call still hits the real /api/auth/me
-    // surface and 401s if there's no session cookie.
+    // the sheet-mode inspector bridge resolves the canvas-host via
+    // its own DOM query (Inspector.svelte's `findCanvasHost()`
+    // walks up to <main> and querySelector('[data-canvas-host]')),
+    // so App.svelte no longer needs to track the element ref.
+    // the previous `canvasHostEl` $state + `bind:this` lived here
+    // for the debug-menu css-var bridge (`--debug-menu-bottom` /
+    // `--debug-menu-height`), which deleted when the menu moved
+    // into the canvas-chrome dock.
+
+    // auth dry-run debug toggle. localStorage-persisted so the flag
+    // survives reloads. when on, auth API calls in client.ts are routed
+    // through the stub in auth-stub.ts: clicking "sign in" opens the
+    // LinkCodeDialog with a fake code, polls resolve to "ok" after ~6s,
+    // and authStore.user becomes DRY_RUN_USER via the normal fetch() path.
     const AUTH_DRY_RUN_LS_KEY = "fte.debug.authDryRun";
     function readAuthDryRunPref(): boolean {
         try {
@@ -207,8 +311,8 @@
         }
     }
     let authDryRunEnabled = $state(readAuthDryRunPref());
-    // sync the auth store with the toggle so consumers reading
-    // authStore.user immediately see the synthetic session.
+    // keep the auth store in sync with the toggle. setDryRun(false) also
+    // clears any active stub session so the UI returns to signed-out state.
     $effect(() => {
         authStore.setDryRun(authDryRunEnabled);
     });
@@ -245,11 +349,277 @@
     let layoutStats = $state<
         { totalPeople: number; components: number; isolated: number } | undefined
     >(undefined);
+    // family-view subset mirrored up from FamilyViewCanvas via onsubsetchange
+    // so the debug panel can render the off-subset section inline in its own
+    // column instead of as a floating panel on the canvas
+    let familyViewSubset = $state<import("$lib/layout/engines/family-view").RankedSubset | null>(
+        null,
+    );
     let showInspector = $state(true);
-    let inspectorInitialTab = $state<"personal" | "connections" | "details" | "bio">("personal");
+    let inspectorInitialTab = $state<"personal" | "connections" | "bio">("personal");
+    // stats popover: anchored to the people pill in the bottom-left chrome
+    // bar. shows editRev (always), and per-person COI + descendant count
+    // when a person is selected. canvas-window-manager phase 2 migrated
+    // the popover body into a Window (kind="window" priority=25
+    // forceCollapsible=false). canvas-chrome-v2 phase 2: expanded-state is
+    // owned by windowManager (single source of truth for docked minimize /
+    // restore), so this is a derived view of isExpanded; writes go through
+    // setExpanded / toggleExpanded.
+    const statsPopoverOpen = $derived(windowManager.isExpanded("stats-window"));
+    // canvas-window-manager phase 4: configurable stats pill. clicking
+    // a row in the stats Window writes its key here; the trigger pill
+    // branches on it to render the chosen metric. "people" is the
+    // default and survives a missing selection (rows that need a
+    // selectedPersonId fall back to the people count). rev moved to
+    // the save-status Window, so it doesn't appear in this enum.
+    let selectedMetric = $state<"people" | "clusters" | "descendants" | "coi">("people");
+    $effect(() => {
+        if (!statsPopoverOpen) return;
+        const onPointerDown = (e: PointerEvent): void => {
+            const target = e.target as Element | null;
+            if (!target) return;
+            // keep open when the click lands inside the stats Window
+            // (docked OR popped-out) or its trigger pill.
+            const window = target.closest('[data-window-id="stats-window"]');
+            const pill = target.closest('[data-testid="stats-pill"]');
+            if (window || pill) return;
+            windowManager.setExpanded("stats-window", false);
+        };
+        document.addEventListener("pointerdown", onPointerDown, true);
+        return () => document.removeEventListener("pointerdown", onPointerDown, true);
+    });
+    // save-status popover state, lifted from SaveStatusPill in
+    // canvas-window-manager phase 0. mirrored as the expanded prop on
+    // the save-status Window (kind="window" priority=15
+    // forceCollapsible=false).
+    //
+    // phase-1 regression fix: the pre-migration SaveStatusPill carried
+    // its own outside-click-close listener. the migration dropped that
+    // listener; we re-wire it here so clicking outside the save-status
+    // Window (titlebar OR body) flips popoverOpen=false, matching the
+    // pre-migration UX. when the window pops out, its body is rendered
+    // in the WindowOverlay; the check walks ancestors looking for the
+    // window root carrier (data-window-id="save-status-window") OR the
+    // trigger pill so clicks on either keep the popover open.
+    //
+    // canvas-chrome-v2 phase 2: derived from windowManager.isExpanded (the
+    // single source of truth); writes go through setExpanded.
+    const savePopoverOpen = $derived(windowManager.isExpanded("save-status-window"));
+    $effect(() => {
+        if (!savePopoverOpen) return;
+        const onPointerDown = (e: PointerEvent): void => {
+            const target = e.target as Element | null;
+            if (!target) return;
+            // keep open when the click lands inside the save-status
+            // Window (docked OR popped-out) or its trigger pill.
+            const window = target.closest('[data-window-id="save-status-window"]');
+            const pill = target.closest('[data-testid="save-status-pill"]');
+            if (window || pill) return;
+            windowManager.setExpanded("save-status-window", false);
+        };
+        // capture phase so we run before per-component handlers that
+        // might stopPropagation on the bubble.
+        document.addEventListener("pointerdown", onPointerDown, true);
+        return () => document.removeEventListener("pointerdown", onPointerDown, true);
+    });
+    let selectedDescendantCount = $derived.by(() => {
+        const sid = selection.selectedPersonId;
+        if (!sid || !statsPopoverOpen) return undefined;
+        return [...descendantsOf(treeStore.tree, sid)].length;
+    });
+    let selectedCoi = $derived.by(() => {
+        const sid = selection.selectedPersonId;
+        if (!sid || !statsPopoverOpen) return undefined;
+        return computeAncestorOverlap(treeStore.tree, sid).coi;
+    });
 
-    // debug overlay derived
-    let debugOptions = $derived(debugOpen ? { layers: debugLayers } : undefined);
+    // debug overlay derived. gated on debugMode (the master switch), NOT on
+    // the debug-menu open-state. canvas-window-manager phase 3 split:
+    // closing the debug menu must NOT clear the overlays — debug effects
+    // keep rendering until the user flips debug mode off explicitly.
+    let debugOptions = $derived(debugMode ? { layers: debugLayers } : undefined);
+
+    // off-subset groups for the debug panel's family-view section. lifted
+    // out of FamilyViewDebugOverlay so the list renders inline in the same
+    // column as the toggle chips instead of as a fixed corner overlay.
+    const OFF_SUBSET_REASON_ORDER = [
+        "secondary-union-not-expanded",
+        "non-primary-partner",
+        "rank-cutoff",
+        "auto-collapsed",
+        "unreachable",
+    ] as const;
+    function offSubsetReasonLabel(
+        r: import("$lib/layout/engines/family-view").RejectionReason,
+    ): string {
+        switch (r) {
+            case "rank-cutoff":
+                return "rank cutoff";
+            case "non-primary-partner":
+                return "non-primary partner";
+            case "secondary-union-not-expanded":
+                return "secondary not expanded";
+            case "auto-collapsed":
+                return "auto collapsed";
+            case "unreachable":
+                return "unreachable";
+        }
+    }
+    let offSubsetByReason = $derived.by(() => {
+        const out = new Map<import("$lib/layout/engines/family-view").RejectionReason, string[]>();
+        for (const r of OFF_SUBSET_REASON_ORDER) out.set(r, []);
+        if (!familyViewSubset) return out;
+        for (const [pid, reason] of familyViewSubset.rationale) {
+            out.get(reason)?.push(pid);
+        }
+        for (const ids of out.values()) ids.sort();
+        return out;
+    });
+    let offSubsetTotal = $derived.by(() => {
+        let total = 0;
+        for (const ids of offSubsetByReason.values()) total += ids.length;
+        return total;
+    });
+    function offSubsetNameOf(pid: string): string {
+        const p = treeStore.tree.people[pid];
+        if (!p) return pid;
+        const name = `${p.given} ${p.surname}`.trim();
+        return name.length > 0 ? name : pid;
+    }
+
+    // family-view debug layer state — distinct interface from
+    // `DebugLayerOptions` because the family-view engine has its own
+    // overlay geometry (no segment grammar / placedGraph). phase 0
+    // ships the walking-skeleton toggles; phases 1-5 extend the set.
+    let familyViewDebugLayers = $state<FamilyViewDebugLayerOptions>({
+        exposeFamilyDebug: false,
+        showVisibleSubset: false,
+        // phase 1 connectivity overlays
+        showOrphanBadge: false,
+        showEdgeRoles: false,
+        showOffSubsetPeople: false,
+        showSecondaryUnionState: false,
+        // phase 2 multi-union geometry
+        showMultiUnionManifold: false,
+        showCardCollisions: false,
+        showCoupleCentroidDelta: false,
+        showRankGutterLabels: false,
+        // phase 3 navigation diagnostics
+        logFocusEvents: false,
+        showViewportFitTarget: false,
+        showOffSubsetWarning: false,
+        showPendingRecenter: false,
+        // phase 4 coi inspector
+        showCoiBreakdown: false,
+        showDuplicateAncestors: false,
+        // phase 5 polish + parity + metrics
+        showGrid: false,
+        showNodeBounds: false,
+        showLastEditHalo: false,
+        showLayoutMetrics: false,
+    });
+    // family-view debug overlays — same debugMode gate as the layered
+    // engine's debugOptions above.
+    let familyViewDebugOptions = $derived(
+        debugMode ? { layers: familyViewDebugLayers } : undefined,
+    );
+
+    // ---------- phase 3: family-view navigation diagnostics ----------
+    //
+    // Focus-event log + pending-recenter watchdog live in App.svelte because
+    // (a) selection-change origins are all here (palette, keyboard, commands,
+    // inspector, card-click bubble), and (b) the canvas only sees the
+    // resulting `selectedId` prop with the source info already stripped.
+    // The canvas reports back via `onrecenter` so we can flip the per-event
+    // `didTriggerCenterOn` flag and cancel the watchdog timer. See
+    // `.claude/plans/family-view-debug/log.md` for the full call-path trace.
+
+    interface FocusEvent {
+        readonly seq: number;
+        readonly ts: number;
+        readonly source:
+            | "palette"
+            | "card-click"
+            | "command"
+            | "inspector"
+            | "context-menu"
+            | "keyboard"
+            | "programmatic";
+        readonly personId: PersonId | undefined;
+        readonly requestedRecenter: boolean;
+        didTriggerCenterOn: boolean;
+    }
+
+    // Capped at 40 entries (rolling window). The overlay panel scrolls; the
+    // cap keeps the array allocations bounded on long sessions where every
+    // selection change pushes an event.
+    const FOCUS_EVENT_CAP = 40;
+    let focusEventSeq = 0;
+    let focusEvents = $state<FocusEvent[]>([]);
+
+    // The phase-3 watchdog: when a selection event is recorded with
+    // `requestedRecenter`, start a 200ms timer. If `onrecenter` fires
+    // first, clear the timer and mark the event as triggered. If the
+    // timer fires first, the canvas overlay's red corner badge lights up
+    // by reading `recenterMissedId` / `recenterMissedReason`.
+    const PENDING_RECENTER_MS = 200;
+    let pendingTimer: ReturnType<typeof setTimeout> | undefined;
+    let recenterMissedId = $state<PersonId | undefined>(undefined);
+    let recenterFlashSeq = $state(0);
+
+    function recordFocusEvent(
+        source: FocusEvent["source"],
+        personId: PersonId | undefined,
+        requestedRecenter: boolean,
+    ): void {
+        // toggle-gated: zero work when the overlay isn't asking for it.
+        if (!familyViewDebugLayers.logFocusEvents && !familyViewDebugLayers.showPendingRecenter)
+            return;
+        focusEventSeq += 1;
+        const entry: FocusEvent = {
+            seq: focusEventSeq,
+            ts: Date.now(),
+            source,
+            personId,
+            requestedRecenter,
+            didTriggerCenterOn: false,
+        };
+        focusEvents = [entry, ...focusEvents].slice(0, FOCUS_EVENT_CAP);
+        if (requestedRecenter && personId !== undefined) {
+            // arm the watchdog: if no `onrecenter` callback fires within
+            // 200ms, surface a red badge.
+            if (pendingTimer !== undefined) clearTimeout(pendingTimer);
+            recenterMissedId = undefined;
+            const missingId = personId;
+            void entry.seq;
+            pendingTimer = setTimeout(() => {
+                pendingTimer = undefined;
+                recenterMissedId = missingId;
+            }, PENDING_RECENTER_MS);
+        }
+    }
+
+    function onCanvasRecenter(id: PersonId): void {
+        // canvas fired `recenterOn`; cancel the watchdog and mark the
+        // most-recent event as triggered. flash counter bumps to drive
+        // the green border pulse on the overlay.
+        if (pendingTimer !== undefined) {
+            clearTimeout(pendingTimer);
+            pendingTimer = undefined;
+        }
+        recenterMissedId = undefined;
+        recenterFlashSeq += 1;
+        // mark the most-recent matching event (search head of array — it's
+        // capped at 40, so the linear scan is cheap)
+        const idx = focusEvents.findIndex((e) => e.personId === id && !e.didTriggerCenterOn);
+        if (idx >= 0) {
+            const entry = focusEvents[idx]!;
+            const updated: FocusEvent = { ...entry, didTriggerCenterOn: true };
+            const next = focusEvents.slice();
+            next[idx] = updated;
+            focusEvents = next;
+        }
+    }
 
     // command palette
     let showPalette = $state(false);
@@ -287,30 +657,21 @@
             layoutStats !== undefined,
     );
 
-    // engine-compatibility for debug-panel toggles. layered-only toggles
-    // target layered IR (positions, ghosts, segments, ranks, placedGraph)
-    // and silently no-op on other engines — disable them in the panel so
-    // the user sees they aren't applicable here. runtime actions: `copy
+    // engine-compatibility for debug-panel runtime actions. layered-only
+    // overlay toggles live inside an `isLayered` gate in the panel markup
+    // now (family-view debug overlay plan phase 0), so the per-key
+    // disabled-list isn't needed any more. runtime actions: `copy
     // snapshot` reads the layered placedGraph; `dump` / `load` / `force
     // conflict` are engine-agnostic; `expose __treeDebug` is honored by
-    // the layered and hyperbolic canvases but not by family-view.
-    let layeredOnlyToggleKeys = $derived(
-        new Set<keyof DebugLayerOptions>([
-            "showGrid",
-            "showNodeBounds",
-            "showSegmentIds",
-            "showComponentBounds",
-            "showGhostArrows",
-            "showHops",
-            "showOverlapPairs",
-            "showCycleNodes",
-            "showBondCentroidDelta",
-            "showOrphanBadge",
-            "showRankGutterLabels",
-            "showLastEditHalo",
-        ]),
-    );
+    // the layered and hyperbolic canvases (family-view has its own
+    // `exposeFamilyDebug` toggle in the family-view section).
     let isLayered = $derived(selectedEngine === "layered");
+    // engine-gated panel sections: layered toggles only show in layered
+    // mode, family-view toggles only in family-view mode, hyperbolic
+    // gets no engine-specific section yet. shared runtime controls (copy
+    // snapshot / dump / load / force conflict / expose handle) stay
+    // visible in every mode.
+    let isFamilyView = $derived(selectedEngine === "family-view");
     let exposeTreeDebugSupported = $derived(
         selectedEngine === "layered" || selectedEngine === "hyperbolic",
     );
@@ -614,7 +975,11 @@
             const lastId = await getSetting<string>(SETTING_KEYS.lastOpenedTreeId);
             if (lastId) {
                 const r = await loadTree(lastId);
-                if (r.ok) treeStore.hydrate(migratePreferredUnion(r.value));
+                if (r.ok) {
+                    treeStore.hydrate(migratePreferredUnion(r.value.tree));
+                    lastSavedAt = r.value.savedAt;
+                    restoreSelectionForCurrentTree();
+                }
             }
             await refreshRecents();
         } catch (e) {
@@ -634,6 +999,7 @@
         try {
             const r = await treesApi.get(treeId);
             treeStore.hydrate(migratePreferredUnion(r.blob as ReturnType<typeof createTree>));
+            restoreSelectionForCurrentTree();
             syncStore.setRevision(r.revision);
             toasts.push(`viewing: ${r.name || "untitled"} (read-only)`, "info", 5000);
         } catch {
@@ -670,7 +1036,9 @@
         }
         portraitUrls.clear();
         readOnly = false;
-        treeStore.hydrate(migratePreferredUnion(r.value));
+        treeStore.hydrate(migratePreferredUnion(r.value.tree));
+        lastSavedAt = r.value.savedAt;
+        restoreSelectionForCurrentTree();
         // drop any save the autosave $effect may have queued for the previous
         // tree while loadTree was awaiting; hydrate sets dirty=false so the
         // effect won't re-fire, but a debounced timer from before the load
@@ -678,8 +1046,8 @@
         autosaver.cancel();
         syncStore.setRevision(1);
         await setSetting(SETTING_KEYS.lastOpenedTreeId, id);
-        console.info("[tree] loaded %s (%s)", r.value.name || "untitled", id);
-        toasts.push(`loaded ${r.value.name || "untitled"}`, "info", 3000);
+        console.info("[tree] loaded %s (%s)", r.value.tree.name || "untitled", id);
+        toasts.push(`loaded ${r.value.tree.name || "untitled"}`, "info", 3000);
     }
 
     async function startNewTree(): Promise<void> {
@@ -708,7 +1076,7 @@
         await removeTree(id);
     }
 
-    type InspectorTab = "personal" | "connections" | "details" | "bio";
+    type InspectorTab = "personal" | "connections" | "bio";
     type ConnectionSlot =
         | { kind: "parent"; role: "mother" | "father" }
         | { kind: "parent-extra" }
@@ -722,16 +1090,27 @@
     }
     let contextMenu = $state<MenuState | undefined>(undefined);
 
-    function focusPerson(id: PersonId, tab: InspectorTab = "personal"): void {
+    function focusPerson(
+        id: PersonId,
+        tab: InspectorTab = "personal",
+        source: FocusEvent["source"] = "programmatic",
+    ): void {
         selection.select(id);
         showInspector = true;
         inspectorInitialTab = tab;
+        // phase-3 family-view debug: log every selection change. caller
+        // signals whether it intends to follow up with a recenter via the
+        // dedicated palette / command paths; this 3-liner itself never
+        // calls `canvasController.focusSelection`, so default to no
+        // recenter request and let the caller record one separately when
+        // it does follow up.
+        recordFocusEvent(source, id, false);
     }
 
-    function blankPerson(): Omit<Person, "id"> {
+    function blankPerson(surname?: string): Omit<Person, "id"> {
         return {
             given: "New",
-            surname: "Person",
+            surname: surname ?? "Person",
             gender: "u",
             spouseIds: [],
             display: "z1",
@@ -740,7 +1119,7 @@
 
     function addParent(id: PersonId): void {
         const t = treeStore.tree;
-        const { tree, id: newId } = addPerson(t, blankPerson());
+        const { tree, id: newId } = addPerson(t, blankPerson(t.people[id]?.surname));
         const linked = linkParent(tree, id, newId);
         if (!linked.ok) {
             toasts.push(linked.error, "error");
@@ -752,7 +1131,7 @@
 
     function addPartner(id: PersonId): void {
         const t = treeStore.tree;
-        const { tree, id: newId } = addPerson(t, blankPerson());
+        const { tree, id: newId } = addPerson(t, blankPerson(t.people[id]?.surname));
         const linked = linkSpouse(tree, id, newId);
         if (!linked.ok) {
             toasts.push(linked.error, "error");
@@ -766,7 +1145,7 @@
         const t = treeStore.tree;
         const parent = t.people[id];
         if (!parent) return;
-        const { tree, id: newId } = addPerson(t, blankPerson());
+        const { tree, id: newId } = addPerson(t, blankPerson(t.people[id]?.surname));
         const linkedOne = linkParent(tree, newId, id);
         if (!linkedOne.ok) {
             toasts.push(linkedOne.error, "error");
@@ -1053,9 +1432,6 @@
 
     function setRootAction(id: PersonId): void {
         treeStore.update((t) => ({ ...t, rootId: id }));
-        // resolve the name after the update so the toast reflects the just-promoted person
-        const name = displayName(treeStore.tree, id);
-        toasts.push(`${name} is now the tree root`, "info", 2500);
     }
 
     function menuItems(personId: PersonId): ContextMenuItem[] {
@@ -1246,6 +1622,24 @@
         toasts.push("saved", "info", 1500);
     }
 
+    // brief relative-time formatter for the save-status Window body
+    // (canvas-window-manager phase 0). mirrors the fmtRel that lived
+    // inside SaveStatusPill pre-migration; kept simple — the body
+    // re-renders on `lastSavedAt` change so a 10s tick interval here
+    // would be redundant noise.
+    function fmtRelSimple(ts: number): string {
+        const ms = Math.max(0, Date.now() - ts);
+        const s = Math.floor(ms / 1000);
+        if (s < 5) return "just now";
+        if (s < 60) return `${String(s)}s ago`;
+        const m = Math.floor(s / 60);
+        if (m < 60) return `${String(m)}m ago`;
+        const h = Math.floor(m / 60);
+        if (h < 24) return `${String(h)}h ago`;
+        const d = Math.floor(h / 24);
+        return `${String(d)}d ago`;
+    }
+
     function startTitleEdit(): void {
         if (readOnly) return;
         titleDraft = treeStore.tree.name;
@@ -1340,7 +1734,14 @@
         viewFit: () => withCanvas((c) => c.fit()),
         viewZoom100: () => withCanvas((c) => c.zoom100()),
         viewFitSelection: () => withCanvas((c) => c.fitSelection()),
-        viewFocus: () => withCanvas((c) => c.focusSelection()),
+        viewFocus: () => {
+            // phase-3 family-view debug: the `viewFocus` command path
+            // also requests a recenter; log it with the selected id so
+            // the watchdog can arm and the panel records the source.
+            const sid = selection.selectedPersonId;
+            if (sid !== undefined) recordFocusEvent("command", sid, true);
+            withCanvas((c) => c.focusSelection());
+        },
         viewHandTool: () => withCanvas((c) => c.setMode("hand")),
         viewSelectTool: () => withCanvas((c) => c.setMode("select")),
         viewZoomIn: () => withCanvas((c) => c.zoomBy(1.25)),
@@ -1349,8 +1750,8 @@
             // center the viewport on root and also select it - users
             // usually want both (e.g. to start editing or path-tracing
             // from the root after a long pan away)
-            withCanvas((c) => c.centerOnRoot());
             const rid = treeStore.tree.rootId;
+            if (rid) canvasController?.centerOnPerson(rid);
             if (rid) selection.select(rid);
         },
         viewToggleInspector: () => (showInspector = !showInspector),
@@ -1498,7 +1899,7 @@
         combo: "Ctrl+Shift+D",
         scope: "global" as const,
         action: () => {
-            debugOpen = !debugOpen;
+            toggleDebugMenu();
         },
     });
 
@@ -1544,13 +1945,94 @@
 
     const fileMenu = $derived<MenuConfig>(menuFromGroup("File", "File"));
     const editMenu = $derived<MenuConfig>(menuFromGroup("Edit", "Edit"));
-    const viewMenu = $derived<MenuConfig>(menuFromGroup("View", "View"));
+    // canvas-chrome-v2 phase 3: dock corner picker. radio-style — exactly
+    // one corner is active; selecting persists via dockConfig (fte.dock.corner).
+    const DOCK_CORNER_ITEMS: ReadonlyArray<{ corner: DockCorner; label: string }> = [
+        { corner: "tl", label: "dock corner: top-left" },
+        { corner: "tr", label: "dock corner: top-right" },
+        { corner: "bl", label: "dock corner: bottom-left" },
+        { corner: "br", label: "dock corner: bottom-right" },
+    ];
+
+    // canvas-chrome-v2 phase 3: the full Panels section — every dock window,
+    // listed in dock-priority order with a static label (the live window
+    // titles carry dynamic suffixes we don't want in the menu). the 5
+    // family-view debug panels appear even though they are non-persisted:
+    // this is the ONLY way to reopen one after its titlebar × closes it
+    // (bugs.md cc2-1). save-status is non-closing so its row is disabled.
+    const DOCK_PANEL_ENTRIES: ReadonlyArray<{ id: string; label: string }> = [
+        { id: "save-status-window", label: "save status" },
+        { id: "stats-window", label: "stats" },
+        { id: "debug-menu", label: "debug menu" },
+        { id: "family-view-debug-off-subset-warning", label: "off-subset warning" },
+        { id: "family-view-debug-recenter-missed", label: "recenter missed" },
+        { id: "family-view-debug-coi-breakdown", label: "coi breakdown" },
+        { id: "family-view-debug-focus-log", label: "focus log" },
+        { id: "family-view-debug-layout-metrics", label: "layout metrics" },
+    ];
+
+    // suffix the menu label with the window's docked sub-state so the
+    // Panels section reflects windowState, not just open/closed.
+    function panelMenuLabel(id: string, base: string): string {
+        const st = windowManager.windowState(id);
+        if (st === "docked-minimized") return `${base} (minimized)`;
+        if (st === "floating") return `${base} (floating)`;
+        return base;
+    }
+
+    function toggleDockPanel(id: string): void {
+        if (windowManager.isOpen(id)) windowManager.closeWindow(id);
+        else windowManager.openWindow(id);
+    }
+
+    const viewMenu = $derived<MenuConfig>({
+        label: "View",
+        items: [
+            ...menuFromGroup("View", "View").items,
+            "divider",
+            ...DOCK_CORNER_ITEMS.map((c) => ({
+                label: c.label,
+                checked: dockConfig.corner === c.corner,
+                onclick: () => dockConfig.setCorner(c.corner),
+            })),
+            "divider",
+            ...DOCK_PANEL_ENTRIES.map((p) => ({
+                label: panelMenuLabel(p.id, p.label),
+                checked: windowManager.isOpen(p.id),
+                disabled: NON_CLOSING_IDS.has(p.id),
+                onclick: () => toggleDockPanel(p.id),
+            })),
+        ] satisfies MenuEntry[],
+    });
     const insertMenu = $derived<MenuConfig>(menuFromGroup("Insert", "Insert"));
     const treeMenu = $derived<MenuConfig>(menuFromGroup("Tree", "Tree"));
+    // help-menu Debug mode toggle: master switch for the debug surface
+    // (pill + overlays + menu visibility). flipping off atomically
+    // closes the debug-menu Window too — if the user disables debug mode
+    // while the menu is open, the menu auto-closes. flipping on does NOT open
+    // the menu (the icon-pill click + Ctrl+Shift+D still own the open
+    // gesture). decision recorded in the phase 3 retro.
+    function toggleDebugMode(): void {
+        debugMode = !debugMode;
+        if (!debugMode) windowManager.closeWindow("debug-menu");
+    }
+    // open/close toggle for the debug-menu Window. owns the open gesture
+    // (icon-pill click + Ctrl+Shift+D); the menu's open-state lives in
+    // windowManager (non-persisted) so isOpen drives the registration gate.
+    function toggleDebugMenu(): void {
+        if (windowManager.isOpen("debug-menu")) windowManager.closeWindow("debug-menu");
+        else windowManager.openWindow("debug-menu");
+    }
     const helpMenu = $derived<MenuConfig>({
         label: "Help",
         items: [
             ...menuFromGroup("Help", "Help").items,
+            "divider",
+            {
+                label: "Debug mode",
+                checked: debugMode,
+                onclick: toggleDebugMode,
+            },
             "divider",
             {
                 label: "About",
@@ -1569,12 +2051,56 @@
     function onPalettePick(kind: "person" | "command", id: string): void {
         showPalette = false;
         if (kind === "person") {
-            focusPerson(id, "personal");
-            canvasController?.focusSelection();
+            // phase-3 family-view debug: palette is THE silent-no-op
+            // canary. record selection with `requestedRecenter=true`
+            // BEFORE calling focusPerson (which records its own
+            // selection event), then arm the watchdog manually here.
+            // `focusPerson` records source=palette but with
+            // recenter=false; we patch the most-recent entry below.
+            focusPerson(id, "personal", "palette");
+            // upgrade the just-recorded event to requestedRecenter=true
+            // and arm the watchdog. doing this after focusPerson keeps
+            // the event ordering stable in the panel.
+            armPaletteRecenterWatchdog(id);
+            // use the id-taking centerOnPerson rather than focusSelection
+            // so we don't race the prop update — the canvas still sees
+            // the old `selectedId` on this same tick, so focusSelection
+            // would centre on the previous selection. centerOnPerson
+            // takes the new id explicitly and also handles off-subset
+            // (family-view falls back to focusOverride, layered shifts
+            // pan to the matching position).
+            canvasController?.centerOnPerson(id);
             return;
         }
         const cmd = commandById(commands, id);
         cmd?.run();
+    }
+
+    /**
+     * Phase-3 family-view debug helper: upgrades the most-recent
+     * `focusPerson`-logged event to `requestedRecenter=true` and arms
+     * the 200ms watchdog. Used by callsites that follow `focusPerson`
+     * with a `canvasController.focusSelection()`. Cheap no-op when the
+     * debug toggles are off.
+     */
+    function armPaletteRecenterWatchdog(id: PersonId): void {
+        if (!familyViewDebugLayers.logFocusEvents && !familyViewDebugLayers.showPendingRecenter)
+            return;
+        if (focusEvents.length === 0) return;
+        const head = focusEvents[0]!;
+        if (head.personId !== id) return;
+        const updated: FocusEvent = { ...head, requestedRecenter: true };
+        const next = focusEvents.slice();
+        next[0] = updated;
+        focusEvents = next;
+        if (pendingTimer !== undefined) clearTimeout(pendingTimer);
+        recenterMissedId = undefined;
+        void head.seq;
+        const missingId = id;
+        pendingTimer = setTimeout(() => {
+            pendingTimer = undefined;
+            recenterMissedId = missingId;
+        }, PENDING_RECENTER_MS);
     }
 </script>
 
@@ -1669,7 +2195,7 @@
                 aria-pressed={canvasMode === "select"}
                 onclick={() => handlers.viewSelectTool()}
             >
-                <MousePointer2 size={15} />
+                <MousePointer2 size={17} strokeWidth={2.5} />
             </button>
             <!-- Hand tool button removed: behaves the same as Select for
                  the current canvas, so it's redundant chrome. Shortcut H
@@ -1691,7 +2217,7 @@
                 disabled={!selection.selectedPersonId}
                 onclick={() => handlers.selectDelete()}
             >
-                <Trash2 size={15} />
+                <Trash2 size={17} strokeWidth={2.5} />
             </button>
             <button
                 type="button"
@@ -1701,7 +2227,7 @@
                 disabled={!treeStore.canUndo}
                 onclick={() => treeStore.undo()}
             >
-                <Undo2 size={15} />
+                <Undo2 size={17} strokeWidth={2.5} />
             </button>
             <button
                 type="button"
@@ -1711,7 +2237,7 @@
                 disabled={!treeStore.canRedo}
                 onclick={() => treeStore.redo()}
             >
-                <Redo2 size={15} />
+                <Redo2 size={17} strokeWidth={2.5} />
             </button>
             {#if authStore.user}
                 <button
@@ -1721,7 +2247,7 @@
                     aria-label="Share"
                     onclick={() => (showShare = !showShare)}
                 >
-                    <Share2 size={15} />
+                    <Share2 size={17} strokeWidth={2.5} />
                 </button>
             {/if}
         {/if}
@@ -1733,7 +2259,7 @@
                 aria-label="Admin"
                 onclick={() => (showAdmin = !showAdmin)}
             >
-                <Shield size={15} />
+                <Shield size={17} strokeWidth={2.5} />
             </button>
         {/if}
         <button
@@ -1743,7 +2269,7 @@
             aria-label="Keyboard shortcuts"
             onclick={() => (showHelp = true)}
         >
-            <HelpCircle size={15} />
+            <HelpCircle size={17} strokeWidth={2.5} />
         </button>
 
         <!-- auth (save-status pill mounts in the bottom-left chrome bar) -->
@@ -1756,14 +2282,14 @@
     </header>
 
     <main
-        class="relative flex flex-1 overflow-clip"
+        class="relative flex min-h-0 flex-1 overflow-clip"
         class:flex-row-reverse={prefs.inspectorSide === "left"}
         ondragenter={onDragEnter}
         ondragover={onDragOver}
         ondragleave={onDragLeave}
         ondrop={onDrop}
     >
-        <div class="relative flex-1 overflow-clip">
+        <div class="relative flex-1 overflow-clip" data-canvas-host>
             <ProgressStrip {progress} />
             {#if selectedEngine === "hyperbolic"}
                 <HyperbolicCanvas
@@ -1792,7 +2318,27 @@
                     smoothDiff={smoothDiffEnabled}
                     secondaryUnion={secondaryUnionEnabled}
                     {portraitUrls}
-                    onselect={(id: string) => selection.select(id)}
+                    onselect={(id: string) => {
+                        // phase-3 family-view debug: card-click selection
+                        // is a no-recenter event. log it so the focus-
+                        // events panel shows source attribution.
+                        recordFocusEvent("card-click", id, false);
+                        selection.select(id);
+                        // if the new selection sits outside the current
+                        // family-view subset (e.g. an inspector-link click
+                        // landed on a non-primary partner of the focus),
+                        // ask the canvas to centre on it. recenterOn falls
+                        // back to shifting focusOverride when the id has
+                        // no rendered node, so the subset rebuilds around
+                        // the new person instead of leaving the canvas
+                        // showing the previous focus. uses centerOnPerson
+                        // (id-taking) rather than focusSelection so it
+                        // doesn't race the prop update with stale
+                        // selectedId on this same tick.
+                        if (familyViewSubset && !familyViewSubset.visible.has(id)) {
+                            canvasController?.centerOnPerson(id);
+                        }
+                    }}
                     ondeselect={() => selection.select(undefined)}
                     onedit={(id: string) => focusPerson(id, "personal")}
                     oncontextmenu={(id: string, x: number, y: number) => {
@@ -1808,11 +2354,20 @@
                         components: number;
                         isolated: number;
                     }) => (layoutStats = s)}
+                    onsubsetchange={(
+                        subset: import("$lib/layout/engines/family-view").RankedSubset | null,
+                    ) => (familyViewSubset = subset)}
                     onaddRelative={(anchorId: PersonId, kind: "parent" | "partner" | "child") => {
                         if (kind === "parent") addParent(anchorId);
                         else if (kind === "partner") addPartner(anchorId);
                         else addChild(anchorId);
                     }}
+                    onrecenter={onCanvasRecenter}
+                    pendingRecenterSeq={recenterFlashSeq}
+                    recenterMissedFor={recenterMissedId}
+                    debugOptions={familyViewDebugOptions}
+                    focusEventsForOverlay={focusEvents}
+                    lastEditedId={debugLastEditedId}
                 />
             {:else}
                 <TreeCanvas
@@ -1846,208 +2401,632 @@
             <!-- ZoomWidget moved out of the canvas into the toolbar; the
                  toolbar slot mounts its trigger button + popover. -->
 
-            <!-- Shell bottom-left bar: save-status pill (writable trees),
-                 stats pill (any engine that emits onlayoutstats — layered
-                 + family-view today; hyperbolic doesn't yet), and the
-                 debug toolbox pill (lucide Bug, all engines, visible
-                 unless the user hides it from the panel). Built as a flex
-                 row so future pills slot in without rewiring positions. -->
-            {#if !readOnly || statsPillVisible || !debugPillHidden}
-                <div
-                    class="pointer-events-none absolute bottom-3 left-3 z-30 flex items-center gap-2"
-                    data-testid="canvas-bottom-bar"
-                    data-canvas-chrome
-                >
-                    {#if !readOnly}
-                        <div class="pointer-events-auto">
-                            <SaveStatusPill
-                                {lastSavedAt}
-                                syncMode={syncStore.mode}
-                                {syncedFlashUntil}
-                                {lastError}
-                                dirty={treeStore.dirty}
-                                onretry={() => void forceSave()}
-                                onconflict={() =>
-                                    toasts.push("save conflict — see console for details", "error")}
-                                onforceSave={() => void forceSave()}
-                            />
-                        </div>
-                    {/if}
-                    {#if statsPillVisible && layoutStats}
+            <!-- canvas-chrome dock: registry-driven bottom-left container.
+                 every pill and family-view debug panel anchored to this
+                 corner flows through the dock via $derived itemsForCorner
+                 lookups. it carries data-canvas-chrome so fitToView accounts
+                 for the docked items as overlay chrome. -->
+            <CanvasChromeDock corner={dockConfig.corner} />
+
+            <!-- canvas-window-manager overlay: hosts popped-out Windows
+                 above the canvas at z-30..z-49. mounts once inside the
+                 canvas-host so popped-out windows live in host-local
+                 coordinates and clamp follows host resize via a
+                 ResizeObserver. orphan ids (registry entries that
+                 unmount, e.g. family-view panels on engine swap) drop
+                 automatically because the overlay iterates
+                 popOutStates ∩ idsByKind("window"). -->
+            <WindowOverlay />
+
+            <!-- save-status snippet — registered at priority 10 (lowest
+                 in the always-visible status band, so it sits flush at the
+                 bottom of the corner stack via flex-col-reverse). the
+                 popover body has migrated to a sibling Window (kind=
+                 "window" priority=15 forceCollapsible=false); the pill
+                 only renders the trigger button now. -->
+            {#snippet saveStatusSnippet()}
+                <SaveStatusPill
+                    {lastSavedAt}
+                    syncMode={syncStore.mode}
+                    {syncedFlashUntil}
+                    {lastError}
+                    dirty={treeStore.dirty}
+                    remoteConfigured={authStore.user !== null}
+                    popoverOpen={savePopoverOpen}
+                    onPopoverToggle={() => windowManager.pillClick("save-status-window")}
+                    onretry={() => void forceSave()}
+                    onconflict={() =>
+                        toasts.push("save conflict — see console for details", "error")}
+                />
+            {/snippet}
+            <!-- save-status Window body. three rows:
+                   - local: glyph + state text (dexie persistence)
+                   - remote: glyph + state text (server sync)
+                   - runtime: editRev + last layout-pass timings (debug only)
+                 the runtime row only renders when debugMode === true. it
+                 absorbs the two pieces of data that previously lived in the
+                 standalone debug-timings pill (deleted in canvas-window-
+                 manager phase 4). data-testid="save-status-popover" stays
+                 on the outer wrapper so e2e queries keep resolving. -->
+            {#snippet saveStatusBody()}
+                <div data-testid="save-status-popover" role="dialog" aria-label="save details">
+                    <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-xs">
+                        <dt class="text-fg-muted">local</dt>
+                        <dd
+                            class="text-fg flex items-center gap-1.5"
+                            data-testid="save-status-row-local"
+                        >
+                            <span class={treeStore.dirty ? "text-amber-400" : "text-emerald-400"}>
+                                {#if treeStore.dirty}
+                                    <LaptopMinimal size={12} />
+                                {:else}
+                                    <LaptopMinimalCheck size={12} />
+                                {/if}
+                            </span>
+                            <span>
+                                {treeStore.dirty
+                                    ? "unsaved changes"
+                                    : lastSavedAt === undefined
+                                      ? "saved"
+                                      : `saved · ${fmtRelSimple(lastSavedAt)}`}
+                            </span>
+                        </dd>
+                        <dt class="text-fg-muted">remote</dt>
+                        <dd
+                            class="text-fg flex items-center gap-1.5"
+                            data-testid="save-status-row-remote"
+                        >
+                            <span
+                                class={syncStore.mode === "conflict"
+                                    ? "text-amber-400"
+                                    : lastError
+                                      ? "text-rose-400"
+                                      : syncStore.mode === "syncing"
+                                        ? "text-amber-400"
+                                        : syncedFlashUntil !== undefined &&
+                                            syncedFlashUntil > Date.now()
+                                          ? "text-sky-400"
+                                          : "text-fg-muted"}
+                            >
+                                {#if syncStore.mode === "conflict"}
+                                    <AlertTriangle size={12} />
+                                {:else if lastError}
+                                    <AlertCircle size={12} />
+                                {:else if syncStore.mode === "syncing"}
+                                    <CloudUpload size={12} />
+                                {:else if syncedFlashUntil !== undefined && syncedFlashUntil > Date.now()}
+                                    <CloudCheck size={12} />
+                                {:else if authStore.user !== null}
+                                    <Cloud size={12} />
+                                {:else}
+                                    <CloudOff size={12} />
+                                {/if}
+                            </span>
+                            <span>
+                                {#if syncStore.mode === "conflict"}
+                                    conflict
+                                {:else if lastError}
+                                    failed
+                                {:else if syncStore.mode === "syncing"}
+                                    syncing
+                                {:else if authStore.user === null}
+                                    not configured
+                                {:else}
+                                    idle
+                                {/if}
+                            </span>
+                        </dd>
+                        {#if debugMode}
+                            <!-- runtime row: editRev + last layout-pass duration.
+                                 these two readouts used to live in a standalone
+                                 debug-timings pill at priority 40 in the bl
+                                 dock; canvas-window-manager phase 4 relocated
+                                 them here so the always-visible chrome is no
+                                 longer cluttered while debug mode is on. -->
+                            <dt class="text-fg-muted">runtime</dt>
+                            <dd
+                                class="text-fg flex items-center gap-2 font-mono"
+                                data-testid="save-status-row-runtime"
+                            >
+                                <span class="text-fg-muted">editRev</span>
+                                <span data-testid="save-status-edit-rev"
+                                    >{String(treeStore.tree.editRev)}</span
+                                >
+                                {#if debugTimings}
+                                    <span class="text-fg-muted">·</span>
+                                    <span data-testid="save-status-debug-timings"
+                                        >{debugTimings.total.toFixed(1)} ms</span
+                                    >
+                                {/if}
+                            </dd>
+                        {/if}
+                        {#if lastError}
+                            <dt class="text-rose-400">error</dt>
+                            <dd class="text-rose-400 wrap-break-word">{lastError}</dd>
+                        {/if}
+                    </dl>
+                    <button
+                        type="button"
+                        class="fte-window-button mt-3"
+                        onclick={() => {
+                            windowManager.setExpanded("save-status-window", false);
+                            void forceSave();
+                        }}
+                    >
+                        Force save
+                    </button>
+                </div>
+            {/snippet}
+            {#snippet saveStatusWindow(_ctx: { forcedCollapse: boolean })}
+                <Window
+                    id="save-status-window"
+                    pillId="save-status"
+                    title="save"
+                    expanded={savePopoverOpen}
+                    forcedCollapse={false}
+                    closeable={false}
+                    onToggleExpanded={() => windowManager.toggleExpanded("save-status-window")}
+                    body={saveStatusBody}
+                />
+            {/snippet}
+            {#if !readOnly && windowManager.isOpen("save-status-window")}
+                <DockRegistration
+                    id="save-status"
+                    corner={dockConfig.corner}
+                    priority={10}
+                    kind="pill"
+                    windowId="save-status-window"
+                    render={saveStatusSnippet}
+                />
+                <DockRegistration
+                    id="save-status-window"
+                    corner={dockConfig.corner}
+                    priority={15}
+                    kind="window"
+                    forceCollapsible={false}
+                    render={saveStatusWindow}
+                />
+            {/if}
+
+            <!-- canvas-window-manager phase 4: the standalone debug-timings
+                 pill (was at priority 40 with data-testid="debug-corner-
+                 readouts") deletes here. its two pieces of data — editRev
+                 and debugTimings.total — relocate to the save-status
+                 Window's runtime row (gated by debugMode), so the always-
+                 visible chrome is no longer cluttered with debug values
+                 while debug mode is on. -->
+
+            <!-- stats pill, registered at priority 20. trigger button only —
+                 the popover body migrated to a sibling Window (kind="window"
+                 priority=25 forceCollapsible=false) in canvas-window-manager
+                 phase 2. canvas-window-manager phase 4 makes the pill text
+                 configurable: clicking a row in the stats Window body sets
+                 `selectedMetric`, which this snippet branches on. people is
+                 the default; rows that need a selection fall back to the
+                 people count when no person is selected. -->
+            {#snippet statsPillSnippet()}
+                {#if layoutStats}
+                    <button
+                        type="button"
+                        class="fte-pill cursor-pointer font-mono"
+                        title={selectedMetric === "clusters"
+                            ? "clusters (click to switch metric)"
+                            : selectedMetric === "descendants"
+                              ? "selected descendants (click to switch metric)"
+                              : selectedMetric === "coi"
+                                ? "selected coi (click to switch metric)"
+                                : "people (click to switch metric)"}
+                        aria-pressed={statsPopoverOpen}
+                        aria-haspopup="dialog"
+                        aria-expanded={statsPopoverOpen}
+                        onclick={() => windowManager.pillClick("stats-window")}
+                        data-testid="stats-pill"
+                        data-selected-metric={selectedMetric}
+                    >
+                        {#if selectedMetric === "clusters" && layoutStats.components > 1}
+                            <span class="text-amber-400"
+                                >{String(
+                                    layoutStats.components,
+                                )}{#if layoutStats.isolated > 0}+{String(layoutStats.isolated)}{/if}
+                                clusters</span
+                            >
+                        {:else if selectedMetric === "descendants" && selection.selectedPersonId}
+                            <span
+                                >{selectedDescendantCount === undefined
+                                    ? "—"
+                                    : String(selectedDescendantCount)} descendants</span
+                            >
+                        {:else if selectedMetric === "coi" && selection.selectedPersonId}
+                            <span
+                                >coi {selectedCoi !== undefined && selectedCoi > 0
+                                    ? formatCoi(selectedCoi)
+                                    : "—"}</span
+                            >
+                        {:else}
+                            {String(layoutStats.totalPeople)} people
+                        {/if}
+                    </button>
+                {/if}
+            {/snippet}
+            <!-- stats Window body. each row is a button — clicking it sets
+                 `selectedMetric` and (for the always-visible metrics) keeps
+                 the popover open. the row tagged as the currently selected
+                 metric carries aria-pressed=true + accent styling so users
+                 can see which value the pill is reflecting. rev moved to
+                 the save-status Window's runtime row in phase 4. -->
+            {#snippet statsBody()}
+                {#if layoutStats}
+                    <div
+                        class="text-fg flex flex-col gap-0.5 font-mono"
+                        role="dialog"
+                        aria-label="tree stats"
+                        data-testid="stats-popover"
+                    >
                         <button
                             type="button"
-                            class="fte-pill pointer-events-auto cursor-pointer font-mono"
-                            title={layoutStats.components > 1
-                                ? `${String(layoutStats.components)} clusters` +
-                                  (layoutStats.isolated > 0
-                                      ? ` + ${String(layoutStats.isolated)} isolated`
-                                      : "")
-                                : undefined}
-                            onclick={() => (showInspector = !showInspector)}
-                            data-testid="stats-pill"
+                            class={[
+                                "fte-window-row rounded px-1.5 py-0.5 text-left",
+                                selectedMetric === "people"
+                                    ? "bg-accent/10 text-accent"
+                                    : "hover:bg-canvas-elev",
+                            ]}
+                            aria-pressed={selectedMetric === "people"}
+                            onclick={() => (selectedMetric = "people")}
+                            data-testid="stats-row-people"
                         >
-                            {String(layoutStats.totalPeople)} people
-                            {#if layoutStats.components > 1 || layoutStats.isolated > 0}
+                            <span>people</span>
+                            <span>{String(layoutStats.totalPeople)}</span>
+                        </button>
+                        {#if layoutStats.components > 1}
+                            <button
+                                type="button"
+                                class={[
+                                    "fte-window-row rounded px-1.5 py-0.5 text-left",
+                                    selectedMetric === "clusters"
+                                        ? "bg-accent/10 text-accent"
+                                        : "hover:bg-canvas-elev",
+                                ]}
+                                aria-pressed={selectedMetric === "clusters"}
+                                onclick={() => (selectedMetric = "clusters")}
+                                data-testid="stats-row-clusters"
+                            >
+                                <span>clusters</span>
                                 <span class="text-amber-400"
-                                    >· {String(
+                                    >{String(
                                         layoutStats.components,
                                     )}{#if layoutStats.isolated > 0}+{String(
                                             layoutStats.isolated,
-                                        )}{/if} clusters</span
+                                        )}{/if}</span
                                 >
-                            {/if}
-                        </button>
-                    {/if}
-                    {#if !debugPillHidden}
-                        <button
-                            type="button"
-                            class="fte-pill fte-pill-icon pointer-events-auto"
-                            aria-label="toggle debug panel"
-                            title="debug panel (Ctrl+Shift+D)"
-                            data-testid="debug-pill"
-                            onclick={() => (debugOpen = !debugOpen)}
-                        >
-                            <Bug class="h-3 w-3" />
-                        </button>
-                    {/if}
-                </div>
+                            </button>
+                        {/if}
+                        {#if selection.selectedPersonId}
+                            <div class="mt-1 border-t border-line pt-1 text-fg-muted">selected</div>
+                            <button
+                                type="button"
+                                class={[
+                                    "fte-window-row rounded px-1.5 py-0.5 text-left",
+                                    selectedMetric === "descendants"
+                                        ? "bg-accent/10 text-accent"
+                                        : "hover:bg-canvas-elev",
+                                ]}
+                                aria-pressed={selectedMetric === "descendants"}
+                                onclick={() => (selectedMetric = "descendants")}
+                                data-testid="stats-row-descendants"
+                            >
+                                <span>descendants</span>
+                                <span
+                                    >{selectedDescendantCount === undefined
+                                        ? "—"
+                                        : String(selectedDescendantCount)}</span
+                                >
+                            </button>
+                            <button
+                                type="button"
+                                class={[
+                                    "fte-window-row rounded px-1.5 py-0.5 text-left",
+                                    selectedMetric === "coi"
+                                        ? "bg-accent/10 text-accent"
+                                        : "hover:bg-canvas-elev",
+                                ]}
+                                aria-pressed={selectedMetric === "coi"}
+                                onclick={() => (selectedMetric = "coi")}
+                                data-testid="stats-row-coi"
+                            >
+                                <span>coi</span>
+                                <span
+                                    >{selectedCoi !== undefined && selectedCoi > 0
+                                        ? formatCoi(selectedCoi)
+                                        : "—"}</span
+                                >
+                            </button>
+                        {/if}
+                    </div>
+                {/if}
+            {/snippet}
+            {#snippet statsWindow(_ctx: { forcedCollapse: boolean })}
+                <Window
+                    id="stats-window"
+                    pillId="stats"
+                    title="stats"
+                    expanded={statsPopoverOpen}
+                    forcedCollapse={false}
+                    onToggleExpanded={() => windowManager.toggleExpanded("stats-window")}
+                    body={statsBody}
+                />
+            {/snippet}
+            {#if statsPillVisible && layoutStats && windowManager.isOpen("stats-window")}
+                <DockRegistration
+                    id="stats"
+                    corner={dockConfig.corner}
+                    priority={20}
+                    kind="pill"
+                    windowId="stats-window"
+                    render={statsPillSnippet}
+                />
+                <DockRegistration
+                    id="stats-window"
+                    corner={dockConfig.corner}
+                    priority={25}
+                    kind="window"
+                    forceCollapsible={false}
+                    render={statsWindow}
+                />
             {/if}
-            {#if debugOpen}
-                <!-- Phase 3 (layered-and-tooling plan): sectioned debug
-                     panel at bottom-left, anchored above the stats pill.
-                     Sections: layout / routing / diagnostics / runtime.
-                     Each toggle is a button-style chip (matches the
-                     Connections-tab convention for married/primary). -->
+
+            <!-- phase 1 migration: debug-icon (bug) pill. all engines.
+                 canvas-window-manager phase 3: visibility now derives
+                 from debugMode (the master switch flipped from the
+                 help menu's "Debug mode" toggle). registered at
+                 priority 30 so it sorts after stats (20); the
+                 standalone debug-timings pill (was at priority 40)
+                 deleted in canvas-window-manager phase 4. -->
+            {#snippet debugIconSnippet()}
+                <button
+                    type="button"
+                    class="fte-pill fte-pill-icon"
+                    aria-label="toggle debug panel"
+                    title="debug panel (Ctrl+Shift+D)"
+                    data-testid="debug-pill"
+                    aria-pressed={windowManager.isOpen("debug-menu")}
+                    onclick={() => toggleDebugMenu()}
+                >
+                    <Bug size={12} />
+                </button>
+            {/snippet}
+            {#if debugMode}
+                <DockRegistration
+                    id="debug-toggle"
+                    corner={dockConfig.corner}
+                    priority={30}
+                    kind="pill"
+                    windowId="debug-menu"
+                    render={debugIconSnippet}
+                />
+            {/if}
+            <!-- debug menu — canvas-window-manager phase 2 migrated this
+                 surface from kind="panel" to kind="window" so it shares the
+                 Window primitive's titlebar (collapse / pop-out / close)
+                 with every other floating canvas surface. priority 300,
+                 forceCollapsible=false retained — opting out of force-
+                 collapse keeps the menu at its full measured height
+                 (primary control surface beats glance-and-go status)
+                 while the rest of the bl stack collapses around it on
+                 cramped viewports. close (×) on the Window's titlebar
+                 routes through windowManager.closeWindow("debug-menu"),
+                 unmounting the registration; the custom inline
+                 `Debug · Ctrl+Shift+D ×` titlebar that lived inside the
+                 body deleted in this migration.
+
+                 sections: layout / routing / diagnostics / runtime.
+                 each toggle is a button-style chip (matches the
+                 connections-tab convention for married/primary). the
+                 height clamp uses a viewport-aware min so the menu
+                 shrinks on small viewports without overrunning the
+                 dock's cap — 80vh on tall viewports, otherwise
+                 `100vh - inspector sheet height - 16rem` to leave
+                 room for the dock's pill row + at least one expanded
+                 debug panel below the menu on cramped desktop
+                 viewports, while still being tight enough at 480x600
+                 that overflow engages the dock's force-collapse pass. -->
+            {#snippet debugMenuBody()}
                 <div
-                    class="pointer-events-auto absolute bottom-14 left-3 z-40 max-h-[80vh] w-72 overflow-y-auto rounded-lg border border-line bg-canvas-elev/95 px-3 py-2 text-fg text-xs font-mono shadow-xl backdrop-blur"
+                    class="pointer-events-auto max-h-[min(80vh,calc(100vh-var(--inspector-sheet-height,0px)-16rem))] overflow-y-auto text-fg text-xs font-mono"
                     role="dialog"
                     aria-label="debug overlay controls"
                     data-testid="debug-panel"
-                    data-canvas-chrome
                 >
-                    <div class="mb-2 flex items-center justify-between gap-4">
-                        <span
-                            class="text-[10px] font-semibold uppercase tracking-wider text-fg-muted"
-                            >Debug · Ctrl+Shift+D</span
-                        >
+                    <!-- top-right "disable debug mode" — distinct from
+                         the Window titlebar's × (which only closes the
+                         menu while leaving debugMode on). this button
+                         flips the master switch off so the pill +
+                         overlays + menu all retire in one click. -->
+                    <div class="mb-1 flex justify-end">
                         <button
                             type="button"
-                            onclick={() => (debugOpen = false)}
-                            aria-label="close"
-                            class="text-fg-muted hover:text-fg flex h-4 w-4 items-center justify-center text-xs"
-                            >×</button
+                            class="text-fg-muted hover:text-fg text-[10px]"
+                            onclick={() => {
+                                debugMode = false;
+                                windowManager.closeWindow("debug-menu");
+                            }}
+                            data-testid="debug-disable"
                         >
+                            disable debug mode
+                        </button>
                     </div>
+                    <!-- layered-engine sections: only visible while the
+                         layered engine is mounted. family-view + hyperbolic
+                         get their own section blocks below; shared runtime
+                         controls (further down) stay visible in every mode. -->
+                    {#if isLayered}
+                        <!-- layout section (layered-only overlays) -->
+                        <div class="mb-2">
+                            <div class="fte-window-section">
+                                <span>layout</span>
+                            </div>
+                            <div class="flex flex-wrap gap-1">
+                                {#each [["showGrid", "grid"], ["showNodeBounds", "node bounds"], ["showSegmentIds", "segment ids"], ["showComponentBounds", "components"]] as const as [key, label] (key)}
+                                    <button
+                                        type="button"
+                                        class={[
+                                            "rounded border px-1.5 py-0.5",
+                                            debugLayers[key]
+                                                ? "border-accent text-accent bg-accent/10"
+                                                : "border-line text-fg-muted hover:text-fg",
+                                        ]}
+                                        aria-pressed={debugLayers[key]}
+                                        onclick={() => (debugLayers[key] = !debugLayers[key])}
+                                        data-testid={`debug-toggle-${key}`}
+                                    >
+                                        {label}
+                                    </button>
+                                {/each}
+                            </div>
+                        </div>
 
-                    <!-- layout section (layered-only overlays) -->
-                    <div class="mb-2">
-                        <div
-                            class="mb-1 flex items-baseline gap-1.5 text-[9px] font-semibold uppercase tracking-wider text-fg-muted"
-                        >
-                            <span>layout</span>
-                            {#if !isLayered}
-                                <span class="font-normal normal-case tracking-normal opacity-70"
-                                    >(layered-only)</span
+                        <!-- routing section (layered-only overlays) -->
+                        <div class="mb-2">
+                            <div class="fte-window-section">
+                                <span>routing</span>
+                            </div>
+                            <div class="flex flex-wrap gap-1">
+                                {#each [["showGhostArrows", "ghost arrows"], ["showHops", "bridge hops"], ["showOverlapPairs", "overlap pairs"]] as const as [key, label] (key)}
+                                    <button
+                                        type="button"
+                                        class={[
+                                            "rounded border px-1.5 py-0.5",
+                                            debugLayers[key]
+                                                ? "border-accent text-accent bg-accent/10"
+                                                : "border-line text-fg-muted hover:text-fg",
+                                        ]}
+                                        aria-pressed={debugLayers[key]}
+                                        onclick={() => (debugLayers[key] = !debugLayers[key])}
+                                        data-testid={`debug-toggle-${key}`}
+                                    >
+                                        {label}
+                                    </button>
+                                {/each}
+                            </div>
+                        </div>
+
+                        <!-- diagnostics section (Phase 3 new, layered-only overlays) -->
+                        <div class="mb-2">
+                            <div class="fte-window-section">
+                                <span>diagnostics</span>
+                            </div>
+                            <div class="flex flex-wrap gap-1">
+                                {#each [["showCycleNodes", "cycle nodes"], ["showBondCentroidDelta", "bond/centroid Δ"], ["showOrphanBadge", "orphans"], ["showRankGutterLabels", "rank labels"], ["showLastEditHalo", "last-edit halo"]] as const as [key, label] (key)}
+                                    <button
+                                        type="button"
+                                        class={[
+                                            "rounded border px-1.5 py-0.5",
+                                            debugLayers[key]
+                                                ? "border-accent text-accent bg-accent/10"
+                                                : "border-line text-fg-muted hover:text-fg",
+                                        ]}
+                                        aria-pressed={debugLayers[key]}
+                                        onclick={() => (debugLayers[key] = !debugLayers[key])}
+                                        data-testid={`debug-toggle-${key}`}
+                                    >
+                                        {label}
+                                    </button>
+                                {/each}
+                            </div>
+                        </div>
+                    {/if}
+
+                    <!-- family-view section: only visible while the
+                         family-view engine is mounted. phase 0 walking
+                         skeleton ships two toggles; phases 1-5 extend. -->
+                    {#if isFamilyView}
+                        <div class="mb-2" data-testid="debug-section-family-view">
+                            <div class="fte-window-section">
+                                <span>family-view</span>
+                            </div>
+                            <div class="flex flex-wrap gap-1">
+                                {#each [["showVisibleSubset", "visible subset"], ["exposeFamilyDebug", "expose __treeDebug"], ["showOrphanBadge", "orphan badge"], ["showEdgeRoles", "edge roles"], ["showOffSubsetPeople", "off-subset people"], ["showSecondaryUnionState", "secondary-union state"], ["showMultiUnionManifold", "multi-union manifold"], ["showCardCollisions", "card collisions"], ["showCoupleCentroidDelta", "couple/centroid Δ"], ["showRankGutterLabels", "rank labels"], ["logFocusEvents", "focus events"], ["showViewportFitTarget", "viewport/target"], ["showOffSubsetWarning", "off-subset warning"], ["showPendingRecenter", "pending recenter"], ["showCoiBreakdown", "coi breakdown"], ["showDuplicateAncestors", "duplicate ancestors"], ["showGrid", "grid"], ["showNodeBounds", "node bounds"], ["showLastEditHalo", "last-edit halo"], ["showLayoutMetrics", "layout metrics"]] as const as [key, label] (key)}
+                                    <button
+                                        type="button"
+                                        class={[
+                                            "rounded border px-1.5 py-0.5",
+                                            familyViewDebugLayers[key]
+                                                ? "border-accent text-accent bg-accent/10"
+                                                : "border-line text-fg-muted hover:text-fg",
+                                        ]}
+                                        aria-pressed={familyViewDebugLayers[key]}
+                                        onclick={() =>
+                                            (familyViewDebugLayers[key] =
+                                                !familyViewDebugLayers[key])}
+                                        data-testid={`debug-toggle-fv-${key}`}
+                                    >
+                                        {label}
+                                    </button>
+                                {/each}
+                            </div>
+
+                            <!-- off-subset list, surfaced inline so it sits
+                                 in the debug menu's column instead of as a
+                                 floating fixed-position panel on the canvas.
+                                 visible only when the showOffSubsetPeople
+                                 toggle is on. -->
+                            {#if familyViewDebugLayers.showOffSubsetPeople && familyViewSubset}
+                                <div
+                                    class="mt-2 border-t border-line/30 pt-1.5"
+                                    data-testid="family-view-debug-off-subset-panel"
                                 >
+                                    <div class="fte-window-section justify-between">
+                                        <span>off-subset</span>
+                                        <span data-testid="family-view-debug-off-subset-total"
+                                            >{offSubsetTotal}</span
+                                        >
+                                    </div>
+                                    {#if offSubsetTotal === 0}
+                                        <div class="text-[10px] text-fg-muted">
+                                            every person in tree is visible
+                                        </div>
+                                    {:else}
+                                        {#each OFF_SUBSET_REASON_ORDER as reason (reason)}
+                                            {@const ids = offSubsetByReason.get(reason) ?? []}
+                                            {#if ids.length > 0}
+                                                <div class="mt-1 text-[10px]" data-reason={reason}>
+                                                    <div class="flex justify-between text-accent">
+                                                        <span>{offSubsetReasonLabel(reason)}</span>
+                                                        <span>{ids.length}</span>
+                                                    </div>
+                                                    <ul class="m-0 mt-0.5 list-none p-0">
+                                                        {#each ids.slice(0, 20) as pid (pid)}
+                                                            <li data-person-id={pid}>
+                                                                {offSubsetNameOf(pid)}
+                                                            </li>
+                                                        {/each}
+                                                        {#if ids.length > 20}
+                                                            <li class="text-fg-muted">
+                                                                +{ids.length - 20} more
+                                                            </li>
+                                                        {/if}
+                                                    </ul>
+                                                </div>
+                                            {/if}
+                                        {/each}
+                                    {/if}
+                                </div>
                             {/if}
                         </div>
-                        <div class="flex flex-wrap gap-1">
-                            {#each [["showGrid", "grid"], ["showNodeBounds", "node bounds"], ["showSegmentIds", "segment ids"], ["showComponentBounds", "components"]] as const as [key, label] (key)}
-                                <button
-                                    type="button"
-                                    class="border-line text-fg-muted hover:text-fg rounded border px-1.5 py-0.5 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-fg-muted"
-                                    class:text-accent={debugLayers[key]}
-                                    class:border-accent={debugLayers[key]}
-                                    disabled={layeredOnlyToggleKeys.has(key) && !isLayered}
-                                    title={layeredOnlyToggleKeys.has(key) && !isLayered
-                                        ? "layered engine only"
-                                        : undefined}
-                                    onclick={() => (debugLayers[key] = !debugLayers[key])}
-                                    data-testid={`debug-toggle-${key}`}
-                                >
-                                    {label}
-                                </button>
-                            {/each}
-                        </div>
-                    </div>
-
-                    <!-- routing section (layered-only overlays) -->
-                    <div class="mb-2">
-                        <div
-                            class="mb-1 flex items-baseline gap-1.5 text-[9px] font-semibold uppercase tracking-wider text-fg-muted"
-                        >
-                            <span>routing</span>
-                            {#if !isLayered}
-                                <span class="font-normal normal-case tracking-normal opacity-70"
-                                    >(layered-only)</span
-                                >
-                            {/if}
-                        </div>
-                        <div class="flex flex-wrap gap-1">
-                            {#each [["showGhostArrows", "ghost arrows"], ["showHops", "bridge hops"], ["showOverlapPairs", "overlap pairs"]] as const as [key, label] (key)}
-                                <button
-                                    type="button"
-                                    class="border-line text-fg-muted hover:text-fg rounded border px-1.5 py-0.5 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-fg-muted"
-                                    class:text-accent={debugLayers[key]}
-                                    class:border-accent={debugLayers[key]}
-                                    disabled={layeredOnlyToggleKeys.has(key) && !isLayered}
-                                    title={layeredOnlyToggleKeys.has(key) && !isLayered
-                                        ? "layered engine only"
-                                        : undefined}
-                                    onclick={() => (debugLayers[key] = !debugLayers[key])}
-                                    data-testid={`debug-toggle-${key}`}
-                                >
-                                    {label}
-                                </button>
-                            {/each}
-                        </div>
-                    </div>
-
-                    <!-- diagnostics section (Phase 3 new, layered-only overlays) -->
-                    <div class="mb-2">
-                        <div
-                            class="mb-1 flex items-baseline gap-1.5 text-[9px] font-semibold uppercase tracking-wider text-fg-muted"
-                        >
-                            <span>diagnostics</span>
-                            {#if !isLayered}
-                                <span class="font-normal normal-case tracking-normal opacity-70"
-                                    >(layered-only)</span
-                                >
-                            {/if}
-                        </div>
-                        <div class="flex flex-wrap gap-1">
-                            {#each [["showCycleNodes", "cycle nodes"], ["showBondCentroidDelta", "bond/centroid Δ"], ["showOrphanBadge", "orphans"], ["showRankGutterLabels", "rank labels"], ["showLastEditHalo", "last-edit halo"]] as const as [key, label] (key)}
-                                <button
-                                    type="button"
-                                    class="border-line text-fg-muted hover:text-fg rounded border px-1.5 py-0.5 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-fg-muted"
-                                    class:text-accent={debugLayers[key]}
-                                    class:border-accent={debugLayers[key]}
-                                    disabled={layeredOnlyToggleKeys.has(key) && !isLayered}
-                                    title={layeredOnlyToggleKeys.has(key) && !isLayered
-                                        ? "layered engine only"
-                                        : undefined}
-                                    onclick={() => (debugLayers[key] = !debugLayers[key])}
-                                    data-testid={`debug-toggle-${key}`}
-                                >
-                                    {label}
-                                </button>
-                            {/each}
-                        </div>
-                    </div>
+                    {/if}
 
                     <!-- runtime section -->
                     <div class="mb-2">
-                        <div
-                            class="mb-1 text-[9px] font-semibold uppercase tracking-wider text-fg-muted"
-                        >
-                            runtime
-                        </div>
+                        <div class="fte-window-section">runtime</div>
                         <div class="flex flex-wrap gap-1">
                             <button
                                 type="button"
-                                class="border-line text-fg-muted hover:text-fg rounded border px-1.5 py-0.5 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-fg-muted"
-                                class:text-accent={debugLayers.exposeTreeDebug}
-                                class:border-accent={debugLayers.exposeTreeDebug}
+                                class={[
+                                    "rounded border px-1.5 py-0.5 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-fg-muted",
+                                    debugLayers.exposeTreeDebug
+                                        ? "border-accent text-accent bg-accent/10"
+                                        : "border-line text-fg-muted hover:text-fg",
+                                ]}
+                                aria-pressed={debugLayers.exposeTreeDebug}
                                 disabled={!exposeTreeDebugSupported}
                                 title={exposeTreeDebugSupported
                                     ? undefined
@@ -2110,17 +3089,17 @@
 
                     <!-- shell section: session/auth shims for ui testing -->
                     <div class="mb-2">
-                        <div
-                            class="mb-1 text-[9px] font-semibold uppercase tracking-wider text-fg-muted"
-                        >
-                            shell
-                        </div>
+                        <div class="fte-window-section">shell</div>
                         <div class="flex flex-wrap gap-1">
                             <button
                                 type="button"
-                                class="border-line text-fg-muted hover:text-fg rounded border px-1.5 py-0.5"
-                                class:text-accent={authDryRunEnabled}
-                                class:border-accent={authDryRunEnabled}
+                                class={[
+                                    "rounded border px-1.5 py-0.5",
+                                    authDryRunEnabled
+                                        ? "border-accent text-accent bg-accent/10"
+                                        : "border-line text-fg-muted hover:text-fg",
+                                ]}
+                                aria-pressed={authDryRunEnabled}
                                 onclick={() => {
                                     authDryRunEnabled = !authDryRunEnabled;
                                     writeAuthDryRunPref(authDryRunEnabled);
@@ -2132,39 +3111,28 @@
                             </button>
                         </div>
                     </div>
-
-                    <!-- pill hide -->
-                    <div class="mt-2 border-t border-line/30 pt-1.5">
-                        <button
-                            type="button"
-                            class="text-fg-muted hover:text-fg text-[10px]"
-                            onclick={() => (debugPillHidden = !debugPillHidden)}
-                        >
-                            {debugPillHidden ? "show bug pill" : "permanently hide bug pill"}
-                        </button>
-                    </div>
                 </div>
-
-                <!-- Phase 3 corner readouts (top-right of canvas) -->
-                <div
-                    class="text-fg-muted bg-canvas-elev/90 border-line pointer-events-none absolute top-3 right-3 z-40 rounded-md border px-2 py-1 text-[10px] font-mono"
-                    data-testid="debug-corner-readouts"
-                    data-canvas-chrome
-                >
-                    {#if debugTimings}
-                        <div>
-                            layer {debugTimings.layer.toFixed(1)} · order {debugTimings.order.toFixed(
-                                1,
-                            )} · place {debugTimings.place.toFixed(1)} · route {debugTimings.route.toFixed(
-                                1,
-                            )} = <span class="text-fg">{debugTimings.total.toFixed(1)} ms</span>
-                        </div>
-                    {/if}
-                    <div>
-                        editRev <span class="text-fg">{treeStore.tree.editRev}</span>
-                        · {Object.keys(treeStore.tree.people).length} people
-                    </div>
-                </div>
+            {/snippet}
+            {#snippet debugMenuWindow(_ctx: { forcedCollapse: boolean })}
+                <Window
+                    id="debug-menu"
+                    pillId="debug-toggle"
+                    title="Debug · Ctrl+Shift+D"
+                    expanded={true}
+                    forcedCollapse={false}
+                    onToggleExpanded={() => windowManager.closeWindow("debug-menu")}
+                    body={debugMenuBody}
+                />
+            {/snippet}
+            {#if windowManager.isOpen("debug-menu")}
+                <DockRegistration
+                    id="debug-menu"
+                    corner={dockConfig.corner}
+                    priority={300}
+                    kind="window"
+                    forceCollapsible={false}
+                    render={debugMenuWindow}
+                />
             {/if}
         </div>
         {#if showInspector}

@@ -1,6 +1,11 @@
 /*
- * FamilyTreeEditor - SaveStatusPill: per-mode label + icon, click handlers
+ * FamilyTreeEditor - SaveStatusPill: dual local + remote glyph rendering
  * licensed under the MIT license; see LICENSE.md for full text
+ *
+ * canvas-window-manager phase 4: the pill renders TWO lucide glyphs
+ * (local + remote) and exposes their state through the
+ * `save-status-local-glyph` / `save-status-remote-glyph` testids +
+ * data-state attributes. text labels moved into the Window body.
  */
 
 import { describe, expect, it, vi } from "vitest";
@@ -13,73 +18,100 @@ function base() {
         syncMode: "local" as const,
         syncedFlashUntil: undefined,
         lastError: undefined,
+        popoverOpen: false,
+        onPopoverToggle: vi.fn(),
         onretry: vi.fn(),
         onconflict: vi.fn(),
-        onforceSave: vi.fn(),
     };
 }
 
 describe("SaveStatusPill", () => {
-    it("renders 'Saved · …' with a green tone when there's a lastSavedAt and no errors", () => {
-        const ts = Date.now() - 12_000;
-        render(SaveStatusPill, { ...base(), lastSavedAt: ts });
-        expect(screen.getByLabelText(/save status/i)).toHaveTextContent(/Saved/);
+    it("local glyph reads 'persisted' when not dirty", () => {
+        render(SaveStatusPill, { ...base(), dirty: false });
+        const local = screen.getByTestId("save-status-local-glyph");
+        expect(local.getAttribute("data-state")).toBe("persisted");
     });
 
-    it("renders 'Saving…' while syncMode is syncing", () => {
+    it("local glyph reads 'dirty' when treeStore.dirty is true", () => {
+        render(SaveStatusPill, { ...base(), dirty: true });
+        const local = screen.getByTestId("save-status-local-glyph");
+        expect(local.getAttribute("data-state")).toBe("dirty");
+    });
+
+    it("remote glyph reads 'saved' (cloud-off when no remote configured) by default", () => {
+        render(SaveStatusPill, { ...base(), remoteConfigured: false });
+        const remote = screen.getByTestId("save-status-remote-glyph");
+        // tone is "saved" but no remote configured → renders cloud-off
+        expect(remote.getAttribute("data-state")).toBe("saved");
+    });
+
+    it("remote glyph reads 'saving' while syncMode is syncing", () => {
         render(SaveStatusPill, { ...base(), syncMode: "syncing" });
-        expect(screen.getByLabelText(/save status/i)).toHaveTextContent(/Saving/);
+        const remote = screen.getByTestId("save-status-remote-glyph");
+        expect(remote.getAttribute("data-state")).toBe("saving");
     });
 
-    it("renders 'Synced' during the sync flash window", () => {
+    it("remote glyph reads 'synced' during the sync flash window", () => {
         render(SaveStatusPill, {
             ...base(),
             syncMode: "local",
             syncedFlashUntil: Date.now() + 5_000,
         });
-        expect(screen.getByLabelText(/save status/i)).toHaveTextContent(/Synced/);
+        const remote = screen.getByTestId("save-status-remote-glyph");
+        expect(remote.getAttribute("data-state")).toBe("synced");
     });
 
-    it("renders 'Save failed' and clicking it fires onretry", async () => {
+    it("remote glyph reads 'failed' + click fires onretry when lastError set", async () => {
         const props = base();
         render(SaveStatusPill, { ...props, lastError: "disk full" });
-        const btn = screen.getByLabelText(/save status/i);
-        expect(btn).toHaveTextContent(/Save failed/);
-        await fireEvent.click(btn);
+        const remote = screen.getByTestId("save-status-remote-glyph");
+        expect(remote.getAttribute("data-state")).toBe("failed");
+        await fireEvent.click(screen.getByLabelText(/save status/i));
         expect(props.onretry).toHaveBeenCalled();
     });
 
-    it("renders 'Conflict' and clicking it fires onconflict", async () => {
+    it("remote glyph reads 'conflict' + click fires onconflict on syncMode=conflict", async () => {
         const props = base();
         render(SaveStatusPill, { ...props, syncMode: "conflict" });
-        const btn = screen.getByLabelText(/save status/i);
-        expect(btn).toHaveTextContent(/Conflict/);
-        await fireEvent.click(btn);
+        const remote = screen.getByTestId("save-status-remote-glyph");
+        expect(remote.getAttribute("data-state")).toBe("conflict");
+        await fireEvent.click(screen.getByLabelText(/save status/i));
         expect(props.onconflict).toHaveBeenCalled();
     });
 
-    it("renders 'Saved' (not 'Not saved yet') on first paint when the tree was loaded clean", () => {
-        // lastSavedAt undefined + dirty false = loaded clean, never edited.
-        // the tree on disk matches the canvas, so the pill should report
-        // saved rather than the misleading 'Not saved yet'.
-        render(SaveStatusPill, { ...base(), lastSavedAt: undefined, dirty: false });
-        const btn = screen.getByLabelText(/save status/i);
-        expect(btn).toHaveTextContent(/^\s*Saved\s*$/);
-        expect(btn).not.toHaveTextContent(/Not saved yet/);
+    it("local + remote glyphs update independently (dirty + synced flash)", () => {
+        render(SaveStatusPill, {
+            ...base(),
+            dirty: true,
+            syncedFlashUntil: Date.now() + 5_000,
+        });
+        expect(screen.getByTestId("save-status-local-glyph").getAttribute("data-state")).toBe(
+            "dirty",
+        );
+        expect(screen.getByTestId("save-status-remote-glyph").getAttribute("data-state")).toBe(
+            "synced",
+        );
     });
 
-    it("renders 'Not saved yet' when the user has edited but no save has landed", () => {
-        render(SaveStatusPill, { ...base(), lastSavedAt: undefined, dirty: true });
-        expect(screen.getByLabelText(/save status/i)).toHaveTextContent(/Not saved yet/);
-    });
-
-    it("clicking the saved pill opens a popover with a force-save button", async () => {
+    it("clicking the pill calls onPopoverToggle when tone is 'saved'", async () => {
         const props = base();
         render(SaveStatusPill, { ...props, lastSavedAt: Date.now() });
         await fireEvent.click(screen.getByLabelText(/save status/i));
-        const force = screen.getByRole("button", { name: /force save/i });
-        expect(force).toBeInTheDocument();
-        await fireEvent.click(force);
-        expect(props.onforceSave).toHaveBeenCalled();
+        expect(props.onPopoverToggle).toHaveBeenCalledTimes(1);
+    });
+
+    it("aria-expanded mirrors popoverOpen", () => {
+        const props = base();
+        render(SaveStatusPill, { ...props, popoverOpen: true });
+        const btn = screen.getByLabelText(/save status/i);
+        expect(btn.getAttribute("aria-expanded")).toBe("true");
+    });
+
+    it("aria-label describes both local and remote state", () => {
+        render(SaveStatusPill, { ...base(), dirty: true, remoteConfigured: true });
+        const btn = screen.getByLabelText(/save status/i);
+        const label = btn.getAttribute("aria-label") ?? "";
+        expect(label).toMatch(/unsaved/i);
+        expect(label).toMatch(/idle|remote/i);
     });
 });
