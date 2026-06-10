@@ -56,7 +56,7 @@ describe("makeAutosaver", () => {
 
         const r = await loadTree("aaa");
         if (!r.ok) throw new Error(r.error);
-        expect(r.value.people[ROOT_ID]?.given).toBe("Banchar");
+        expect(r.value.tree.people[ROOT_ID]?.given).toBe("Banchar");
     });
 
     it("flush() persists immediately and clears the pending timer", async () => {

@@ -72,7 +72,9 @@ function baseProps() {
 describe("OpenDialog", () => {
     beforeEach(() => {
         mockedLoad.mockReset();
-        mockedLoad.mockResolvedValue(ok(tree("t1", ["Alpha", "Beta", "Gamma"])));
+        mockedLoad.mockResolvedValue(
+            ok({ tree: tree("t1", ["Alpha", "Beta", "Gamma"]), savedAt: Date.now() }),
+        );
     });
 
     it("renders 'no saved trees yet' when the list is empty", () => {
@@ -113,7 +115,9 @@ describe("OpenDialog", () => {
             listing("a", "Alpha tree", 3, 60_000),
             listing("b", "Beta tree", 5, 120_000),
         ];
-        mockedLoad.mockResolvedValue(ok(tree("b", ["Bart", "Lisa", "Maggie"])));
+        mockedLoad.mockResolvedValue(
+            ok({ tree: tree("b", ["Bart", "Lisa", "Maggie"]), savedAt: Date.now() }),
+        );
         render(OpenDialog, { ...baseProps(), listings });
         const rowB = screen.getByText("Beta tree");
         await fireEvent.click(rowB);

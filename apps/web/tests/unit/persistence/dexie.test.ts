@@ -43,9 +43,21 @@ describe("trees", () => {
         const r = await loadTree("aaa", db);
         expect(r.ok).toBe(true);
         if (!r.ok) return;
-        expect(r.value.id).toBe("aaa");
-        expect(r.value.name).toBe("alpha");
-        expect(Object.keys(r.value.people)).toHaveLength(1);
+        expect(r.value.tree.id).toBe("aaa");
+        expect(r.value.tree.name).toBe("alpha");
+        expect(Object.keys(r.value.tree.people)).toHaveLength(1);
+    });
+
+    it("loadTree result carries savedAt from the persisted updatedAt column", async () => {
+        const before = Date.now();
+        const t = tinyTree("ts-check", "timestamped");
+        await saveTree(t, db);
+        const after = Date.now();
+        const r = await loadTree("ts-check", db);
+        expect(r.ok).toBe(true);
+        if (!r.ok) return;
+        expect(r.value.savedAt).toBeGreaterThanOrEqual(before);
+        expect(r.value.savedAt).toBeLessThanOrEqual(after);
     });
 
     it("loadTree returns err for an unknown id", async () => {
