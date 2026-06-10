@@ -8,6 +8,17 @@
 
 interface TreeDebugHandle {
     /**
+     * Active engine that populated this handle. Hyperbolic and family-view
+     * canvases both mount onto the same `window.__treeDebug` name; the
+     * discriminator lets devtools readers tell which engine's shape they
+     * see. `undefined` for backwards compatibility — the layered engine
+     * (which has populated this handle since v1) doesn't set it today,
+     * and existing readers gate on engine state in the UI rather than on
+     * this field. Family-view sets `"family-view"` so its consumers can
+     * confirm the right canvas is mounted.
+     */
+    engine?: "layered" | "hyperbolic" | "family-view";
+    /**
      * Layered-engine layout result. Undefined while the hyperbolic engine
      * is active (which mounts its own debug surface on the same handle).
      */
@@ -46,6 +57,65 @@ interface TreeDebugHandle {
     doi?(id: string): import("$lib/layout/doi").DoiScore | undefined;
     /** Current DOI clusters; only meaningful while the hyperbolic canvas is mounted. */
     clusters?: readonly import("$lib/layout/doi").ClusterGlyph[];
+    /**
+     * Family-view layout snapshot — set while `FamilyViewCanvas` is mounted
+     * and `debugOptions.layers.exposeFamilyDebug` is on. Phase 0 walking
+     * skeleton; phases 1-5 extend the shape (subset rejections, edge
+     * roles, focus events, coi breakdown).
+     */
+    familyView?: {
+        readonly focus: import("$lib/domain/types").PersonId;
+        /** Full FamilyViewLayout (nodes + anchors + edges + badges + bbox). */
+        readonly layout: import("$lib/layout/engines/family-view").FamilyViewLayout;
+        /** Visible / rank / hasMoreChildren / hasMoreParents from `selectBoundedSubset`. */
+        readonly subset: {
+            readonly visible: ReadonlySet<import("$lib/domain/types").PersonId>;
+            readonly rank: ReadonlyMap<import("$lib/domain/types").PersonId, number>;
+            readonly hasMoreChildren: ReadonlySet<import("$lib/domain/types").PersonId>;
+            readonly hasMoreParents: ReadonlySet<import("$lib/domain/types").PersonId>;
+            /**
+             * Phase 1 of the family-view-debug plan: per-person rejection
+             * reason for every person not in `visible`. Keys never overlap
+             * with `visible`; together they cover the full `tree.people`
+             * keyset. Read by the `showOffSubsetPeople` overlay to surface
+             * why floating-people are floating.
+             */
+            readonly rationale: ReadonlyMap<
+                import("$lib/domain/types").PersonId,
+                import("$lib/layout/engines/family-view").RejectionReason
+            >;
+        };
+        /** Explicit-expansion set (persisted per `(treeId, focusId)`). */
+        readonly expansion: ReadonlySet<import("$lib/domain/types").PersonId>;
+        /** Per-person primary-union override → coupleIndex. */
+        readonly primaryUnion: ReadonlyMap<import("$lib/domain/types").PersonId, number>;
+        /** Per-person expanded-secondary-union set → coupleIndexes. */
+        readonly secondaryUnion: ReadonlyMap<
+            import("$lib/domain/types").PersonId,
+            ReadonlySet<number>
+        >;
+        /** Mirror of `App.svelte`'s `selectedPersonId` for cross-check. */
+        readonly selectedId: import("$lib/domain/types").PersonId | undefined;
+        /** BFS path set from focus to selected, for the path-highlight overlay. */
+        readonly pathHighlight: ReadonlySet<import("$lib/domain/types").PersonId>;
+    };
+    /**
+     * Phase 4 of the family-view-debug plan: COI inspector snapshot.
+     * Populated alongside `familyView` when the active focus has at
+     * least one duplicate ancestor (i.e. `computeAncestorOverlap`
+     * returned a non-`EMPTY` value). Absent on probands with no
+     * detected consanguinity. The breakdown rows already sum to
+     * `rawCoi` within float-precision drift — diff against the
+     * displayed rounded percent to spot a rendering rounding bug.
+     */
+    coi?: {
+        readonly duplicates: readonly import("$lib/domain/types").PersonId[];
+        readonly rawCoi: number;
+        readonly breakdown: readonly import("$lib/domain/consanguinity").CoiBreakdownRow[];
+        readonly cacheHits: number;
+        readonly cacheMisses: number;
+        readonly editRev: number;
+    };
 }
 
 /** runtime config injected into index.html by the fastapi server, sourced
