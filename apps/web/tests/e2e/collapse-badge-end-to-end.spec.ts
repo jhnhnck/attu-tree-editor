@@ -38,6 +38,7 @@
 
 import { resolve } from "node:path";
 import { expect, test } from "@playwright/test";
+import { closeInspectorIfMobile } from "./_helpers/close-inspector";
 import { importViaWizard } from "./_helpers/importViaWizard";
 
 const DENSE = resolve(process.cwd(), "tests/fixtures/dense-tree.ged");
@@ -60,17 +61,18 @@ test.describe("collapse-badge end-to-end (dense-tree fixture)", () => {
         page,
         isMobile,
     }) => {
-        // see bugs.md B4: View-menu dropdown blocked by inspector sheet on Pixel 7
-        // when an engine swap is in the flow. The badge + expand checks would
-        // still pass on mobile, but the swap-survival branch wouldn't.
-        test.skip(isMobile, "B4: engine-swap branch blocked by inspector sheet on Pixel 7");
+        // on mobile the inspector sheet covers the View-menu dropdown column
+        // once anything has populated it (B4). the badge-click here doesn't
+        // populate the inspector (no person is selected), but the sheet still
+        // mounts in its empty/summary form on first paint. close it before
+        // reaching for the View menu so the engine-swap branch is reachable.
         test.setTimeout(60_000);
 
         await page.goto("/");
         await importViaWizard(page, DENSE);
         await expect(page.getByText(/imported \d+ people/)).toBeVisible({ timeout: 30_000 });
 
-        const region = page.getByRole("region", { name: /family view canvas/ });
+        const region = page.getByRole("tree", { name: /family view canvas/ });
         await expect(region).toBeVisible();
 
         // (1) badge renders on default load — the bounded subset is 52
@@ -116,12 +118,14 @@ test.describe("collapse-badge end-to-end (dense-tree fixture)", () => {
         // The family-view canvas region must reappear and a badge must be
         // present again (we don't preserve which one across swaps; the
         // bounded subset is recomputed from scratch on each remount).
+        await closeInspectorIfMobile(page, isMobile);
         await page.getByRole("button", { name: "View" }).click();
         await page.getByRole("menuitem", { name: "Use layered engine" }).click();
         // The layered canvas uses role="tree" (not "region"); see
         // TreeCanvas.svelte. We just need the layered canvas to mount.
         await expect(page.getByRole("tree", { name: /family tree canvas/ })).toBeVisible();
 
+        await closeInspectorIfMobile(page, isMobile);
         await page.getByRole("button", { name: "View" }).click();
         await page.getByRole("menuitem", { name: "Use family view" }).click();
         await expect(region).toBeVisible();

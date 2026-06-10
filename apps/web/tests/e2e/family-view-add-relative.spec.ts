@@ -44,7 +44,7 @@ test.describe("family view — Phase 4 add-relative", () => {
         await importViaWizard(page, MULTI);
         await expect(page.getByText(/imported \d+ people/)).toBeVisible({ timeout: 30_000 });
 
-        const region = page.getByRole("region", { name: /family view canvas/ });
+        const region = page.getByRole("tree", { name: /family view canvas/ });
         await expect(region).toBeVisible();
         await expect(page.locator("[data-person-id]").first()).toBeVisible();
 
@@ -78,7 +78,7 @@ test.describe("family view — Phase 4 add-relative", () => {
         await importViaWizard(page, MULTI);
         await expect(page.getByText(/imported \d+ people/)).toBeVisible({ timeout: 30_000 });
 
-        const region = page.getByRole("region", { name: /family view canvas/ });
+        const region = page.getByRole("tree", { name: /family view canvas/ });
         await expect(region).toBeVisible();
         await expect(page.locator("[data-person-id]").first()).toBeVisible();
 
@@ -87,10 +87,13 @@ test.describe("family view — Phase 4 add-relative", () => {
 
         // Click on the canvas background (outside the card / picker / menu).
         // `onPointerDown` checks for `[data-add-toggle]` in the closest
-        // ancestor list; if it's not there, the menu closes.
+        // ancestor list; if it's not there, the menu closes. click the
+        // top-right corner: the canvas-chrome dock now anchors top-left
+        // (all items corner="tl"), so the old top-left target lands on a
+        // dock pill — whose pointerdown never reaches the host handler.
         const box = await region.boundingBox();
         if (!box) throw new Error("region has no bounding box");
-        await page.mouse.click(box.x + 20, box.y + 20);
+        await page.mouse.click(box.x + box.width - 20, box.y + 20);
 
         await expect(page.locator("[data-add-toggle='menu']")).toHaveCount(0);
     });

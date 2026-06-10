@@ -43,6 +43,13 @@ test("adding an unattached person updates the canvas badge without a reload", as
     await importViaWizard(page, TINY);
     await expect(page.getByText(/imported \d+ people/)).toBeVisible();
 
+    // the people-count badge IS the stats pill, which canvas-chrome-v2
+    // phase 0 gated on the stats window being open. open it via the View
+    // menu so the count is observable (the cache-key fix under test
+    // drives the badge text, independent of the pill's open-gate).
+    await page.getByRole("button", { name: "View" }).click();
+    await page.getByRole("menuitem", { name: "stats", exact: true }).click();
+
     // tiny.ged has 3 people; the canvas badge should reflect that.
     await expect(page.getByRole("button", { name: /^3 people/ })).toBeVisible();
 

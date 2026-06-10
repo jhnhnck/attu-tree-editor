@@ -18,6 +18,7 @@
 
 import { resolve } from "node:path";
 import { expect, test } from "@playwright/test";
+import { closeInspectorIfMobile } from "./_helpers/close-inspector";
 import { importViaWizard } from "./_helpers/importViaWizard";
 
 const TINY = resolve(process.cwd(), "tests/fixtures/tiny.ged");
@@ -39,15 +40,17 @@ test.describe("family view — cross-engine continuity", () => {
         page,
         isMobile,
     }) => {
-        // see bugs.md B4: inspector bottom-sheet + portrait placeholder intercept
-        // the View-menu dropdown on Pixel 7; pre-existing, not a regression.
-        test.skip(isMobile, "B4: View-menu dropdown blocked by inspector sheet on Pixel 7");
+        // on mobile the populated inspector renders as a bottom sheet that
+        // intercepts View-menu items (B4). dismiss it after each selection
+        // before reaching for the View menu; the selection itself lives on
+        // the canvas, not on the inspector, so the swap-survival contract
+        // is unaffected by closing the panel.
         await page.goto("/");
         await importViaWizard(page, TINY);
         await expect(page.getByText(/imported \d+ people/)).toBeVisible();
 
         // Family-view region is mounted (the new walking-skeleton renderer).
-        const familyRegion = page.getByRole("region", { name: /family view canvas/ });
+        const familyRegion = page.getByRole("tree", { name: /family view canvas/ });
         await expect(familyRegion).toBeVisible();
 
         // Select a person — any visible card.
@@ -57,12 +60,14 @@ test.describe("family view — cross-engine continuity", () => {
         expect(selectedId).toBeTruthy();
         await firstCard.click();
         await expect(firstCard).toHaveAttribute("aria-selected", "true");
+        await closeInspectorIfMobile(page, isMobile);
 
         // Switch to layered — selection survives.
         await page.getByRole("button", { name: "View" }).click();
         await page.getByRole("menuitem", { name: "Use layered engine" }).click();
         const layeredSel = page.locator(`[data-person-id="${selectedId!}"][aria-selected="true"]`);
         await expect(layeredSel).toBeVisible();
+        await closeInspectorIfMobile(page, isMobile);
 
         // Switch to hyperbolic — same person stays selected.
         await page.getByRole("button", { name: "View" }).click();
@@ -71,6 +76,7 @@ test.describe("family view — cross-engine continuity", () => {
             `[data-person-id="${selectedId!}"][aria-selected="true"]`,
         );
         await expect(hyperbolicSel).toBeVisible();
+        await closeInspectorIfMobile(page, isMobile);
 
         // Back to family-view — selection survives the round-trip.
         await page.getByRole("button", { name: "View" }).click();
@@ -117,10 +123,11 @@ test.describe("family view — cross-engine continuity", () => {
         page,
         isMobile,
     }) => {
-        // see bugs.md B4: portrait placeholder in the inspector sheet intercepts
-        // the View-menu dropdown click on Pixel 7; pre-existing, not a regression.
-        test.skip(isMobile, "B4: View-menu dropdown blocked by inspector sheet on Pixel 7");
         // Phase 6 cross-engine continuity: edits persist when you swap engines.
+        // on mobile the inspector sheet covers the View-menu dropdown column
+        // after a card is selected (B4); the close-inspector helper drops the
+        // sheet before each menu reach. the edit itself has already been
+        // committed via Tab/blur by the time the helper fires.
         await page.goto("/");
         await importViaWizard(page, TINY);
         await expect(page.getByText(/imported \d+ people/)).toBeVisible();
@@ -140,6 +147,7 @@ test.describe("family view — cross-engine continuity", () => {
         await expect(
             page.locator("[data-person-id]").filter({ hasText: "AlphaEdited" }),
         ).toBeVisible();
+        await closeInspectorIfMobile(page, isMobile);
 
         // Switch to layered engine; the same card must show the edited name.
         await page.getByRole("button", { name: "View" }).click();
@@ -147,6 +155,7 @@ test.describe("family view — cross-engine continuity", () => {
         await expect(
             page.locator("[data-person-id]").filter({ hasText: "AlphaEdited" }),
         ).toBeVisible();
+        await closeInspectorIfMobile(page, isMobile);
 
         // Switch back to family-view; the name persists in the round-trip.
         await page.getByRole("button", { name: "View" }).click();
