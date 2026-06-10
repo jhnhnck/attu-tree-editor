@@ -872,6 +872,132 @@ describe("route() — AABB detour around unrelated cards", () => {
         const bundleIds = new Set(bondSegs.map((s) => s.bundleId));
         expect(bundleIds.size).toBe(1);
     });
+
+    /**
+     * Multi-spouse parent-drop avoidance (bugs.md:28). When a person has two
+     * cross-rank spouses that ghost onto the same rank, a co-spouse ghost can
+     * sit between the partners on the parents' row. The joint-couple
+     * parent-drop hangs from the bond at the geometric midpoint, which lands
+     * inside that intervening ghost's AABB. Verticals are not detoured by
+     * design, so the anchor x must be shifted at emission time.
+     *
+     * Repro: Kadar (real) at x=0, Araim ghost at x=2.5 (DELTA-close primary),
+     * Harmain ghost at x=5.0 (DELTA-close to Araim). The Kadar↔Harmain bond
+     * spans (rightX=2) → (leftX=5); the geometric midpoint is x=3.5 which
+     * falls inside Araim's AABB [2.5, 4.5]. With the fix in place, the
+     * parent-drop anchor shifts to rightEscape (Araim.x2 + DETOUR_PAD = 4.6)
+     * — outside Araim's AABB and still inside the bond's [2, 5] extent.
+     */
+    function multiSpouseGhostBlocking(): {
+        placed: PlacedGraph;
+        tree: Tree;
+        ids: { kadar: string; araimReal: string; harmainReal: string; child: string };
+    } {
+        let t = createTree("multi", blank("kadar", "m"));
+        const araim = addPerson(t, blank("araim", "f"));
+        t = araim.tree;
+        const harmain = addPerson(t, blank("harmain", "f"));
+        t = harmain.tree;
+        const child = addPerson(t, blank("child", "u"));
+        t = child.tree;
+        const ok = <V>(r: { ok: true; value: V } | { ok: false; error: string }): V => {
+            if (!r.ok) throw new Error(r.error);
+            return r.value;
+        };
+        t = ok(linkSpouse(t, ROOT_ID, araim.id));
+        t = ok(linkSpouse(t, ROOT_ID, harmain.id));
+        // Joint child of Kadar & Harmain so the couple has a parent-drop.
+        t = ok(linkParent(t, child.id, ROOT_ID));
+        t = ok(linkParent(t, child.id, harmain.id));
+
+        // Hand-rolled placement to recreate the Akarians DEMO topology:
+        //   rank R: Kadar (x=0), AraimGhost (x=2.5), HarmainGhost (x=5)
+        //   rank R-1: child (placed below HarmainGhost so the bus has length)
+        // Araim & Harmain real cards live on rank R-2 (further away) so the
+        // ghost placement is the geometric truth.
+        const RANK = 2;
+        const ghostA = `ghost:${araim.id}|${ROOT_ID}`;
+        const ghostH = `ghost:${harmain.id}|${ROOT_ID}`;
+        const nodes = new Map<string, LayoutNode>([
+            [ROOT_ID, { id: ROOT_ID, kind: "person", personId: ROOT_ID, rank: RANK }],
+            [ghostA, { id: ghostA, kind: "ghost", personId: araim.id, rank: RANK }],
+            [ghostH, { id: ghostH, kind: "ghost", personId: harmain.id, rank: RANK }],
+            [araim.id, { id: araim.id, kind: "person", personId: araim.id, rank: RANK - 2 }],
+            [harmain.id, { id: harmain.id, kind: "person", personId: harmain.id, rank: RANK - 2 }],
+            [child.id, { id: child.id, kind: "person", personId: child.id, rank: RANK + 1 }],
+        ]);
+        const placed: PlacedGraph = {
+            nodes,
+            ranks: [[araim.id, harmain.id], [], [ROOT_ID, ghostA, ghostH], [child.id]],
+            parentEdges: [{ parent: ROOT_ID, child: child.id }],
+            spouseEdges: [],
+            order: new Map([
+                [araim.id, 0],
+                [harmain.id, 1],
+                [ROOT_ID, 0],
+                [ghostA, 1],
+                [ghostH, 2],
+                [child.id, 0],
+            ]),
+            x: new Map([
+                [ROOT_ID, 0],
+                [ghostA, 2.5],
+                [ghostH, 5.0],
+                [araim.id, 0],
+                [harmain.id, 5],
+                [child.id, 5.0],
+            ]),
+            y: new Map([
+                [ROOT_ID, RANK * ROW_H],
+                [ghostA, RANK * ROW_H],
+                [ghostH, RANK * ROW_H],
+                [araim.id, (RANK - 2) * ROW_H],
+                [harmain.id, (RANK - 2) * ROW_H],
+                [child.id, (RANK + 1) * ROW_H],
+            ]),
+            bbox: { width: 8, height: (RANK + 2) * ROW_H },
+        };
+        return {
+            placed,
+            tree: t,
+            ids: { kadar: ROOT_ID, araimReal: araim.id, harmainReal: harmain.id, child: child.id },
+        };
+    }
+
+    it("joint-couple parent-drop shifts away from an intervening same-rank ghost", () => {
+        const { placed, tree, ids } = multiSpouseGhostBlocking();
+        const { segments } = route(placed, tree);
+        // Find the Kadar↔Harmain parent-drop (the one that originally hung
+        // through Araim's ghost AABB).
+        const drop = segments.find(
+            (s) =>
+                s.kind === "parent-drop" &&
+                s.persons.includes(ids.kadar) &&
+                s.persons.includes(ids.harmainReal),
+        );
+        expect(drop, "joint Kadar↔Harmain parent-drop missing").toBeDefined();
+        // Araim's ghost AABB on Kadar's rank is x∈[2.5, 4.5].
+        const araimGhostX1 = 2.5;
+        const araimGhostX2 = 4.5;
+        // Drop is vertical so x1 == x2. The anchor must be outside the AABB.
+        expect(drop!.x1).toBe(drop!.x2);
+        const inside = drop!.x1 > araimGhostX1 + 1e-6 && drop!.x1 < araimGhostX2 - 1e-6;
+        expect(inside, `parent-drop at x=${drop!.x1} still inside Araim ghost AABB`).toBe(false);
+    });
+
+    it("anchor stays inside the bond's x-extent after the shift", () => {
+        const { placed, tree, ids } = multiSpouseGhostBlocking();
+        const { segments } = route(placed, tree);
+        const drop = segments.find(
+            (s) =>
+                s.kind === "parent-drop" &&
+                s.persons.includes(ids.kadar) &&
+                s.persons.includes(ids.harmainReal),
+        );
+        // Bond spans rightX(Kadar)=2 → leftX(HarmainGhost)=5.
+        expect(drop!.x1).toBeGreaterThanOrEqual(2 - 1e-6);
+        expect(drop!.x1).toBeLessThanOrEqual(5 + 1e-6);
+    });
 });
 
 // ---------------------------------------------------------------------------

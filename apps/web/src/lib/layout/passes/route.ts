@@ -331,6 +331,66 @@ function buildSegments(
         if (p) ghostByKey.set(`${p.ghostOf}|${p.nearId}`, nodeId);
     }
 
+    // Same-rank card AABBs indexed by rank, for parent-drop anchor avoidance.
+    // The joint-couple parent-drop starts at bond-y (mid-card) and runs down
+    // (or up) to the gutter bus; at its anchor-x it crosses the card-y zone
+    // of the parents' rank. If that anchor lands inside an intervening card
+    // (e.g. a co-spouse ghost between the partners), the drop visually punches
+    // through the card. detourAroundCards handles horizontals but verticals
+    // are not detoured by design, so the fix is to shift the anchor upstream.
+    interface RankCard {
+        readonly x1: number;
+        readonly x2: number;
+        readonly ownerId: PersonId;
+    }
+    const cardsByRank = new Map<number, RankCard[]>();
+    for (const [nodeId, node] of placed.nodes) {
+        const x = placed.x.get(nodeId);
+        if (x === undefined) continue;
+        const list = cardsByRank.get(node.rank);
+        const card: RankCard = { x1: x, x2: x + PERSON_W, ownerId: node.personId };
+        if (list) list.push(card);
+        else cardsByRank.set(node.rank, [card]);
+    }
+    /**
+     * Shift `candidateX` outside any same-rank unrelated card AABB while
+     * keeping it inside [minX, maxX]. Prefers the side closer to `toward`
+     * (typically the children-centroid x) so the resulting bus stays short.
+     * Returns the original `candidateX` if no shift is possible within bounds.
+     */
+    const safeAnchorX = (
+        rank: number,
+        candidateX: number,
+        ownerIds: ReadonlySet<PersonId>,
+        minX: number,
+        maxX: number,
+        toward: number,
+    ): number => {
+        const cards = cardsByRank.get(rank);
+        if (!cards) return candidateX;
+        // Find any unrelated card whose AABB strictly contains candidateX.
+        const blocker = cards.find(
+            (c) => !ownerIds.has(c.ownerId) && candidateX > c.x1 + 1e-6 && candidateX < c.x2 - 1e-6,
+        );
+        if (!blocker) return candidateX;
+        const leftEscape = blocker.x1 - DETOUR_PAD;
+        const rightEscape = blocker.x2 + DETOUR_PAD;
+        const leftOk = leftEscape >= minX - 1e-6;
+        const rightOk = rightEscape <= maxX + 1e-6;
+        // Prefer the side closer to `toward`; fall back to whichever fits.
+        if (leftOk && rightOk) {
+            return Math.abs(leftEscape - toward) <= Math.abs(rightEscape - toward)
+                ? leftEscape
+                : rightEscape;
+        }
+        if (leftOk) return leftEscape;
+        if (rightOk) return rightEscape;
+        // Neither side fits inside [minX, maxX]; leave as-is — the resulting
+        // drop will still cross the obstacle, but the detour pass keeps the
+        // horizontal portions correct. A future router phase can do better.
+        return candidateX;
+    };
+
     // Joint children by sorted couple key (any pair of visible parents that
     // matches a known couple's two members)
     const couplePairs = new Set<string>();
@@ -472,9 +532,27 @@ function buildSegments(
                     // For long bonds the partners are far apart; anchor the
                     // parent-drop at the children centroid so it lands near
                     // the family rather than floating in empty canvas space.
-                    const bondX = isLongBond
+                    const candidateBondX = isLongBond
                         ? group.kids.reduce((s, c) => s + midX(c.pos), 0) / group.kids.length
                         : (rightX(l) + leftX(r)) / 2;
+                    // Multi-spouse case (bugs.md:28): on the parents' rank a
+                    // co-spouse ghost can sit between l and r. The geometric
+                    // midpoint then lands inside that ghost's AABB, and the
+                    // vertical parent-drop visually punches through the card.
+                    // Shift the anchor sideways to clear the obstacle while
+                    // staying inside the bond's x-extent. The bus afterwards
+                    // is a horizontal segment and detourAroundCards takes
+                    // over from there.
+                    const childCentroid =
+                        group.kids.reduce((s, c) => s + midX(c.pos), 0) / group.kids.length;
+                    const bondX = safeAnchorX(
+                        aPos.rank,
+                        candidateBondX,
+                        new Set(couplePersons),
+                        rightX(l),
+                        leftX(r),
+                        childCentroid,
+                    );
                     const xs = group.kids.map((c) => midX(c.pos));
                     const busMinX = Math.min(...xs, bondX);
                     const busMaxX = Math.max(...xs, bondX);

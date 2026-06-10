@@ -206,6 +206,18 @@ export function order(graph: LayeredGraph, overrides?: LayoutOverrides, tree?: T
         repairCoupleAdjacency(rank, spouseGroups, nodes, preferredLeft);
     }
 
+    // Ghost-near adjacency repair: runs after couple repair so it sees the
+    // final spouse positions. When a near has BOTH a same-rank spouse and one
+    // or more ghosts, repairCoupleAdjacency above pulls the spouse adjacent
+    // to the near and displaces the ghosts. This pass re-seats every ghost
+    // cluster contiguous to its near, placing the ghosts on the OPPOSITE side
+    // of the same-rank spouse so couple adjacency is preserved. Place pass
+    // gives DELTA = 2.5u only for adjacent positions; without this step ~5%
+    // of ghosts strand at 5-17.5u from their near on multi-spouse cases.
+    for (const rank of rankOrder) {
+        repairGhostClusterAdjacency(rank, nodes, spouseGroups);
+    }
+
     // Apply swap overrides after all passes so they are final.
     if (overrides?.swap) {
         for (const [a, b] of overrides.swap) {
@@ -419,6 +431,136 @@ function repairClusterBlocks(
 
         rank.splice(rank.indexOf(sorted[0]!) + 1, 0, ...rest);
     }
+}
+
+/**
+ * Final repair step: re-seat each ghost cluster contiguous to its near so the
+ * place() pass's adjacency-only gap policy (DELTA = 2.5u) fires for every
+ * ghost↔near pair.
+ *
+ * Why this can't piggy-back on repairClusterBlocks:
+ *   repairClusterBlocks runs *before* repairCoupleAdjacency in the sweep loop
+ *   and in the final cleanup. When a near has a same-rank spouse AND one or
+ *   more ghosts, couple repair pulls the spouse adjacent to the near and
+ *   displaces any ghost that was contiguous from the cluster repair. The
+ *   stranded ghosts then fall through to BRANCH_GAP in place().
+ *
+ * Placement strategy:
+ *   1. Build the cluster (near + every ghost whose nearId is that near).
+ *   2. Detect the near's same-rank spouse, if any, from spouseGroups.
+ *   3. Pick the side: ghosts go to the OPPOSITE side of the spouse, so the
+ *      final shape is [spouse, near, ghost1, ghost2, ...] or its mirror.
+ *      When no same-rank spouse is present, ghosts go on the right by default
+ *      (matches the existing cluster repair convention).
+ *   4. Splice ghosts out of their current positions and re-insert them
+ *      contiguous to the near. Relative ghost order is preserved.
+ *
+ * Idempotent: re-running on a rank whose ghosts already sit contiguous to
+ * their near leaves the rank unchanged.
+ */
+function repairGhostClusterAdjacency(
+    rank: LayoutNodeId[],
+    nodes: ReadonlyMap<LayoutNodeId, LayoutNode>,
+    spouseGroups: ReadonlyMap<string, readonly LayoutNodeId[]>,
+): void {
+    // Discover each near (cluster anchor) present in this rank and its ghosts.
+    // A cluster member is identifiable by clusterBlockId; the near is the
+    // only person-kind member, ghosts are the rest.
+    const clustersHere = new Map<string, { near?: LayoutNodeId; ghosts: LayoutNodeId[] }>();
+    for (const id of rank) {
+        const node = nodes.get(id);
+        if (!node?.clusterBlockId) continue;
+        const entry = clustersHere.get(node.clusterBlockId) ?? { ghosts: [] };
+        if (node.kind === "ghost") entry.ghosts.push(id);
+        else entry.near = id;
+        clustersHere.set(node.clusterBlockId, entry);
+    }
+
+    for (const { near, ghosts } of clustersHere.values()) {
+        if (!near || ghosts.length === 0) continue;
+
+        // Sort ghosts by current position so we preserve their relative order
+        // after re-insertion.
+        ghosts.sort((a, b) => rank.indexOf(a) - rank.indexOf(b));
+
+        // Find same-rank spouse via spouseGroup membership in this rank.
+        // The near's spouseGroup links it to one same-rank spouse OR to one
+        // ghost — the same-rank case is the only one that can displace.
+        const spouseId = sameRankSpouseOf(near, rank, nodes, spouseGroups);
+
+        // Determine the side to place ghosts: opposite the spouse if present,
+        // right side otherwise. side === "right" means ghosts go after near.
+        let side: "left" | "right" = "right";
+        if (spouseId !== undefined) {
+            const spousePos = rank.indexOf(spouseId);
+            const nearPos = rank.indexOf(near);
+            side = spousePos < nearPos ? "right" : "left";
+        }
+
+        // Verify whether ghosts are already contiguous to the near on the
+        // chosen side; bail early to keep this idempotent and minimise churn.
+        if (ghostsAlreadyAdjacent(rank, near, ghosts, side)) continue;
+
+        // Splice ghosts out (high-index first so lower indices stay valid).
+        const positions = ghosts.map((id) => rank.indexOf(id)).sort((a, b) => b - a);
+        for (const p of positions) rank.splice(p, 1);
+
+        // Re-insert contiguous to the (possibly shifted) near position.
+        const nearPos = rank.indexOf(near);
+        const insertAt = side === "right" ? nearPos + 1 : nearPos;
+        rank.splice(insertAt, 0, ...(side === "right" ? ghosts : [...ghosts].reverse()));
+    }
+}
+
+/**
+ * Return the LayoutNodeId of `near`'s same-rank spouse, or undefined if the
+ * near is not coupled, the partner is on a different rank, or the partner is
+ * a ghost (the cross-rank case is what put us in this repair to begin with).
+ */
+function sameRankSpouseOf(
+    near: LayoutNodeId,
+    rank: readonly LayoutNodeId[],
+    nodes: ReadonlyMap<LayoutNodeId, LayoutNode>,
+    spouseGroups: ReadonlyMap<string, readonly LayoutNodeId[]>,
+): LayoutNodeId | undefined {
+    const sg = nodes.get(near)?.spouseGroup;
+    if (!sg) return undefined;
+    const members = spouseGroups.get(sg) ?? [];
+    for (const m of members) {
+        if (m === near) continue;
+        // Same-rank means the partner is in this rank's array and is not a
+        // ghost (a ghost partner would be the cluster's own ghost, not a
+        // displacing spouse).
+        if (!rank.includes(m)) continue;
+        if (nodes.get(m)?.kind === "ghost") continue;
+        return m;
+    }
+    return undefined;
+}
+
+/**
+ * Return true if every `ghost` is already contiguous to `near` on `side` and
+ * in the given relative order.
+ */
+function ghostsAlreadyAdjacent(
+    rank: readonly LayoutNodeId[],
+    near: LayoutNodeId,
+    ghosts: readonly LayoutNodeId[],
+    side: "left" | "right",
+): boolean {
+    const nearPos = rank.indexOf(near);
+    if (side === "right") {
+        for (let i = 0; i < ghosts.length; i++) {
+            if (rank[nearPos + 1 + i] !== ghosts[i]) return false;
+        }
+    } else {
+        for (let i = 0; i < ghosts.length; i++) {
+            // ghosts[0] is leftmost in current order; on the left side it
+            // should land just before the near at position nearPos - ghosts.length + i.
+            if (rank[nearPos - ghosts.length + i] !== ghosts[i]) return false;
+        }
+    }
+    return true;
 }
 
 /**

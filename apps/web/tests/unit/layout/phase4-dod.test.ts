@@ -18,7 +18,8 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parseGedcom } from "$lib/io/gedcom/parse";
 import { LayeredEngine } from "$lib/layout/engines/layered-hv";
-import { PERSON_W, ROW_H } from "$lib/layout/constants";
+import { PERSON_W, ROW_H, SIBLING_GAP } from "$lib/layout/constants";
+import { parseGhostNodeId } from "$lib/layout/ir";
 
 const FIXTURE = resolve(process.cwd(), "tests/fixtures/Akarians.ged");
 const CARD_H = 1.2;
@@ -175,5 +176,65 @@ describe("Phase 4 DoD — Akarians DEMO", () => {
         }
         // ensure both ROW_H and CARD_H are referenced (linter)
         void ROW_H;
+    });
+
+    it("no foreign node sits between a ghost and its near in the rank ordering", () => {
+        // Regression for the ghost-near adjacency miss: the order() pass now
+        // includes a final post-pass (repairGhostClusterAdjacency) that
+        // re-seats every ghost cluster contiguous to its near after couple
+        // adjacency settles. Before the fix, a near with both a same-rank
+        // spouse and a ghost would see the spouse displace the ghost,
+        // letting foreign nodes interleave between ghost and near.
+        //
+        // This test asserts the order-level invariant the fix is responsible
+        // for: between every ghost and its near in the within-rank ordering,
+        // only other members of the same ghost cluster may appear. Any
+        // residual x-spread from B-K averaging is a separate concern
+        // (see notes/bugs.md for follow-up).
+        const { result } = cachedFixture;
+        const placed = result.legacy.placed;
+        const orderMap = result.legacy.ordered.order;
+        const offenders: { ghostId: string; nearId: string; intruder: string }[] = [];
+
+        // Build rank → ids sorted by order, for cheap "between" lookups.
+        const ranks = new Map<number, string[]>();
+        for (const [id, node] of placed.nodes) {
+            const list = ranks.get(node.rank) ?? [];
+            list.push(id);
+            ranks.set(node.rank, list);
+        }
+        for (const list of ranks.values()) {
+            list.sort((a, b) => (orderMap.get(a) ?? 0) - (orderMap.get(b) ?? 0));
+        }
+
+        for (const [ghostId, node] of placed.nodes) {
+            if (node.kind !== "ghost") continue;
+            const parsed = parseGhostNodeId(ghostId);
+            if (!parsed) continue;
+            const rankList = ranks.get(node.rank);
+            if (!rankList) continue;
+            const gIdx = rankList.indexOf(ghostId);
+            const nIdx = rankList.indexOf(parsed.nearId);
+            if (gIdx < 0 || nIdx < 0) continue;
+            const lo = Math.min(gIdx, nIdx);
+            const hi = Math.max(gIdx, nIdx);
+            for (let k = lo + 1; k < hi; k++) {
+                const between = rankList[k]!;
+                const betweenNode = placed.nodes.get(between);
+                if (!betweenNode) continue;
+                // a same-cluster node (a sibling ghost) is allowed between.
+                if (
+                    betweenNode.clusterBlockId &&
+                    betweenNode.clusterBlockId === node.clusterBlockId
+                ) {
+                    continue;
+                }
+                offenders.push({ ghostId, nearId: parsed.nearId, intruder: between });
+            }
+        }
+        // referenced for invariance even if test passes (linter)
+        void PERSON_W;
+        void SIBLING_GAP;
+        expect(offenders).toEqual([]);
     });
 });

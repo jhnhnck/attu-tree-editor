@@ -470,6 +470,188 @@ describe("order — couple adjacency wins over sibling-block contiguity", () => 
 });
 
 // ---------------------------------------------------------------------------
+// Ghost-near adjacency: ghost cluster stays contiguous to near even after
+// repairCoupleAdjacency pulls a same-rank spouse adjacent
+// ---------------------------------------------------------------------------
+
+describe("order — ghost-cluster adjacency to near (multi-spouse case)", () => {
+    it("ghost stays adjacent to near when near also has a same-rank spouse", () => {
+        // Near person N has TWO spouses:
+        //   - S: same-rank, sharing spouseGroup "N|S"
+        //   - cross-rank partner whose ghost G is on the same rank as N
+        // repairClusterBlocks pulls N + G adjacent, then repairCoupleAdjacency
+        // pulls S adjacent to N and previously displaced G. The new ghost-
+        // cluster adjacency post-pass re-seats G on the side opposite S.
+        const ghostId = ghostNodeId("P", "N");
+        const nodes = new Map<LayoutNodeId, LayoutNode>([
+            [
+                "N",
+                {
+                    id: "N",
+                    kind: "person",
+                    personId: "N",
+                    rank: 0,
+                    spouseGroup: "N|S",
+                    clusterBlockId: "cluster:N",
+                },
+            ],
+            ["S", { id: "S", kind: "person", personId: "S", rank: 0, spouseGroup: "N|S" }],
+            ["X", { id: "X", kind: "person", personId: "X", rank: 0 }],
+            ["Y", { id: "Y", kind: "person", personId: "Y", rank: 0 }],
+            [
+                ghostId,
+                {
+                    id: ghostId,
+                    kind: "ghost",
+                    personId: "P",
+                    rank: 0,
+                    spouseGroup: "N|P",
+                    clusterBlockId: "cluster:N",
+                },
+            ],
+        ]);
+        const g: LayeredGraph = {
+            nodes,
+            ranks: [["X", "N", "Y", "S", ghostId]],
+            parentEdges: [],
+            spouseEdges: [],
+        };
+        const og = order(g);
+        // Both the same-rank spouse and the ghost must be adjacent to N.
+        expect(dist(og, "N", "S")).toBe(1);
+        expect(dist(og, "N", ghostId)).toBe(1);
+        // S and ghost should sit on opposite sides of N.
+        const posN = og.order.get("N")!;
+        const posS = og.order.get("S")!;
+        const posG = og.order.get(ghostId)!;
+        expect(Math.sign(posS - posN)).not.toBe(Math.sign(posG - posN));
+    });
+
+    it("multi-ghost cluster stays contiguous to near with a same-rank spouse", () => {
+        // Near person N has same-rank spouse S and TWO cross-rank partners
+        // (ghosts G1 and G2). The fix must place [G1, G2] on the opposite side
+        // of S, contiguous to N. Mirrors the worst-case Akaria DEMO scenario
+        // (4-ghost cluster around id 15LJ6).
+        const g1 = ghostNodeId("P1", "N");
+        const g2 = ghostNodeId("P2", "N");
+        const nodes = new Map<LayoutNodeId, LayoutNode>([
+            ["A", { id: "A", kind: "person", personId: "A", rank: 0 }],
+            [
+                "N",
+                {
+                    id: "N",
+                    kind: "person",
+                    personId: "N",
+                    rank: 0,
+                    spouseGroup: "N|S",
+                    clusterBlockId: "cluster:N",
+                },
+            ],
+            ["S", { id: "S", kind: "person", personId: "S", rank: 0, spouseGroup: "N|S" }],
+            ["B", { id: "B", kind: "person", personId: "B", rank: 0 }],
+            [
+                g1,
+                {
+                    id: g1,
+                    kind: "ghost",
+                    personId: "P1",
+                    rank: 0,
+                    spouseGroup: "N|P1",
+                    clusterBlockId: "cluster:N",
+                },
+            ],
+            ["C", { id: "C", kind: "person", personId: "C", rank: 0 }],
+            [
+                g2,
+                {
+                    id: g2,
+                    kind: "ghost",
+                    personId: "P2",
+                    rank: 0,
+                    spouseGroup: "N|P2",
+                    clusterBlockId: "cluster:N",
+                },
+            ],
+        ]);
+        const g: LayeredGraph = {
+            nodes,
+            ranks: [["A", "N", "S", "B", g1, "C", g2]],
+            parentEdges: [],
+            spouseEdges: [],
+        };
+        const og = order(g);
+        // S adjacent to N.
+        expect(dist(og, "N", "S")).toBe(1);
+        // Both ghosts adjacent to each other and the closer one adjacent to N.
+        const posN = og.order.get("N")!;
+        const posS = og.order.get("S")!;
+        const posG1 = og.order.get(g1)!;
+        const posG2 = og.order.get(g2)!;
+        // Ghosts contiguous.
+        expect(Math.abs(posG1 - posG2)).toBe(1);
+        // Ghosts on opposite side of N from S.
+        expect(Math.sign(posS - posN)).not.toBe(Math.sign(posG1 - posN));
+        // One of the ghosts must sit at distance 1 from N (immediate neighbor).
+        expect(Math.min(Math.abs(posG1 - posN), Math.abs(posG2 - posN))).toBe(1);
+    });
+
+    it("ghost cluster without a same-rank spouse goes to the right of near", () => {
+        // No same-rank spouse — fall back to "ghosts on the right" default.
+        const g1 = ghostNodeId("P1", "N");
+        const g2 = ghostNodeId("P2", "N");
+        const nodes = new Map<LayoutNodeId, LayoutNode>([
+            ["A", { id: "A", kind: "person", personId: "A", rank: 0 }],
+            [
+                "N",
+                {
+                    id: "N",
+                    kind: "person",
+                    personId: "N",
+                    rank: 0,
+                    clusterBlockId: "cluster:N",
+                },
+            ],
+            ["B", { id: "B", kind: "person", personId: "B", rank: 0 }],
+            [
+                g1,
+                {
+                    id: g1,
+                    kind: "ghost",
+                    personId: "P1",
+                    rank: 0,
+                    spouseGroup: "N|P1",
+                    clusterBlockId: "cluster:N",
+                },
+            ],
+            [
+                g2,
+                {
+                    id: g2,
+                    kind: "ghost",
+                    personId: "P2",
+                    rank: 0,
+                    spouseGroup: "N|P2",
+                    clusterBlockId: "cluster:N",
+                },
+            ],
+        ]);
+        const g: LayeredGraph = {
+            nodes,
+            ranks: [["A", "N", "B", g1, g2]],
+            parentEdges: [],
+            spouseEdges: [],
+        };
+        const og = order(g);
+        // Both ghosts adjacent to N, in input relative order.
+        const posN = og.order.get("N")!;
+        const posG1 = og.order.get(g1)!;
+        const posG2 = og.order.get(g2)!;
+        expect(posG1).toBe(posN + 1);
+        expect(posG2).toBe(posN + 2);
+    });
+});
+
+// ---------------------------------------------------------------------------
 // Swap overrides
 // ---------------------------------------------------------------------------
 
