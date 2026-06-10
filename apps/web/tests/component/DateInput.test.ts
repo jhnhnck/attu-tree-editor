@@ -142,4 +142,40 @@ describe("DateInput", () => {
         expect(onchange).not.toHaveBeenCalled();
         expect(screen.getByRole("alert")).toHaveTextContent(/invalid date/i);
     });
+
+    it("keyboard focus drops the field into manual edit mode so typing works", async () => {
+        const onchange = vi.fn();
+        render(DateInput, { value: { era: "PC", year: 1700 }, onchange });
+        const field = screen.getByRole<HTMLInputElement>("textbox", { name: /date/i });
+        // simulate a tab into the field (focus without a preceding pointerdown)
+        await fireEvent.focus(field);
+        expect(field).not.toHaveAttribute("readonly");
+        await fireEvent.input(field, { target: { value: "15-3 1700 PC" } });
+        await fireEvent.keyDown(field, { key: "Enter" });
+        expect(onchange).toHaveBeenLastCalledWith({
+            era: "PC",
+            year: 1700,
+            month: 3,
+            day: 15,
+        });
+    });
+
+    it("ArrowDown from a focused closed field opens the picker", async () => {
+        render(DateInput, { value: { era: "PC", year: 1700 }, onchange: vi.fn() });
+        const field = screen.getByRole<HTMLInputElement>("textbox", { name: /date/i });
+        await fireEvent.focus(field);
+        // focus dropped us into manual; ArrowDown should still open the picker
+        await fireEvent.keyDown(field, { key: "ArrowDown" });
+        expect(screen.getByRole("dialog", { name: /calendar/i })).toBeInTheDocument();
+    });
+
+    it("pointer focus does not auto-open manual mode (click still opens picker)", async () => {
+        render(DateInput, { value: { era: "PC", year: 1700 }, onchange: vi.fn() });
+        const field = screen.getByRole<HTMLInputElement>("textbox", { name: /date/i });
+        // mouse path: pointerdown precedes focus precedes click
+        await fireEvent.pointerDown(field);
+        await fireEvent.focus(field);
+        await fireEvent.click(field);
+        expect(screen.getByRole("dialog", { name: /calendar/i })).toBeInTheDocument();
+    });
 });

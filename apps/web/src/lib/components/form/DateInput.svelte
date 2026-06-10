@@ -24,6 +24,9 @@
 
     let containerEl: HTMLDivElement | undefined = $state();
     let fieldEl: HTMLInputElement | undefined = $state();
+    // set on pointerdown so the next focus event knows it came from a click
+    // rather than the keyboard, and skips auto-opening manual edit mode
+    let pointerFocus = false;
 
     // picker scratch state - committed only on Done
     let pYear = $state(1);
@@ -123,12 +126,34 @@
         textError = undefined;
     }
 
+    function onFieldPointerDown(): void {
+        pointerFocus = true;
+    }
+
+    function onFieldFocus(): void {
+        // keyboard tab into a closed field drops straight into manual edit so
+        // the user can type; mouse clicks still route through onFieldClick and
+        // open the picker instead
+        if (pointerFocus) {
+            pointerFocus = false;
+            return;
+        }
+        if (mode === "closed") void startManualEdit();
+    }
+
     function onFieldClick(): void {
-        if (mode === "closed") openPicker();
+        // a click should always open the picker, even if focus just dropped the
+        // field into manual mode a tick earlier
+        if (mode === "closed" || mode === "manual") openPicker();
         else if (mode === "picker") void startManualEdit();
     }
 
     function onFieldKeyDown(e: KeyboardEvent): void {
+        if (e.key === "ArrowDown" && mode !== "picker") {
+            e.preventDefault();
+            openPicker();
+            return;
+        }
         if (mode === "manual") {
             if (e.key === "Enter") {
                 e.preventDefault();
@@ -138,7 +163,7 @@
                 cancelManualEdit();
             }
         } else if (mode === "closed") {
-            if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown") {
+            if (e.key === "Enter" || e.key === " ") {
                 e.preventDefault();
                 openPicker();
             }
@@ -283,6 +308,8 @@
         oninput={(e) => {
             textValue = e.currentTarget.value;
         }}
+        onpointerdown={onFieldPointerDown}
+        onfocus={onFieldFocus}
         onclick={onFieldClick}
         onkeydown={onFieldKeyDown}
         onblur={onFieldBlur}
