@@ -46,14 +46,20 @@ export async function saveTree(tree: Tree, db: FamilyTreeDb = getDb()): Promise<
     await db.trees.put(row);
 }
 
+export interface LoadedTree {
+    tree: Tree;
+    /** ms timestamp of the last persisted save for this tree (from the `updatedAt` column) */
+    savedAt: number;
+}
+
 /** load a tree by id. returns err if not found. */
 export async function loadTree(
     id: string,
     db: FamilyTreeDb = getDb(),
-): Promise<Result<Tree, string>> {
+): Promise<Result<LoadedTree, string>> {
     const row = await db.trees.get(id);
     if (!row) return err(`no stored tree with id ${id}`);
-    return ok(row.tree);
+    return ok({ tree: row.tree, savedAt: row.updatedAt });
 }
 
 /** list trees newest first; default cap at 20 entries. */

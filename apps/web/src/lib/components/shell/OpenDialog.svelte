@@ -75,8 +75,8 @@
             previewError = r.error;
             return;
         }
-        previewCache.set(id, r.value);
-        previewTree = r.value;
+        previewCache.set(id, r.value.tree);
+        previewTree = r.value.tree;
     }
 
     function selectRow(id: string): void {
