@@ -24,12 +24,13 @@ from attu_tree.models import (
     TreeSaveRequest,
     TreeSaveResponse,
 )
+from attu_tree.ratelimit import tree_limiter
 from attu_tree.settings import settings
 from attu_tree.sync.autosave import BlobTooLarge, RevisionConflict, apply_save
 from attu_tree.trees.access import tree_owner, tree_read, tree_write
 
 
-router = APIRouter(prefix='/api/trees', tags=['trees'])
+router = APIRouter(prefix='/api/trees', tags=['trees'], dependencies=[Depends(tree_limiter.dependency())])
 
 
 def _now_iso() -> str:

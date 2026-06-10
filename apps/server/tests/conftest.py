@@ -12,6 +12,7 @@ from asgi_lifespan import LifespanManager
 from httpx import ASGITransport, AsyncClient
 
 from attu_tree.main import app
+from attu_tree.ratelimit import auth_start_limiter, tree_limiter
 from attu_tree.settings import settings
 
 
@@ -26,6 +27,20 @@ def configure_test_settings(tmp_path, monkeypatch):
     monkeypatch.setattr(settings.secrets, 'discord_bot_hmac_secret', TEST_HMAC_SECRET)
     monkeypatch.setattr(settings.secrets, 'session_secret', 'test-session-secret')
     monkeypatch.setattr(settings, 'session_cookie_path', '/')
+
+
+@pytest.fixture(autouse=True)
+def bypass_rate_limiters(monkeypatch):
+    """disable rate limiting for the entire test suite.
+
+    the default key_fn returns None for requests with no client ip; we
+    monkeypatch both limiters' key_fn to always return None so every test
+    request is let through unconditionally. tests that verify the limiter
+    itself set up their own RateLimiter instances or manipulate _buckets
+    directly without going through the live singletons.
+    """
+    monkeypatch.setattr(auth_start_limiter, '_key_fn', lambda _req: None)
+    monkeypatch.setattr(tree_limiter, '_key_fn', lambda _req: None)
 
 
 @pytest.fixture()

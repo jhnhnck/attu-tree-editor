@@ -10,6 +10,7 @@ from attu_tree.auth.link import check_link, start_link
 from attu_tree.auth.middleware import current_user
 from attu_tree.db import get_db
 from attu_tree.models import LinkCheckResponse, LinkStartResponse, MeResponse
+from attu_tree.ratelimit import auth_start_limiter
 from attu_tree.settings import settings
 
 
@@ -20,6 +21,7 @@ router = APIRouter(prefix='/api/auth', tags=['auth'])
 @router.post('/start', response_model=LinkStartResponse)
 async def auth_start(
     response: Response,
+    _rl: None = Depends(auth_start_limiter.dependency()),
     conn: aiosqlite.Connection = Depends(get_db),
 ) -> LinkStartResponse:
     """generate a fresh link code. pre-issues a session cookie (still pending)."""
