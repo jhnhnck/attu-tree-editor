@@ -21,6 +21,21 @@
 import { getParents } from "$lib/domain/tree";
 import type { PersonId, Tree } from "$lib/domain/types";
 
+/**
+ * Phase 4 of family-view-debug: per-pair Wright contribution row. The
+ * walker already computes these inline; widening the return type just
+ * surfaces what was being discarded. `di` / `dj` are the per-parent
+ * shortest-distance edges to `ancestorId`; `contribution` is
+ * `(0.5)^(di+dj+1)`. Summed across rows == the scalar `coi` to within
+ * float-precision drift.
+ */
+export interface CoiBreakdownRow {
+    readonly ancestorId: PersonId;
+    readonly di: number;
+    readonly dj: number;
+    readonly contribution: number;
+}
+
 export interface AncestorOverlap {
     /** Person ids that appear in more than one ancestor path. */
     readonly duplicates: readonly PersonId[];
@@ -30,6 +45,15 @@ export interface AncestorOverlap {
      * parents.
      */
     readonly coi: number | undefined;
+    /**
+     * Phase 4 family-view-debug: optional per-pair contribution table.
+     * Same numeric content the inner loop produces; expose for the
+     * `showCoiBreakdown` overlay + the `__treeDebug.coi.breakdown`
+     * handle. Undefined when there's no consanguinity (parents share no
+     * ancestors). Row order is stable: ascending `ancestorId`, then
+     * `(di, dj)` lexicographically.
+     */
+    readonly breakdown?: readonly CoiBreakdownRow[];
 }
 
 const EMPTY: AncestorOverlap = { duplicates: [], coi: undefined };
@@ -40,6 +64,18 @@ interface MemoEntry {
 }
 
 const memo = new WeakMap<Tree, MemoEntry>();
+
+// Phase 4 of family-view-debug: tiny instrumentation surface for the
+// `__treeDebug.coi` handle. Module-level counters keep the hot path
+// branch-free — the memo lookup itself increments either counter. The
+// values are only read by the debug overlay; production reads round-
+// trip through the normal `computeAncestorOverlap` API and ignore
+// these.
+let _cacheHits = 0;
+let _cacheMisses = 0;
+export function getCoiCacheStats(): { readonly cacheHits: number; readonly cacheMisses: number } {
+    return { cacheHits: _cacheHits, cacheMisses: _cacheMisses };
+}
 
 /**
  * Compute COI + duplicate ancestors for `personId`. Memoised on the
@@ -54,7 +90,11 @@ export function computeAncestorOverlap(tree: Tree, personId: PersonId): Ancestor
         memo.set(tree, entry);
     }
     const hit = entry.cache.get(personId);
-    if (hit) return hit;
+    if (hit) {
+        _cacheHits += 1;
+        return hit;
+    }
+    _cacheMisses += 1;
     const computed = computeOverlapImpl(tree, personId);
     entry.cache.set(personId, computed);
     return computed;
@@ -94,6 +134,7 @@ function computeOverlapImpl(tree: Tree, personId: PersonId): AncestorOverlap {
     }
 
     const duplicates: PersonId[] = [];
+    const breakdown: CoiBreakdownRow[] = [];
     let coi = 0;
     for (const [ancId, slots] of distsByAncestor) {
         if (ancId === personId) continue;
@@ -103,20 +144,95 @@ function computeOverlapImpl(tree: Tree, personId: PersonId): AncestorOverlap {
         if (count < 2) continue;
         duplicates.push(ancId);
         // Wright contribution per parent pair: (1/2)^(d_i + d_j + 1).
+        // Phase 4 family-view-debug: record each row alongside the
+        // scalar accumulation so the debug overlay can show the table
+        // without re-walking the ancestor graph.
         for (let i = 0; i < slots.length; i += 1) {
             const di = slots[i];
             if (di === undefined) continue;
             for (let j = i + 1; j < slots.length; j += 1) {
                 const dj = slots[j];
                 if (dj === undefined) continue;
-                coi += Math.pow(0.5, di + dj + 1);
+                const contribution = Math.pow(0.5, di + dj + 1);
+                coi += contribution;
+                breakdown.push({ ancestorId: ancId, di, dj, contribution });
             }
         }
     }
 
     duplicates.sort();
     if (duplicates.length === 0) return EMPTY;
-    return { duplicates, coi };
+    // stable row order: ancestor id asc, then (di, dj) lex
+    breakdown.sort((a, b) => {
+        if (a.ancestorId !== b.ancestorId) return a.ancestorId < b.ancestorId ? -1 : 1;
+        if (a.di !== b.di) return a.di - b.di;
+        return a.dj - b.dj;
+    });
+    return { duplicates, coi, breakdown };
+}
+
+/**
+ * Threshold below which the production COI badge is suppressed on a
+ * card. Tuned for "noteworthy on a normal pedigree" — 0.01 sits roughly
+ * at the third-cousin level (1/64 = 0.0156) and above; closer
+ * relationships (first cousins = 0.0625, half-sib parents = 0.125,
+ * parent/offspring = 0.25) all light up, while ancient-ancestor noise
+ * stays hidden.
+ */
+export const COI_DISPLAY_THRESHOLD = 0.01;
+
+/**
+ * Format a coefficient of inbreeding as a 4-decimal raw value with the
+ * leading zero stripped — ".0417" rather than "0.0417" or "4.17%". Used
+ * by the card-attached COI badge and the stats popover. Returns "" for
+ * undefined / non-positive inputs so the chip can be omitted entirely.
+ *
+ * Values below 0.00005 (which would round to ".0000" at 4 decimals)
+ * render as "<.0001" so the "this person is technically related"
+ * signal isn't lost to rounding.
+ */
+export function formatCoi(coi: number | undefined): string {
+    if (coi === undefined || coi <= 0) return "";
+    // anything that would round to .0000 at 4 decimals — keep a visible
+    // marker rather than collapsing to nothing
+    if (coi < 0.00005) return "<.0001";
+    // strip the leading "0" so "0.0417" reads as ".0417"
+    const s = coi.toFixed(4);
+    return s.startsWith("0") ? s.slice(1) : s;
+}
+
+/**
+ * Format a coefficient of inbreeding as a percentage string for the
+ * card chip / inspector overlay. Tuned to preserve canonical Wright
+ * values that users recognise from textbooks:
+ *
+ *   - parent/offspring or full-sibling incest: 1/4 -> "25%"
+ *   - half-sibling parents:                    1/8 -> "12.5%"
+ *   - first cousins:                          1/16 -> "6.25%"
+ *   - second cousins:                         1/32 -> "3.125%" (rendered "3.13%")
+ *   - third cousins:                          1/64 -> "1.5625%" (rendered "1.56%")
+ *
+ * The old formatter used `Math.round` in the >=10% branch, so 12.5%
+ * displayed as "13%" - the user-visible "rounding error" reported in
+ * the bug log. Sub-1% values previously truncated to "0.00%" when
+ * pct < 0.005; we now switch to `toPrecision(1)` so tiny but nonzero
+ * COIs don't look like zero.
+ *
+ * Returns "" for undefined / non-positive inputs so the chip can be
+ * omitted entirely.
+ */
+export function formatCoiPercent(coi: number | undefined): string {
+    if (coi === undefined || coi <= 0) return "";
+    const pct = coi * 100;
+    // tiny nonzero - render as "<0.01%" rather than scientific notation; preserves the
+    // "this person is technically related" signal without the ugly "5e-10%" badge
+    if (pct < 0.005) return "<0.01%";
+    // sub-10% range - 2 fractional digits preserves 1/16 = 6.25%, 1/32 = 3.13%, 1/128 = 0.78%
+    if (pct < 10) return `${pct.toFixed(2)}%`;
+    // >= 10% - 1 fractional digit preserves canonical 1/8 = 12.5%;
+    // trim trailing ".0" so 25.0% renders as 25%
+    const s = pct.toFixed(1);
+    return s.endsWith(".0") ? `${s.slice(0, -2)}%` : `${s}%`;
 }
 
 /**
