@@ -27,13 +27,6 @@
     }
 
     async function signOut(): Promise<void> {
-        // dry-run sessions are client-side only; skip the network round
-        // trip and let the debug toggle handle the rest. real sessions
-        // still need /logout to clear the server cookie.
-        if (authStore.dryRun && !authStore.realUser) {
-            authStore.setDryRun(false);
-            return;
-        }
         try {
             await authApi.logout();
         } finally {

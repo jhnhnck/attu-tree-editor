@@ -22,6 +22,7 @@ import type {
     AdminUserListing,
     AdminUserUpdateRequest,
 } from "@attu/api-client";
+import { authStub } from "$lib/api/auth-stub";
 
 export type { TreeConflictResponse };
 
@@ -50,6 +51,14 @@ export function onUnauthorized(handler: () => void): void {
 // dev). prefixing every request with it keeps cookies (path=/trees/) attached
 // and routes through caddy's /trees/ mount.
 const API_PREFIX = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+function isDryRun(): boolean {
+    try {
+        return localStorage.getItem("fte.debug.authDryRun") === "true";
+    } catch {
+        return false;
+    }
+}
 
 async function req<T>(method: string, path: string, body?: unknown): Promise<T> {
     const res = await fetch(API_PREFIX + path, {
@@ -91,10 +100,14 @@ async function req<T>(method: string, path: string, body?: unknown): Promise<T> 
 // ---------------------------------------------------------------------------
 
 export const auth = {
-    start: () => req<LinkStartResponse>("POST", "/api/auth/start"),
-    check: () => req<LinkCheckResponse>("GET", "/api/auth/check"),
-    logout: () => req<void>("POST", "/api/auth/logout"),
-    me: () => req<MeResponse>("GET", "/api/auth/me"),
+    start: (): Promise<LinkStartResponse> =>
+        isDryRun() ? authStub.start() : req<LinkStartResponse>("POST", "/api/auth/start"),
+    check: (): Promise<LinkCheckResponse> =>
+        isDryRun() ? authStub.check() : req<LinkCheckResponse>("GET", "/api/auth/check"),
+    logout: (): Promise<void> =>
+        isDryRun() ? authStub.logout() : req<void>("POST", "/api/auth/logout"),
+    me: (): Promise<MeResponse> =>
+        isDryRun() ? authStub.me() : req<MeResponse>("GET", "/api/auth/me"),
 };
 
 // ---------------------------------------------------------------------------
