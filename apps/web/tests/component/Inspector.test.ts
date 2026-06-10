@@ -75,11 +75,10 @@ describe("Inspector", () => {
         expect(screen.getByText("people")).toBeInTheDocument();
     });
 
-    it("renders the Personal tab with the person's name + id when one is selected", () => {
+    it("renders the Personal tab with the person's name when one is selected", () => {
         const t = tree();
         render(Inspector, { ...baseProps(), tree: t, selectedId: "AAAAA" });
         expect(screen.getByText("Alpha X")).toBeInTheDocument();
-        expect(screen.getByText("id AAAAA")).toBeInTheDocument();
         expect(screen.getByLabelText("given")).toHaveValue("Alpha");
         expect(screen.getByLabelText("surname")).toHaveValue("X");
     });
@@ -113,15 +112,15 @@ describe("Inspector", () => {
         });
     });
 
-    it("opens the Connections tab and shows mother / father slots empty", async () => {
+    it("opens the Connections tab and shows the parents section with add-parent affordance", async () => {
         const t = tree();
         render(Inspector, { ...baseProps(), tree: t, selectedId: "AAAAA" });
 
         await fireEvent.click(screen.getByRole("tab", { name: /Connections/i }));
 
         expect(screen.getByText("parents")).toBeInTheDocument();
-        expect(screen.getByText(/mother/i)).toBeInTheDocument();
-        expect(screen.getByText(/father/i)).toBeInTheDocument();
+        // no parents set yet — unified loop emits no rows, add-parent button is always present
+        expect(screen.getByRole("button", { name: /add parent/i })).toBeInTheDocument();
     });
 
     it("close button fires onclose", async () => {

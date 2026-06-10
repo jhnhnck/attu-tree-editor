@@ -1,6 +1,6 @@
 <!--
     FamilyTreeEditor - right-side persistent inspector for the selected person.
-    tabs: Personal · Connections · Bonds · Groups · Sibship · Details · Bio.
+    tabs: Personal · Connections · Bonds · Groups · Sibship · Bio.
     empty state shows a tree summary.
     licensed under the MIT license; see LICENSE.md for full text
 -->
@@ -12,7 +12,6 @@
         Copy,
         Crown,
         Crosshair,
-        FileText,
         Flag,
         Link2,
         MoreHorizontal,
@@ -44,7 +43,6 @@
     import type { PortraitUrlCache } from "$lib/state/portraitUrls.svelte";
     import PersonalTab from "./PersonalTab.svelte";
     import ConnectionsTab from "./ConnectionsTab.svelte";
-    import DetailsTab from "./DetailsTab.svelte";
     import GroupsTab from "./GroupsTab.svelte";
     import RelationshipsTab from "./RelationshipsTab.svelte";
     import SibshipTab from "./SibshipTab.svelte";
@@ -54,14 +52,7 @@
         | { kind: "parent-extra" }
         | { kind: "partner" }
         | { kind: "child" };
-    type Tab =
-        | "personal"
-        | "connections"
-        | "relationships"
-        | "groups"
-        | "sibship"
-        | "details"
-        | "bio";
+    type Tab = "personal" | "connections" | "relationships" | "groups" | "sibship" | "bio";
 
     interface Props {
         tree: Tree;
@@ -191,11 +182,6 @@
     let activeTab = $state<Tab>("personal");
     let menuOpen = $state(false);
     let menuEl: HTMLDivElement | undefined = $state();
-    // person id chip is hidden by default; revealed on header hover (desktop)
-    // or by clicking the chip itself (covers no-hover devices). copy-id in the
-    // more-actions menu still works without revealing here.
-    let idRevealed = $state(false);
-
     // responsive mode: "sheet" on narrow viewports, "side" otherwise
     const mql =
         typeof window !== "undefined" && window.matchMedia
@@ -204,6 +190,11 @@
     let isSheet = $state(mql?.matches ?? false);
     // iOS Safari shrinks visualViewport (not layout viewport) when the keyboard appears
     let sheetMaxH = $state(window.visualViewport?.height ?? window.innerHeight ?? 800);
+    // canvas-chrome dock bridge: when in sheet mode the inspector
+    // covers the bottom strip of the canvas-host. publish its outer
+    // height as a css custom property on the host so the dock's
+    // bottom-anchor calc lifts above it.
+    let inspectorEl: HTMLElement | undefined = $state();
 
     const person = $derived(selectedId ? tree.people[selectedId] : undefined);
 
@@ -239,8 +230,6 @@
     $effect.pre(() => {
         void selectedId;
         activeTab = initialTab;
-        // re-hide the id chip whenever the selected person changes
-        idRevealed = false;
     });
 
     function copyId(): void {
@@ -274,6 +263,37 @@
         window.visualViewport?.removeEventListener("resize", onViewportResize);
     });
 
+    // canvas-chrome dock bridge. when isSheet flips true, observe the
+    // inspector's outer rect via ResizeObserver and publish its height
+    // as `--inspector-sheet-height` on the canvas-host element so the
+    // dock's bottom-anchor calc lifts above the sheet. on cleanup
+    // (isSheet false, unmount, or no host found) unset the var so
+    // the dock falls back to its default anchor.
+    function findCanvasHost(): HTMLElement | null {
+        if (!inspectorEl) return null;
+        // canvas-host carries `data-canvas-host`; if absent (e.g. in
+        // component unit tests), fall back to the nearest <main>.
+        const scope = inspectorEl.closest("main") ?? inspectorEl.parentElement;
+        return scope?.querySelector<HTMLElement>("[data-canvas-host]") ?? null;
+    }
+    $effect(() => {
+        if (!isSheet || !inspectorEl) return;
+        const host = findCanvasHost();
+        if (!host) return;
+        const el = inspectorEl;
+        const update = (): void => {
+            const r = el.getBoundingClientRect();
+            host.style.setProperty("--inspector-sheet-height", `${String(r.height)}px`);
+        };
+        update();
+        const ro = new ResizeObserver(update);
+        ro.observe(el);
+        return () => {
+            ro.disconnect();
+            host.style.removeProperty("--inspector-sheet-height");
+        };
+    });
+
     async function openTab(t: Tab): Promise<void> {
         activeTab = t;
         await tick();
@@ -285,12 +305,12 @@
         { id: "relationships", label: "bonds", icon: Link2 },
         { id: "groups", label: "groups", icon: Flag },
         { id: "sibship", label: "sibship", icon: Sparkles },
-        { id: "details", label: "details", icon: FileText },
         { id: "bio", label: "bio", icon: BookOpen },
     ];
 </script>
 
 <aside
+    bind:this={inspectorEl}
     class="bg-canvas-elev border-line text-fg flex min-h-0 shrink-0 flex-col overflow-hidden"
     class:h-full={!isSheet}
     class:w-90={!isSheet}
@@ -307,7 +327,7 @@
     data-canvas-chrome={isSheet ? "" : undefined}
 >
     {#if person}
-        <header class="group border-line border-b px-3 py-2">
+        <header class="border-line border-b px-3 py-2">
             <div class="flex items-start gap-2">
                 <div class="min-w-0 flex-1">
                     <h2 class="text-fg flex items-center gap-1 truncate text-sm font-semibold">
@@ -323,22 +343,6 @@
                             </span>
                         {/if}
                     </h2>
-                    <!--
-                        id chip - hidden by default to keep the casual-user view on names.
-                        desktop: revealed by group-hover on the header.
-                        mobile / no-hover: tap to toggle (covers touch devices).
-                        copy-id lives in the more-actions menu and works regardless.
-                    -->
-                    <button
-                        type="button"
-                        class="text-fg-muted hover:text-fg block max-w-full truncate font-mono text-[10px] opacity-0 transition-opacity group-hover:opacity-100"
-                        class:opacity-100={idRevealed}
-                        aria-label={idRevealed ? "hide id" : "show id"}
-                        title={idRevealed ? "click to hide" : "click to reveal id"}
-                        onclick={() => (idRevealed = !idRevealed)}
-                    >
-                        id {person.id}
-                    </button>
                 </div>
                 {#if onfocus}
                     <button
@@ -357,6 +361,7 @@
                             type="button"
                             class="text-fg-muted hover:bg-canvas hover:text-fg flex h-6 w-6 items-center justify-center rounded"
                             aria-label="more actions"
+                            title="more actions"
                             aria-haspopup="menu"
                             aria-expanded={menuOpen}
                             onclick={() => (menuOpen = !menuOpen)}
@@ -418,6 +423,7 @@
                     type="button"
                     class="text-fg-muted hover:bg-canvas hover:text-fg flex h-6 w-6 items-center justify-center rounded"
                     aria-label="close inspector"
+                    title="close inspector"
                     onclick={onclose}
                 >
                     <X size={14} />
@@ -512,8 +518,6 @@
                     {onremoveSibshipMember}
                     {onselect}
                 />
-            {:else if activeTab === "details"}
-                <DetailsTab {person} onpatch={(p: PersonPatch) => onpatch(person.id, p)} />
             {:else if activeTab === "bio"}
                 <div class="text-fg-muted px-4 py-6 text-center text-xs italic">
                     long-form notes are coming with the schema bump for <code>note</code>.
@@ -531,6 +535,7 @@
                     type="button"
                     class="text-fg-muted hover:bg-canvas hover:text-fg flex h-6 w-6 items-center justify-center rounded"
                     aria-label="close inspector"
+                    title="close inspector"
                     onclick={onclose}
                 >
                     <X size={14} />

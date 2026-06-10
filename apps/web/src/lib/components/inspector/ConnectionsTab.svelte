@@ -135,13 +135,6 @@
     const allPeople = $derived(Object.values(tree.people));
 
     const parentRefs = $derived(getParents(person));
-    const extraParentRefs = $derived(
-        parentRefs.filter((r) => r.role !== "mother" && r.role !== "father"),
-    );
-    const motherRef = $derived(parentRefs.find((r) => r.role === "mother"));
-    const fatherRef = $derived(parentRefs.find((r) => r.role === "father"));
-    const mother = $derived(motherRef ? tree.people[motherRef.personId] : undefined);
-    const father = $derived(fatherRef ? tree.people[fatherRef.personId] : undefined);
     const partners = $derived(
         person.spouseIds.map((id) => tree.people[id]).filter((p): p is Person => p !== undefined),
     );
@@ -265,106 +258,15 @@
             parents
         </h3>
 
-        <!-- mother row -->
-        <div class={rowCls}>
-            <span class="text-fg-muted w-12 shrink-0 text-xs">mother</span>
-            {#if mother}
-                <button
-                    type="button"
-                    class="flex-1 truncate text-left hover:underline"
-                    onclick={() => onselect(mother.id)}
-                >
-                    {fullName(mother)}
-                </button>
-                <div class="relative">
-                    <button
-                        type="button"
-                        class={iconBtnCls}
-                        title="change mother"
-                        aria-label="change mother"
-                        onclick={() => (chooserSlot = { kind: "parent", role: "mother" })}
-                    >
-                        <ArrowRightLeft size={12} />
-                    </button>
-                </div>
-                <button
-                    type="button"
-                    class={iconBtnCls}
-                    title="unlink mother"
-                    aria-label="unlink mother"
-                    onclick={() => onunsetParent(person.id, "mother")}
-                >
-                    <X size={14} />
-                </button>
-            {:else}
-                <span class="text-fg-muted flex-1 italic">— not set —</span>
-                <div class="relative">
-                    <button
-                        type="button"
-                        class={iconBtnCls}
-                        title="set mother"
-                        aria-label="set mother"
-                        onclick={() => (chooserSlot = { kind: "parent", role: "mother" })}
-                    >
-                        <Plus size={14} />
-                    </button>
-                </div>
-            {/if}
-        </div>
-
-        <!-- father row -->
-        <div class={rowCls}>
-            <span class="text-fg-muted w-12 shrink-0 text-xs">father</span>
-            {#if father}
-                <button
-                    type="button"
-                    class="flex-1 truncate text-left hover:underline"
-                    onclick={() => onselect(father.id)}
-                >
-                    {fullName(father)}
-                </button>
-                <div class="relative">
-                    <button
-                        type="button"
-                        class={iconBtnCls}
-                        title="change father"
-                        aria-label="change father"
-                        onclick={() => (chooserSlot = { kind: "parent", role: "father" })}
-                    >
-                        <ArrowRightLeft size={12} />
-                    </button>
-                </div>
-                <button
-                    type="button"
-                    class={iconBtnCls}
-                    title="unlink father"
-                    aria-label="unlink father"
-                    onclick={() => onunsetParent(person.id, "father")}
-                >
-                    <X size={14} />
-                </button>
-            {:else}
-                <span class="text-fg-muted flex-1 italic">— not set —</span>
-                <div class="relative">
-                    <button
-                        type="button"
-                        class={iconBtnCls}
-                        title="set father"
-                        aria-label="set father"
-                        onclick={() => (chooserSlot = { kind: "parent", role: "father" })}
-                    >
-                        <Plus size={14} />
-                    </button>
-                </div>
-            {/if}
-        </div>
-
-        <!-- extra parents (Phase 2b.3: N-parent UI) -->
-        {#each extraParentRefs as ref (ref.personId)}
+        <!-- unified parent loop (all roles from parentRefs) -->
+        {#each parentRefs as ref (ref.personId)}
             {@const p = tree.people[ref.personId]}
             {#if p}
-                <div class={rowCls} data-extra-parent-row>
-                    <span class="text-fg-muted w-12 shrink-0 text-xs">parent</span>
+                {@const isLegacy = ref.role === "mother" || ref.role === "father"}
+                {@const changeSlot = isLegacy
+                    ? ({ kind: "parent", role: ref.role as LegacyParentRole } as const)
+                    : ({ kind: "parent-extra" } as const)}
+                <div class={rowCls}>
                     <button
                         type="button"
                         class="flex-1 truncate text-left hover:underline"
@@ -403,9 +305,24 @@
                     <button
                         type="button"
                         class={iconBtnCls}
+                        title="change parent"
+                        aria-label="change parent {fullName(p)}"
+                        onclick={() => (chooserSlot = changeSlot)}
+                    >
+                        <ArrowRightLeft size={12} />
+                    </button>
+                    <button
+                        type="button"
+                        class={iconBtnCls}
                         title="unlink parent"
                         aria-label="unlink parent {fullName(p)}"
-                        onclick={() => onunsetParentById?.(person.id, ref.personId)}
+                        onclick={() => {
+                            if (onunsetParentById) {
+                                onunsetParentById(person.id, ref.personId);
+                            } else if (isLegacy) {
+                                onunsetParent(person.id, ref.role as LegacyParentRole);
+                            }
+                        }}
                     >
                         <X size={14} />
                     </button>
@@ -413,19 +330,17 @@
             {/if}
         {/each}
 
-        {#if onaddParentRef}
-            <div class="relative">
-                <button
-                    type="button"
-                    class={addBtnCls}
-                    onclick={() => (chooserSlot = { kind: "parent-extra" })}
-                    aria-label="add parent"
-                >
-                    <Plus size={12} />
-                    add parent
-                </button>
-            </div>
-        {/if}
+        <div class="relative">
+            <button
+                type="button"
+                class={addBtnCls}
+                onclick={() => (chooserSlot = { kind: "parent-extra" })}
+                aria-label="add parent"
+            >
+                <Plus size={12} />
+                add parent
+            </button>
+        </div>
     </section>
 
     <!-- partners -->
