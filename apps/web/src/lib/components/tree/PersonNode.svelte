@@ -19,6 +19,15 @@
         isGhost?: boolean;
         /** show the link icon (person appears in >1 location on the canvas) */
         hasMultipleInstances?: boolean;
+        /**
+         * roving-tabindex: when no card is `selected`, the canvas flags
+         * exactly one visible card as `isFirstFocusable` so Tab from
+         * outside still lands inside the tree. with a selection present
+         * the canvas leaves this `false` and the selected card carries
+         * tabindex=0 instead. only one card per canvas should ever be
+         * `selected || isFirstFocusable` at a time.
+         */
+        isFirstFocusable?: boolean;
         onselect?: (id: string, opts?: { fromGhost?: boolean }) => void;
         onedit?: (id: string) => void;
         oncontextmenu?: (id: string, x: number, y: number) => void;
@@ -33,6 +42,7 @@
         portraitUrl,
         isGhost = false,
         hasMultipleInstances = false,
+        isFirstFocusable = false,
         onselect,
         onedit,
         oncontextmenu,
@@ -146,7 +156,7 @@
     data-frame={decoration.frame}
     data-era-underline={decoration.underlineColour ? "true" : undefined}
     style:--era-bottom={decoration.underlineColour || "transparent"}
-    tabindex={selected ? 0 : -1}
+    tabindex={selected || isFirstFocusable ? 0 : -1}
     aria-selected={selected}
     aria-label={fullName || initials}
     title={farZoomTitle}
@@ -164,16 +174,12 @@
          source via Svelte's compiled {#if} branch ContentRangeInserted). -->
     <div class="lvl" data-lvl="0">
         {#if hasPortraitSlot}
-            <!-- Visual fix-up plan: portrait slot uses a true portrait
-                 aspect (3:4, taller than wide) and centers horizontally.
-                 The card itself is sized double-height by `cardHeight()`
-                 in family-view layout when `portraitBlobId` is present,
-                 so the slot has room to render the photo prominently.
-                 No-portrait cards intentionally render no slot at all.
-                 When portraitBlobId is set but the URL hasn't resolved
-                 yet (blob still loading), the slot still renders so the
-                 tall card doesn't show an empty top band; the img is
-                 omitted and the slot's bg/border serves as a placeholder. -->
+            <!-- portrait slot is 1:1 (square) to match the 600x600 source
+                 portraits. object-cover with no position bias keeps the full
+                 image visible without cropping. the card is sized double-height
+                 by `cardHeight()` when portraitBlobId is present. when the url
+                 hasn't resolved yet, the slot still renders as a placeholder so
+                 the tall card doesn't show an empty top band. -->
             <div
                 class="border-line/40 portrait-slot mx-auto mb-1 overflow-hidden rounded border"
                 class:is-deceased={isDeceased}
@@ -182,7 +188,7 @@
                 data-portrait-pending={!portraitUrl ? "true" : undefined}
             >
                 {#if portraitUrl}
-                    <img src={portraitUrl} alt="" class="h-full w-full object-cover object-top" />
+                    <img src={portraitUrl} alt="" class="h-full w-full object-cover" />
                 {/if}
             </div>
         {/if}
@@ -314,15 +320,13 @@
     .person-card[data-level="0"][data-has-date="false"] {
         justify-content: center;
     }
-    /* Visual fix-up plan: portrait slot uses a true portrait aspect ratio
-       (3:4, taller than wide) and occupies ~70% of the card width so it
-       reads as a portrait photo, not a landscape strip. Card itself is
-       sized double-height by `cardHeight()` in family-view layout when a
-       portrait is present, giving the slot room. The slot centers
-       horizontally via `mx-auto` on the element. */
+    /* portrait slot is 1:1 (square) to match the 600x600 source images.
+       width 70% keeps the slot from spanning the full card width while
+       still reading as a prominent photo. the card itself is sized
+       double-height by `cardHeight()` when a portrait is present. */
     .portrait-slot {
         width: 70%;
-        aspect-ratio: 3 / 4;
+        aspect-ratio: 1 / 1;
     }
     /* hide every level variant by default; the matching one is revealed below.
        `display: contents` keeps the variant's children as direct flex children
@@ -355,11 +359,12 @@
         filter: grayscale(1) brightness(0.85);
     }
     /* portraitBlobId is set but the resolved URL hasn't arrived yet.
-       the slot keeps its 3:4 footprint so the tall card doesn't show
+       the slot keeps its 1:1 footprint so the tall card doesn't show
        an empty top band; a subtle background fills the area until the
        img mounts. */
     .is-portrait-pending {
         background-color: hsl(0 0% 50% / 0.08);
+        transition: background-color 80ms ease-out;
     }
     /* selection ring as an inset box-shadow rather than `outline`. outline
        was being beaten by the UA's `:focus-visible { outline: ... }` rule

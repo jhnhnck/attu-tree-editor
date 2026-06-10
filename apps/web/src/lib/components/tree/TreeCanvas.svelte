@@ -226,14 +226,17 @@
     let firstFitDone = $state(false);
     let lastFitTreeId = "";
 
-    // One-shot: re-center on root after the first worker layout response arrives.
-    // resetView() is called in onMount's rAF, but layout is empty at that point;
-    // this effect fires once the first non-empty layout lands from the worker.
-    let didInitialCenter = false;
+    // One-shot: re-center on root after the first worker layout response arrives
+    // for each tree. resetView() is called in onMount's rAF and in the tree-
+    // switch re-fit effect, but layout is empty at that point; this effect fires
+    // once the first non-empty layout lands from the worker. tracks the tree id
+    // rather than a plain boolean so tree switches re-arm the one-shot.
+    let initialCenterTreeId = "";
     $effect(() => {
         const count = layout.positions.size;
-        if (count > 0 && !didInitialCenter && firstFitDone) {
-            didInitialCenter = true;
+        const treeId = tree.id;
+        if (count > 0 && treeId !== initialCenterTreeId && firstFitDone) {
+            initialCenterTreeId = treeId;
             untrack(() => requestAnimationFrame(resetView));
         }
     });
@@ -313,8 +316,17 @@
         resizeObs = new ResizeObserver(() => {
             if (!hostEl) return;
             const r = hostEl.getBoundingClientRect();
-            hostW = r.width;
-            hostH = r.height;
+            const newW = r.width;
+            const newH = r.height;
+            // re-anchor pan so the world-space point at the old viewport center
+            // stays at the new viewport center after the resize. dividing by scale
+            // converts the screen-space delta to canvas-space units.
+            if (hostW > 0 && hostH > 0) {
+                panX += (newW - hostW) / (2 * scale);
+                panY += (newH - hostH) / (2 * scale);
+            }
+            hostW = newW;
+            hostH = newH;
         });
         resizeObs.observe(hostEl);
 
@@ -334,6 +346,33 @@
         window.removeEventListener("blur", onWindowBlur);
     });
 
+    /** margin in screen-px: content must drift past this from a visible-band
+     *  edge before the passive predicate decides a refit is needed. */
+    const FIT_SKIP_MARGIN = 60;
+    /** passive guard: returns true when the content bbox (in screen-px) already
+     *  sits inside the chrome-aware visible band with FIT_SKIP_MARGIN to spare.
+     *  must be called inside untrack() to avoid subscribing to pan/zoom state. */
+    function contentFitsInView(): boolean {
+        if (!hostEl || hostW <= 0 || hostH <= 0 || canvasW <= 0 || canvasH <= 0) return false;
+        const insets = measureCanvasChromeInsets(hostEl);
+        // visible band edges (no padding — padding is a fit aesthetic, not a guard threshold)
+        const visLeft = insets.left;
+        const visTop = insets.top;
+        const visRight = hostW - insets.right;
+        const visBottom = hostH - insets.bottom;
+        // content starts at world-space (0,0) in the layered engine (place pass normalises minX to 0)
+        const contentLeft = panX; // 0 * UNIT * scale + panX
+        const contentTop = panY; // 0 * UNIT * scale + panY
+        const contentRight = canvasW * scale + panX;
+        const contentBottom = canvasH * scale + panY;
+        return (
+            contentLeft >= visLeft - FIT_SKIP_MARGIN &&
+            contentTop >= visTop - FIT_SKIP_MARGIN &&
+            contentRight <= visRight + FIT_SKIP_MARGIN &&
+            contentBottom <= visBottom + FIT_SKIP_MARGIN
+        );
+    }
+
     // re-fit when a new tree id arrives (typical of an import)
     $effect(() => {
         const treeKey = tree.id;
@@ -342,7 +381,9 @@
         untrack(() => {
             if (treeKey !== lastFitTreeId && hostEl && firstFitDone) {
                 lastFitTreeId = treeKey;
-                requestAnimationFrame(resetView);
+                if (!contentFitsInView()) {
+                    requestAnimationFrame(resetView);
+                }
             } else if (!lastFitTreeId) {
                 lastFitTreeId = treeKey;
             }
@@ -409,6 +450,22 @@
     // pointer-events-none svg layer above the cards.
 
     /**
+     * Move keyboard focus to the treeitem card for `id`. Used after an
+     * arrow-key selection move so the focused element follows the active
+     * card — the roving-tabindex contract requires focus + selection to
+     * stay in sync. The new tabindex=0 isn't applied until the next
+     * reactive flush, so we `requestAnimationFrame` the focus call; the
+     * button accepts focus regardless of its current tabindex value.
+     */
+    function focusCard(id: PersonId): void {
+        if (!panEl) return;
+        requestAnimationFrame(() => {
+            const btn = panEl?.querySelector<HTMLElement>(`button[data-person-id="${id}"]`);
+            btn?.focus({ preventScroll: true });
+        });
+    }
+
+    /**
      * Escape deselects; arrow keys move selection geometrically when a
      * person is selected, otherwise pan the viewport. shift+arrow pans
      * 5x faster. step is CSS px on the host, matching the drag-pan path.
@@ -428,17 +485,24 @@
         if (selectedId) {
             // selection-move: jump to the geometrically-nearest neighbour
             const next = findNeighbour(selectedId, dir, layout.positions);
-            if (next) onselect?.(next);
+            if (next) {
+                onselect?.(next);
+                // keep keyboard focus on the active treeitem so the
+                // next Tab press exits the tree instead of cycling
+                // back to the previously-focused card.
+                focusCard(next);
+            }
             return;
         }
-        // no selection: pan the viewport. arrow direction is viewport-
-        // relative, so content moves the opposite way (panX -= for right)
+        // no selection: pan the viewport. arrow direction matches viewport
+        // motion (maps/figma convention) - panX += step for right matches
+        // the drag-pan path where panX += dx for rightward drag
         cancelPanAnim();
         const step = e.shiftKey ? PAN_KEY_STEP_PX * 5 : PAN_KEY_STEP_PX;
-        if (dir === "right") panX -= step;
-        else if (dir === "left") panX += step;
-        else if (dir === "down") panY -= step;
-        else if (dir === "up") panY += step;
+        if (dir === "right") panX += step;
+        else if (dir === "left") panX -= step;
+        else if (dir === "down") panY += step;
+        else if (dir === "up") panY -= step;
     }
 
     function clamp(n: number, lo: number, hi: number): number {
@@ -840,6 +904,7 @@
         if (pinchPointers.size > 2) return; // ignore 3rd+ finger
 
         // first pointer: start single-finger pan
+        const onBg = isBackgroundTarget(e.target);
         dragState = {
             pointerId: e.pointerId,
             startX: e.clientX,
@@ -847,8 +912,14 @@
             startPanX: panX,
             startPanY: panY,
             moved: false,
-            onBackground: isBackgroundTarget(e.target),
+            onBackground: onBg,
         };
+        // background-click focus: with roving-tabindex the host is
+        // tabindex=-1, so the browser won't auto-focus it. focus it
+        // programmatically on a background pointerdown so arrow-key
+        // pan (which lives on the host's onkeydown) still works after
+        // the user clicks empty canvas to deselect.
+        if (onBg) hostEl?.focus({ preventScroll: true });
         window.addEventListener("pointermove", onWindowPointerMove);
         window.addEventListener("pointerup", onWindowPointerUp);
         window.addEventListener("pointercancel", onWindowPointerCancel);
@@ -1096,6 +1167,22 @@
         cullNodes(layout.positions, visibleRect, layout.ghosts, layout.isolated),
     );
 
+    /**
+     * Roving-tabindex anchor. With no person selected, the first visible
+     * card becomes the single tab-stop so Tab from outside still lands
+     * inside the tree. With a selection present, the selected card owns
+     * the tab-stop and this is undefined so no card gets a duplicate
+     * tabindex=0. Prefers a non-ghost id when both exist (ghosts are
+     * duplicates of a primary card; tabbing onto the primary is the
+     * less-surprising landing point).
+     */
+    let firstFocusableId = $derived.by<PersonId | undefined>(() => {
+        if (selectedId) return undefined;
+        const primary = visibleNodes.find((n) => !n.isGhost);
+        if (primary) return primary.id;
+        return visibleNodes[0]?.id;
+    });
+
     let computedHighlightedBundles = $derived(highlightedBundleIds);
 
     function levelFromScale(s: number): PersonNodeLevel {
@@ -1157,7 +1244,7 @@
     class:is-zooming={isZooming}
     style:touch-action="none"
     role="tree"
-    tabindex="0"
+    tabindex="-1"
     aria-label="family tree canvas"
     onwheel={onWheel}
     onpointerdown={onPointerDown}
@@ -1218,7 +1305,7 @@
             {@const isSelected =
                 selectedInstanceKey !== null
                     ? instanceKey === selectedInstanceKey
-                    : selectedId === v.id}
+                    : !v.isGhost && selectedId === v.id}
             <div
                 class="person-node-host absolute top-0 left-0"
                 class:is-isolated={v.isIsolated}
@@ -1230,6 +1317,7 @@
                     person={tree.people[v.id]!}
                     level={cardLevel}
                     selected={isSelected}
+                    isFirstFocusable={!v.isGhost && v.id === firstFocusableId}
                     portraitUrl={portraitUrls?.get(tree.people[v.id]?.portraitBlobId)}
                     {...v.isGhost && { isGhost: true }}
                     hasMultipleInstances={duplicatedIds.has(v.id)}

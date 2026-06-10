@@ -246,4 +246,22 @@ describe("PersonNode", () => {
         expect(btn.classList.contains("is-selected")).toBe(true);
         expect(btn.getAttribute("aria-selected")).toBe("true");
     });
+
+    // roving-tabindex: selected card or the canvas-flagged first-focusable
+    // card carries tabindex=0; every other card carries tabindex=-1 so the
+    // tree appears as a single tab-stop from outside.
+    it("default (not selected, not first-focusable) carries tabindex=-1", () => {
+        render(PersonNode, { person: person() });
+        expect(screen.getByRole("treeitem").getAttribute("tabindex")).toBe("-1");
+    });
+
+    it("selected card carries tabindex=0", () => {
+        render(PersonNode, { person: person(), selected: true });
+        expect(screen.getByRole("treeitem").getAttribute("tabindex")).toBe("0");
+    });
+
+    it("isFirstFocusable card carries tabindex=0 even without selection", () => {
+        render(PersonNode, { person: person(), isFirstFocusable: true });
+        expect(screen.getByRole("treeitem").getAttribute("tabindex")).toBe("0");
+    });
 });
