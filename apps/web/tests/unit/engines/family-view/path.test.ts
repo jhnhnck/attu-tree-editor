@@ -148,6 +148,73 @@ describe("usePath", () => {
         expect(h.pathSet.size).toBe(1);
         expect(h.onPath(ROOT_ID)).toBe(true);
     });
+
+    it("includes immediate children of the selected person (one hop downward)", () => {
+        // focus is the grandparent; selected is focus's child (ROOT_ID's parent).
+        // ROOT_ID is the grandchild of focus, i.e. a child of the selected person.
+        // path: selected → focus (upward); children of selected: ROOT_ID.
+        const { tree, ids } = chain(3); // ROOT_ID → ids[1] → ids[2]
+        // select ids[1] with focus ids[2]: path is [ids[1], ids[2]]
+        // ids[1] has one child: ROOT_ID
+        const h = usePath(tree, ids[2], ids[1]);
+        expect(h.onPath(ids[1]!)).toBe(true); // selected
+        expect(h.onPath(ids[2]!)).toBe(true); // focus (ancestor)
+        expect(h.onPath(ROOT_ID)).toBe(true); // child of selected
+    });
+
+    it("includes children from multiple parents when selected has children with different co-parents", () => {
+        // selected has two children by different parents.
+        let t = createTree("multi-child", blank("Selected", "m"));
+        const child1 = addPerson(t, blank("Child1"));
+        t = child1.tree;
+        const child2 = addPerson(t, blank("Child2"));
+        t = child2.tree;
+        const focus = addPerson(t, blank("Focus"));
+        t = focus.tree;
+        // link selected as parent of both children
+        let l = linkParent(t, child1.id, ROOT_ID);
+        if (!l.ok) throw new Error(l.error);
+        t = l.value;
+        l = linkParent(t, child2.id, ROOT_ID);
+        if (!l.ok) throw new Error(l.error);
+        t = l.value;
+        // link focus as parent of selected (so a path exists)
+        l = linkParent(t, ROOT_ID, focus.id);
+        if (!l.ok) throw new Error(l.error);
+        t = l.value;
+        // select ROOT_ID, focus = focus.id; path = [ROOT_ID, focus.id]
+        const h = usePath(t, focus.id, ROOT_ID);
+        expect(h.onPath(ROOT_ID)).toBe(true); // selected
+        expect(h.onPath(focus.id)).toBe(true); // ancestor
+        expect(h.onPath(child1.id)).toBe(true); // child of selected
+        expect(h.onPath(child2.id)).toBe(true); // child of selected
+    });
+
+    it("does not include grandchildren (only one hop down)", () => {
+        // selected has a child, that child has a grandchild.
+        let t = createTree("one-hop", blank("Selected", "m"));
+        const child = addPerson(t, blank("Child"));
+        t = child.tree;
+        const grandchild = addPerson(t, blank("Grandchild"));
+        t = grandchild.tree;
+        const focus = addPerson(t, blank("Focus"));
+        t = focus.tree;
+        let l = linkParent(t, child.id, ROOT_ID);
+        if (!l.ok) throw new Error(l.error);
+        t = l.value;
+        l = linkParent(t, grandchild.id, child.id);
+        if (!l.ok) throw new Error(l.error);
+        t = l.value;
+        // give selected a parent so a path to focus exists
+        l = linkParent(t, ROOT_ID, focus.id);
+        if (!l.ok) throw new Error(l.error);
+        t = l.value;
+        const h = usePath(t, focus.id, ROOT_ID);
+        expect(h.onPath(ROOT_ID)).toBe(true); // selected
+        expect(h.onPath(focus.id)).toBe(true); // ancestor
+        expect(h.onPath(child.id)).toBe(true); // child - one hop down, included
+        expect(h.onPath(grandchild.id)).toBe(false); // grandchild - two hops, excluded
+    });
 });
 
 describe("badgeOnPath", () => {

@@ -1,0 +1,78 @@
+0 HEAD
+1 GEDC
+2 VERS 7.0
+1 SOUR FamilyTreeEditor
+2 VERS family-view-debug-phase-2
+1 CHAR UTF-8
+1 SCHMA
+2 TAG _TREES_UNION https://attuproject.org/trees/schema/v1#union
+2 TAG _TREES_PARENT_REF https://attuproject.org/trees/schema/v1#parent-ref
+2 TAG _TREES_KIND https://attuproject.org/trees/schema/v1#union-kind
+2 TAG _TREES_CLOSED https://attuproject.org/trees/schema/v1#union-closed
+0 @I1@ INDI
+1 NAME Aron /Vance/
+1 SEX M
+1 BIRT
+2 DATE 1500
+1 FAMS @F1@
+1 FAMS @F2@
+0 @I2@ INDI
+1 NAME Mira /Holm/
+1 SEX F
+1 BIRT
+2 DATE 1505
+1 FAMS @F1@
+0 @I3@ INDI
+1 NAME Sera /Lake/
+1 SEX F
+1 BIRT
+2 DATE 1510
+0 @I4@ INDI
+1 NAME Calen /Vance/
+1 SEX M
+1 BIRT
+2 DATE 1530
+1 FAMC @F1@
+0 @I5@ INDI
+1 NAME Iva /Vance/
+1 SEX F
+1 BIRT
+2 DATE 1540
+1 _TREES_PARENT_REF @I1@
+1 _TREES_PARENT_REF @I3@
+1 _TREES_PARENT_REF @I6@
+0 @I6@ INDI
+1 NAME Tess /Pell/
+1 SEX F
+1 BIRT
+2 DATE 1512
+0 @I7@ INDI
+1 NAME Brigitta /Roe/
+1 SEX F
+1 BIRT
+2 DATE 1520
+1 FAMS @F2@
+0 @I8@ INDI
+1 NAME Helga /Vance/
+1 SEX F
+1 BIRT
+2 DATE 1545
+1 FAMC @F2@
+0 @F1@ FAM
+1 HUSB @I1@
+1 WIFE @I2@
+1 CHIL @I4@
+1 _PRIMARY Y
+0 @F2@ FAM
+1 HUSB @I1@
+1 WIFE @I7@
+1 CHIL @I8@
+1 _PRIMARY N
+0 @U1@ _TREES_UNION
+1 _PARTNER @I1@
+1 _PARTNER @I3@
+1 _PARTNER @I6@
+1 _CHIL @I5@
+1 _KIND ritual
+1 _CLOSED Y
+0 TRLR

@@ -17,6 +17,7 @@
  */
 
 import type { PersonId, Tree } from "$lib/domain/types";
+import { getParents } from "$lib/domain/tree";
 import { bfsPath } from "$lib/layout/doi";
 
 export interface PathHighlight {
@@ -41,6 +42,20 @@ export function usePath(
     const path = bfsPath(tree, selectedId, focusId);
     if (path.length === 0) return EMPTY_HIGHLIGHT;
     const set = new Set<PersonId>(path);
+    // extend one hop downward: include immediate children of the selected
+    // person so stub edges (selected → child) are also highlighted.
+    // stem/bus/bond edges already light up because the selected parent is
+    // already in the path set and edgeOnPath uses any-implicated-on-path
+    // for non-stub edges.
+    // source of truth is each child's parentIds (same pattern as bfsPath).
+    for (const p of Object.values(tree.people)) {
+        for (const ref of getParents(p)) {
+            if (ref.personId === selectedId) {
+                set.add(p.id);
+                break;
+            }
+        }
+    }
     return {
         pathSet: set,
         onPath(id: PersonId): boolean {

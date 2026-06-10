@@ -128,5 +128,69 @@ describe("Phase 2b.2 family-view multi-parent + half-sibling", () => {
         // K2 stub is "half" (K2's parentIds only include F, not M).
         const k2Stub = out.edges.find((e) => e.id === `stub:${fmAnchor!.id}|${k2}`);
         expect(k2Stub?.role).toBe("half");
+
+        // Bus role: K1 is blood + K2 is half → mixed → bus stays "blood".
+        const bus = out.edges.find((e) => e.id === `bus:${fmAnchor!.id}`);
+        expect(bus?.role).toBe("blood");
+    });
+
+    it("sibling bus carries role 'half' when every child is a half-sibling", () => {
+        // F + M are married. F also has kids K1 and K2 from other mothers;
+        // both are spliced into the F+M couple record but neither lists M
+        // as a parent. All stubs are "half" → bus should be "half" too.
+        let t = createTree("half-bus", blank("F", "m"));
+        const f = ROOT_ID;
+        const addM = addPerson(t, blank("M", "f"));
+        t = addM.tree;
+        const m = addM.id;
+        const linked = linkSpouse(t, f, m);
+        if (!linked.ok) throw new Error(linked.error);
+        t = linked.value;
+        // K1 — child of F + another mother O1
+        const addO1 = addPerson(t, blank("O1", "f"));
+        t = addO1.tree;
+        const o1 = addO1.id;
+        const addK1 = addPerson(t, blank("K1"));
+        t = addK1.tree;
+        const k1 = addK1.id;
+        t = attachParents(t, k1, [
+            { personId: f, role: "father", pedi: "birth" },
+            { personId: o1, role: "mother", pedi: "birth" },
+        ]);
+        // K2 — child of F + another mother O2
+        const addO2 = addPerson(t, blank("O2", "f"));
+        t = addO2.tree;
+        const o2 = addO2.id;
+        const addK2 = addPerson(t, blank("K2"));
+        t = addK2.tree;
+        const k2 = addK2.id;
+        t = attachParents(t, k2, [
+            { personId: f, role: "father", pedi: "birth" },
+            { personId: o2, role: "mother", pedi: "birth" },
+        ]);
+        // splice both half-kids into the F+M CoupleRecord.childIds
+        const couples = t.couples.map((c) =>
+            c.leftId === f || c.rightId === f ? { ...c, childIds: [k1, k2] } : c,
+        );
+        t = { ...t, couples };
+
+        const engine = new FamilyViewEngine();
+        const out = engine.layout({ tree: t, focus: f });
+
+        const fmAnchor = out.anchors.find(
+            (u) =>
+                u.partnerIds.length === 2 && u.partnerIds.includes(f) && u.partnerIds.includes(m),
+        );
+        expect(fmAnchor).toBeDefined();
+
+        // both stubs are "half"
+        const k1Stub = out.edges.find((e) => e.id === `stub:${fmAnchor!.id}|${k1}`);
+        const k2Stub = out.edges.find((e) => e.id === `stub:${fmAnchor!.id}|${k2}`);
+        expect(k1Stub?.role).toBe("half");
+        expect(k2Stub?.role).toBe("half");
+
+        // bus should also be "half" — every child is a half-sibling
+        const bus = out.edges.find((e) => e.id === `bus:${fmAnchor!.id}`);
+        expect(bus?.role).toBe("half");
     });
 });

@@ -223,6 +223,30 @@ describe("subset.selectBoundedSubset — expandedSecondaryUnions pull-in", () =>
         // Focus + primary mate + primary kid still visible; nothing else.
         expect(subset.visible.size).toBe(3);
     });
+
+    // phase 1 of family-view-debug plan: the rationale map names *why*
+    // each off-subset person is missing. on a two-union focus with no
+    // expansion, the secondary mate is `non-primary-partner` (visible
+    // mate's other couple) and the secondary kid is
+    // `secondary-union-not-expanded` (visible parent's not-expanded
+    // union). flipping the expansion empties both entries.
+    it("rationale: secondary partner + kid carry the right reasons before expansion", () => {
+        const { tree, focus, secondaryMate, sKid } = twoUnionFocus();
+        const subset = selectBoundedSubset(tree, focus);
+        expect(subset.rationale.get(secondaryMate)).toBe("non-primary-partner");
+        expect(subset.rationale.get(sKid)).toBe("secondary-union-not-expanded");
+    });
+
+    it("rationale: expanding the secondary union drops both rationale entries", () => {
+        const { tree, focus, secondaryMate, sKid, secondaryCoupleIdx } = twoUnionFocus();
+        const expandedSecondaryUnions = new Map<string, ReadonlySet<number>>([
+            [focus, new Set([secondaryCoupleIdx])],
+        ]);
+        const subset = selectBoundedSubset(tree, focus, { expandedSecondaryUnions });
+        // both are now in visible → rationale must not carry them.
+        expect(subset.rationale.has(secondaryMate)).toBe(false);
+        expect(subset.rationale.has(sKid)).toBe(false);
+    });
 });
 
 describe("computeLayout — secondary-union end-to-end render", () => {
@@ -261,5 +285,30 @@ describe("computeLayout — secondary-union end-to-end render", () => {
             (e) => e.id.startsWith("stub:") && e.persons.includes(sKid),
         );
         expect(secondaryStubEdges.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("fan-center ordering: focus x sits between primary-mate x and secondary-mate x", () => {
+        // when both primary and secondary unions are expanded, focus must land
+        // between its two partners, not at one edge of the rank.
+        const { tree, focus, primaryMate, secondaryMate, secondaryCoupleIdx } = twoUnionFocus();
+        const expandedSecondaryUnions = new Map<string, ReadonlySet<number>>([
+            [focus, new Set([secondaryCoupleIdx])],
+        ]);
+        const layout = computeLayout(tree, focus, {
+            expandedSecondaryUnions,
+            crossingMin: false, // assert raw planRank order, not the optimizer's output
+        });
+        const focusNode = layout.nodes.get(focus);
+        const pMateNode = layout.nodes.get(primaryMate);
+        const sMateNode = layout.nodes.get(secondaryMate);
+        expect(focusNode).toBeDefined();
+        expect(pMateNode).toBeDefined();
+        expect(sMateNode).toBeDefined();
+        if (!focusNode || !pMateNode || !sMateNode) return;
+        // focus x must be strictly between its two partners on the rank
+        const lo = Math.min(pMateNode.x, sMateNode.x);
+        const hi = Math.max(pMateNode.x, sMateNode.x);
+        expect(focusNode.x).toBeGreaterThan(lo);
+        expect(focusNode.x).toBeLessThan(hi);
     });
 });

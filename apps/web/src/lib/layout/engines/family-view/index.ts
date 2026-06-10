@@ -31,6 +31,7 @@ export class FamilyViewEngine {
 }
 
 export { selectBoundedSubset } from "$lib/layout/engines/family-view/subset";
+export type { RankedSubset, RejectionReason } from "$lib/layout/engines/family-view/subset";
 export {
     computeLayout,
     CARD_H,

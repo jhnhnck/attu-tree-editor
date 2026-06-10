@@ -37,8 +37,8 @@ describe("cardHeight heuristic", () => {
         expect(cardHeight(undefined)).toBe(CARD_H);
     });
 
-    it("portrait card height is exactly double the default", () => {
-        expect(CARD_H_WITH_PORTRAIT).toBe(CARD_H * 2);
+    it("portrait card height is 2.0u (1:1 square slot at 70% card width)", () => {
+        expect(CARD_H_WITH_PORTRAIT).toBe(2.0);
     });
 });
 

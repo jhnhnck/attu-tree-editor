@@ -30,7 +30,7 @@
 
 import { PERSON_W, ROW_H, SIBLING_GAP, SUBTREE_GAP } from "$lib/layout/constants";
 import { computeDoiScores } from "$lib/layout/doi";
-import type { CoupleRecord, PersonId, Tree } from "$lib/domain/types";
+import type { CoupleRecord, Person, PersonId, Tree } from "$lib/domain/types";
 import { getParents, getUnions } from "$lib/domain/tree";
 import {
     orientCouple,
@@ -58,8 +58,8 @@ import { selectBoundedSubset, type RankedSubset } from "$lib/layout/engines/fami
 
 /** Default card height in unit space - used as the fallback when a node carries no explicit `h`. */
 export const CARD_H = 1.2;
-/** Card height when a portrait is present - exactly double the default, so a 3:4 portrait slot reads as a portrait, not a strip. */
-export const CARD_H_WITH_PORTRAIT = CARD_H * 2;
+/** Card height when a portrait is present - portrait slot is 1:1 square at 70% card width; 2.0u fits the content with no dead gap. */
+export const CARD_H_WITH_PORTRAIT = 2.0;
 /**
  * Vertical gap between the bottom of one rank and the top of the next,
  * matching the default-card spacing ROW_H - CARD_H = 0.8. Used by the
@@ -69,15 +69,15 @@ export const CARD_H_WITH_PORTRAIT = CARD_H * 2;
  */
 export const RANK_GUTTER = ROW_H - CARD_H;
 /**
- * Phase-2 visual-fixup: distance (unit space) the card's selection-ring
- * boundary sits inside the card rect. Connectors terminate at the visible
- * edge (rect minus this inset), not the rect itself, so the line ends
- * cleanly at the card boundary instead of overrunning into the rounded
- * corner. Matches the 3 px `box-shadow: inset 0 0 0 3px` used in
- * `PersonNode.svelte` (FamilyViewCanvas's UNIT scale = 80, so 3 / 80).
- * Used by `coupleConnector` (#4) and the per-couple sibling bus (#5).
+ * Distance (unit space) the couple-bond endpoint sits inside the card rect,
+ * so the line terminates at the center of the card's stroked border rather
+ * than overrunning into the card interior. The card border is a fixed 2 px
+ * CSS value (not scaled), so half-stroke = 1 px = 1/80 u at UNIT=80.
+ * Previously set to 3/80 (matching the selection-ring shadow spread), which
+ * caused the bond to extend 1 px past the inner border face into the content
+ * area. Used by `coupleConnector` (#4).
  */
-export const CARD_VISIBLE_INSET_U = 3 / 80;
+export const CARD_VISIBLE_INSET_U = 1 / 80;
 /**
  * How far below the parent row's bottom edge the sibling bus / multi-union
  * drop-anchor lands when the natural midpoint would otherwise fall inside
@@ -86,6 +86,19 @@ export const CARD_VISIBLE_INSET_U = 3 / 80;
  * to make the bus visible without changing default-row geometry.
  */
 const BUS_BELOW_ROW_CLEAR_U = 0.05;
+/**
+ * When a same-rank couple's partners are far enough apart that the
+ * straight horizontal bond would cross unrelated cards on their row
+ * (e.g. each partner got placed in a different `tree.couples` slot, so
+ * `planRank` packed them out of adjacency), the bond detours up into
+ * the gutter above the parent row. `BOND_DETOUR_CLEAR_U` is how far
+ * above the row top the detour leg sits; `BOND_DETOUR_PAD_U` is how
+ * far past an intervening card's x-edge the detour widens so the
+ * vertical legs don't graze the card stroke. Both mirror the layered
+ * engine's `DETOUR_CLEAR` / `DETOUR_PAD` in `passes/route.ts`.
+ */
+const BOND_DETOUR_CLEAR_U = 0.15;
+const BOND_DETOUR_PAD_U = 0.1;
 /** Past this many visible cards, auto-collapse kicks in (Phase 1 plan). */
 export const AUTO_COLLAPSE_THRESHOLD = 50;
 
@@ -223,6 +236,7 @@ export function computeLayout(
                 expanded,
                 primaryOverrides,
                 autoCollapsed,
+                expandedSecondaryUnions,
             );
             visibleCount = working.visible.size;
         }
@@ -362,8 +376,8 @@ function materialiseLayout(
     // Cumulative rank-y pass. `placeAt` and the badge placement loop
     // above set y = rank * ROW_H as a placeholder; that breaks the
     // moment any rank contains a taller-than-default card, because
-    // CARD_H_WITH_PORTRAIT (2.4) > ROW_H (2) overlaps the next rank
-    // by 0.4 u. Instead, walk ranks in order and accumulate
+    // CARD_H_WITH_PORTRAIT (2.0) > ROW_H (2) can overlap the next rank
+    // by 0 u now, but the logic still handles any h > ROW_H case. Instead, walk ranks in order and accumulate
     // `max(CARD_H, maxHByRank[r]) + RANK_GUTTER`; ranks containing
     // only default-height cards keep the old `rank * ROW_H` spacing
     // exactly, while a portrait row pushes every subsequent rank down
@@ -546,6 +560,39 @@ function planRank(
     const slots: RankSlot[] = [];
     const here = new Set(ids);
     const placed = new Set<PersonId>();
+
+    // fan detection: persons with 2+ fully-visible couples on this rank.
+    // maps fan-center → [secondaryPartner, ...] (partners from skipped couples).
+    // when a fan center is first placed via its primary couple, its secondary
+    // partners are inserted as singles immediately after that couple slot so
+    // the fan center sits between both partners rather than at one edge.
+    const fanPartners = new Map<PersonId, PersonId[]>();
+    for (let ci = 0; ci < tree.couples.length; ci += 1) {
+        const c = tree.couples[ci]!;
+        if (!here.has(c.leftId) || !here.has(c.rightId)) continue;
+        for (const [center, other] of [
+            [c.leftId, c.rightId],
+            [c.rightId, c.leftId],
+        ] as [PersonId, PersonId][]) {
+            // count how many fully-visible couples this person appears in
+            let count = 0;
+            for (const d of tree.couples) {
+                if (
+                    (d.leftId === center || d.rightId === center) &&
+                    here.has(d.leftId) &&
+                    here.has(d.rightId)
+                )
+                    count += 1;
+            }
+            if (count >= 2) {
+                const bucket = fanPartners.get(center);
+                if (bucket) {
+                    if (!bucket.includes(other)) bucket.push(other);
+                } else fanPartners.set(center, [other]);
+            }
+        }
+    }
+
     // Walk legacy `tree.couples` for 2-partner slots so existing orientation
     // and coupleIndex semantics stay byte-identical, then walk
     // `getUnions(tree)` for N>2 unions (which have no `tree.couples` entry).
@@ -556,14 +603,27 @@ function planRank(
         // Apply the genealogy-conventional orientation: father-left /
         // mother-right; same-gender → personId asc. Stable across renders.
         const oriented = orientCouple(tree, couple, ci);
-        slots.push({
-            kind: "couple",
-            leftId: oriented.leftId,
-            rightId: oriented.rightId,
-            coupleIndex: ci,
-        });
+        // when this couple contains a fan center, orient so the fan center
+        // sits on the right, leaving room for secondary partners to the right.
+        let leftId = oriented.leftId;
+        let rightId = oriented.rightId;
+        if (fanPartners.has(oriented.leftId) && !fanPartners.has(oriented.rightId)) {
+            leftId = oriented.rightId;
+            rightId = oriented.leftId;
+        }
+        slots.push({ kind: "couple", leftId, rightId, coupleIndex: ci });
         placed.add(couple.leftId);
         placed.add(couple.rightId);
+        // insert secondary partners immediately after this slot so the fan
+        // center stays centred between its primary and secondary partners
+        const secondaries = fanPartners.get(rightId);
+        if (secondaries) {
+            for (const pid of secondaries) {
+                if (placed.has(pid)) continue;
+                slots.push({ kind: "single", personId: pid });
+                placed.add(pid);
+            }
+        }
     }
     // N>2 partner unions: emit a `multi-union` slot per visible union so
     // all partners land contiguously in the rank. 2-partner unions are
@@ -819,13 +879,38 @@ function emitAnchorsAndEdges(
     const anchors: UnionAnchor[] = [];
     const edges: FamilyViewEdge[] = [];
     const childCovered = new Set<PersonId>();
+    // per-rank card AABB index for the bond-detour check. built once
+    // here so the per-couple emit loop below is O(couples × samerank-cards).
+    const cardsByRank = cardsByRankFrom(nodes);
 
     for (let ci = 0; ci < tree.couples.length; ci += 1) {
         const couple = tree.couples[ci]!;
         const aNode = nodes.get(couple.leftId);
         const bNode = nodes.get(couple.rightId);
         if (!aNode || !bNode) continue;
-        if (aNode.rank !== bNode.rank) continue;
+        if (aNode.rank !== bNode.rank) {
+            // cross-rank couple (e.g. uncle/niece, time-travel pairings):
+            // can't render as a flat horizontal bond, can't be silently
+            // dropped either (then both partners look unmarried and the
+            // shared kids fall through to the multi-parent pill, which
+            // hides the couple entirely). render an L-shaped slack bond
+            // through the inter-rank gutter and root the sibship on the
+            // lower partner, mirroring the solo-parent stem+bus+stubs
+            // shape so kids read as descending from the couple.
+            emitCrossRankCouple(
+                tree,
+                anchors,
+                edges,
+                childCovered,
+                ci,
+                couple,
+                aNode,
+                bNode,
+                nodes,
+                rowGeometry,
+            );
+            continue;
+        }
         // Determine screen-left / screen-right by placed x, not by the
         // raw CoupleRecord field order — `planRank` may have swapped
         // them under the genealogy-conventional orientation rule.
@@ -839,7 +924,15 @@ function emitAnchorsAndEdges(
             rank: leftNode.rank,
         };
         anchors.push(anchor);
-        edges.push(coupleConnector(couple, leftNode, rightNode));
+        edges.push(
+            coupleConnector(
+                couple,
+                leftNode,
+                rightNode,
+                cardsByRank.get(leftNode.rank) ?? [],
+                rowGeometry,
+            ),
+        );
         const anchorCenterX = (midX(leftNode) + midX(rightNode)) / 2;
         // both partners are vertically centered to the same row midline,
         // so either card's midpoint works as the bus anchor.
@@ -866,6 +959,27 @@ function emitAnchorsAndEdges(
             const busLeftX = Math.min(anchorCenterX, ...kidXs);
             const busRightX = Math.max(anchorCenterX, ...kidXs);
             const partnerPair: readonly PersonId[] = [leftNode.personId, rightNode.personId];
+            // compute per-child stub roles first so we can derive bus role from them
+            const stubRoles = visibleKidNodes.map((kidNode) => {
+                const kid = kidNode.personId;
+                const kidPerson = tree.people[kid];
+                const kidParentIds = kidPerson
+                    ? new Set(getParents(kidPerson).map((r) => r.personId))
+                    : new Set<PersonId>();
+                // half-sibling: child is in CoupleRecord.childIds but its
+                // own parentIds list doesn't include both partners.
+                const sharesBoth =
+                    kidParentIds.has(couple.leftId) && kidParentIds.has(couple.rightId);
+                const role: FamilyViewEdgeRole = sharesBoth
+                    ? roleFor(tree, kid, leftNode.personId)
+                    : "half";
+                return { kidNode, role };
+            });
+            // bus role: "half" only when every child is a half-sibling; mixed or all blood → "blood"
+            const busRole: FamilyViewEdgeRole =
+                stubRoles.length > 0 && stubRoles.every((s) => s.role === "half")
+                    ? "half"
+                    : "blood";
             // parent stem — vertical line from couple-bus midpoint down to the sibling bus
             edges.push({
                 id: `stem:${anchor.id}`,
@@ -880,27 +994,15 @@ function emitAnchorsAndEdges(
             edges.push({
                 id: `bus:${anchor.id}`,
                 persons: [...partnerPair, ...visibleKidNodes.map((n) => n.personId)],
-                role: "blood",
+                role: busRole,
                 points: [
                     { x: busLeftX, y: busY },
                     { x: busRightX, y: busY },
                 ],
             });
             // per-child stubs — short verticals from bus down into each kid
-            for (const kidNode of visibleKidNodes) {
+            for (const { kidNode, role } of stubRoles) {
                 const kid = kidNode.personId;
-                const kidPerson = tree.people[kid];
-                const kidParentIds = kidPerson
-                    ? new Set(getParents(kidPerson).map((r) => r.personId))
-                    : new Set<PersonId>();
-                // half-sibling: child is in CoupleRecord.childIds but its
-                // own parentIds list doesn't include both partners. Render
-                // the stub with the "half" stroke role rather than "blood".
-                const sharesBoth =
-                    kidParentIds.has(couple.leftId) && kidParentIds.has(couple.rightId);
-                const role: FamilyViewEdgeRole = sharesBoth
-                    ? roleFor(tree, kid, leftNode.personId)
-                    : "half";
                 edges.push({
                     id: `stub:${anchor.id}|${kid}`,
                     persons: [...partnerPair, kid],
@@ -1012,6 +1114,19 @@ function emitAnchorsAndEdges(
     // Single-parent and multi-parent (>2) children. Two-parent unions are
     // covered by the for-couples loop above via couple.childIds; anything
     // still uncovered falls into one of these two paths.
+    //
+    // Single-parent path: group all uncovered single-parent children by
+    // their lone visible parent, then emit one anchor + stem + bus + per-
+    // child stubs per (parent, child-rank) group - same geometry as the
+    // 2-couple loop above. This is what makes a single parent's sibship
+    // read as one group visually distinct from a neighbouring couple's
+    // sibship on the same row; without the shared stem + bus the per-
+    // child L-drops looked like an extension of the next couple over.
+    // Single-child groups still render as a clean L-drop via the same
+    // bus + stub pair (degenerates cleanly when min/max collapse to one
+    // midX), so the simple case looks unchanged.
+    const soloParentChildren = new Map<PersonId, PersonId[]>();
+    const multiParentChildren: { child: Person; knownParents: PersonId[] }[] = [];
     for (const child of Object.values(tree.people)) {
         if (!nodes.has(child.id)) continue;
         if (childCovered.has(child.id)) continue;
@@ -1020,35 +1135,103 @@ function emitAnchorsAndEdges(
             if (nodes.has(ref.personId)) knownParents.push(ref.personId);
         }
         if (knownParents.length === 0) continue;
-        const kidNode = nodes.get(child.id);
-        if (!kidNode) continue;
 
         if (knownParents.length === 1) {
             const parentId = knownParents[0]!;
-            const parentNode = nodes.get(parentId);
-            if (!parentNode) continue;
-            const anchorRank = (parentNode.rank + kidNode.rank) / 2;
+            const bucket = soloParentChildren.get(parentId);
+            if (bucket) bucket.push(child.id);
+            else soloParentChildren.set(parentId, [child.id]);
+        } else {
+            multiParentChildren.push({ child, knownParents });
+        }
+    }
+
+    for (const [parentId, kidIds] of soloParentChildren) {
+        const parentNode = nodes.get(parentId);
+        if (!parentNode) continue;
+        const kidNodes = kidIds
+            .map((id) => nodes.get(id))
+            .filter((n): n is FamilyViewNode => n !== undefined);
+        if (kidNodes.length === 0) continue;
+        // Sibship may span multiple child ranks in pathological time-travel
+        // shapes (rule #6); split into per-rank groups so each shared bus
+        // sits on its own rank's gutter.
+        const byKidRank = new Map<number, FamilyViewNode[]>();
+        for (const n of kidNodes) {
+            const bucket = byKidRank.get(n.rank);
+            if (bucket) bucket.push(n);
+            else byKidRank.set(n.rank, [n]);
+        }
+        for (const [kidRank, group] of byKidRank) {
+            const anchorRank = (parentNode.rank + kidRank) / 2;
+            const sortedChildIds = group
+                .map((n) => n.personId)
+                .slice()
+                .sort();
             const anchor: UnionAnchor = {
-                id: `union:solo:${parentId}|${child.id}`,
+                id: `union:solo:${parentId}|${sortedChildIds.join(",")}`,
                 partnerIds: [parentId],
-                childIds: [child.id],
+                childIds: group.map((n) => n.personId),
                 rank: anchorRank,
             };
             anchors.push(anchor);
-            edges.push(
-                drop(
-                    `drop:${anchor.id}`,
-                    [parentId, child.id],
-                    roleFor(tree, child.id, parentId),
-                    midX(parentNode),
-                    parentNode.y + (parentNode.h ?? CARD_H),
-                    midX(kidNode),
-                    kidNode.y,
-                ),
+            // bus geometry mirrors the 2-couple path: stem from parent
+            // midline (parent card bottom) down to a horizontal bus that
+            // spans the parent midX and every kid midX, then per-kid
+            // stubs from bus to kid card top.
+            const parentMidX = midX(parentNode);
+            const parentBottomY = parentNode.y + (parentNode.h ?? CARD_H);
+            const kidRowY = rowGeometry.topY(kidRank);
+            const parentRowBottom = rowGeometry.bottomY(parentNode.rank);
+            const busY = Math.max(
+                (parentBottomY + kidRowY) / 2,
+                parentRowBottom + BUS_BELOW_ROW_CLEAR_U,
             );
-            continue;
+            const kidXs = group.map(midX);
+            const busLeftX = Math.min(parentMidX, ...kidXs);
+            const busRightX = Math.max(parentMidX, ...kidXs);
+            const parentList: readonly PersonId[] = [parentId];
+            // stem from parent down to bus
+            edges.push({
+                id: `stem:${anchor.id}`,
+                persons: parentList,
+                role: "blood",
+                points: [
+                    { x: parentMidX, y: parentBottomY },
+                    { x: parentMidX, y: busY },
+                ],
+            });
+            // shared bus across parent midX and all kid midXs; for a
+            // single-child group the bus collapses to a zero-length
+            // segment at the shared x, leaving the stem + stub to read
+            // as one clean L (no visual change vs the pre-fix drop).
+            edges.push({
+                id: `bus:${anchor.id}`,
+                persons: [parentId, ...group.map((n) => n.personId)],
+                role: "blood",
+                points: [
+                    { x: busLeftX, y: busY },
+                    { x: busRightX, y: busY },
+                ],
+            });
+            for (const kidNode of group) {
+                edges.push({
+                    id: `stub:${anchor.id}|${kidNode.personId}`,
+                    persons: [parentId, kidNode.personId],
+                    role: roleFor(tree, kidNode.personId, parentId),
+                    points: [
+                        { x: midX(kidNode), y: busY },
+                        { x: midX(kidNode), y: kidNode.y },
+                    ],
+                });
+                childCovered.add(kidNode.personId);
+            }
         }
+    }
 
+    for (const { child, knownParents } of multiParentChildren) {
+        const kidNode = nodes.get(child.id);
+        if (!kidNode) continue;
         // Multi-parent (>=2 parents, but not covered by a known couple).
         // Each parent contributes a drop to a parent-gather pill at the
         // x-centroid of the parents' centers, located in the gutter
@@ -1121,6 +1304,8 @@ function coupleConnector(
     couple: CoupleRecord,
     left: FamilyViewNode,
     right: FamilyViewNode,
+    sameRankCards: readonly CardAABB[],
+    rowGeometry: RowGeometry,
 ): FamilyViewEdge {
     // both cards share a row midline after per-row vertical centering,
     // so either side's midpoint anchors the bond cleanly.
@@ -1128,15 +1313,120 @@ function coupleConnector(
     // visual-fixup #4: terminate at the visible card edge (selection-ring
     // boundary), not the rect, so the connector doesn't overrun into the
     // rounded corner.
+    const leftX = left.x + PERSON_W - CARD_VISIBLE_INSET_U;
+    const rightX = right.x + CARD_VISIBLE_INSET_U;
+    const points = detourBondAroundCards(
+        { x: leftX, y },
+        { x: rightX, y },
+        new Set([left.personId, right.personId]),
+        sameRankCards,
+        rowGeometry.topY(left.rank),
+    );
     return {
         id: `bond:${couple.leftId}|${couple.rightId}|${String(couple.unionIndex)}`,
         persons: [couple.leftId, couple.rightId],
         role: "married",
-        points: [
-            { x: left.x + PERSON_W - CARD_VISIBLE_INSET_U, y },
-            { x: right.x + CARD_VISIBLE_INSET_U, y },
-        ],
+        points,
     };
+}
+
+/** AABB of a card for bond-detour obstacle checks. */
+interface CardAABB {
+    readonly x1: number;
+    readonly y1: number;
+    readonly x2: number;
+    readonly y2: number;
+    readonly ownerId: PersonId;
+}
+
+/**
+ * Group all visible person cards by rank for cheap "what's on my row"
+ * lookups during bond emission. Built once per `emitAnchorsAndEdges`
+ * call; the bond detour reads from this and never mutates it.
+ */
+function cardsByRankFrom(nodes: ReadonlyMap<PersonId, FamilyViewNode>): Map<number, CardAABB[]> {
+    const byRank = new Map<number, CardAABB[]>();
+    for (const [id, n] of nodes) {
+        const aabb: CardAABB = {
+            x1: n.x,
+            y1: n.y,
+            x2: n.x + PERSON_W,
+            y2: n.y + (n.h ?? CARD_H),
+            ownerId: id,
+        };
+        const bucket = byRank.get(n.rank);
+        if (bucket) bucket.push(aabb);
+        else byRank.set(n.rank, [aabb]);
+    }
+    return byRank;
+}
+
+/**
+ * Given a straight horizontal bond `from`→`to` at row midline `y`,
+ * route around any same-rank cards whose AABB the line would visibly
+ * cross. Returns the original two-point polyline when there are no
+ * obstacles (overwhelming majority case: adjacent couple slot).
+ *
+ * Detour shape mirrors `detourAroundCards` in `passes/route.ts`: hop
+ * up to `rowTopY - BOND_DETOUR_CLEAR_U` (the gutter above the parent
+ * row, where no card sits) for each blocking AABB, padding past the
+ * x-edges by `BOND_DETOUR_PAD_U` so the verticals don't skim the
+ * card stroke. Hopping UP rather than DOWN keeps the detour clear of
+ * the sibling bus that hangs below the same row.
+ *
+ * `excludeOwners` lists the persons whose own cards we expect the
+ * bond to terminate on; their AABBs are not obstacles even though
+ * they overlap the bond's x-extent at the endpoints.
+ */
+function detourBondAroundCards(
+    from: { readonly x: number; readonly y: number },
+    to: { readonly x: number; readonly y: number },
+    excludeOwners: ReadonlySet<PersonId>,
+    cards: readonly CardAABB[],
+    rowTopY: number,
+): readonly { readonly x: number; readonly y: number }[] {
+    const y = from.y;
+    const segMinX = Math.min(from.x, to.x);
+    const segMaxX = Math.max(from.x, to.x);
+    const crossings = cards
+        .filter((c) => !excludeOwners.has(c.ownerId))
+        .filter((c) => y > c.y1 + 1e-6 && y < c.y2 - 1e-6)
+        .filter((c) => c.x2 > segMinX + 1e-6 && c.x1 < segMaxX - 1e-6)
+        .sort((a, b) => a.x1 - b.x1);
+    if (crossings.length === 0) return [from, to];
+    // hop above the row; rowTopY - clear is unallocated gutter space.
+    const detourY = rowTopY - BOND_DETOUR_CLEAR_U;
+    // canonical L→R walk regardless of from/to direction; the renderer
+    // is direction-agnostic and writing the walk one way keeps the
+    // obstacle iteration order stable. Reverse at the end if needed.
+    const points: { x: number; y: number }[] = [{ x: segMinX, y }];
+    let cursorX = segMinX;
+    for (const c of crossings) {
+        const leftEdge = Math.max(segMinX, c.x1 - BOND_DETOUR_PAD_U);
+        const rightEdge = Math.min(segMaxX, c.x2 + BOND_DETOUR_PAD_U);
+        // approach across to the obstacle's leading edge
+        if (Math.abs(cursorX - leftEdge) > 1e-6) {
+            points.push({ x: leftEdge, y });
+        }
+        // up into the gutter, across over the obstacle, back down
+        points.push({ x: leftEdge, y: detourY });
+        points.push({ x: rightEdge, y: detourY });
+        points.push({ x: rightEdge, y });
+        cursorX = rightEdge;
+    }
+    // tail back to segMaxX
+    if (Math.abs(cursorX - segMaxX) > 1e-6) {
+        points.push({ x: segMaxX, y });
+    }
+    // collapse adjacent same-point entries (defensive; e.g. if cursorX == segMaxX)
+    const dedup: { x: number; y: number }[] = [];
+    for (const p of points) {
+        const last = dedup[dedup.length - 1];
+        if (!last || last.x !== p.x || last.y !== p.y) dedup.push(p);
+    }
+    // restore from/to orientation: if the original direction was R→L, reverse.
+    if (from.x > to.x) dedup.reverse();
+    return dedup;
 }
 
 function drop(
@@ -1160,6 +1450,154 @@ function drop(
             { x: toX, y: toY },
         ],
     };
+}
+
+/**
+ * Render a couple whose two partners landed on different ranks (uncle
+ * marries niece, time-travel pairing, etc). The straight horizontal
+ * bond + shared sibling-bus geometry can't render two-rank-apart
+ * partners; the pre-fix code silently `continue`d on this case so the
+ * couple disappeared and the shared kids fell through to the multi-
+ * parent pill fallback (no visible "married" line, no anchor on the
+ * couple).
+ *
+ * Geometry: an L-shaped slack bond routed through the inter-rank
+ * gutter from the upper partner's bottom-mid to the lower partner's
+ * top-mid (drawn with `role: "married"` so it picks up the bond stroke
+ * styling), then the existing solo-style stem+bus+stubs rooted on the
+ * **lower** partner — the lower partner reads as the "near" parent for
+ * any children dropping further down, and the slack bond keeps the
+ * upper partner connected without forcing a same-rank visual.
+ *
+ * Children of a cross-rank couple are stamped into `childCovered` so
+ * the downstream multi-parent fallback skips them.
+ */
+function emitCrossRankCouple(
+    tree: Tree,
+    anchors: UnionAnchor[],
+    edges: FamilyViewEdge[],
+    childCovered: Set<PersonId>,
+    coupleIndex: number,
+    couple: CoupleRecord,
+    aNode: FamilyViewNode,
+    bNode: FamilyViewNode,
+    nodes: ReadonlyMap<PersonId, FamilyViewNode>,
+    rowGeometry: RowGeometry,
+): void {
+    const [upperNode, lowerNode] = aNode.rank < bNode.rank ? [aNode, bNode] : [bNode, aNode];
+    const visibleKids = couple.childIds.filter((id) => nodes.has(id));
+    const anchorId = `union:${couple.leftId}|${couple.rightId}|${String(couple.unionIndex)}`;
+    const anchor: UnionAnchor = {
+        id: anchorId,
+        partnerIds: [couple.leftId, couple.rightId],
+        childIds: visibleKids,
+        coupleIndex,
+        // anchor sits on the lower partner's rank — that's where the
+        // sibship (if any) descends from, and the rank is what overlays
+        // / sibship builders key on. matches the solo-parent convention.
+        rank: lowerNode.rank,
+    };
+    anchors.push(anchor);
+
+    // L-shaped slack bond through the gutter: upper bottom-mid → straight
+    // down to a midpoint y in the gutter → horizontal across → straight
+    // down to lower top-mid. for partners with the same x the L collapses
+    // to a single vertical segment, still readable as a bond.
+    const upperBottomY = upperNode.y + (upperNode.h ?? CARD_H);
+    const lowerTopY = lowerNode.y;
+    const midY = (upperBottomY + lowerTopY) / 2;
+    const upperMidX = midX(upperNode);
+    const lowerMidX = midX(lowerNode);
+    edges.push({
+        id: `bond:${couple.leftId}|${couple.rightId}|${String(couple.unionIndex)}/crossrank`,
+        persons: [couple.leftId, couple.rightId],
+        role: "married",
+        points: [
+            { x: upperMidX, y: upperBottomY },
+            { x: upperMidX, y: midY },
+            { x: lowerMidX, y: midY },
+            { x: lowerMidX, y: lowerTopY },
+        ],
+    });
+
+    // Children hang off the lower partner via the same stem+bus+stubs
+    // shape used by the solo-parent path, scoped to the lower partner's
+    // mid-x. Cover them so the multi-parent pill fallback skips.
+    const visibleKidNodes = visibleKids
+        .map((id) => nodes.get(id))
+        .filter((n): n is FamilyViewNode => n !== undefined);
+    if (visibleKidNodes.length === 0) {
+        // even with no kids the couple is now anchored + bonded; nothing more.
+        return;
+    }
+    // bucket by kid rank so a sibship spanning multiple child ranks (rare,
+    // time-travel rule #6) each gets its own bus.
+    const byKidRank = new Map<number, FamilyViewNode[]>();
+    for (const n of visibleKidNodes) {
+        const bucket = byKidRank.get(n.rank);
+        if (bucket) bucket.push(n);
+        else byKidRank.set(n.rank, [n]);
+    }
+    for (const [kidRank, group] of byKidRank) {
+        const kidRowY = rowGeometry.topY(kidRank);
+        const parentBottomY = lowerNode.y + (lowerNode.h ?? CARD_H);
+        const parentRowBottom = rowGeometry.bottomY(lowerNode.rank);
+        const busY = Math.max(
+            (parentBottomY + kidRowY) / 2,
+            parentRowBottom + BUS_BELOW_ROW_CLEAR_U,
+        );
+        const kidXs = group.map(midX);
+        const busLeftX = Math.min(lowerMidX, ...kidXs);
+        const busRightX = Math.max(lowerMidX, ...kidXs);
+        const partnerPair: readonly PersonId[] = [couple.leftId, couple.rightId];
+        // compute per-child stub roles first so we can derive bus role from them
+        const stubRoles = group.map((kidNode) => {
+            const kid = kidNode.personId;
+            const kidPerson = tree.people[kid];
+            const kidParentIds = kidPerson
+                ? new Set(getParents(kidPerson).map((r) => r.personId))
+                : new Set<PersonId>();
+            const sharesBoth = kidParentIds.has(couple.leftId) && kidParentIds.has(couple.rightId);
+            const role: FamilyViewEdgeRole = sharesBoth
+                ? roleFor(tree, kid, lowerNode.personId)
+                : "half";
+            return { kidNode, role };
+        });
+        // bus role: "half" only when every child is a half-sibling; mixed or all blood → "blood"
+        const busRole: FamilyViewEdgeRole =
+            stubRoles.length > 0 && stubRoles.every((s) => s.role === "half") ? "half" : "blood";
+        edges.push({
+            id: `stem:${anchorId}|kr${String(kidRank)}`,
+            persons: partnerPair,
+            role: "blood",
+            points: [
+                { x: lowerMidX, y: parentBottomY },
+                { x: lowerMidX, y: busY },
+            ],
+        });
+        edges.push({
+            id: `bus:${anchorId}|kr${String(kidRank)}`,
+            persons: [...partnerPair, ...group.map((n) => n.personId)],
+            role: busRole,
+            points: [
+                { x: busLeftX, y: busY },
+                { x: busRightX, y: busY },
+            ],
+        });
+        for (const { kidNode, role } of stubRoles) {
+            const kid = kidNode.personId;
+            edges.push({
+                id: `stub:${anchorId}|${kid}`,
+                persons: [...partnerPair, kid],
+                role,
+                points: [
+                    { x: midX(kidNode), y: busY },
+                    { x: midX(kidNode), y: kidNode.y },
+                ],
+            });
+            childCovered.add(kid);
+        }
+    }
 }
 
 // ---------------- auto-collapse ----------------
@@ -1210,8 +1648,13 @@ function recomputeAfterCollapse(
     expanded: ReadonlySet<PersonId>,
     primaryUnionOverrides: ReadonlyMap<PersonId, number>,
     autoCollapsed: ReadonlySet<PersonId>,
+    expandedSecondaryUnions: ReadonlyMap<PersonId, ReadonlySet<number>>,
 ): RankedSubset {
-    const base = selectBoundedSubset(tree, focusId, { expanded, primaryUnionOverrides });
+    const base = selectBoundedSubset(tree, focusId, {
+        expanded,
+        primaryUnionOverrides,
+        expandedSecondaryUnions,
+    });
     if (autoCollapsed.size === 0) return base;
     // Remove children of any auto-collapsed source from the visible set.
     const visible = new Set(base.visible);
@@ -1242,11 +1685,19 @@ function recomputeAfterCollapse(
         visible.delete(id);
         rank.delete(id);
     }
+    // Phase 1 of family-view-debug: keep `rationale` aligned with the
+    // post-collapse visibility. Every newly-hidden person is stamped
+    // `auto-collapsed`; everything still in `base.rationale` carries its
+    // original reason. The map's invariant (keys are exactly `tree.people \ visible`)
+    // is preserved because each hidden id is also removed from `visible`.
+    const rationale = new Map(base.rationale);
+    for (const id of hidden) rationale.set(id, "auto-collapsed");
     return {
         visible,
         rank,
         hasMoreChildren: base.hasMoreChildren,
         hasMoreParents: base.hasMoreParents,
+        rationale,
     };
 }
 

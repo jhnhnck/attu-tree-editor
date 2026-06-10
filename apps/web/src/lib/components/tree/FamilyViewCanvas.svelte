@@ -26,6 +26,7 @@
 -->
 <script lang="ts">
     import { onDestroy, onMount, untrack } from "svelte";
+    import { fade } from "svelte/transition";
     import { Plus, Minus, ChevronDown, UserPlus } from "@lucide/svelte";
     import { PERSON_W } from "$lib/layout/constants";
     import PersonNode from "$lib/components/tree/PersonNode.svelte";
@@ -38,15 +39,25 @@
         FamilyViewLayout,
         FamilyViewNode,
         MultiUnionMate,
+        RejectionReason,
     } from "$lib/layout/engines/family-view";
     import { useExpansionState } from "$lib/layout/engines/family-view/expansion";
     import { usePrimaryUnionState } from "$lib/layout/engines/family-view/primaryUnion";
     import { useSecondaryUnionState } from "$lib/layout/engines/family-view/secondaryUnion";
     import { usePath, badgeOnPath } from "$lib/layout/engines/family-view/path";
-    import { computeAncestorOverlap } from "$lib/domain/consanguinity";
+    import {
+        computeAncestorOverlap,
+        formatCoiPercent,
+        formatCoi,
+        COI_DISPLAY_THRESHOLD,
+        getCoiCacheStats,
+    } from "$lib/domain/consanguinity";
     import type { PersonId, Tree } from "$lib/domain/types";
     import type { CanvasAnchorOpts, CanvasController } from "./canvasController";
     import { computeFit, measureCanvasChromeInsets } from "$lib/components/canvas/fitMath";
+    import FamilyViewDebugOverlay from "$lib/components/tree/FamilyViewDebugOverlay.svelte";
+    import type { FamilyViewDebugLayerOptions } from "$lib/components/tree/debugTypes";
+    import { selectBoundedSubset } from "$lib/layout/engines/family-view/subset";
 
     interface Props {
         tree: Tree;
@@ -142,6 +153,18 @@
             | ((stats: { totalPeople: number; components: number; isolated: number }) => void)
             | undefined;
         /**
+         * Phase 1 family-view-debug plan: push the current `RankedSubset`
+         * (visible set + rationale map) up to the shell so the debug
+         * panel can render the off-subset section inline in its own
+         * column instead of as a floating overlay on the canvas. Fires
+         * only when `debugOptions` is defined; emits `null` otherwise.
+         */
+        onsubsetchange?:
+            | ((
+                  subset: import("$lib/layout/engines/family-view/subset").RankedSubset | null,
+              ) => void)
+            | undefined;
+        /**
          * Phase 4 add-relative affordance. Fires with the anchor person
          * (always the focus today, but the callback is shape-stable so a
          * future "add to any visible card" variant doesn't break callers)
@@ -152,6 +175,64 @@
         onaddRelative?:
             | ((anchorId: PersonId, kind: "parent" | "partner" | "child") => void)
             | undefined;
+        /**
+         * Phase 0 of the family-view debug overlay plan. Walking skeleton:
+         * when `debugOptions` is defined, the canvas mounts
+         * `FamilyViewDebugOverlay` (gated by each layer's `{#if}`) and
+         * populates `window.__treeDebug` with the family-view shape when
+         * `layers.exposeFamilyDebug` is on. `undefined` keeps the canvas
+         * in production mode — zero debug work. Parallels the layered
+         * canvas's `debugOptions` prop; the layer types are distinct
+         * (`FamilyViewDebugLayerOptions` vs `DebugLayerOptions`) because
+         * the two engines have non-overlapping overlay geometry.
+         *
+         * `window.__treeDebug` is shared across engines; the
+         * `engine: "family-view"` discriminator on the handle makes the
+         * source unambiguous in devtools. The handle is restored to its
+         * previous value when this canvas unmounts or when
+         * `exposeFamilyDebug` is turned off, matching the existing
+         * HyperbolicCanvas pattern (see vite-env.d.ts `TreeDebugHandle`).
+         */
+        debugOptions?: { layers: FamilyViewDebugLayerOptions } | undefined;
+        /**
+         * Phase 3 of the family-view debug overlay plan. The canvas owns
+         * the `recenterOn` mechanism but App.svelte owns the selection-
+         * event origin. These three props close the loop so the overlay
+         * can render the focus-events panel, the green-flash pulse, and
+         * the red corner badge:
+         *
+         *   - `onrecenter` fires every time `recenterOn` is invoked (palette
+         *     jump, `focusSelection`, `centerOnPerson`, programmatic
+         *     fitSelection). App's watchdog clears its pending timer here.
+         *   - `pendingRecenterSeq` is an App-owned counter bumped on every
+         *     recenter. The overlay watches the seq to flash the canvas
+         *     border green for ~250ms.
+         *   - `recenterMissedFor` carries the personId whose 200ms watchdog
+         *     fired without a matching `onrecenter`. The red corner badge
+         *     names that person and the rejection reason (if off-subset).
+         *   - `focusEventsForOverlay` is the rolling window (newest first)
+         *     of selection / focus events for the in-canvas log panel.
+         */
+        onrecenter?: ((id: PersonId) => void) | undefined;
+        pendingRecenterSeq?: number | undefined;
+        recenterMissedFor?: PersonId | undefined;
+        focusEventsForOverlay?:
+            | ReadonlyArray<{
+                  readonly seq: number;
+                  readonly ts: number;
+                  readonly source: string;
+                  readonly personId: PersonId | undefined;
+                  readonly requestedRecenter: boolean;
+                  readonly didTriggerCenterOn: boolean;
+              }>
+            | undefined;
+        /**
+         * Phase 5 of the family-view debug overlay plan: most recently
+         * mutated person id. App.svelte sets this on every save; the
+         * canvas forwards it to the debug overlay so `showLastEditHalo`
+         * can ring the freshly-edited card for 1s.
+         */
+        lastEditedId?: PersonId | undefined;
     }
 
     let {
@@ -174,7 +255,14 @@
         oncontextmenu,
         oncontroller,
         onlayoutstats,
+        onsubsetchange,
         onaddRelative,
+        debugOptions,
+        onrecenter,
+        pendingRecenterSeq,
+        recenterMissedFor,
+        focusEventsForOverlay,
+        lastEditedId,
     }: Props = $props();
 
     /** pixels per unit; matches TreeCanvas so card sizes feel consistent */
@@ -184,6 +272,11 @@
     const MIN_SCALE = 0.2;
     const MAX_SCALE = 2.0;
     const PAN_KEY_STEP_PX = 60; // arrow-key pan step in host css px (shift = 5x)
+
+    // one-time read at module init — matches TreeCanvas pattern
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    // gate fade duration on both smoothDiff prop and user's motion preference
+    let fadeDuration = $derived(smoothDiff && !prefersReducedMotion ? 200 : 0);
 
     /**
      * Compute a font-size that compensates for the canvas scale so SVG
@@ -262,8 +355,19 @@
     let expansionRev = $state(0);
     let primaryRev = $state(0);
     let secondaryRev = $state(0);
-    let layout = $derived<FamilyViewLayout>(
-        engine.layout({
+    // Phase 5: surface the last layout-pass duration to the debug overlay.
+    // `performance.now()` brackets the synchronous `engine.layout` call.
+    // The result + duration are returned together from the derivation so
+    // we never mutate `$state` from inside `$derived.by` (which throws
+    // `state_unsafe_mutation` in Svelte 5). The debug overlay reads
+    // `layoutDurationMs` via a sibling derived getter.
+    let layoutWithDuration = $derived.by<{
+        readonly layout: FamilyViewLayout;
+        readonly durationMs: number;
+    }>(() => {
+        const hasPerf = typeof performance !== "undefined" && typeof performance.now === "function";
+        const t0 = hasPerf ? performance.now() : 0;
+        const result = engine.layout({
             tree,
             focus: activeFocus,
             options: {
@@ -280,29 +384,198 @@
                       }
                     : {}),
             },
-        }),
-    );
+        });
+        const t1 = hasPerf ? performance.now() : 0;
+        return { layout: result, durationMs: t1 - t0 };
+    });
+    let layout = $derived(layoutWithDuration.layout);
+    let layoutDurationMs = $derived(layoutWithDuration.durationMs);
 
     /**
      * Phase 6b: derived consanguinity surfacing for the active focus.
      * When the Consanguinity overlay is on, drive the COI badge on the
      * focus card and the duplicate-ancestor tint on cards whose person
      * appears in more than one ancestor path.
+     *
+     * Phase 4 family-view-debug: the derivation also runs when any of the
+     * phase-4 debug surfaces are on — `__treeDebug.coi`, the breakdown
+     * panel, or the duplicate-ancestor halo overlay — so the diagnostics
+     * don't require the production consanguinity overlay to be visible.
      */
-    let consang = $derived(showConsanguinity ? computeAncestorOverlap(tree, activeFocus) : null);
+    let coiDebugWanted = $derived(
+        Boolean(
+            debugOptions &&
+            (debugOptions.layers.exposeFamilyDebug ||
+                debugOptions.layers.showCoiBreakdown ||
+                debugOptions.layers.showDuplicateAncestors),
+        ),
+    );
+    let consang = $derived(
+        showConsanguinity || coiDebugWanted ? computeAncestorOverlap(tree, activeFocus) : null,
+    );
     let consangDuplicateSet = $derived(
         consang ? new Set<PersonId>(consang.duplicates) : new Set<PersonId>(),
     );
     function consangCardDuplicate(id: PersonId): boolean {
         return consangDuplicateSet.has(id);
     }
-    function coiPercent(coi: number | undefined): string {
-        if (coi === undefined || coi <= 0) return "";
-        const pct = coi * 100;
-        if (pct < 1) return `${pct.toFixed(2)}%`;
-        if (pct < 10) return `${pct.toFixed(1)}%`;
-        return `${Math.round(pct).toString()}%`;
+    // delegate to the shared formatter in $lib/domain/consanguinity so the
+    // canonical Wright values (1/8 = 12.5%, 1/16 = 6.25%, ...) render with
+    // textbook precision instead of Math.round-mangled approximations
+    const coiPercent = formatCoiPercent;
+    // production badge format: ".XXXX" raw value with leading zero
+    // stripped (per-card badge + stats popover).
+    const coiBadge = formatCoi;
+    // per-card COI badge gating: any visible node whose Wright COI sits
+    // above `COI_DISPLAY_THRESHOLD` gets a badge, not just the active
+    // focus. `computeAncestorOverlap` memoises per `tree.editRev`, so
+    // re-querying per card on the same render is cache-bound.
+    function coiForCard(id: PersonId): number | undefined {
+        if (!showConsanguinity) return undefined;
+        return computeAncestorOverlap(tree, id).coi;
     }
+
+    // Phase 1 of family-view debug plan: derive the subset (with rationale)
+    // whenever the debug overlay is mounted, so the off-subset / orphan
+    // overlays have a rationale to consume even when `exposeFamilyDebug`
+    // is off. Re-runs on the same triggers as `layout` so the two stay
+    // consistent. Returns `null` when no debug options are passed; the
+    // overlay's `{#if}` blocks short-circuit on null.
+    let debugSubset = $derived.by(() => {
+        if (!debugOptions) return null;
+        return selectBoundedSubset(tree, activeFocus, {
+            expanded: (void expansionRev, expansion.expanded),
+            primaryUnionOverrides: (void primaryRev, primaryUnion.overrides),
+            ...(secondaryUnion
+                ? {
+                      expandedSecondaryUnions: (void secondaryRev, secondaryUnionState.byPerson),
+                  }
+                : {}),
+        });
+    });
+
+    // Reactive accessors for the debug overlay's per-card pill props. The
+    // void-comma trick keeps the underlying Maps as the value while
+    // triggering on rev bumps, but it can't appear in svelte attribute
+    // expressions (no comma operator there), so wrap in $derived so the
+    // template can read a plain reference.
+    let debugExpandedSecondaryUnions = $derived((void secondaryRev, secondaryUnionState.byPerson));
+    let debugPrimaryUnionOverrides = $derived((void primaryRev, primaryUnion.overrides));
+    // Phase 5: expansion-state size for the layout-metrics readout. Same
+    // pattern as the two above — the underlying Set reassigns rather than
+    // mutates, so the void-comma trick re-fires on `expansionRev`.
+    let debugExpansionStateSize = $derived((void expansionRev, expansion.expanded.size));
+
+    // Phase 3 family-view debug: the viewport rect in unit space, derived
+    // from the current pan/zoom + host dims. used by the overlay's
+    // `showViewportFitTarget` toggle to paint the visible window
+    // alongside the selection's expected card rect. unit-space transform:
+    // `(panX, panY)` is the css-px offset; one unit = `UNIT * scale` css
+    // px. so the visible viewport in unit space starts at `(-panX,
+    // -panY) / (UNIT * scale)` and spans `hostW / (UNIT * scale)` by
+    // `hostH / (UNIT * scale)`. recomputes on pan / zoom / resize.
+    let debugViewportRectUnit = $derived.by(() => {
+        if (hostW <= 0 || hostH <= 0) return undefined;
+        const u = UNIT * scale;
+        if (u <= 0) return undefined;
+        return {
+            x: -panX / u,
+            y: -panY / u,
+            w: hostW / u,
+            h: hostH / u,
+        };
+    });
+
+    // Phase 0 of family-view debug plan: populate `window.__treeDebug`
+    // with the family-view shape when `debugOptions.layers.exposeFamilyDebug`
+    // is on. The handle is shared with the layered + hyperbolic canvases
+    // (see vite-env.d.ts `TreeDebugHandle`); the `engine: "family-view"`
+    // discriminator makes the source unambiguous in devtools, and
+    // restoring `prev` on cleanup matches the HyperbolicCanvas pattern.
+    // The subset is re-derived from `selectBoundedSubset` because the
+    // engine layout doesn't expose it on `FamilyViewLayout` — phase 1
+    // will extend `selectBoundedSubset` to surface rejections too.
+    //
+    // off-toggle cost: zero — the effect's body returns immediately when
+    // `debugOptions` is undefined or `exposeFamilyDebug` is false.
+    $effect(() => {
+        if (typeof window === "undefined") return;
+        if (!debugOptions || !debugOptions.layers.exposeFamilyDebug) return;
+        const subset = debugSubset;
+        if (!subset) return;
+        type DebugHandle = NonNullable<Window["__treeDebug"]>;
+        const prev = window.__treeDebug;
+        const base: DebugHandle = prev ?? {
+            rawSegments: [],
+            positions: new Map(),
+            warnings: [],
+            dumpSegment: () => undefined,
+            findPath: () => undefined,
+        };
+        // phase 4 family-view-debug: include the coi snapshot under
+        // `__treeDebug.coi` when consanguinity has produced a result.
+        // raw + breakdown surface enough state to diff the displayed
+        // rounded percent against the underlying float in devtools.
+        const cacheStats = getCoiCacheStats();
+        const coiSnapshot =
+            consang && consang.coi !== undefined
+                ? {
+                      duplicates: consang.duplicates,
+                      rawCoi: consang.coi,
+                      breakdown: consang.breakdown ?? [],
+                      cacheHits: cacheStats.cacheHits,
+                      cacheMisses: cacheStats.cacheMisses,
+                      editRev: tree.editRev,
+                  }
+                : undefined;
+        window.__treeDebug = {
+            ...base,
+            engine: "family-view",
+            familyView: {
+                focus: activeFocus,
+                layout,
+                subset: {
+                    visible: subset.visible,
+                    rank: subset.rank,
+                    hasMoreChildren: subset.hasMoreChildren,
+                    hasMoreParents: subset.hasMoreParents,
+                    rationale: subset.rationale,
+                },
+                expansion: expansion.expanded,
+                primaryUnion: primaryUnion.overrides,
+                secondaryUnion: secondaryUnionState.byPerson,
+                selectedId,
+                pathHighlight: pathHl.pathSet,
+            },
+            ...(coiSnapshot ? { coi: coiSnapshot } : {}),
+        };
+        return () => {
+            if (prev) window.__treeDebug = prev;
+            else delete window.__treeDebug;
+        };
+    });
+
+    /**
+     * Phase 4 family-view-debug: emit a one-line `console.warn` the first
+     * time a focus with `duplicates.length > 0` is observed, naming the
+     * duplicates. Track the (treeId, focusId) pairs we've already
+     * warned on so the warning fires once per unique focus per session.
+     * Off-toggle cost is zero — the derivation gates on `consang`, which
+     * only computes when consanguinity / debug-coi surfaces are on.
+     */
+    const _coiWarnedFor = new Set<string>();
+    $effect(() => {
+        const c = consang;
+        if (!c || c.duplicates.length === 0) return;
+        const key = `${tree.id}:${activeFocus}`;
+        if (_coiWarnedFor.has(key)) return;
+        _coiWarnedFor.add(key);
+        // brief one-liner; full breakdown lives in the panel and the
+        // __treeDebug handle. lowercase + no trailing period per repo style.
+        console.warn(
+            `coi: focus ${activeFocus} has ${String(c.duplicates.length)} duplicate ancestor${c.duplicates.length === 1 ? "" : "s"}: ${c.duplicates.join(", ")}`,
+        );
+    });
 
     /** Open picker state — only one `˅` menu open at a time. */
     let pickerOpenFor = $state<PersonId | null>(null);
@@ -327,32 +600,103 @@
         });
     });
 
-    // Resize observer to keep host dims in sync.
+    // push the current debug subset (visible + rationale) up to the shell so
+    // the debug panel can render the off-subset section inline in its column
     $effect(() => {
-        if (!hostEl) return;
+        onsubsetchange?.(debugSubset);
+    });
+
+    // Resize observer to keep host dims in sync and re-anchor pan so the
+    // world-space point at the old viewport center stays centred after resize.
+    $effect(() => {
+        const el = hostEl;
+        if (!el) return;
         const obs = new ResizeObserver((entries) => {
             for (const entry of entries) {
-                hostW = entry.contentRect.width;
-                hostH = entry.contentRect.height;
+                const newW = entry.contentRect.width;
+                const newH = entry.contentRect.height;
+                // apply pan correction before updating dims so hostW/hostH
+                // still hold the old values during the delta computation.
+                // dividing by scale converts screen-space delta to canvas units.
+                if (hostW > 0 && hostH > 0) {
+                    panX += (newW - hostW) / (2 * scale);
+                    panY += (newH - hostH) / (2 * scale);
+                }
+                hostW = newW;
+                hostH = newH;
             }
         });
-        obs.observe(hostEl);
+        // untrack prevents the initial synchronous observe() callback from
+        // registering hostW/hostH/panX/panY/scale as reactive dependencies
+        // of this effect — matching real-browser ResizeObserver semantics,
+        // where the callback never fires synchronously during observe().
+        untrack(() => obs.observe(el));
         return () => obs.disconnect();
     });
 
     /** Auto-fit on first paint, on layout changes that resize the chart,
      *  and whenever `activeFocus` shifts (so palette-jump / centerOnPerson
      *  always lands the new focus at the host's centre even when two
-     *  subsets happen to share a bbox). */
+     *  subsets happen to share a bbox).
+     *
+     *  Suppressed when the user just clicked a `+` (expand-subtree) or a
+     *  `+N Name` collapse-badge mid-session — those are user-driven
+     *  expansions where the expected behaviour is to extend the canvas
+     *  off-screen and keep the current zoom/pan, not yank the viewport.
+     *  `suppressNextFit` is set in the expand handlers and consumed on
+     *  the next fit-key change; `lastFitKey` still advances so a later
+     *  unrelated layout shift doesn't accidentally fit on a stale key. */
+    let hasInitialFit = false;
     let lastFitKey = "";
+    let suppressNextFit = false;
+    /** margin in screen-px: content must drift past this from a visible-band
+     *  edge before the passive predicate decides a refit is needed. generous
+     *  enough to absorb minor layout shifts; small enough that content near
+     *  an edge still triggers a refit. */
+    const FIT_SKIP_MARGIN = 60;
+    /** passive guard: returns true when the content bbox (in screen-px) already
+     *  sits inside the chrome-aware visible band with FIT_SKIP_MARGIN to spare.
+     *  must be called inside untrack() to avoid subscribing to pan/zoom state. */
+    function contentFitsInView(): boolean {
+        if (hostW <= 0 || hostH <= 0) return false;
+        const layoutWpx = layout.bbox.width * UNIT;
+        const layoutHpx = layout.bbox.height * UNIT;
+        if (layoutWpx <= 0 || layoutHpx <= 0) return false;
+        const insets = measureCanvasChromeInsets(hostEl);
+        // visible band edges (no padding — padding is a fit aesthetic, not a guard threshold)
+        const visLeft = insets.left;
+        const visTop = insets.top;
+        const visRight = hostW - insets.right;
+        const visBottom = hostH - insets.bottom;
+        // content bbox in screen-px. family-view content starts at (0, minNodeY) in unit space.
+        const miny = minNodeY(layout);
+        const contentLeft = panX; // 0 * UNIT * scale + panX
+        const contentTop = miny * UNIT * scale + panY;
+        const contentRight = layout.bbox.width * UNIT * scale + panX;
+        const contentBottom = (miny + layout.bbox.height) * UNIT * scale + panY;
+        return (
+            contentLeft >= visLeft - FIT_SKIP_MARGIN &&
+            contentTop >= visTop - FIT_SKIP_MARGIN &&
+            contentRight <= visRight + FIT_SKIP_MARGIN &&
+            contentBottom <= visBottom + FIT_SKIP_MARGIN
+        );
+    }
     $effect(() => {
         const w = layout.bbox.width;
         const h = layout.bbox.height;
         if (hostW <= 0 || hostH <= 0) return;
-        const key = `${tree.id}:${activeFocus}:${String(w.toFixed(3))}:${String(h.toFixed(3))}`;
+        const key = `${tree.id}:${activeFocus}:${String(w.toFixed(3))}:${String(h.toFixed(3))}:${hostW}:${hostH}`;
         if (key === lastFitKey) return;
         lastFitKey = key;
-        untrack(() => fitToView());
+        if (suppressNextFit) {
+            suppressNextFit = false;
+            return;
+        }
+        untrack(() => {
+            if (hasInitialFit && contentFitsInView()) return;
+            hasInitialFit = true;
+            fitToView();
+        });
     });
 
     function fitToView(): void {
@@ -412,20 +756,47 @@
 
     /** pixels of pointer travel below which a pointerup counts as a tap. */
     const DRAG_THRESHOLD_PX = 4;
-    let dragStart: { x: number; y: number; pX: number; pY: number; moved: boolean } | undefined;
+    let dragStart:
+        | {
+              x: number;
+              y: number;
+              pX: number;
+              pY: number;
+              moved: boolean;
+              // true when pointerdown landed on a card body (data-person-id)
+              // rather than the empty canvas background. a no-drag pointerup
+              // from a card body lets the card's own onclick fire naturally
+              // (do not call ondeselect). a drag from a card body pans the
+              // canvas and suppresses the post-drag click.
+              onCard: boolean;
+          }
+        | undefined;
 
     function onPointerDown(e: PointerEvent): void {
         const target = e.target as HTMLElement | null;
-        if (target?.closest("[data-person-id]")) return;
+        // explicit interactive controls consume the pointer entirely — no pan,
+        // no deselect. the card body ([data-person-id]) is intentionally not in
+        // this list: dragging from card body should pan; tapping it lets the
+        // card's own onclick fire (which handles select/deselect).
         if (target?.closest("[data-expand-toggle]")) return;
         if (target?.closest("[data-badge-id]")) return;
         if (target?.closest("[data-union-picker]")) return;
         if (target?.closest("[data-add-toggle]")) return;
-        // Click outside any picker closes it.
+        // click outside any picker closes it
         if (pickerOpenFor !== null) pickerOpenFor = null;
         if (addOpenFor !== null) addOpenFor = null;
-        dragStart = { x: e.clientX, y: e.clientY, pX: panX, pY: panY, moved: false };
-        (e.target as Element).setPointerCapture?.(e.pointerId);
+        // background-click focus: with roving-tabindex the host is
+        // tabindex=-1, so the browser won't auto-focus it. focus it
+        // programmatically on a background pointerdown so arrow-key
+        // pan (which lives on the host's onkeydown) still works after
+        // the user clicks empty canvas to deselect.
+        hostEl?.focus({ preventScroll: true });
+        const onCard = Boolean(target?.closest("[data-person-id]"));
+        dragStart = { x: e.clientX, y: e.clientY, pX: panX, pY: panY, moved: false, onCard };
+        // only capture when starting from the canvas background — capturing on
+        // a card button would steal the card's own click after a no-drag tap.
+        // card drags suppress the post-drag click in onPointerUp instead.
+        if (!onCard) (e.target as Element).setPointerCapture?.(e.pointerId);
     }
 
     function onPointerMove(e: PointerEvent): void {
@@ -443,12 +814,21 @@
 
     function onPointerUp(_e: PointerEvent): void {
         if (!dragStart) return;
-        const wasDrag = dragStart.moved;
+        const { moved: wasDrag, onCard } = dragStart;
         dragStart = undefined;
-        // pointerdown's card / control filters above mean we only reach
-        // here on the canvas background; a no-drag pointerup is a tap on
-        // empty space, which clears the current selection.
-        if (!wasDrag) ondeselect?.();
+        if (wasDrag) {
+            // suppress the click that would otherwise fire on the card after a pan
+            const suppressNext = (ev: MouseEvent): void => {
+                ev.stopPropagation();
+                ev.preventDefault();
+                window.removeEventListener("click", suppressNext, true);
+            };
+            window.addEventListener("click", suppressNext, true);
+            return;
+        }
+        // no-drag tap: if we started on a card, the card's own onclick handles
+        // it. if we started on empty canvas background, deselect.
+        if (!onCard) ondeselect?.();
     }
 
     function onWheel(e: WheelEvent): void {
@@ -490,13 +870,13 @@
         else if (e.key === "ArrowUp") dir = "up";
         if (!dir) return;
         e.preventDefault();
-        // arrow direction is viewport-relative, so content moves the
-        // opposite way (panX -= for right)
+        // arrow direction matches viewport motion (maps/figma convention) -
+        // panX += step for right matches drag-pan where panX += dx
         const step = e.shiftKey ? PAN_KEY_STEP_PX * 5 : PAN_KEY_STEP_PX;
-        if (dir === "right") panX -= step;
-        else if (dir === "left") panX += step;
-        else if (dir === "down") panY -= step;
-        else if (dir === "up") panY += step;
+        if (dir === "right") panX += step;
+        else if (dir === "left") panX -= step;
+        else if (dir === "down") panY += step;
+        else if (dir === "up") panY -= step;
     }
 
     // ---------- imperative controller ----------
@@ -512,6 +892,12 @@
      */
     function recenterOn(id: PersonId): void {
         if (!tree.people[id]) return;
+        // Phase-3 family-view debug: tell App we attempted a recenter,
+        // BEFORE the off-subset branch fires `focusOverride = id`. App's
+        // watchdog cancellation depends on this firing for both the
+        // happy-path (panX/Y settle) and the off-subset path (focus
+        // shifts, fit-effect runs on the next tick).
+        onrecenter?.(id);
         const node = layout.nodes.get(id);
         if (node) {
             panX = hostW / 2 - (node.x + PERSON_W / 2) * UNIT * scale;
@@ -522,6 +908,33 @@
         // once the new layout lands.
         focusOverride = id;
     }
+
+    // Phase-3 family-view debug: green-flash on each App-bumped recenter
+    // seq. We track the seq the canvas has reacted to so the overlay's
+    // `data-flash-active` flips off after 250ms.
+    let flashActive = $state(false);
+    let lastFlashSeq = $state(0);
+    $effect(() => {
+        const seq = pendingRecenterSeq ?? 0;
+        if (seq === lastFlashSeq) return;
+        lastFlashSeq = seq;
+        flashActive = true;
+        const id = setTimeout(() => {
+            flashActive = false;
+        }, 250);
+        return () => clearTimeout(id);
+    });
+
+    // Phase-3 family-view debug: derive the off-subset reason for the
+    // selected person from the phase-1 rationale machinery. `null` when
+    // there's no selection / the person is visible / no debug subset is
+    // computed (debug overlay isn't mounted).
+    let selectedOffSubsetReason = $derived.by<RejectionReason | "unknown" | null>(() => {
+        if (selectedId === undefined) return null;
+        if (layout.nodes.has(selectedId)) return null;
+        const r = debugSubset?.rationale.get(selectedId);
+        return r ?? "unknown";
+    });
 
     /**
      * Wave-2 phase 0b: anchor-aware setScale. Without an explicit
@@ -591,6 +1004,9 @@
 
     function onExpandClick(id: PersonId, on: boolean, e: MouseEvent): void {
         e.stopPropagation();
+        // user-driven expand: keep current zoom/pan, let new branches
+        // extend off-screen rather than refitting the viewport.
+        if (on) suppressNextFit = true;
         expansion.setExpanded(id, on);
         expansionRev += 1;
     }
@@ -601,6 +1017,7 @@
     }
 
     function onPickerSelect(mateId: PersonId, coupleIndex: number, e: MouseEvent): void {
+        suppressNextFit = true;
         e.stopPropagation();
         // Switching primary union is per-mate UI state — it does NOT touch
         // the domain's Couple.isPrimary or Couple.isCurrent flags.
@@ -621,6 +1038,7 @@
     function onPickerShowAlongside(mateId: PersonId, coupleIndex: number, e: MouseEvent): void {
         e.stopPropagation();
         if (!secondaryUnion) return;
+        suppressNextFit = true;
         secondaryUnionState.expand(mateId, coupleIndex);
         secondaryRev += 1;
         pickerOpenFor = null;
@@ -628,6 +1046,7 @@
 
     function onPickerHideAlongside(mateId: PersonId, coupleIndex: number, e: MouseEvent): void {
         e.stopPropagation();
+        suppressNextFit = true;
         secondaryUnionState.collapse(mateId, coupleIndex);
         secondaryRev += 1;
         pickerOpenFor = null;
@@ -672,6 +1091,9 @@
 
     function onBadgeClick(badge: BadgeNode, e: MouseEvent): void {
         e.stopPropagation();
+        // user-driven expand via the `+N Name` collapse-badge: same
+        // contract as `onExpandClick(on=true)` - hold zoom/pan steady.
+        suppressNextFit = true;
         // Re-expand: mark the source as explicitly expanded so the auto-
         // collapse pass doesn't immediately re-demote it.
         expansion.setExpanded(badge.sourceId, true);
@@ -681,6 +1103,21 @@
     function nodes(): readonly FamilyViewNode[] {
         return Array.from(layout.nodes.values());
     }
+
+    /**
+     * Roving-tabindex anchor for family-view. With no person selected,
+     * one visible card (preferring `activeFocus`, falling back to the
+     * first visible node) carries tabindex=0 so Tab from outside lands
+     * on it. With a selection, the selected card owns the tab-stop and
+     * this is undefined. Only one card per canvas should ever be
+     * `selected || isFirstFocusable` at a time.
+     */
+    let firstFocusableId = $derived.by<PersonId | undefined>(() => {
+        if (selectedId) return undefined;
+        if (layout.nodes.has(activeFocus)) return activeFocus;
+        const first = layout.nodes.keys().next();
+        return first.done ? undefined : first.value;
+    });
 
     /**
      * Phase 5 generation badge. Cards whose rank differs from the focus
@@ -698,6 +1135,38 @@
 
     function edgePath(e: FamilyViewEdge): string {
         return buildEdgePath(e.points, UNIT);
+    }
+
+    /**
+     * Phase 1 of the family-view-debug plan: classify an edge by its
+     * structural role for the `showEdgeRoles` debug toggle. The id prefix
+     * scheme is established by `emitAnchorsAndEdges` in `layout.ts` (`bond:`,
+     * `stem:`, `bus:`, `stub:`, `drop:`, `manifold`). Returning a stable
+     * lowercase token lets both the data-attr and the `family-view-edge-
+     * role-*` class hook into the same vocabulary.
+     *
+     *   - `couple-bond` — horizontal bond between two partners (2-couple).
+     *   - `parent-drop` — vertical stem from couple-midpoint down to the
+     *     sibling bus.
+     *   - `sibling-bus` — horizontal bus across the children's row.
+     *   - `child-drop` — per-child stub vertical between bus and card.
+     *   - `solo-drop` — single-parent drop with no bus.
+     *   - `n-partner-bus` — bar segments of an n>2 union manifold.
+     *   - `n-partner-drop` — child drop from an n>2 union's childAnchor.
+     *   - `badge-drop` — drop from a card to its auto-collapsed badge.
+     *   - `other` — fallback; should not appear in a healthy layout.
+     */
+    function edgeKindFor(id: string): string {
+        if (id.startsWith("bond:")) return "couple-bond";
+        if (id.startsWith("stem:")) return "parent-drop";
+        if (id.startsWith("bus:")) return "sibling-bus";
+        if (id.startsWith("stub:")) return "child-drop";
+        if (id.startsWith("drop:badge:")) return "badge-drop";
+        if (id.startsWith("drop:union:solo:")) return "solo-drop";
+        if (id.includes("/manifold/")) return "n-partner-bus";
+        if (id.startsWith("drop:union:")) return "n-partner-drop";
+        if (id.startsWith("drop:")) return "solo-drop";
+        return "other";
     }
 
     function overlayPath(points: readonly { x: number; y: number }[]): string {
@@ -830,17 +1299,35 @@
         if (onPath.length === 0) return false;
         // Stub edges only emit if the kid (last person) is on-path.
         if (e.id.startsWith("stub:")) return pathHl.onPath(e.persons[e.persons.length - 1]!);
-        // Stem + bus + couple-bond + single-parent drops: any-implicated-on-path
+        // Bond edges require BOTH endpoints on-path — "any" would light up
+        // a spouse's other unions whenever just one member is on-path.
+        if (e.id.startsWith("bond:")) return e.persons.every((id) => pathHl.onPath(id));
+        // Stem + bus + single-parent drops: any-implicated-on-path
         // matches the legacy pre-phase-2 behaviour the user remembers.
         return onPath.length > 0;
     }
 
     function cardOnPath(id: PersonId): boolean {
+        // exclude the activeFocus card: it is the path endpoint (and the layout
+        // anchor), not an intermediate node. applying family-view-onpath to the
+        // focus produces a persistent outer ring on the root card that competes
+        // with the selection ring and never clears until all cards are deselected.
+        if (id === activeFocus) return false;
         return pathHl.onPath(id);
     }
 
     function isBadgeOnPath(b: BadgeNode): boolean {
         return badgeOnPath(b, pathHl.pathSet);
+    }
+
+    function badgeTitle(badge: BadgeNode): string {
+        const names = badge.members
+            .slice(0, 2)
+            .map((id) => tree.people[id]?.given ?? "?")
+            .filter(Boolean);
+        const rest = badge.members.length - names.length;
+        const nameStr = rest > 0 ? `${names.join(", ")}, +${rest} more` : names.join(", ");
+        return `expand hidden: ${nameStr}`;
     }
 
     function canExpand(id: PersonId): boolean {
@@ -856,18 +1343,22 @@
     });
 </script>
 
-<!-- the host already had pointer / wheel listeners on a role="region" div.
-     adding tabindex + keydown for arrow-key pan widens that pattern; the
-     dedicated tree-view canvas uses role="tree" but family-view stays
-     non-interactive until the planned roving-tabindex a11y pass lands. -->
-<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+<!-- role="tree" + roving-tabindex on PersonNode is the canonical pattern
+     for a tree-shaped interactive widget. the underlying graph is a DAG
+     (multi-parent, cycles, asexual reproduction are all in scope per the
+     permissive schema), but family-view itself renders a bounded tree-
+     shaped window around the focus with single-anchor stems, so role="tree"
+     reads more accurately to AT users than role="group". host carries
+     tabindex=-1 so Tab from outside lands on the active treeitem inside
+     rather than a wrapping focus stop; a background pointerdown still
+     forwards focus to the host so arrow-key pan keeps working after the
+     user clicks empty canvas to deselect. -->
 <div
     bind:this={hostEl}
     class="family-view-canvas bg-canvas relative h-full w-full overflow-clip"
-    role="region"
+    role="tree"
     aria-label="family view canvas"
-    tabindex="0"
+    tabindex="-1"
     onpointerdown={onPointerDown}
     onpointermove={onPointerMove}
     onpointerup={onPointerUp}
@@ -928,7 +1419,12 @@
             {#each layout.edges as edge (edge.id)}
                 <path
                     d={edgePath(edge)}
-                    class="family-view-edge fill-none {edgeClass(edge)}"
+                    class="family-view-edge fill-none {edgeClass(edge)} {debugOptions?.layers
+                        .showEdgeRoles
+                        ? `family-view-edge-role-${edgeKindFor(edge.id)}`
+                        : ''}"
+                    data-edge-id={edge.id}
+                    data-edge-role={edgeKindFor(edge.id)}
                     vector-effect="non-scaling-stroke"
                 />
             {/each}
@@ -1024,10 +1520,37 @@
             {/if}
         </svg>
 
+        {#if debugOptions}
+            <FamilyViewDebugOverlay
+                {layout}
+                layers={debugOptions.layers}
+                unit={UNIT}
+                {tree}
+                expandedSecondaryUnions={debugExpandedSecondaryUnions}
+                primaryUnionOverrides={debugPrimaryUnionOverrides}
+                {selectedId}
+                offSubsetReason={selectedOffSubsetReason}
+                {recenterMissedFor}
+                {flashActive}
+                viewportRectUnit={debugViewportRectUnit}
+                focusEvents={focusEventsForOverlay}
+                coiBreakdown={consang?.breakdown}
+                coiRaw={consang?.coi}
+                coiDisplayed={coiPercent(consang?.coi)}
+                coiDuplicateIds={consang?.duplicates}
+                coiFocusId={activeFocus}
+                {lastEditedId}
+                {layoutDurationMs}
+                treePeopleCount={Object.keys(tree.people).length}
+                expansionStateSize={debugExpansionStateSize}
+            />
+        {/if}
+
         {#each nodes() as node (node.personId)}
             {@const person = tree.people[node.personId]}
             {#if person}
                 <div
+                    transition:fade={{ duration: fadeDuration }}
                     class="group/card absolute {cardOnPath(node.personId)
                         ? 'family-view-onpath rounded'
                         : ''} {smoothDiff ? 'family-view-smooth-card' : ''}"
@@ -1046,6 +1569,7 @@
                     <PersonNode
                         {person}
                         selected={selectedId === person.id}
+                        isFirstFocusable={person.id === firstFocusableId}
                         level={0}
                         portraitUrl={portraitUrls?.get(person.portraitBlobId)}
                         onselect={(id: string) => onCardClick(id)}
@@ -1086,17 +1610,17 @@
                             <Minus size={14} strokeWidth={2.5} />
                         </button>
                     {/if}
-                    {#if showConsanguinity && node.personId === activeFocus && consang && consang.coi !== undefined && consang.coi > 0}
+                    {#if showConsanguinity && (coiForCard(node.personId) ?? 0) > COI_DISPLAY_THRESHOLD}
                         <span
                             class="border-line bg-canvas-elev/90
                                    pointer-events-none absolute -bottom-2 -right-2 z-20
                                    rounded-full border px-1.5 font-mono text-[10px]
                                    leading-tight shadow-sm"
                             style:color="hsl(0 70% 45%)"
-                            data-consang-coi={coiPercent(consang.coi)}
-                            title={`coefficient of inbreeding ${coiPercent(consang.coi)} (${String(consang.duplicates.length)} duplicate ancestor${consang.duplicates.length === 1 ? "" : "s"})`}
+                            data-consang-coi={coiBadge(coiForCard(node.personId))}
+                            title={`coefficient of inbreeding ${coiBadge(coiForCard(node.personId))}`}
                             aria-label="coefficient of inbreeding"
-                            >COI {coiPercent(consang.coi)}</span
+                            >COI {coiBadge(coiForCard(node.personId))}</span
                         >
                     {/if}
                     {#if showGenerationBadge && generationLabel(node)}
@@ -1252,6 +1776,7 @@
 
         {#each layout.badges as badge (badge.id)}
             <button
+                transition:fade={{ duration: fadeDuration }}
                 type="button"
                 data-badge-id={badge.id}
                 data-on-path={isBadgeOnPath(badge) ? "true" : undefined}
@@ -1266,8 +1791,8 @@
                 style:transform="translate3d({badge.x * UNIT}px, {badge.y * UNIT}px, 0)"
                 style:width="{CARD_W_PX}px"
                 style:height="{CARD_H_PX}px"
-                aria-label={`expand ${String(badge.members.length)} hidden persons starting with ${badge.sampleName}`}
-                title={`expand ${String(badge.members.length)} hidden: ${badge.sampleName}, ...`}
+                aria-label={badgeTitle(badge)}
+                title={badgeTitle(badge)}
                 onclick={(e) => onBadgeClick(badge, e)}
             >
                 <span class="text-accent font-semibold">+{badge.members.length}</span>
@@ -1276,3 +1801,40 @@
         {/each}
     </div>
 </div>
+
+<style>
+    /* phase 1 of family-view-debug plan: per-role edge tints. only active
+       when `showEdgeRoles` is on (the FamilyViewCanvas template gates the
+       class application on `debugOptions?.layers.showEdgeRoles`). each
+       role gets a distinct hue so a visual scan can disambiguate the bus
+       from a drop without consulting devtools. !important wins over the
+       tailwind stroke utilities applied by `edgeClass` so the debug tint
+       doesn't fight the production palette. */
+    :global(.family-view-edge-role-couple-bond) {
+        stroke: hsl(330 80% 55%) !important;
+    }
+    :global(.family-view-edge-role-parent-drop) {
+        stroke: hsl(200 80% 55%) !important;
+    }
+    :global(.family-view-edge-role-sibling-bus) {
+        stroke: hsl(35 90% 50%) !important;
+    }
+    :global(.family-view-edge-role-child-drop) {
+        stroke: hsl(140 60% 45%) !important;
+    }
+    :global(.family-view-edge-role-solo-drop) {
+        stroke: hsl(280 60% 55%) !important;
+    }
+    :global(.family-view-edge-role-n-partner-bus) {
+        stroke: hsl(15 80% 50%) !important;
+    }
+    :global(.family-view-edge-role-n-partner-drop) {
+        stroke: hsl(95 60% 45%) !important;
+    }
+    :global(.family-view-edge-role-badge-drop) {
+        stroke: hsl(0 0% 50%) !important;
+    }
+    :global(.family-view-edge-role-other) {
+        stroke: hsl(60 80% 50%) !important;
+    }
+</style>
