@@ -164,9 +164,13 @@
     </button>
 
     {#if open}
+        <!-- z-[55]: above the inspector sheet (z-50) so a tall dropdown stays
+             clickable over the sheet on narrow viewports. dropdowns close when
+             an action item opens a dialog, so this never coexists with a
+             blocking modal (z-50) despite sorting above it. -->
         <div
             bind:this={menuEl}
-            class="bg-canvas-elev border-line absolute left-0 top-full z-40 mt-0.5 min-w-56 rounded-md border py-1 shadow-xl"
+            class="bg-canvas-elev border-line absolute left-0 top-full z-[55] mt-0.5 min-w-56 rounded-md border py-1 shadow-xl"
             role="menu"
             aria-label={label}
             tabindex="-1"
