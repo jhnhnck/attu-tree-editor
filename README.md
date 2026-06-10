@@ -4,20 +4,20 @@ client-side svelte 5 + vite + tailwind v4 spa for viewing and editing family tre
 
 ## stack
 
-| layer        | tool                                                                                     |
-| :----------- | :--------------------------------------------------------------------------------------- |
-| build        | vite 6                                                                                   |
-| ui           | svelte 5 (runes)                                                                         |
-| styling      | tailwind css v4                                                                          |
-| tree layout  | four-pass ir pipeline + three pluggable engines (layered-hv, family-view, hyperbolic-lr) |
-| GEDCOM       | `read-gedcom` parser; hand-rolled serializer                                             |
-| FamilyScript | hand-rolled parser (import-only)                                                         |
-| bundles      | GEDZIP `.gdz` via `fflate`                                                               |
-| local store  | dexie (indexeddb)                                                                        |
-| zoom/pan     | panzoom + custom controller                                                              |
-| portraits    | canvas-based cropper, webp via OffscreenCanvas                                           |
-| backend      | fastapi + aiosqlite (uv-managed)                                                         |
-| testing      | vitest + playwright + pytest                                                             |
+| layer | tool |
+| --- | :--- |
+| build | vite 6 |
+| ui | svelte 5 (runes) |
+| styling | tailwind css v4 |
+| tree layout | four-pass ir pipeline + three pluggable engines (layered-hv, family-view, hyperbolic-lr) |
+| GEDCOM | `read-gedcom` parser; hand-rolled serializer |
+| FamilyScript | hand-rolled parser (import-only) |
+| bundles | GEDZIP `.gdz` via `fflate` |
+| local store | dexie (indexeddb) |
+| zoom/pan | panzoom + custom controller |
+| portraits | canvas-based cropper, webp via OffscreenCanvas |
+| backend | fastapi + aiosqlite (uv-managed) |
+| testing | vitest + playwright + pytest |
 
 ## repository layout
 
@@ -38,13 +38,13 @@ FamilyTreeEditor/
 
 ## prerequisites
 
-| tool    | min version | install                                                                             |
-| :------ | :---------- | :---------------------------------------------------------------------------------- |
-| node.js | 22          | `nvm install 22`                                                                    |
-| pnpm    | 10          | `npm i -g pnpm` (user prefix; see [notes/dev/dev_setup.md](notes/dev/dev_setup.md)) |
-| python  | 3.13        | pyenv or system                                                                     |
-| uv      | 0.11+       | `pip install --user uv` or astral installer                                         |
-| docker  | 24+         | optional, for production image                                                      |
+| tool | min version | install |
+| :--- | :--- | :--- |
+| node.js | 22 | `nvm install 22` |
+| pnpm | 10 | `npm i -g pnpm` (user prefix; see [notes/dev/dev_setup.md](notes/dev/dev_setup.md)) |
+| python | 3.13 | pyenv or system |
+| uv | 0.11+ | `pip install --user uv` or astral installer |
+| docker | 24+ | optional, for production image |
 
 ## install
 
@@ -56,18 +56,18 @@ pnpm exec playwright install chromium
 
 ## common commands
 
-| command            | what it does                                           |
-| :----------------- | :----------------------------------------------------- |
-| `pnpm dev`         | vite dev server on `:5173` (proxies `/api` -> `:8000`) |
-| `pnpm server:dev`  | uvicorn `--reload` on `:8000`                          |
-| `pnpm build`       | production bundle in `apps/web/dist`                   |
-| `pnpm test:unit`   | vitest (unit + component)                              |
-| `pnpm test:e2e`    | playwright (chromium + mobile)                         |
-| `pnpm lint`        | eslint + prettier                                      |
-| `pnpm typecheck`   | svelte-check + tsc                                     |
-| `pnpm server:test` | pytest                                                 |
-| `pnpm server:lint` | ruff + basedpyright                                    |
-| `pnpm verify`      | full ci sweep                                          |
+| command | what it does |
+| :--- | :--- |
+| `pnpm dev` | vite dev server on `:5173` (proxies `/api` -> `:8000`) |
+| `pnpm server:dev` | uvicorn `--reload` on `:8000` |
+| `pnpm build` | production bundle in `apps/web/dist` |
+| `pnpm test:unit` | vitest (unit + component) |
+| `pnpm test:e2e` | playwright (chromium + mobile) |
+| `pnpm lint` | eslint + prettier |
+| `pnpm typecheck` | svelte-check + tsc |
+| `pnpm server:test` | pytest |
+| `pnpm server:lint` | ruff + basedpyright |
+| `pnpm verify` | full ci sweep |
 
 ## hard rules
 
@@ -84,9 +84,9 @@ short form; see [CLAUDE.md](CLAUDE.md) and [notes/agents.md](notes/agents.md) §
 
 in-universe calendar: 12 months of 30 days (360-day year). written `day-month year ERA`, e.g. `15-3 5 PC`.
 
-| era                      | direction                         | notes                       |
-| :----------------------- | :-------------------------------- | :-------------------------- |
-| **PC** (post calming)    | forward from the grand calming    | 1, 2, 3...                  |
+| era | direction | notes |
+| :--- | :--- | :--- |
+| **PC** (post calming) | forward from the grand calming | 1, 2, 3... |
 | **TT** (turbulence time) | backward before the grand calming | 1 TT directly precedes 1 PC |
 
 canonical math lives in doom-bot at `attubot/client/calendar.py`; mirrored client-side in `apps/web/src/lib/date/HaracalndeDate.ts` and server-side in `apps/server/attu_tree/calendar.py`.
@@ -95,12 +95,12 @@ canonical math lives in doom-bot at `attubot/client/calendar.py`; mirrored clien
 
 four tiers, no `.env` at runtime. each value lives in exactly one tier. see [notes/agents.md](notes/agents.md) §4 or the `config-tiers` skill for the full topology.
 
-| tier | source                                  | purpose                                       |
-| :--- | :-------------------------------------- | :-------------------------------------------- |
-| A    | `data/trees-config.toml` (bind-mounted) | per-deployment values + secrets               |
-| B    | `Dockerfile`                            | image-baked invariants (`VITE_BASE=/trees/`)  |
-| C    | `docker-compose.yml` `environment:`     | container runtime envs (`PYTHONUNBUFFERED=1`) |
-| D    | parent wiki `.env` via `env_file:`      | network attachment (`ATTU_NETWORK`) only      |
+| tier | source | purpose |
+| :--- | :--- | :--- |
+| A | `data/trees-config.toml` (bind-mounted) | per-deployment values + secrets |
+| B | `Dockerfile` | image-baked invariants (`VITE_BASE=/trees/`) |
+| C | `docker-compose.yml` `environment:` | container runtime envs (`PYTHONUNBUFFERED=1`) |
+| D | parent wiki `.env` via `env_file:` | network attachment (`ATTU_NETWORK`) only |
 
 spa runtime values reach the browser via `window.__TREES_CONFIG__`, templated by fastapi into `index.html` on serve. one image works for any environment by swapping the toml.
 

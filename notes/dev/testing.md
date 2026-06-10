@@ -13,9 +13,9 @@ apps/web/tests/
 ├── e2e/           # playwright (chromium + mobile); full app, real persistence
 ├── spikes/        # one-off measurement scripts (e.g. layered-metrics.spike.test.ts)
 ├── fixtures/      # ged/.txt symlinks into ../../../notes/examples/, plus
-│                  # the golden/ snapshot directory and a handful of small
-│                  # repro fixtures (layered-bug-repros.ts, multi-union.ged,
-│                  # head-schma-probe.ged, exif-orientation-6.jpg, etc.)
+│                  # golden/ (GEDCOM round-trip golden used by serialize.test.ts)
+│                  # and a handful of small repro fixtures (layered-bug-repros.ts,
+│                  # multi-union.ged, head-schma-probe.ged, exif-orientation-6.jpg, etc.)
 └── setup.ts       # registers jest-dom matchers and per-test cleanup
 
 apps/server/tests/
@@ -69,7 +69,7 @@ uv run pytest --cov=attu_tree --cov-report=term-missing  # coverage
 
 the example exports live at `notes/examples/` and are symlinked into the fixtures tree by name (`Akarians.ged`, `Akarians.txt`). small purpose-built fixtures (`tiny.ged`, `multi-union.ged`, `head-schma-probe.ged`, `layered-bug-repros.ts`) sit alongside them, and binary visual + image fixtures (`portrait-blue.png`, `exif-orientation-6.jpg`, `hyperbolic-demo.svg`) live in the same directory.
 
-golden outputs live under `apps/web/tests/fixtures/golden/`. update with `UPDATE_GOLDEN=1 pnpm test:unit` for vitest snapshots; playwright visual snapshots update via `pnpm test:e2e --update-snapshots`.
+gedcom round-trip goldens live under `apps/web/tests/fixtures/golden/`. update with `pnpm test:unit -u` (vitest `--update-snapshots`). no playwright visual goldens remain (deleted by the `ui-invariant-tests` plan).
 
 ---
 
@@ -94,5 +94,5 @@ golden outputs live under `apps/web/tests/fixtures/golden/`. update with `UPDATE
 ## metadata
 
 ```yaml
-last_updated: 23 May 2026
+last_updated: 27 May 2026
 ```

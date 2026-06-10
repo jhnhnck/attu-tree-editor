@@ -1,20 +1,19 @@
-# ui inventory
-
-complete map of every user-facing surface, option, and control in the FamilyTreeEditor SPA as of 2026-05-23.
+complete map of every user-facing surface, option, and control in the FamilyTreeEditor SPA as of 2026-05-27.
 
 <!-- toc -->
 
-- [ui inventory](#ui-inventory)
-  - [menu bar](#menu-bar)
+- [ui element structure](#ui-element-structure)
+- [menu organization](#menu-organization)
+- [menu bar](#menu-bar)
     - [file](#file)
     - [edit](#edit)
     - [view](#view)
     - [insert](#insert)
     - [tree](#tree)
     - [help](#help)
-  - [modals / dialogs](#modals--dialogs)
-  - [command palette](#command-palette)
-  - [inspector panel](#inspector-panel)
+- [modals / dialogs](#modals--dialogs)
+- [command palette](#command-palette)
+- [inspector panel](#inspector-panel)
     - [tab 1: personal](#tab-1-personal)
     - [tab 2: connections](#tab-2-connections)
     - [tab 3: bonds](#tab-3-bonds)
@@ -22,24 +21,102 @@ complete map of every user-facing surface, option, and control in the FamilyTree
     - [tab 5: sibship](#tab-5-sibship)
     - [tab 6: details](#tab-6-details)
     - [tab 7: bio](#tab-7-bio)
-  - [right-click context menu](#right-click-context-menu)
-  - [canvas controls](#canvas-controls)
-  - [family-view per-card controls](#family-view-per-card-controls)
-  - [bottom-left area](#bottom-left-area)
-    - [stats pill *(layered engine only)*](#stats-pill-layered-engine-only)
-    - [debug pill *(ctrl+shift+d, debug mode only)*](#debug-pill-ctrlshiftd-debug-mode-only)
+- [right-click context menu](#right-click-context-menu)
+- [canvas controls](#canvas-controls)
+- [family-view per-card controls](#family-view-per-card-controls)
+- [bottom-left area](#bottom-left-area)
+    - [stats pill _(layered engine only)_](#stats-pill-layered-engine-only)
+    - [debug pill _(ctrl+shift+d, debug mode only)_](#debug-pill-ctrlshiftd-debug-mode-only)
     - [debug panel](#debug-panel)
-  - [popovers](#popovers)
+- [popovers](#popovers)
     - [person chooser](#person-chooser)
     - [instance popover](#instance-popover)
     - [wiki title autocomplete](#wiki-title-autocomplete)
-  - [top bar](#top-bar)
-  - [transient notifications](#transient-notifications)
-  - [surface summary](#surface-summary)
-  - [see also](#see-also)
-  - [metadata](#metadata)
+- [top bar](#top-bar)
+- [transient notifications](#transient-notifications)
+- [surface summary](#surface-summary)
+- [see also](#see-also)
+- [metadata](#metadata)
 
 <!-- /toc -->
+
+## ui element structure
+
+how every persistent and transient surface in the SPA is organized:
+
+```text
+FamilyTreeEditor SPA
+├── top bar
+│   ├── auth bar
+│   ├── save status pill
+│   └── progress strip
+├── menu bar (6 dropdowns)
+├── canvas
+│   ├── zoom widget
+│   ├── right-click menu
+│   └── per-card controls (family view only)
+├── inspector panel (7 tabs)
+├── bottom-left
+│   ├── stats pill (layered only)
+│   ├── debug pill
+│   └── debug panel
+└── transient overlays
+    ├── modals (7)
+    ├── command palette
+    ├── popovers (3)
+    └── toasts
+```
+
+---
+
+## menu organization
+
+all six dropdowns and their items, top-to-bottom in menu order:
+
+```text
+menu bar
+├── file
+│   ├── new tree
+│   ├── open tree…
+│   ├── save
+│   ├── import…
+│   ├── export .gdz
+│   └── delete…
+├── edit
+│   ├── undo
+│   ├── redo
+│   ├── find person…
+│   ├── command palette…
+│   └── settings…
+├── view
+│   ├── fit to window
+│   ├── zoom 100%
+│   ├── fit selection
+│   ├── focus selection
+│   ├── zoom in
+│   ├── zoom out
+│   ├── hand tool
+│   ├── select tool
+│   ├── show inspector
+│   ├── layout engine
+│   ├── set default
+│   └── overlays
+├── insert
+│   ├── add child
+│   ├── add partner
+│   ├── add parent
+│   └── add unattached
+├── tree
+│   ├── rename…
+│   ├── set as root
+│   ├── statistics…
+│   ├── reset layout
+│   └── center on root
+└── help
+    └── keyboard shortcuts
+```
+
+---
 
 ## menu bar
 
@@ -53,12 +130,12 @@ commands: `apps/web/src/lib/components/palette/commands.ts`
 - save
 - import…
 - export .gdz
-- delete this tree… *(danger)*
+- delete this tree… _(danger)_
 
 ### edit
 
-- undo *(conditional on history)*
-- redo *(conditional on history)*
+- undo _(conditional on history)_
+- redo _(conditional on history)_
 - find person…
 - command palette…
 - settings…
@@ -74,9 +151,9 @@ commands: `apps/web/src/lib/components/palette/commands.ts`
 - hand tool
 - select tool
 - show inspector
-- layout engine *(radio)*: family view / layered / hyperbolic
+- layout engine _(radio)_: family view / layered / hyperbolic
 - set current engine as default
-- overlays *(7 toggles)*: path highlight, generation badges, sworn bonds, transformations, severances, group frames, consanguinity
+- overlays _(7 toggles)_: path highlight, generation badges, sworn bonds, transformations, severances, group frames, consanguinity
 
 ### insert
 
@@ -103,10 +180,10 @@ commands: `apps/web/src/lib/components/palette/commands.ts`
 
 | dialog              | source                         | controls                                                                                                                          |
 | ------------------- | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
-| open tree           | `shell/OpenDialog.svelte`      | search field, tree list, preview pane (count / root / sample people), open from url…, delete *(danger)*, cancel, open             |
+| open tree           | `shell/OpenDialog.svelte`      | search field, tree list, preview pane (count / root / sample people), open from url…, delete _(danger)_, cancel, open             |
 | settings            | `shell/SettingsDialog.svelte`  | theme radio (light / dark / auto), inspector side radio (left / right)                                                            |
 | share tree          | `shell/ShareDialog.svelte`     | view link + copy, grants list with per-user revoke, add grant form (discord id, role dropdown editor/viewer, share button), close |
-| admin panel         | `shell/AdminPanel.svelte`      | users table with delete per row *(admin only)*                                                                                    |
+| admin panel         | `shell/AdminPanel.svelte`      | users table with delete per row _(admin only)_                                                                                    |
 | sign-in (link code) | `shell/LinkCodeDialog.svelte`  | 6-char code, copy button, status display, countdown timer, cancel                                                                 |
 | keyboard shortcuts  | `help/ShortcutsOverlay.svelte` | shortcuts grouped by category, macos vs windows/linux variants, close                                                             |
 | portrait cropper    | `editor/CropperDialog.svelte`  | image preview, drag-to-pan, crop overlay with draggable corners, zoom slider, cancel / save                                       |
@@ -137,7 +214,7 @@ source: `apps/web/src/lib/components/inspector/Inspector.svelte`
 
 **empty state:** tree summary - people count, couples count, root name, last edit time
 
-**person selected - header:** name, id, centre on selection button, more-actions menu (duplicate, set as root, copy id, delete *(danger)*), close
+**person selected - header:** name, id, centre on selection button, more-actions menu (duplicate, set as root, copy id, delete _(danger)_), close
 
 ### tab 1: personal
 
@@ -145,15 +222,15 @@ source: `inspector/PersonalTab.svelte`
 
 - portrait: upload, crop, remove
 - given name, surname, title
-- gender identity *(autocomplete: male, female, unknown, non-binary, agender, fluid)*
+- gender identity _(autocomplete: male, female, unknown, non-binary, agender, fluid)_
 - pronouns
-- assigned at birth: amab / afab / uaab *(dropdown)*
+- assigned at birth: amab / afab / uaab _(dropdown)_
 - fluid identity checkbox
 - species
-- kind *(autocomplete: biological, mechanical, spirit, collective, concept)*
-- origin kind *(autocomplete: born, cloned, hatched, summoned, awoken, manufactured)*
-- origin cause *(shown when origin kind is set)*
-- birth date, death date *(haracalnde date pickers)*
+- kind _(autocomplete: biological, mechanical, spirit, collective, concept)_
+- origin kind _(autocomplete: born, cloned, hatched, summoned, awoken, manufactured)_
+- origin cause _(shown when origin kind is set)_
+- birth date, death date _(haracalnde date pickers)_
 - birth order number
 
 ### tab 2: connections
@@ -170,13 +247,13 @@ source: `inspector/ConnectionsTab.svelte`
 source: `inspector/RelationshipsTab.svelte`
 
 - relationship list involving selected person
-- per row: edit controls, delete *(danger)*
+- per row: edit controls, delete _(danger)_
 
 ### tab 4: groups
 
 source: `inspector/GroupsTab.svelte`
 
-- groups list - per row: name, kind badge, edit, delete *(danger)*
+- groups list - per row: name, kind badge, edit, delete _(danger)_
 - create group: kind dropdown (dynasty, house, clan, household, faction, order, covenant), name input, create button
 
 ### tab 5: sibship
@@ -192,7 +269,7 @@ source: `inspector/DetailsTab.svelte`
 
 - occupation, location
 - wiki title with autocomplete dropdown and view link (opens wiki page in new tab)
-- display dropdown: normal / faded *(faded renders dimmed on canvas)*
+- display dropdown: normal / faded _(faded renders dimmed on canvas)_
 
 ### tab 7: bio
 
@@ -204,15 +281,15 @@ placeholder, not yet implemented
 
 source: `apps/web/src/App.svelte` (menuItems), `apps/web/src/lib/components/ui/ContextMenu.svelte`
 
-- edit person *(opens personal tab)*
-- edit connections *(opens connections tab)*
-- *divider*
+- edit person _(opens personal tab)_
+- edit connections _(opens connections tab)_
+- _divider_
 - set as tree root
 - add parent
 - add partner
 - add child
-- *divider*
-- delete person *(danger)*
+- _divider_
+- delete person _(danger)_
 
 read-only mode shows only "edit person".
 
@@ -245,8 +322,8 @@ source: `apps/web/src/lib/components/tree/FamilyViewCanvas.svelte`
 per-card overlay affordances that appear on cards in family-view mode:
 
 - **union picker (˅ chevron)** - opens a menu of alternate unions; items:
-  - "show {partner} as primary" - swaps the visible union for this person
-  - "also show {partner} alongside" - expands a secondary union at the same rank *(currently no-op, see bugs.md)*
+    - "show {partner} as primary" - swaps the visible union for this person
+    - "also show {partner} alongside" - expands a secondary union at the same rank _(currently no-op, see bugs.md)_
 - **expand button (+, bottom edge)** - title: "show more of this branch" - reveals hidden parents/children adjacent to this person
 - **collapse button (-, top-right)** - title: "hide expanded branch" - returns to the bounded default
 - **collapse badge ("+N FirstName" pill)** - title: "expand N hidden: sampleName, …" - in-row affordance for auto-collapsed cohorts; click reveals the cohort
@@ -257,23 +334,23 @@ per-card overlay affordances that appear on cards in family-view mode:
 
 source: `apps/web/src/App.svelte`
 
-### stats pill *(layered engine only)*
+### stats pill _(layered engine only)_
 
 - "n people · m clusters" label
 - click to toggle inspector
 
-### debug pill *(ctrl+shift+d, debug mode only)*
+### debug pill _(ctrl+shift+d, debug mode only)_
 
 - opens / closes debug panel
 
 ### debug panel
 
-| section     | toggles                                                                                |
-| ----------- | -------------------------------------------------------------------------------------- |
-| layout      | grid, node bounds, segment ids, components                                             |
-| routing     | ghost arrows, bridge hops, overlap pairs                                               |
-| diagnostics | cycle nodes, bond/centroid δ, orphans, rank labels, last-edit halo                     |
-| runtime     | expose __treeDebug toggle, copy snapshot, force conflict, dump/load tree JSON textarea |
+| section     | toggles                                                                                  |
+| ----------- | ---------------------------------------------------------------------------------------- |
+| layout      | grid, node bounds, segment ids, components                                               |
+| routing     | ghost arrows, bridge hops, overlap pairs                                                 |
+| diagnostics | cycle nodes, bond/centroid δ, orphans, rank labels, last-edit halo                       |
+| runtime     | expose \_\_treeDebug toggle, copy snapshot, force conflict, dump/load tree JSON textarea |
 
 ---
 
@@ -358,15 +435,15 @@ source: `apps/web/src/lib/components/ui/Toasts.svelte`
 
 - [../bugs.md](../bugs.md) - active bug log; UI defects cross-referenced from this inventory live there
 - [../to-do.md](../to-do.md) - feature / polish / UX backlog; planned UI changes land here
-- [../features/keyboard-shortcuts.md](../features/keyboard-shortcuts.md) - canonical shortcut list rendered into the Help > Keyboard shortcuts overlay
+- [keyboard-shortcuts.md](keyboard-shortcuts.md) - canonical shortcut list rendered into the Help > Keyboard shortcuts overlay
 
 ---
 
 ## metadata
 
 ```yaml
-last_updated: 23 May 2026
+last_updated: 28 May 2026
 top_level_surfaces: 12
 inspector_tabs: 7
-menu_bar_dropdowns: 5
+menu_bar_dropdowns: 6
 ```
