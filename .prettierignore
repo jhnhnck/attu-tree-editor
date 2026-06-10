@@ -1,0 +1,9 @@
+node_modules
+dist
+data
+.venv
+.pytest_cache
+.claude
+pnpm-lock.yaml
+apps/server
+**/*.md

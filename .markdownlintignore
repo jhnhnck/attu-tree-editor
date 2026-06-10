@@ -1,0 +1,9 @@
+node_modules/
+.venv/
+.pytest_cache/
+dist/
+data/
+.claude/worktrees/
+.claude/plans/
+notes/plans/
+LICENSE.md

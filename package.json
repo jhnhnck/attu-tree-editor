@@ -10,6 +10,7 @@
         "pnpm": ">=10"
     },
     "scripts": {
+        "postinstall": "test -d .githooks && git rev-parse --git-dir > /dev/null 2>&1 && git config core.hooksPath .githooks || true",
         "dev": "pnpm -F web dev",
         "dev:fresh": "pnpm -F web exec vite --force",
         "build": "pnpm -F web build",

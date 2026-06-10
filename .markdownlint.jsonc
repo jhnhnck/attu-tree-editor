@@ -1,7 +1,10 @@
 // markdownlint config for the FamilyTreeEditor repo.
 // matches the project convention: long single-line paragraphs,
-// asterisk emphasis, padded table pipes.
+// asterisk emphasis, compact table pipes.
 {
+  // reference notes start with a purpose line, not a heading — by design
+  "MD041": false,
+
   // single-line paragraphs are the convention; do not enforce a wrap width
   "MD013": false,
 
@@ -9,8 +12,8 @@
   "MD049": { "style": "asterisk" },
   "MD050": { "style": "asterisk" },
 
-  // tables: padded (`| x | y |`) for readability
-  "MD060": { "style": "padded" },
+  // tables: compact (`|x|y|`) — prettier is excluded from *.md so this won't conflict
+  "MD060": { "style": "compact" },
 
   // allow inline html where we use it (e.g. <topic> placeholders in templates)
   "MD033": false,
@@ -22,18 +25,5 @@
   "MD024": false,
 
   // ordered-list prefix: allow author-chosen numbering (sublists across emphasis headers)
-  "MD029": false,
-
-  // ignore generated and gitignored trees
-  "ignores": [
-    "**/node_modules/**",
-    "**/.venv/**",
-    "**/.pytest_cache/**",
-    "**/dist/**",
-    "data/**",
-    ".claude/worktrees/**",
-    ".claude/plans/**",
-    "notes/plans/**",
-    "LICENSE.md"
-  ]
+  "MD029": false
 }
