@@ -1,0 +1,7 @@
+{
+    "@metadata": {
+        "authors": ["Attu Project"]
+    },
+    "attueditor-desc": "A custom wikitext editor with split preview, built on the Attu UI component library.",
+    "attueditor-pref-label": "Use AttuEditor (experimental)"
+}

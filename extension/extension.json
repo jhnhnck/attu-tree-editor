@@ -1,0 +1,35 @@
+{
+    "name": "AttuEditor",
+    "version": "0.1.0",
+    "author": ["Attu Project"],
+    "url": "https://attuproject.org",
+    "descriptionmsg": "attueditor-desc",
+    "license-name": "MIT",
+    "type": "other",
+    "requires": {
+        "MediaWiki": ">= 1.43"
+    },
+    "AutoloadClasses": {
+        "AttuEditorHooks": "includes/AttuEditorHooks.php"
+    },
+    "Hooks": {
+        "GetPreferences": "AttuEditorHooks::onGetPreferences",
+        "EditPage::showEditForm:initial": "AttuEditorHooks::onEditFormInitial"
+    },
+    "ResourceModules": {
+        "ext.attuEditor": {
+            "scripts": ["resources/attu-editor.js"],
+            "styles": ["resources/attu-editor.css"],
+            "dependencies": ["mediawiki.api", "mediawiki.Title"],
+            "targets": ["desktop", "mobile"]
+        }
+    },
+    "ResourceFileModulePaths": {
+        "localBasePath": "",
+        "remoteExtPath": "AttuEditor"
+    },
+    "MessagesDirs": {
+        "AttuEditor": ["i18n"]
+    },
+    "manifest_version": 2
+}
