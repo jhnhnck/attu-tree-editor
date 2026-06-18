@@ -18,7 +18,7 @@ export default defineConfig({
         trace: "on-first-retry",
     },
     projects: [
-        { name: "chromium", use: { ...devices["Desktop Chrome"] } },
+        { name: "firefox", use: { ...devices["Desktop Firefox"] } },
         { name: "mobile", use: { ...devices["Pixel 7"] } },
     ],
     webServer: {
