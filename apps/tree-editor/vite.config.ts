@@ -20,6 +20,8 @@ export default defineConfig({
         host: true,
         port: 5173,
         strictPort: false,
+        // when served through the python proxy on :8000, hmr must point back to vite directly
+        hmr: { port: 5173 },
         proxy: {
             "/api": {
                 target: "http://127.0.0.1:8000",

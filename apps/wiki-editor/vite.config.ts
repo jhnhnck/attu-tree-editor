@@ -20,6 +20,8 @@ export default defineConfig({
         host: true,
         port: 5174,
         strictPort: false,
+        // when served through the python proxy on :8000, hmr must point back to vite directly
+        hmr: { port: 5174 },
     },
     build: {
         target: "es2022",
