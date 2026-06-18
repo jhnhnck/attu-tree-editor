@@ -11,11 +11,10 @@
         "typecheck": "svelte-check --tsconfig ./tsconfig.json",
         "lint": "eslint . && prettier --check .",
         "format": "prettier --write .",
-        "test": "pnpm test:unit && pnpm test:e2e",
+        "test": "pnpm test:unit",
         "test:unit": "vitest run",
         "test:unit:watch": "vitest",
-        "test:spike": "vitest run --config ./vitest.spike.config.ts",
-        "test:e2e": "playwright test"
+        "test:spike": "vitest run --config ./vitest.spike.config.ts"
     },
     "dependencies": {
         "@attu/api-client": "workspace:*",
@@ -29,7 +28,6 @@
     },
     "devDependencies": {
         "@eslint/js": "^10.0.1",
-        "@playwright/test": "^1.61.0",
         "@sveltejs/vite-plugin-svelte": "^7.1.2",
         "@tailwindcss/vite": "^4.3.1",
         "@testing-library/jest-dom": "^6.9.1",

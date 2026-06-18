@@ -19,7 +19,6 @@
         "lint": "pnpm -F tree-editor lint",
         "test": "pnpm -F tree-editor test",
         "test:unit": "pnpm -F tree-editor test:unit",
-        "test:e2e": "pnpm -F tree-editor test:e2e",
         "trees-server:setup": "cd apps/server && env -u VIRTUAL_ENV uv sync",
         "trees-server:dev": "cd apps/server && TREES_CONFIG_PATH=../../data/trees-config.toml .venv/bin/uvicorn attu_tree.main:app --reload --port 8000",
         "trees-server:test": "cd apps/server && .venv/bin/pytest",
