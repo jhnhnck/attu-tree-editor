@@ -1,0 +1,47 @@
+### Secrets & environment ###
+.env
+
+### Git merge artifacts ###
+*.orig
+*.BACKUP.*
+*.BASE.*
+*.LOCAL.*
+*.REMOTE.*
+*_BACKUP_*.txt
+*_BASE_*.txt
+*_LOCAL_*.txt
+*_REMOTE_*.txt
+
+### Node ###
+node_modules/
+
+### VSCode ###
+.vscode/*
+.history/
+
+### Logs ###
+*.log
+
+### Build ###
+dist/
+build/
+.svelte-kit/
+
+### Test artifacts ###
+coverage/
+playwright-report/
+test-results/
+.vitest-cache/
+
+### Tooling caches ###
+.turbo/
+.pnpm-store/
+
+### Claude ###
+.claude/*.local.json
+.claude/worktrees/
+.playwright-mcp/
+
+### Notes ###
+notes/reports/
+notes/profiles/

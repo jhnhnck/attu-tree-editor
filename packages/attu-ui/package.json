@@ -1,0 +1,65 @@
+{
+    "name": "@attu/ui",
+    "version": "0.1.0",
+    "private": true,
+    "description": "shared svelte 5 + tailwind v4 component library for the attu project",
+    "license": "MIT",
+    "type": "module",
+    "packageManager": "pnpm@10.33.2",
+    "engines": {
+        "node": ">=22",
+        "pnpm": ">=10"
+    },
+    "exports": {
+        ".": {
+            "svelte": "./src/lib/index.ts",
+            "types": "./src/lib/index.ts",
+            "default": "./src/lib/index.ts"
+        },
+        "./theme.css": "./src/lib/theme.css"
+    },
+    "files": [
+        "src/lib"
+    ],
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build",
+        "typecheck": "svelte-check --tsconfig ./tsconfig.json",
+        "lint": "eslint . && prettier --check .",
+        "format": "prettier --write .",
+        "test:unit": "vitest run",
+        "test:unit:watch": "vitest",
+        "verify": "pnpm typecheck && pnpm lint && pnpm test:unit && pnpm build"
+    },
+    "peerDependencies": {
+        "svelte": "^5.0.0",
+        "tailwindcss": "^4.0.0"
+    },
+    "dependencies": {
+        "@lucide/svelte": "^1.16.0",
+        "svelte": "^5.55.9"
+    },
+    "devDependencies": {
+        "@eslint/js": "^10.0.1",
+        "@sveltejs/vite-plugin-svelte": "^7.1.2",
+        "@tailwindcss/vite": "^4.3.0",
+        "@testing-library/jest-dom": "^6.9.1",
+        "@testing-library/svelte": "^5.3.1",
+        "@testing-library/user-event": "^14.6.1",
+        "@types/node": "^25.9.1",
+        "eslint": "^10.4.0",
+        "eslint-plugin-svelte": "^3.17.1",
+        "fake-indexeddb": "^6.2.5",
+        "globals": "^17.6.0",
+        "jsdom": "^29.1.1",
+        "prettier": "^3.8.3",
+        "prettier-plugin-svelte": "^4.0.1",
+        "prettier-plugin-tailwindcss": "^0.8.0",
+        "svelte-check": "^4.4.8",
+        "tailwindcss": "^4.3.0",
+        "typescript": "^6.0.3",
+        "typescript-eslint": "^8.59.4",
+        "vite": "^8.0.14",
+        "vitest": "^4.1.7"
+    }
+}

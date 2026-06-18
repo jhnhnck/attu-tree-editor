@@ -1,0 +1,85 @@
+/*
+ * AttuUI - theme tokens and global resets; shared across all attu project apps
+ * licensed under the MIT license; see LICENSE.md for full text
+ */
+
+@import "tailwindcss";
+
+/* color tokens matched to attuproject.org's citizen skin
+ * (cool dark blue-grey chrome, bright blue accent at hue 220deg)
+ *
+ * dark values live in @theme so tailwind v4 generates the utility classes
+ * (bg-canvas, text-fg, border-line, etc). the data-theme selectors override
+ * at runtime when the user picks an explicit theme.
+ */
+@theme {
+    --color-canvas: hsl(220 30% 5%);
+    --color-canvas-elev: hsl(220 35% 10%);
+    --color-fg: hsl(220 10% 88%);
+    --color-fg-muted: hsl(220 15% 72%);
+    --color-line: hsl(220 25% 22%);
+    --color-accent: hsl(220 100% 65%);
+    --color-accent-strong: hsl(220 100% 75%);
+    --color-danger: hsl(0 80% 65%);
+}
+
+@media (prefers-color-scheme: light) {
+    :root:not([data-theme]) {
+        --color-canvas: hsl(220 30% 97%);
+        --color-canvas-elev: hsl(220 35% 92%);
+        --color-fg: hsl(220 12% 18%);
+        --color-fg-muted: hsl(220 12% 35%);
+        --color-line: hsl(220 25% 78%);
+        --color-accent: hsl(220 100% 45%);
+        --color-accent-strong: hsl(220 100% 35%);
+        --color-danger: hsl(0 70% 45%);
+    }
+}
+
+:root[data-theme="light"] {
+    --color-canvas: hsl(220 30% 97%);
+    --color-canvas-elev: hsl(220 35% 92%);
+    --color-fg: hsl(220 12% 18%);
+    --color-fg-muted: hsl(220 12% 35%);
+    --color-line: hsl(220 25% 78%);
+    --color-accent: hsl(220 100% 45%);
+    --color-accent-strong: hsl(220 100% 35%);
+    --color-danger: hsl(0 70% 45%);
+}
+
+:root[data-theme="dark"] {
+    --color-canvas: hsl(220 30% 5%);
+    --color-canvas-elev: hsl(220 35% 10%);
+    --color-fg: hsl(220 10% 88%);
+    --color-fg-muted: hsl(220 15% 72%);
+    --color-line: hsl(220 25% 22%);
+    --color-accent: hsl(220 100% 65%);
+    --color-accent-strong: hsl(220 100% 75%);
+    --color-danger: hsl(0 80% 65%);
+}
+
+html {
+    font-size: 110%;
+}
+
+html,
+body {
+    height: 100%;
+    margin: 0;
+    font-family:
+        ui-sans-serif,
+        system-ui,
+        -apple-system,
+        sans-serif;
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        transition-duration: 0ms !important;
+        animation-duration: 0ms !important;
+    }
+}
