@@ -32,14 +32,14 @@ Two residual risks. (1) CropperDialog uses HTMLCanvasElement APIs; jsdom's canva
 ## phase 0 — walking skeleton: e2e validation + test harness probe
 
 **status:** in progress
-**definition of done:** playwright.config.ts and App.svelte changes committed; `pnpm test:e2e` completes with all 9 specs green under firefox; `packages/attu-ui/tests/unit/` directory created with one trivial HaracalndeDate test — `pnpm test:unit` discovers and passes it; vitest.config.ts added to api-client (env: jsdom) with 1 passing ConflictError test
+**definition of done:** `packages/attu-ui/tests/unit/` directory created with one trivial HaracalndeDate test — `pnpm test:unit` discovers and passes it; `packages/api-client/vitest.config.ts` (env: jsdom) added with 1 passing ConflictError test
 **scope:**
 
-- commit playwright.config.ts (chromium → firefox) and App.svelte (overflow-hidden → overflow-clip)
-- run `pnpm test:e2e`; if any spec fails for a reason beyond the overflow-clip fix, stop and file a bug before proceeding
+- ~~commit playwright.config.ts (chromium → firefox) and App.svelte (overflow-hidden → overflow-clip)~~ done (8f7816f, 9f640b9)
+- ~~run `pnpm test:e2e`~~ — e2e suite removed entirely (9bf9756); e2e DoD bullet dropped
 - create `packages/attu-ui/tests/unit/haracalende-date.test.ts` — import HaracalndeDate from `$lib/date/HaracalndeDate`, assert one date round-trips; confirms vitest discovers `tests/unit/` correctly
 - add `packages/api-client/vitest.config.ts` with environment: "jsdom" (localStorage available); add `packages/api-client/tests/unit/errors.test.ts` with 1 ConflictError construction test
-- **pivot criterion:** if e2e fails on firefox for reasons requiring changes beyond App.svelte, run plan-revise; if attu-ui vitest fails to resolve Svelte 5 components in jsdom, run plan-revise
+- **pivot criterion:** if attu-ui vitest fails to resolve Svelte 5 components in jsdom, run plan-revise
 
 ## phase 1 — api-client full test suite
 
