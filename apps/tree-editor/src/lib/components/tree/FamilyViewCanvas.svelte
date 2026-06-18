@@ -1355,7 +1355,7 @@
      user clicks empty canvas to deselect. -->
 <div
     bind:this={hostEl}
-    class="family-view-canvas bg-canvas relative h-full w-full overflow-clip"
+    class="family-view-canvas bg-canvas relative z-0 h-full w-full overflow-clip"
     role="tree"
     aria-label="family view canvas"
     tabindex="-1"

@@ -2293,14 +2293,14 @@
     </header>
 
     <main
-        class="relative flex min-h-0 flex-1 overflow-hidden"
+        class="relative flex min-h-0 flex-1 overflow-clip"
         class:flex-row-reverse={prefs.inspectorSide === "left"}
         ondragenter={onDragEnter}
         ondragover={onDragOver}
         ondragleave={onDragLeave}
         ondrop={onDrop}
     >
-        <div class="relative flex-1 overflow-hidden" data-canvas-host>
+        <div class="relative flex-1 overflow-clip" data-canvas-host>
             <ProgressStrip {progress} />
             {#if selectedEngine === "hyperbolic"}
                 <HyperbolicCanvas

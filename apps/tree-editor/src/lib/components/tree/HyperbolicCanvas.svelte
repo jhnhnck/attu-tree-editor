@@ -527,7 +527,7 @@
 
 <div
     bind:this={hostEl}
-    class="hyperbolic-canvas relative h-full w-full overflow-hidden"
+    class="hyperbolic-canvas relative z-0 h-full w-full overflow-hidden"
     class:is-dragging={isDragging}
     role="region"
     aria-label="hyperbolic canvas"

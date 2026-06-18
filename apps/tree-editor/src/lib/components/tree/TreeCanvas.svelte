@@ -1238,7 +1238,7 @@
 
 <div
     bind:this={hostEl}
-    class="canvas-host bg-canvas relative h-full w-full overflow-hidden"
+    class="canvas-host bg-canvas relative z-0 h-full w-full overflow-hidden"
     class:is-dragging={isDragging}
     class:is-zooming={isZooming}
     style:touch-action="none"
