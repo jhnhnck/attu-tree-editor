@@ -15,3 +15,19 @@ no worktree (plan constraint: all changes land on trunk)
 - vitest harness (attu-ui probe + api-client config) not started — session redirected to dev proxy / workspace script work
 - side work committed: dev reverse proxy for /trees and /edit (8f4abb7), tooling renames (ceb176d)
 - **remaining phase 0 DoD:** attu-ui tests/unit/ probe test + api-client vitest.config.ts — carry into next session
+
+## phase 0 retro — 2026-06-18
+
+clean phase; all remaining DoD items done in a single session.
+
+- `$lib` alias in existing vitest.config.ts resolved without any changes; probe test passed on first run
+- api-client jsdom env satisfied isDryRun() localStorage call with no stubbing needed
+- import path `../../src/index.js` resolves to `.ts` source correctly in vitest; no module resolution issues
+- pivot criterion (svelte 5 component resolution failure) never triggered — probe uses pure TS
+- tree-editor 1328 tests unchanged after adding new package test configs
+
+no residual debt. no bugs filed.
+
+## revision after phase 0 — 2026-06-18
+
+plan shape unchanged. phases 1-4 valid as written. harness pattern confirmed for both packages. next: phase 1 (api-client full test suite).

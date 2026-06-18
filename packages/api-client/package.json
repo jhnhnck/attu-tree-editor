@@ -8,10 +8,12 @@
         ".": "./src/index.ts"
     },
     "scripts": {
-        "gen": "openapi-typescript http://localhost:8000/openapi.json -o src/schema.d.ts"
+        "gen": "openapi-typescript http://localhost:8000/openapi.json -o src/schema.d.ts",
+        "test:unit": "vitest run"
     },
     "devDependencies": {
         "openapi-typescript": "^7.13.0",
-        "typescript": "^6.0.3"
+        "typescript": "^6.0.3",
+        "vitest": "^4.1.9"
     }
 }

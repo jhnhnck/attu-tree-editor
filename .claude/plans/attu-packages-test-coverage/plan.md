@@ -31,7 +31,7 @@ Two residual risks. (1) CropperDialog uses HTMLCanvasElement APIs; jsdom's canva
 
 ## phase 0 — walking skeleton: e2e validation + test harness probe
 
-**status:** in progress
+**status:** done
 **definition of done:** `packages/attu-ui/tests/unit/` directory created with one trivial HaracalndeDate test — `pnpm test:unit` discovers and passes it; `packages/api-client/vitest.config.ts` (env: jsdom) added with 1 passing ConflictError test
 **scope:**
 
