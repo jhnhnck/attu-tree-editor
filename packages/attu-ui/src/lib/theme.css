@@ -59,6 +59,10 @@
 }
 
 html {
+    /* global UI rescale: 1rem = 110% of the user-agent default. scales every
+     * rem-based tailwind utility (spacing, text, gaps, radii) proportionally
+     * while leaving px-based values (borders, icon sizes, canvas world coords)
+     * untouched. */
     font-size: 110%;
 }
 

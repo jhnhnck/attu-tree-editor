@@ -13,6 +13,7 @@ AttuUI: shared Svelte 5 + Tailwind v4 component library for the Attu Project app
 3. no `git commit` without explicit instruction in the current turn.
 4. no tree-editor domain logic (family trees, GEDCOM, layout engines) — this is a generic UI library.
 5. HaracalndeDate lives here; do not duplicate it in consumer repos.
+6. **worker-safe imports:** any file that runs inside a web worker (e.g. tree-editor's `layout.worker.ts` via domain types) must import from `@attu/ui/pure`, not `@attu/ui`. the `@attu/ui` barrel re-exports Svelte components; Vite's worker bundler cannot process `.svelte` files and will fail with a parse error. `@attu/ui/pure` (`src/lib/pure.ts`) re-exports only pure TypeScript utilities (Result, HaracalndeDate, date helpers). keep `pure.ts` in sync with any new pure-TS utility added to the barrel.
 
 ## style
 

@@ -3,6 +3,9 @@
  * licensed under the MIT license; see LICENSE.md for full text
  */
 
+// result
+export { ok, err, type Result } from "./utils/result.js";
+
 // keyboard
 export { formatCombo, isMac, installShortcuts } from "./keyboard.js";
 export type { ShortcutBinding, ShortcutScope } from "./keyboard.js";
@@ -11,8 +14,8 @@ export type { ShortcutBinding, ShortcutScope } from "./keyboard.js";
 export type { PaletteItem } from "./palette.js";
 
 // date
-export { HaracalndeDate } from "./date/HaracalndeDate.js";
-export type { HaracalndeDateData, Era } from "./date/HaracalndeDate.js";
+export { HaracalndeDate, DateParseErrors } from "./date/HaracalndeDate.js";
+export type { HaracalndeDateData, Era, DateParseError } from "./date/HaracalndeDate.js";
 export { approxGregorianYear, approxGregorianLabel } from "./date/gregorian.js";
 
 // state
@@ -27,6 +30,7 @@ export type { PreferencesStore, Theme, InspectorSide } from "./state/preferences
 // ui
 export { default as Button } from "./components/ui/Button.svelte";
 export { default as ContextMenu } from "./components/ui/ContextMenu.svelte";
+export type { ContextMenuItem } from "./components/ui/ContextMenu.svelte";
 export { default as Toasts } from "./components/ui/Toasts.svelte";
 
 // form
@@ -42,8 +46,29 @@ export { default as WindowOverlay } from "./components/canvas/WindowOverlay.svel
 export { default as ZoomWidget } from "./components/canvas/ZoomWidget.svelte";
 export { windowManager, WINDOW_MANAGER_CONSTANTS, NON_CLOSING_IDS } from "./components/canvas/windowManager.svelte.js";
 export type { PopOutState, DockWindowState } from "./components/canvas/windowManager.svelte.js";
+export { computeFit, measureCanvasChromeInsets, ZERO_INSETS } from "./components/canvas/fitMath.js";
+export type { CanvasChromeInsets, FitInput, FitOutput } from "./components/canvas/fitMath.js";
+export { computeDisplayPercent, DESIGN_CARD_WIDTH_PX } from "./components/canvas/zoomDisplay.js";
+export type { DisplayPercentInput } from "./components/canvas/zoomDisplay.js";
+export { dockConfig, DockConfig } from "./components/canvas/dockConfig.svelte.js";
+export {
+    clearForcedCollapses,
+    clearRegistry,
+    forceCollapse,
+    idsByKind,
+    isForceCollapsed,
+    itemsForCorner,
+    register,
+    reorderItem,
+    reorderPills,
+    unforceCollapse,
+    unregister,
+    updateItem,
+} from "./components/canvas/dockRegistry.svelte.js";
+export type { DockCorner, DockKind, DockItem, DockRenderCtx, DockRenderSnippet } from "./components/canvas/dockRegistry.svelte.js";
 
 // shell
+export type { MenuConfig, MenuEntry, MenuItem, IconComponent } from "./components/shell/menu.js";
 export { default as AboutDialog } from "./components/shell/AboutDialog.svelte";
 export { default as AdminPanel } from "./components/shell/AdminPanel.svelte";
 export { default as AuthBar } from "./components/shell/AuthBar.svelte";
@@ -61,6 +86,21 @@ export { default as ShortcutsOverlay } from "./components/help/ShortcutsOverlay.
 // editor
 export { default as CropperDialog } from "./components/editor/CropperDialog.svelte";
 export { default as CropperCanvas } from "./components/editor/CropperCanvas.svelte";
+export {
+    coverScale,
+    centerOnFrame,
+    initialCoverTransform,
+    extractSourceRect,
+    MAX_ZOOM_MULTIPLE,
+    panTransform,
+    anchorZoom,
+    clampTransform,
+} from "./components/editor/cropperMath.js";
+export type { Transform, Size } from "./components/editor/cropperMath.js";
+export { loadSourceBitmap, __setOrientationProbe } from "./components/editor/loadSourceBitmap.js";
+export type { SourceBitmap, LoadOptions } from "./components/editor/loadSourceBitmap.js";
+export { encodePortrait, DOWNSCALE_RATIO_THRESHOLD } from "./components/editor/encodePortrait.js";
+export type { EncodeOptions } from "./components/editor/encodePortrait.js";
 
 // palette
 export { default as CommandPalette } from "./components/palette/CommandPalette.svelte";
