@@ -59,7 +59,7 @@ Two residual risks remain. (1) ~~Tailwind v4 utility class propagation~~ — **r
 
 ## phase 1 — CommandPalette decoupling
 
-**status:** pending merge
+**status:** closed in a71a759
 **definition of done:** `CommandPalette.svelte` has zero imports from `$lib/domain/` or `$lib/layout/`; the palette still opens, filters, and runs commands; existing tests pass; `pnpm typecheck` clean.
 
 **scope:**
