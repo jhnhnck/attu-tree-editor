@@ -31,3 +31,25 @@ no residual debt. no bugs filed.
 ## revision after phase 0 — 2026-06-18
 
 plan shape unchanged. phases 1-4 valid as written. harness pattern confirmed for both packages. next: phase 1 (api-client full test suite).
+
+## starting phase 1 — 2026-06-18
+
+no worktree (plan constraint: all changes land on trunk)
+
+**DoD:** every public export in `packages/api-client/src/index.ts` has ≥1 test; test file count ≥3 (auth, trees, admin); `pnpm test:unit` in api-client passes with zero errors; mocked fetch is the only I/O
+
+## phase 1 retro — 2026-06-18
+
+clean phase; all 25 tests passed on first run.
+
+- `vi.stubGlobal("fetch", fetchMock)` in beforeAll + mockReset() in beforeEach is the right pattern — avoids repeated-stub warnings
+- `_checkCount` reset by calling auth.start() at head of dry-run check progression test
+- jsdom localStorage is per-file fresh; localStorage.clear() in beforeEach handles within-file isolation
+- no setApiPrefix or onUnauthorized leakage between files (separate module instances per vitest file)
+- 25 tests cover all auth.*/trees.*/admin.* exports plus ApiError, ConflictError, onUnauthorized, setApiPrefix, DRY_RUN_USER
+
+no residual debt.
+
+## revision after phase 1 — 2026-06-18
+
+plan shape unchanged. phases 2-4 valid as written. phases 2-3 inherit vi.stubGlobal pattern. next: phase 2 (attu-ui state module tests).

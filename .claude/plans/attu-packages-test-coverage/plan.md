@@ -43,7 +43,7 @@ Two residual risks. (1) CropperDialog uses HTMLCanvasElement APIs; jsdom's canva
 
 ## phase 1 — api-client full test suite
 
-**status:** open
+**status:** done
 **definition of done:** every public export in `packages/api-client/src/index.ts` has ≥1 test; test file count ≥3 (auth, trees, admin); `pnpm test:unit` in api-client passes with zero errors; mocked fetch is the only I/O
 **scope:** mock `globalThis.fetch` with `vi.fn()` at suite level; test files in `packages/api-client/tests/unit/`: `auth.test.ts` (auth.start, auth.check, auth.me, auth.logout + authStub dry-run behavior via localStorage jsdom env), `trees.test.ts` (trees.list, trees.create, trees.get, trees.save with ConflictError path, trees.delete, trees.addGrant, trees.listGrants, trees.revokeGrant), `admin.test.ts` (admin.listUsers, admin.updateUser, admin.deleteUser), expand `errors.test.ts` (ApiError, ConflictError, onUnauthorized callback, setApiPrefix base-URL construction)
 
