@@ -78,7 +78,7 @@ function findCardByName(root: ParentNode, needle: RegExp): HTMLElement | null {
 describe("family-view: path highlight", () => {
     it("no selection -> no data-on-path markers anywhere", async () => {
         const restore = setupHostRect({ width: 1024, height: 768 });
-        const tree = loadGedcomFixture("apps/web/tests/fixtures/multi-union.ged");
+        const tree = loadGedcomFixture("apps/tree-editor/tests/fixtures/multi-union.ged");
         const target = document.createElement("div");
         document.body.appendChild(target);
         const inst = mount(FamilyViewCanvas, { target, props: { tree } });
@@ -94,7 +94,7 @@ describe("family-view: path highlight", () => {
 
     it("selecting a non-focus relative paints data-on-path on every card on the BFS path", async () => {
         const restore = setupHostRect({ width: 1024, height: 768 });
-        const tree = loadGedcomFixture("apps/web/tests/fixtures/multi-union.ged");
+        const tree = loadGedcomFixture("apps/tree-editor/tests/fixtures/multi-union.ged");
         const target = document.createElement("div");
         document.body.appendChild(target);
 
@@ -156,7 +156,7 @@ describe("family-view: path highlight", () => {
         // selecting mira puts [aron, mira] on-path. only bond:aronId|miraId|N
         // should be on-path; bond:aronId|seraId|N must NOT be on-path.
         const restore = setupHostRect({ width: 1024, height: 768 });
-        const tree = loadGedcomFixture("apps/web/tests/fixtures/multi-union.ged");
+        const tree = loadGedcomFixture("apps/tree-editor/tests/fixtures/multi-union.ged");
 
         // resolve ids by given name (surnames differ so given-name lookup is unambiguous here)
         function findId(given: string): PersonId {
@@ -206,7 +206,7 @@ describe("family-view: path highlight", () => {
 
     it("selecting the focus collapses the path to one card; clearing selection clears it", async () => {
         const restore = setupHostRect({ width: 1024, height: 768 });
-        const tree = loadGedcomFixture("apps/web/tests/fixtures/multi-union.ged");
+        const tree = loadGedcomFixture("apps/tree-editor/tests/fixtures/multi-union.ged");
         const aronId = tree.rootId;
         const target = document.createElement("div");
         document.body.appendChild(target);

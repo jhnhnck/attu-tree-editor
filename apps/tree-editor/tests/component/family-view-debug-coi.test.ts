@@ -91,7 +91,7 @@ describe("family-view debug overlay - phase 4 coi inspector", () => {
     });
 
     it("showCoiBreakdown: panel mounts via DockRegistration; rows sum to raw coi for first-cousin offspring", async () => {
-        const tree = loadGedcomFixture("apps/web/tests/fixtures/consanguinity-cousins.ged");
+        const tree = loadGedcomFixture("apps/tree-editor/tests/fixtures/consanguinity-cousins.ged");
         const ingaId = ingaIdOf(tree);
 
         const layers = defaultLayers();
@@ -139,7 +139,7 @@ describe("family-view debug overlay - phase 4 coi inspector", () => {
     });
 
     it("showDuplicateAncestors: each halo's data-person-id matches one of the snapshot duplicates", async () => {
-        const tree = loadGedcomFixture("apps/web/tests/fixtures/consanguinity-cousins.ged");
+        const tree = loadGedcomFixture("apps/tree-editor/tests/fixtures/consanguinity-cousins.ged");
         const ingaId = ingaIdOf(tree);
         const layers = defaultLayers();
         // enable expose so the canvas publishes __treeDebug.coi.duplicates
@@ -188,7 +188,7 @@ describe("family-view debug overlay - phase 4 coi inspector", () => {
     });
 
     it("exposeFamilyDebug populates window.__treeDebug.coi for Inga's focus with the expected shape", async () => {
-        const tree = loadGedcomFixture("apps/web/tests/fixtures/consanguinity-cousins.ged");
+        const tree = loadGedcomFixture("apps/tree-editor/tests/fixtures/consanguinity-cousins.ged");
         const ingaId = ingaIdOf(tree);
         const layers = defaultLayers();
         layers.exposeFamilyDebug = true;

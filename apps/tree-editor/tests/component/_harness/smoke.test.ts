@@ -53,19 +53,19 @@ describe("phase 1b harness smoke", () => {
     });
 
     it("loadGedcomFixture(.ged) parses the tiny fixture", () => {
-        const tree = loadGedcomFixture("apps/web/tests/fixtures/tiny.ged");
+        const tree = loadGedcomFixture("apps/tree-editor/tests/fixtures/tiny.ged");
         expect(tree.id).toBeTruthy();
         expect(Object.keys(tree.people).length).toBeGreaterThan(0);
     });
 
     it("loadGedcomFixture throws a clear error for a missing path", () => {
-        expect(() => loadGedcomFixture("apps/web/tests/fixtures/__nope__.ged")).toThrowError(
+        expect(() => loadGedcomFixture("apps/tree-editor/tests/fixtures/__nope__.ged")).toThrowError(
             /fixture not found/i,
         );
     });
 
     it("loadGedcomFixture throws on an unsupported extension", () => {
-        expect(() => loadGedcomFixture("apps/web/tests/fixtures/portrait-blue.png")).toThrowError(
+        expect(() => loadGedcomFixture("apps/tree-editor/tests/fixtures/portrait-blue.png")).toThrowError(
             /unsupported extension/i,
         );
     });

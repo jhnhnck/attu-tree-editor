@@ -55,7 +55,7 @@ describe("import-edit (jsdom port of tests/e2e/import-edit.spec.ts)", () => {
     });
 
     it("renders >=3 cards, click selects, inspector shows fields, X closes", async () => {
-        const tree = loadGedcomFixture("apps/web/tests/fixtures/tiny.ged");
+        const tree = loadGedcomFixture("apps/tree-editor/tests/fixtures/tiny.ged");
         expect(Object.keys(tree.people).length).toBeGreaterThanOrEqual(3);
 
         const handle = mountWithHostRect(ImportEditHarness, {

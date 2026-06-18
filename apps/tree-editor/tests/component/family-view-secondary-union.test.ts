@@ -48,7 +48,7 @@ function cardsWithText(root: ParentNode, needle: RegExp): Element[] {
 
 describe("family-view: secondary-union expansion", () => {
     it("show-alongside / hide round-trip surfaces and removes the secondary union + writes/clears localStorage", async () => {
-        const tree = loadGedcomFixture("apps/web/tests/fixtures/multi-union.ged");
+        const tree = loadGedcomFixture("apps/tree-editor/tests/fixtures/multi-union.ged");
         const handle = mountWithHostRect(FamilyViewCanvas, {
             props: { tree },
             hostRect: { width: 1024, height: 768 },
@@ -122,7 +122,7 @@ describe("family-view: secondary-union expansion", () => {
     });
 
     it("with secondaryUnion=false the show-alongside entry never renders", async () => {
-        const tree = loadGedcomFixture("apps/web/tests/fixtures/multi-union.ged");
+        const tree = loadGedcomFixture("apps/tree-editor/tests/fixtures/multi-union.ged");
         const handle = mountWithHostRect(FamilyViewCanvas, {
             props: { tree, secondaryUnion: false },
             hostRect: { width: 1024, height: 768 },

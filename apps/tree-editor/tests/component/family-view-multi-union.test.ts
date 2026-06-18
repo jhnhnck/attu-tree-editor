@@ -48,7 +48,7 @@ function cardsWithText(root: ParentNode, needle: RegExp): Element[] {
 
 describe("family-view: multi-union picker", () => {
     it("default load shows primary union (Mira + Calen), hides secondary (Sera + Iva)", async () => {
-        const tree = loadGedcomFixture("apps/web/tests/fixtures/multi-union.ged");
+        const tree = loadGedcomFixture("apps/tree-editor/tests/fixtures/multi-union.ged");
         const handle = mountWithHostRect(FamilyViewCanvas, {
             props: { tree },
             hostRect: { width: 1024, height: 768 },
@@ -71,7 +71,7 @@ describe("family-view: multi-union picker", () => {
     });
 
     it("˅ picker swap-primary action swaps the visible union + writes the override to localStorage", async () => {
-        const tree = loadGedcomFixture("apps/web/tests/fixtures/multi-union.ged");
+        const tree = loadGedcomFixture("apps/tree-editor/tests/fixtures/multi-union.ged");
         const handle = mountWithHostRect(FamilyViewCanvas, {
             props: { tree },
             hostRect: { width: 1024, height: 768 },

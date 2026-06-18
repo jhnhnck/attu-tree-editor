@@ -160,7 +160,7 @@ describe("auto-fit suppression: user-driven handlers (transform held)", () => {
     it("badge click (`+N` collapse-badge) keeps transform steady", async () => {
         // dense-tree (52 ppl) forces auto-collapse on default load, so a
         // `+N` badge is present without any user-driven expand first
-        const tree = loadGedcomFixture("apps/web/tests/fixtures/dense-tree.ged");
+        const tree = loadGedcomFixture("apps/tree-editor/tests/fixtures/dense-tree.ged");
         const target = document.createElement("div");
         document.body.appendChild(target);
         const inst = mount(FamilyViewCanvas, { target, props: { tree } });
@@ -185,7 +185,7 @@ describe("auto-fit suppression: user-driven handlers (transform held)", () => {
     // behaviour; flipping the marker to plain `it` is the regression
     // signal once the handler gets its `suppressNextFit = true`
     it("picker show-alongside keeps transform steady", async () => {
-        const tree = loadGedcomFixture("apps/web/tests/fixtures/multi-union.ged");
+        const tree = loadGedcomFixture("apps/tree-editor/tests/fixtures/multi-union.ged");
         const target = document.createElement("div");
         document.body.appendChild(target);
         const inst = mount(FamilyViewCanvas, { target, props: { tree } });
@@ -217,7 +217,7 @@ describe("auto-fit suppression: user-driven handlers (transform held)", () => {
         // arrange: pre-seed the secondary-union store via the show-alongside
         // path so the menu re-renders with `hide-alongside`. we measure the
         // transform *after* the show-alongside settles, then click hide
-        const tree = loadGedcomFixture("apps/web/tests/fixtures/multi-union.ged");
+        const tree = loadGedcomFixture("apps/tree-editor/tests/fixtures/multi-union.ged");
         const target = document.createElement("div");
         document.body.appendChild(target);
         const inst = mount(FamilyViewCanvas, { target, props: { tree } });
@@ -260,7 +260,7 @@ describe("auto-fit suppression: user-driven handlers (transform held)", () => {
     });
 
     it("picker primary swap keeps transform steady", async () => {
-        const tree = loadGedcomFixture("apps/web/tests/fixtures/multi-union.ged");
+        const tree = loadGedcomFixture("apps/tree-editor/tests/fixtures/multi-union.ged");
         const target = document.createElement("div");
         document.body.appendChild(target);
         const inst = mount(FamilyViewCanvas, { target, props: { tree } });
@@ -305,7 +305,7 @@ describe("auto-fit suppression: user-driven handlers (transform held)", () => {
         // structurally identical - we keep it as a second row to satisfy
         // the brief's "5 user-driven rows" budget without forcing a
         // synthetic call path
-        const tree = loadGedcomFixture("apps/web/tests/fixtures/multi-union.ged");
+        const tree = loadGedcomFixture("apps/tree-editor/tests/fixtures/multi-union.ged");
         const target = document.createElement("div");
         document.body.appendChild(target);
         const inst = mount(FamilyViewCanvas, { target, props: { tree } });
@@ -373,7 +373,7 @@ describe("auto-fit suppression: system-driven actions (fit fires)", () => {
         // (off-subset variant of this test is brittle in jsdom because
         // dense-tree's bounded subset can produce identical bboxes across
         // close-by foci; the visible-card path is the deterministic one)
-        const tree = loadGedcomFixture("apps/web/tests/fixtures/dense-tree.ged");
+        const tree = loadGedcomFixture("apps/tree-editor/tests/fixtures/dense-tree.ged");
         const target = document.createElement("div");
         document.body.appendChild(target);
 
@@ -414,7 +414,7 @@ describe("auto-fit suppression: system-driven actions (fit fires)", () => {
         // change row above. drive the same path via the controller; the
         // distinct fixture (multi-union, much smaller) proves the
         // contract isn't dense-tree-specific
-        const tree = loadGedcomFixture("apps/web/tests/fixtures/multi-union.ged");
+        const tree = loadGedcomFixture("apps/tree-editor/tests/fixtures/multi-union.ged");
         const target = document.createElement("div");
         document.body.appendChild(target);
 
@@ -449,7 +449,7 @@ describe("auto-fit suppression: system-driven actions (fit fires)", () => {
         // we can dispatch a second entry with a different rect mid-test.
         // a new hostW/hostH bumps the fit-key, no suppression flag is set,
         // so fit runs and the transform shifts
-        const tree = loadGedcomFixture("apps/web/tests/fixtures/multi-union.ged");
+        const tree = loadGedcomFixture("apps/tree-editor/tests/fixtures/multi-union.ged");
         const target = document.createElement("div");
         document.body.appendChild(target);
         const inst = mount(FamilyViewCanvas, { target, props: { tree } });

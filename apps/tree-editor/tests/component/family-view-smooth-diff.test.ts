@@ -43,7 +43,7 @@ afterEach(() => {
 
 describe("family-view: smooth-diff plumbing", () => {
     it("default load: every card wrapper carries data-smooth-diff + .family-view-smooth-card", async () => {
-        const tree = loadGedcomFixture("apps/web/tests/fixtures/multi-union.ged");
+        const tree = loadGedcomFixture("apps/tree-editor/tests/fixtures/multi-union.ged");
         const handle = mountWithHostRect(FamilyViewCanvas, {
             props: { tree },
             hostRect: { width: 1024, height: 768 },
@@ -68,7 +68,7 @@ describe("family-view: smooth-diff plumbing", () => {
     });
 
     it("smoothDiff=false: attribute and class are absent but cards still render", async () => {
-        const tree = loadGedcomFixture("apps/web/tests/fixtures/multi-union.ged");
+        const tree = loadGedcomFixture("apps/tree-editor/tests/fixtures/multi-union.ged");
         const handle = mountWithHostRect(FamilyViewCanvas, {
             props: { tree, smoothDiff: false },
             hostRect: { width: 1024, height: 768 },
@@ -94,7 +94,7 @@ describe("family-view: smooth-diff plumbing", () => {
     });
 
     it("badges also carry data-smooth-diff (dense-tree forces auto-collapse)", async () => {
-        const tree = loadGedcomFixture("apps/web/tests/fixtures/dense-tree.ged");
+        const tree = loadGedcomFixture("apps/tree-editor/tests/fixtures/dense-tree.ged");
         const handle = mountWithHostRect(FamilyViewCanvas, {
             props: { tree },
             hostRect: { width: 1024, height: 768 },
@@ -118,7 +118,7 @@ describe("family-view: smooth-diff plumbing", () => {
         // interaction; here we drive it deterministically by passing
         // selectedId as a prop so the renderer marks the focus card
         // as on-path (one-card path).
-        const tree = loadGedcomFixture("apps/web/tests/fixtures/multi-union.ged");
+        const tree = loadGedcomFixture("apps/tree-editor/tests/fixtures/multi-union.ged");
         const aronId = tree.rootId;
         const handle = mountWithHostRect(FamilyViewCanvas, {
             props: { tree, selectedId: aronId },

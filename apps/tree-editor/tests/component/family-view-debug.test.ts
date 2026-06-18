@@ -74,7 +74,7 @@ describe("family-view debug overlay - phase 0 + phase 1 structural invariants", 
     });
 
     it("debugOptions defined but every layer off: no debug testids land", async () => {
-        const tree = loadGedcomFixture("apps/web/tests/fixtures/Akarians.ged");
+        const tree = loadGedcomFixture("apps/tree-editor/tests/fixtures/Akarians.ged");
         const handle = mountWithHostRect(FamilyViewCanvas, {
             props: { tree, debugOptions: { layers: defaultLayers() } },
             hostRect: { width: 1024, height: 768 },
@@ -96,7 +96,7 @@ describe("family-view debug overlay - phase 0 + phase 1 structural invariants", 
     });
 
     it("showVisibleSubset: dashed-rect testid mounts when the toggle is on", async () => {
-        const tree = loadGedcomFixture("apps/web/tests/fixtures/Akarians.ged");
+        const tree = loadGedcomFixture("apps/tree-editor/tests/fixtures/Akarians.ged");
         const layers = defaultLayers();
         layers.showVisibleSubset = true;
         const handle = mountWithHostRect(FamilyViewCanvas, {
@@ -115,7 +115,7 @@ describe("family-view debug overlay - phase 0 + phase 1 structural invariants", 
     });
 
     it("exposeFamilyDebug populates window.__treeDebug with the family-view shape", async () => {
-        const tree = loadGedcomFixture("apps/web/tests/fixtures/Akarians.ged");
+        const tree = loadGedcomFixture("apps/tree-editor/tests/fixtures/Akarians.ged");
         const layers = defaultLayers();
         layers.exposeFamilyDebug = true;
         const handle = mountWithHostRect(FamilyViewCanvas, {
@@ -143,7 +143,7 @@ describe("family-view debug overlay - phase 0 + phase 1 structural invariants", 
         // debug subset (visible + rationale) up via onsubsetchange. the
         // panel is a thin renderer of that data; if the subset is wrong
         // the panel renders wrong, and we catch the regression here.
-        const tree = loadGedcomFixture("apps/web/tests/fixtures/Akarians.ged");
+        const tree = loadGedcomFixture("apps/tree-editor/tests/fixtures/Akarians.ged");
         const layers = defaultLayers();
         layers.showOffSubsetPeople = true;
         let lastSubset: {
@@ -180,7 +180,7 @@ describe("family-view debug overlay - phase 0 + phase 1 structural invariants", 
     });
 
     it("showOrphanBadge: zero or more orphan rects, all with non-empty data-person-id", async () => {
-        const tree = loadGedcomFixture("apps/web/tests/fixtures/Akarians.ged");
+        const tree = loadGedcomFixture("apps/tree-editor/tests/fixtures/Akarians.ged");
         const layers = defaultLayers();
         layers.showOrphanBadge = true;
         const handle = mountWithHostRect(FamilyViewCanvas, {
@@ -208,7 +208,7 @@ describe("family-view debug overlay - phase 0 + phase 1 structural invariants", 
         // deterministic Aron+Brigitta secondary union whose child Helga
         // is reachable but not visible by default, so the rationale map
         // must contain at least one secondary-union-not-expanded entry.
-        const tree = loadGedcomFixture("apps/web/tests/fixtures/multi-union-3.ged");
+        const tree = loadGedcomFixture("apps/tree-editor/tests/fixtures/multi-union-3.ged");
         const layers = defaultLayers();
         layers.showOffSubsetPeople = true;
         let lastSubset: {
@@ -240,7 +240,7 @@ describe("family-view debug overlay - phase 0 + phase 1 structural invariants", 
     });
 
     it("showLastEditHalo off: no halo element in dom", async () => {
-        const tree = loadGedcomFixture("apps/web/tests/fixtures/Akarians.ged");
+        const tree = loadGedcomFixture("apps/tree-editor/tests/fixtures/Akarians.ged");
         const layers = defaultLayers();
         // layers.showLastEditHalo stays false
         const handle = mountWithHostRect(FamilyViewCanvas, {
@@ -263,7 +263,7 @@ describe("family-view debug overlay - phase 0 + phase 1 structural invariants", 
     });
 
     it("showLastEditHalo on: halo mounts with correct data-person-id for a visible root", async () => {
-        const tree = loadGedcomFixture("apps/web/tests/fixtures/Akarians.ged");
+        const tree = loadGedcomFixture("apps/tree-editor/tests/fixtures/Akarians.ged");
         const layers = defaultLayers();
         layers.showLastEditHalo = true;
         const handle = mountWithHostRect(FamilyViewCanvas, {
@@ -287,7 +287,7 @@ describe("family-view debug overlay - phase 0 + phase 1 structural invariants", 
     });
 
     it("showLastEditHalo off with no lastEditedId: no halo element", async () => {
-        const tree = loadGedcomFixture("apps/web/tests/fixtures/Akarians.ged");
+        const tree = loadGedcomFixture("apps/tree-editor/tests/fixtures/Akarians.ged");
         const layers = defaultLayers();
         layers.showLastEditHalo = true;
         // lastEditedId deliberately absent
@@ -310,7 +310,7 @@ describe("family-view debug overlay - phase 0 + phase 1 structural invariants", 
     });
 
     it("edges carry data-edge-role + data-edge-id unconditionally; showEdgeRoles adds the role class", async () => {
-        const tree = loadGedcomFixture("apps/web/tests/fixtures/Akarians.ged");
+        const tree = loadGedcomFixture("apps/tree-editor/tests/fixtures/Akarians.ged");
 
         // first mount: no debug, no role class on edges, but attrs present
         const off = mountWithHostRect(FamilyViewCanvas, {

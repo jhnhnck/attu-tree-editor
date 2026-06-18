@@ -66,7 +66,7 @@ describe("family-view debug overlay - phase 2 multi-union geometry", () => {
     });
 
     it("showMultiUnionManifold mounts bus + anchor + label + 3 partner markers; toggle-off clears them", async () => {
-        const tree = loadGedcomFixture("apps/web/tests/fixtures/multi-union-3.ged");
+        const tree = loadGedcomFixture("apps/tree-editor/tests/fixtures/multi-union-3.ged");
 
         // pre-toggle: no manifold markers
         const off = mountWithHostRect(FamilyViewCanvas, {
@@ -112,7 +112,7 @@ describe("family-view debug overlay - phase 2 multi-union geometry", () => {
     });
 
     it("showCardCollisions: mounts cleanly with zero collision rects on a healthy fixture", async () => {
-        const tree = loadGedcomFixture("apps/web/tests/fixtures/multi-union-3.ged");
+        const tree = loadGedcomFixture("apps/tree-editor/tests/fixtures/multi-union-3.ged");
         const layers = defaultLayers();
         layers.showCardCollisions = true;
         const handle = mountWithHostRect(FamilyViewCanvas, {
@@ -131,7 +131,7 @@ describe("family-view debug overlay - phase 2 multi-union geometry", () => {
     });
 
     it("showCoupleCentroidDelta: mounts exactly one delta line + label for the Aron+Mira couple", async () => {
-        const tree = loadGedcomFixture("apps/web/tests/fixtures/multi-union-3.ged");
+        const tree = loadGedcomFixture("apps/tree-editor/tests/fixtures/multi-union-3.ged");
         const layers = defaultLayers();
         layers.showCoupleCentroidDelta = true;
         const handle = mountWithHostRect(FamilyViewCanvas, {
@@ -152,7 +152,7 @@ describe("family-view debug overlay - phase 2 multi-union geometry", () => {
     });
 
     it("showRankGutterLabels: mounts both g0 and g+1 labels for the visible ranks", async () => {
-        const tree = loadGedcomFixture("apps/web/tests/fixtures/multi-union-3.ged");
+        const tree = loadGedcomFixture("apps/tree-editor/tests/fixtures/multi-union-3.ged");
         const layers = defaultLayers();
         layers.showRankGutterLabels = true;
         const handle = mountWithHostRect(FamilyViewCanvas, {

@@ -5,7 +5,7 @@
  * supports `.ged` (parsed via `parseGedcom`) and `.gdz` (read via
  * `readBundle`). paths are resolved relative to the worktree root (the
  * directory containing `package.json` / `pnpm-workspace.yaml`), not the
- * vitest cwd - vitest runs from `apps/web/` but fixtures also live under
+ * vitest cwd - vitest runs from `apps/tree-editor/` but fixtures also live under
  * `notes/examples/`, so a worktree-rooted path is the only convention that
  * spans both.
  *
@@ -22,7 +22,7 @@ import { readBundle } from "$lib/io/bundle/read";
 import type { Tree } from "$lib/domain/types";
 import { parseGedcom } from "$lib/io/gedcom/parse";
 
-// climb from this file (apps/web/tests/component/_harness/loadGedcomFixture.ts)
+// climb from this file (apps/tree-editor/tests/component/_harness/loadGedcomFixture.ts)
 // to the worktree root - five parent steps. computed once at module load.
 const HERE = dirname(fileURLToPath(import.meta.url));
 const WORKTREE_ROOT = resolve(HERE, "..", "..", "..", "..", "..");
@@ -32,7 +32,7 @@ const WORKTREE_ROOT = resolve(HERE, "..", "..", "..", "..", "..");
  * worktree root.
  *
  * @example
- *   loadGedcomFixture("apps/web/tests/fixtures/tiny.ged");
+ *   loadGedcomFixture("apps/tree-editor/tests/fixtures/tiny.ged");
  *   loadGedcomFixture("notes/examples/Inbred Family.gdz");
  */
 export function loadGedcomFixture(path: string): Tree {

@@ -121,7 +121,7 @@ describe("family-view debug overlay - phase 3 navigation diagnostics", () => {
         // synthetic RO for this case
         cleanups.push(installSyntheticResizeObserver({ width: 1024, height: 768 }));
 
-        const tree = loadGedcomFixture("apps/web/tests/fixtures/Akarians.ged");
+        const tree = loadGedcomFixture("apps/tree-editor/tests/fixtures/Akarians.ged");
         const layers = defaultLayers();
         layers.showViewportFitTarget = true;
 
@@ -157,7 +157,7 @@ describe("family-view debug overlay - phase 3 navigation diagnostics", () => {
     });
 
     it("showPendingRecenter: bumping pendingRecenterSeq mounts the green flash element", async () => {
-        const tree = loadGedcomFixture("apps/web/tests/fixtures/Akarians.ged");
+        const tree = loadGedcomFixture("apps/tree-editor/tests/fixtures/Akarians.ged");
         const layers = defaultLayers();
         layers.showPendingRecenter = true;
 
@@ -184,7 +184,7 @@ describe("family-view debug overlay - phase 3 navigation diagnostics", () => {
     });
 
     it("logFocusEvents: DockRegistration adds a 'family-view-debug-focus-log' entry to the tl dock", async () => {
-        const tree = loadGedcomFixture("apps/web/tests/fixtures/Akarians.ged");
+        const tree = loadGedcomFixture("apps/tree-editor/tests/fixtures/Akarians.ged");
         const layers = defaultLayers();
         layers.logFocusEvents = true;
 
@@ -230,7 +230,7 @@ describe("family-view debug overlay - phase 3 navigation diagnostics", () => {
     });
 
     it("logFocusEvents off: no focus-log dock item is registered", async () => {
-        const tree = loadGedcomFixture("apps/web/tests/fixtures/Akarians.ged");
+        const tree = loadGedcomFixture("apps/tree-editor/tests/fixtures/Akarians.ged");
         const layers = defaultLayers();
         // logFocusEvents stays off
 
