@@ -13,10 +13,8 @@
  *
  * This test exercises the *real* `selectionStore` and `treeStore` - the
  * pre-mortem flagged that mocking the controller defeats the bug-catching
- * value, since the bug lives in the wiring between the palette's onpick
- * callback and the store write. The harness mirrors how `App.svelte`'s
- * `onPalettePick` forwards `onpick("person", id)` into
- * `selection.select(id)`.
+ * value, since the bug lives in the wiring between the palette item's
+ * action callback and the store write.
  *
  * Phase 3 expands this to every entry point (canvas click, context menu,
  * more-actions, deep-link, reload) and every column of the invariant
@@ -30,7 +28,7 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/svelte";
 import CommandPalette from "$lib/components/palette/CommandPalette.svelte";
-import type { Command } from "$lib/components/palette/commands";
+import type { PaletteItem } from "@attu/ui";
 import { createSelectionStore } from "$lib/state/selection.svelte";
 import { createTreeStore } from "$lib/state/tree.svelte";
 import { eightPersonFamily } from "../fixtures/layered-bug-repros";
@@ -42,10 +40,6 @@ beforeAll(() => {
         Element.prototype.scrollIntoView = vi.fn();
     }
 });
-
-function noCommands(): Command[] {
-    return [];
-}
 
 describe("selection state-machine: command-palette person-pick", () => {
     it("typing `#<id>` and pressing Enter lands the id in the real selection store", async () => {
@@ -61,18 +55,25 @@ describe("selection state-machine: command-palette person-pick", () => {
         const pickId = pickIds[0];
         if (!pickId) throw new Error("fixture missing non-root people");
 
-        // mirror App.svelte's onPalettePick wiring: a person-pick forwards
-        // into selection.select(id). this is the exact contract the
-        // historical bug broke; any future regression that closes the
-        // palette without writing to the store fails here
+        // build person items wiring each action directly into selection.select(id).
+        // this is the exact contract the historical bug broke: if the palette
+        // calls action() the store is written; if it doesn't, the test fails.
+        const items: PaletteItem[] = Object.values(tree.people).map(
+            (p): PaletteItem => ({
+                id: p.id,
+                label: [p.given, p.surname].filter(Boolean).join(" ").trim() || "(unnamed)",
+                detail: p.id,
+                kind: "person",
+                action: () => {
+                    selection.select(p.id);
+                },
+            }),
+        );
+
         let paletteClosed = false;
         render(CommandPalette, {
-            tree,
-            commands: noCommands(),
+            items,
             mode: "anything",
-            onpick: (kind: string, id: string) => {
-                if (kind === "person") selection.select(id);
-            },
             onclose: () => {
                 paletteClosed = true;
             },
@@ -86,11 +87,7 @@ describe("selection state-machine: command-palette person-pick", () => {
 
         // the invariant: store reflects the picked id
         expect(selection.selectedPersonId).toBe(pickId);
-        // sanity: the palette wiring did fire (catches regressions that
-        // swallow the keydown silently)
-        expect(paletteClosed).toBe(false);
-        // (palette's own close is parent-driven in App.svelte; the harness
-        // does not auto-close on pick, which mirrors the production wiring
-        // where App.svelte sets `showPalette = false` separately)
+        // palette drives its own close on pick (calls onclose before action)
+        expect(paletteClosed).toBe(true);
     });
 });

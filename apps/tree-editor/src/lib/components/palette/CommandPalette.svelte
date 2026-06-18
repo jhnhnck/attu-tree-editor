@@ -8,41 +8,23 @@
 <script lang="ts">
     import { onDestroy, onMount, tick } from "svelte";
     import { ArrowRight, Command as CommandIcon, Hash, Search, User } from "@lucide/svelte";
-    import { formatCombo } from "$lib/keyboard";
-    import type { IconComponent } from "$lib/components/shell/menu";
-    import type { Person, Tree } from "$lib/domain/types";
-    import type { Command } from "./commands";
+    import type { PaletteItem } from "@attu/ui";
 
     type Mode = "anything" | "commands";
-    type Kind = "person" | "command";
 
-    interface PersonRow {
-        kind: "person";
-        id: string;
-        label: string;
-        secondary: string;
+    interface Row {
+        item: PaletteItem;
         score: number;
-    }
-    interface CommandRow {
-        kind: "command";
-        id: string;
-        label: string;
-        secondary: string;
-        score: number;
-        icon: IconComponent | undefined;
         enabled: boolean;
     }
-    type Row = PersonRow | CommandRow;
 
     interface Props {
-        tree: Tree;
-        commands: readonly Command[];
+        items: PaletteItem[];
         mode: Mode;
-        onpick: (kind: Kind, id: string) => void;
         onclose: () => void;
     }
 
-    let { tree, commands, mode, onpick, onclose }: Props = $props();
+    let { items, mode, onclose }: Props = $props();
 
     let inputEl: HTMLInputElement | undefined = $state();
     let containerEl: HTMLDivElement | undefined = $state();
@@ -93,10 +75,6 @@
         return { effectiveMode: mode, peopleOnly: false, idLookup: false, q: raw.trim() };
     });
 
-    function fullName(p: Person): string {
-        return [p.given, p.surname].filter(Boolean).join(" ").trim() || "(unnamed)";
-    }
-
     function fuzzyScore(text: string, q: string): number {
         if (!q) return 1;
         const t = text.toLowerCase();
@@ -114,86 +92,65 @@
         return 0;
     }
 
-    const people = $derived(Object.values(tree.people));
-
     // a 3+ char run of [A-Z0-9] looks like a person id. used to short-circuit
     // a bare query into an id lookup when the name search would return nothing.
     const ID_SHAPE = /^[A-Z0-9]{3,}$/;
 
-    function idMatch(q: string): Person | undefined {
-        if (!q) return undefined;
-        const key = q.toUpperCase();
-        return tree.people[key];
-    }
-
     const rows = $derived.by<Row[]>(() => {
         const v = view;
         const limit = 50;
-        const peopleRows: PersonRow[] = [];
-        const commandRows: CommandRow[] = [];
+        const personItems = items.filter((i) => i.kind === "person");
+        const commandItems = items.filter((i) => i.kind === "command");
+
+        const findById = (q: string): PaletteItem | undefined =>
+            personItems.find((i) => i.id.toUpperCase() === q.toUpperCase());
+
+        const directId = v.idLookup
+            ? findById(v.q)
+            : v.q && ID_SHAPE.test(v.q.toUpperCase())
+              ? findById(v.q)
+              : undefined;
 
         const wantPeople = v.effectiveMode === "anything";
         const wantCommands =
             v.effectiveMode === "commands" || (v.effectiveMode === "anything" && !v.peopleOnly);
 
-        // direct id match: `#XYZ12` always, or a bare query that looks like an id
-        // and points at a real person. score 200 keeps it above any name match.
-        const directId = v.idLookup
-            ? idMatch(v.q)
-            : v.q && ID_SHAPE.test(v.q.toUpperCase())
-              ? idMatch(v.q)
-              : undefined;
+        const personRows: Row[] = [];
+        const commandRows: Row[] = [];
 
         if (wantPeople || v.peopleOnly) {
-            for (const p of people) {
-                if (directId && p.id === directId.id) continue;
-                const name = fullName(p);
-                const score = fuzzyScore(name, v.q);
+            for (const item of personItems) {
+                if (directId && item.id === directId.id) continue;
+                const score = fuzzyScore(item.label, v.q);
                 if (v.q && score === 0) continue;
-                peopleRows.push({
-                    kind: "person",
-                    id: p.id,
-                    label: name,
-                    secondary: p.id,
-                    score,
-                });
+                personRows.push({ item, score, enabled: true });
             }
-            peopleRows.sort((a, b) => b.score - a.score || a.label.localeCompare(b.label));
+            personRows.sort(
+                (a, b) => b.score - a.score || a.item.label.localeCompare(b.item.label),
+            );
             if (directId) {
-                peopleRows.unshift({
-                    kind: "person",
-                    id: directId.id,
-                    label: fullName(directId),
-                    secondary: directId.id,
-                    score: 200,
-                });
+                personRows.unshift({ item: directId, score: 200, enabled: true });
             }
         }
 
         if (wantCommands && !v.peopleOnly) {
-            for (const c of commands) {
-                const score = fuzzyScore(c.label, v.q);
+            for (const item of commandItems) {
+                const score = fuzzyScore(item.label, v.q);
                 if (v.q && score === 0) continue;
-                const enabled = c.enabled ? c.enabled() : true;
-                commandRows.push({
-                    kind: "command",
-                    id: c.id,
-                    label: c.label,
-                    secondary: c.shortcut ? formatCombo(c.shortcut) : c.group,
-                    score,
-                    icon: c.icon,
-                    enabled,
-                });
+                const enabled = item.enabled ? item.enabled() : true;
+                commandRows.push({ item, score, enabled });
             }
-            commandRows.sort((a, b) => b.score - a.score || a.label.localeCompare(b.label));
+            commandRows.sort(
+                (a, b) => b.score - a.score || a.item.label.localeCompare(b.item.label),
+            );
         }
 
         // ordering: commands-mode shows commands. anything-mode shows people then commands.
         // people-only (`@`) shows people exclusively.
         let combined: Row[];
-        if (v.peopleOnly) combined = peopleRows;
+        if (v.peopleOnly) combined = personRows;
         else if (v.effectiveMode === "commands") combined = commandRows;
-        else combined = [...peopleRows.slice(0, limit), ...commandRows.slice(0, limit)];
+        else combined = [...personRows.slice(0, limit), ...commandRows.slice(0, limit)];
 
         return combined.slice(0, limit);
     });
@@ -225,13 +182,9 @@
     }
 
     function pickRow(row: Row): void {
-        if (row.kind === "command" && !rowEnabled(row)) return;
-        onpick(row.kind, row.id);
-    }
-
-    function rowEnabled(row: Row): boolean {
-        if (row.kind === "command") return row.enabled;
-        return true;
+        if (!row.enabled) return;
+        onclose();
+        row.item.action();
     }
 
     function ensureVisible(idx: number): void {
@@ -339,26 +292,26 @@
                     {/if}
                 </div>
             {:else}
-                {#each rows as row, i (row.kind + ":" + row.id)}
-                    {@const Icon = row.kind === "person" ? User : (row.icon ?? CommandIcon)}
-                    {@const enabled = rowEnabled(row)}
+                {#each rows as row, i (row.item.kind + ":" + row.item.id)}
+                    {@const Icon =
+                        row.item.kind === "person" ? User : (row.item.icon ?? CommandIcon)}
                     <button
                         type="button"
                         data-row={i}
-                        data-kind={row.kind}
-                        disabled={!enabled}
+                        data-kind={row.item.kind}
+                        disabled={!row.enabled}
                         class="hover:bg-canvas group flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm outline-none disabled:cursor-not-allowed disabled:opacity-40"
                         class:bg-canvas={i === activeIdx}
                         onmouseenter={() => (activeIdx = i)}
                         onclick={() => pickRow(row)}
                     >
                         <Icon size={14} strokeWidth={2.25} class="text-fg-muted shrink-0" />
-                        <span class="flex-1 truncate">{row.label}</span>
+                        <span class="flex-1 truncate">{row.item.label}</span>
                         <span class="text-fg-muted flex items-center gap-1 font-mono text-[11px]">
-                            {#if row.kind === "person"}
+                            {#if row.item.kind === "person"}
                                 <Hash size={10} />
                             {/if}
-                            {row.secondary}
+                            {row.item.detail ?? ""}
                         </span>
                         <ArrowRight
                             size={12}

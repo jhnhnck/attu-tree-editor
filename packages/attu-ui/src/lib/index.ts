@@ -9,4 +9,7 @@
 // ui
 export { default as Button } from "./components/ui/Button.svelte";
 
+// palette
+export type { PaletteItem } from "./palette.js";
+
 // date — HaracalndeDate extracted in phase 2

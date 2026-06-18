@@ -114,7 +114,8 @@
         type TreeListing,
     } from "$lib/persistence/trees";
     import { SETTING_KEYS, getSetting, setSetting } from "$lib/persistence/settings";
-    import { installShortcuts, type ShortcutBinding } from "$lib/keyboard";
+    import { installShortcuts, formatCombo, type ShortcutBinding } from "$lib/keyboard";
+    import type { PaletteItem } from "@attu/ui";
     import { SHORTCUTS } from "$lib/shortcuts";
     import type {
         DebugLayerOptions,
@@ -1881,6 +1882,38 @@
         }),
     );
 
+    const paletteItems = $derived<PaletteItem[]>([
+        ...Object.values(treeStore.tree.people).map(
+            (p): PaletteItem => ({
+                id: p.id,
+                label: [p.given, p.surname].filter(Boolean).join(" ").trim() || "(unnamed)",
+                detail: p.id,
+                kind: "person",
+                action: () => {
+                    // order matters: focusPerson first so the watchdog patches the
+                    // most-recent selection event; centerOnPerson uses the id
+                    // directly to avoid racing the prop update on the same tick
+                    focusPerson(p.id, "personal", "palette");
+                    armPaletteRecenterWatchdog(p.id);
+                    canvasController?.centerOnPerson(p.id);
+                },
+            }),
+        ),
+        ...commands.map(
+            (c): PaletteItem => ({
+                id: c.id,
+                label: c.label,
+                detail: c.shortcut ? formatCombo(c.shortcut) : c.group,
+                kind: "command",
+                icon: c.icon,
+                enabled: c.enabled,
+                action: () => {
+                    c.run();
+                },
+            }),
+        ),
+    ]);
+
     const bindings: ShortcutBinding[] = SHORTCUTS.flatMap((s) => {
         const action = (e: KeyboardEvent): void => {
             void e;
@@ -2047,34 +2080,6 @@
             ? [viewMenu, helpMenu]
             : [fileMenu, editMenu, viewMenu, insertMenu, treeMenu, helpMenu],
     );
-
-    function onPalettePick(kind: "person" | "command", id: string): void {
-        showPalette = false;
-        if (kind === "person") {
-            // phase-3 family-view debug: palette is THE silent-no-op
-            // canary. record selection with `requestedRecenter=true`
-            // BEFORE calling focusPerson (which records its own
-            // selection event), then arm the watchdog manually here.
-            // `focusPerson` records source=palette but with
-            // recenter=false; we patch the most-recent entry below.
-            focusPerson(id, "personal", "palette");
-            // upgrade the just-recorded event to requestedRecenter=true
-            // and arm the watchdog. doing this after focusPerson keeps
-            // the event ordering stable in the panel.
-            armPaletteRecenterWatchdog(id);
-            // use the id-taking centerOnPerson rather than focusSelection
-            // so we don't race the prop update — the canvas still sees
-            // the old `selectedId` on this same tick, so focusSelection
-            // would centre on the previous selection. centerOnPerson
-            // takes the new id explicitly and also handles off-subset
-            // (family-view falls back to focusOverride, layered shifts
-            // pan to the matching position).
-            canvasController?.centerOnPerson(id);
-            return;
-        }
-        const cmd = commandById(commands, id);
-        cmd?.run();
-    }
 
     /**
      * Phase-3 family-view debug helper: upgrades the most-recent
@@ -3230,10 +3235,8 @@
 
     {#if showPalette}
         <CommandPalette
-            tree={treeStore.tree}
-            {commands}
+            items={paletteItems}
             mode={paletteMode}
-            onpick={onPalettePick}
             onclose={() => (showPalette = false)}
         />
     {/if}

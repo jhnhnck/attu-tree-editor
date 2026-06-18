@@ -59,14 +59,14 @@ describe("phase 1b harness smoke", () => {
     });
 
     it("loadGedcomFixture throws a clear error for a missing path", () => {
-        expect(() => loadGedcomFixture("apps/tree-editor/tests/fixtures/__nope__.ged")).toThrowError(
-            /fixture not found/i,
-        );
+        expect(() =>
+            loadGedcomFixture("apps/tree-editor/tests/fixtures/__nope__.ged"),
+        ).toThrowError(/fixture not found/i);
     });
 
     it("loadGedcomFixture throws on an unsupported extension", () => {
-        expect(() => loadGedcomFixture("apps/tree-editor/tests/fixtures/portrait-blue.png")).toThrowError(
-            /unsupported extension/i,
-        );
+        expect(() =>
+            loadGedcomFixture("apps/tree-editor/tests/fixtures/portrait-blue.png"),
+        ).toThrowError(/unsupported extension/i);
     });
 });
