@@ -6,7 +6,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/svelte";
 
-vi.mock("$lib/api/client", () => ({
+vi.mock("@attu/api-client", () => ({
     trees: {
         listGrants: vi.fn(),
         addGrant: vi.fn(),
@@ -15,7 +15,7 @@ vi.mock("$lib/api/client", () => ({
 }));
 
 import ShareDialog from "$lib/components/shell/ShareDialog.svelte";
-import { trees as treesApi } from "$lib/api/client";
+import { trees as treesApi } from "@attu/api-client";
 
 const mockedList = vi.mocked(treesApi.listGrants);
 const mockedRevoke = vi.mocked(treesApi.revokeGrant);

@@ -192,6 +192,9 @@ importers:
 
   packages/attu-ui:
     dependencies:
+      '@attu/api-client':
+        specifier: workspace:*
+        version: link:../api-client
       '@lucide/svelte':
         specifier: ^1.16.0
         version: 1.16.0(svelte@5.55.9(@typescript-eslint/types@8.59.4))

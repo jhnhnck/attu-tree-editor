@@ -116,7 +116,7 @@
     import { SETTING_KEYS, getSetting, setSetting } from "$lib/persistence/settings";
     import { installShortcuts, formatCombo, type ShortcutBinding } from "$lib/keyboard";
     import type { PaletteItem } from "@attu/ui";
-    import { SHORTCUTS } from "$lib/shortcuts";
+    import { SHORTCUTS, groupedShortcuts } from "$lib/shortcuts";
     import type {
         DebugLayerOptions,
         FamilyViewDebugLayerOptions,
@@ -3226,7 +3226,7 @@
     {/if}
 
     {#if showHelp}
-        <ShortcutsOverlay onclose={() => (showHelp = false)} />
+        <ShortcutsOverlay groups={groupedShortcuts()} onclose={() => (showHelp = false)} />
     {/if}
 
     {#if showSettings}

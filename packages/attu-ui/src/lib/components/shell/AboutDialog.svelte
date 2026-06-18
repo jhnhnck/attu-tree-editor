@@ -4,7 +4,7 @@
 -->
 <script lang="ts">
     import { onMount } from "svelte";
-    import { Button } from "@attu/ui";
+    import Button from "../ui/Button.svelte";
 
     interface Props {
         onClose: () => void;

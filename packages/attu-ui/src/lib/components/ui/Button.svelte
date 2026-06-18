@@ -1,5 +1,5 @@
 <!--
-    @attu/ui - styled button primitive
+    FamilyTreeEditor - styled button primitive used by editor + top bar
     licensed under the MIT license; see LICENSE.md for full text
 -->
 <script lang="ts">

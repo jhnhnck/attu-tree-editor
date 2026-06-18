@@ -4,9 +4,9 @@
 -->
 <script lang="ts">
     import { auth as authApi } from "@attu/api-client";
-    import { authStore } from "$lib/state/auth.svelte";
-    import Button from "$lib/components/ui/Button.svelte";
-    import LinkCodeDialog from "$lib/components/shell/LinkCodeDialog.svelte";
+    import { authStore } from "../../state/auth.svelte.js";
+    import Button from "../ui/Button.svelte";
+    import LinkCodeDialog from "./LinkCodeDialog.svelte";
 
     interface Props {
         onSignedIn?: (() => void) | undefined;

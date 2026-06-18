@@ -9,7 +9,7 @@
     import { Copy, Link as LinkIcon } from "@lucide/svelte";
     import { trees as treesApi } from "@attu/api-client";
     import type { GrantListing } from "@attu/api-client";
-    import Button from "$lib/components/ui/Button.svelte";
+    import Button from "../ui/Button.svelte";
 
     interface Props {
         treeId: string;

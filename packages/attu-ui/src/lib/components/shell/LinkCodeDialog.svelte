@@ -5,8 +5,8 @@
 <script lang="ts">
     import { onDestroy, onMount } from "svelte";
     import { auth as authApi } from "@attu/api-client";
-    import { authStore } from "$lib/state/auth.svelte";
-    import Button from "$lib/components/ui/Button.svelte";
+    import { authStore } from "../../state/auth.svelte.js";
+    import Button from "../ui/Button.svelte";
 
     interface Props {
         code: string;

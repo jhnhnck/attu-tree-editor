@@ -70,7 +70,7 @@ Two residual risks remain. (1) ~~Tailwind v4 utility class propagation~~ — **r
 
 ## phase 2 — api-client decoupling, dialog conversion, and file extraction
 
-**status:** open
+**status:** closed pending merge
 <!-- phase 2: expanded by phase 0 audit — ShareDialog + AdminPanel added to api/client decoupling -->
 **definition of done:** `AuthBar`, `LinkCodeDialog`, `ShareDialog`, `AdminPanel`, `state/auth.svelte.ts` have no `$lib/api/client` imports; `LinkCodeDialog`, `AboutDialog`, `ShortcutsOverlay` use native `<dialog>` + `showModal()` with working focus trap, Escape key, and `::backdrop`; all extraction-candidate files are in attu-ui `src/lib/`; barrel exports complete; `pnpm typecheck` passes in attu-ui.
 
@@ -98,11 +98,13 @@ Two residual risks remain. (1) ~~Tailwind v4 utility class propagation~~ — **r
 
 **scope:**
 
-- rewrite imports across `apps/tree-editor/src/` from local `$lib/components/ui/*`, `$lib/components/form/Field`, `$lib/components/canvas/*`, `$lib/components/shell/*`, `$lib/components/help/*`, `$lib/components/palette/CommandPalette`, `$lib/components/editor/CropperDialog`, `$lib/state/toasts*`, `$lib/state/progress*`, `$lib/state/preferences*`, `$lib/state/auth*`, `$lib/date/*` → `@attu/ui`
+<!-- phase 3: first task — preferences.svelte.ts must import Theme/InspectorSide/PreferencesStore types from @attu/ui (per phase 2 retro) -->
+- update `state/preferences.svelte.ts` to import `Theme`, `InspectorSide`, `PreferencesStore` types from `@attu/ui` instead of defining them locally
+- rewrite imports across `apps/tree-editor/src/` from local `$lib/components/ui/*`, `$lib/components/form/Field`, `$lib/components/canvas/*`, `$lib/components/shell/*`, `$lib/components/help/*`, `$lib/components/palette/CommandPalette`, `$lib/components/editor/CropperDialog`, `$lib/state/toasts*`, `$lib/state/progress*`, `$lib/state/preferences*`, `$lib/state/auth*`, `$lib/date/*`, `$lib/keyboard`, `$lib/utils/result` → `@attu/ui`
 - update `HaracalndeDate` imports in `domain/` and `components/form/DateInput`
 <!-- phase 3: CommandPalette call site already updated in phase 1 (paletteItems derived, props set); only the import path changes here -->
 - update the CommandPalette import in `App.svelte` from `$lib/components/palette/CommandPalette.svelte` → `@attu/ui` (call site props were set in phase 1; no prop changes needed)
-- delete all now-redundant source files from tree-editor
+- delete all now-redundant source files from tree-editor (including `$lib/api/auth-stub.ts` which became dead code in phase 2)
 - run typecheck, build, full test suite, and 5-minute manual smoke-test before marking phase done
 - phases 2 and 3 may land in separate commits; the duplicate-code window is safe within a single repo
 

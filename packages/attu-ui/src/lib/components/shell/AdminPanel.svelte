@@ -6,7 +6,7 @@
     import { onMount } from "svelte";
     import { admin as adminApi } from "@attu/api-client";
     import type { AdminUserListing } from "@attu/api-client";
-    import Button from "$lib/components/ui/Button.svelte";
+    import Button from "../ui/Button.svelte";
 
     interface Props {
         onClose: () => void;

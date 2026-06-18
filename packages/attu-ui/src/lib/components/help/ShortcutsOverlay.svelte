@@ -5,7 +5,7 @@
 <script lang="ts">
     import { onMount } from "svelte";
     import { X, Keyboard } from "@lucide/svelte";
-    import { formatCombo, isMac } from "$lib/keyboard";
+    import { formatCombo, isMac } from "../../keyboard.js";
 
     interface ShortcutItem {
         combo: string;
@@ -51,7 +51,7 @@
     class="bg-canvas-elev border-line text-fg w-full max-w-3xl max-h-[85vh] overflow-y-auto rounded-lg border shadow-2xl backdrop:bg-black/60 backdrop:backdrop-blur-sm"
     aria-label="keyboard shortcuts"
     onmousedown={onDialogMousedown}
-    {onclose}
+    onclose={onclose}
 >
     <header
         class="bg-canvas-elev border-line sticky top-0 flex items-center gap-2 border-b px-5 py-3"
