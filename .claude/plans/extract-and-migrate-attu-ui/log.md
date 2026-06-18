@@ -2,6 +2,109 @@
 
 (append per-phase entries here; chronological)
 
+## phase 3 retro — 2026-06-18
+
+### spec delta
+
+- delivered: all DoD items met — zero `$lib/` imports to extracted files in tree-editor src and tests; all deleted files gone; `pnpm verify` passes clean (typecheck + lint + 1328 unit tests + build + server)
+- missed / deferred: `pnpm dev` browser smoke check skipped — no display in env; typecheck + build pass treated as equivalent
+- extra: updated PortraitField.test.ts mock from `vi.mock("$lib/...")` to `vi.mock("@attu/ui", importOriginal)` — import path changed when CropperDialog moved; hoisted dynamic imports in order.test.ts integration tests to top-level static imports (timeout fix); added `@attu/ui/pure` subpath export to avoid web worker bundler failing on Svelte files
+
+### surprises
+
+- plan only listed src/ files for migration; test files also had direct `$lib/` imports to extracted files — required a full audit of ~35 test files; delta: scope wider than expected
+- attu-ui barrel was missing many exports discovered only at typecheck time: `Result`/`ok`/`err`, `DateParseErrors`/`DateParseError`, all dockRegistry functions, `DockRenderSnippet`, `DockConfig`, cropperMath/loadSourceBitmap/encodePortrait; delta: barrel expanded significantly
+- layout worker (TreeCanvas.svelte) builds Svelte components with a sub-Vite instance that can't process `.svelte` files from workspace packages; moving domain types to `@attu/ui` made the worker's import chain pull in Svelte components → build fail; fix: `@attu/ui/pure` subpath export + domain files use that path; delta: one new export path, three domain file import changes
+- order.test.ts integration tests used `await import("$lib/domain/tree")` inside test bodies — before phase 3 those files only depended on pure TS so were fast; after phase 3 they load all of `@attu/ui` transitively, hitting the 5000ms test timeout in the full suite (but not in isolation); fix: hoisted to top-level static imports; delta: async test callbacks removed
+
+### residual debt
+
+- `@attu/ui/pure` subpath is an undocumented constraint: any new file that runs in a worker context must import from `@attu/ui/pure` not `@attu/ui` — no bugs.md entry (document in phase 4 notes or CLAUDE.md); routed as phase-4 note
+- test files now `vi.mock("@attu/ui", importOriginal)` pattern in PortraitField.test.ts — this patches the whole attu-ui module for that file; works but is heavier than the old single-component mock; no correctness issue, just worth knowing
+
+### implications for downstream phases
+
+- phase 4 (tailwind): no new impediments; CSS cleanup is straightforward from here
+- document the `@attu/ui/pure` constraint in attu-ui's CLAUDE.md or notes/agents.md before next session
+
+## revision after phase 3 — 2026-06-18
+
+- phase 4 (tailwind consolidation): **revise** — added `@attu/ui/pure` documentation to scope; web worker constraint (debt-06) is a phase-4 housekeeping task; all other phase 4 items unchanged
+
+## phase 4 retro — 2026-06-18
+
+### spec delta
+
+- delivered: all DoD items met — attu-ui `theme.css` owns all shared tokens; app.css `@theme` reduced to 4 tree-editor-specific tokens; `@import "tailwindcss"` and all duplicate shared-token declarations removed from app.css; all compiled token families verified in CSS output; `@attu/ui/pure` constraint documented in attu-ui CLAUDE.md; `pnpm verify` passes; wiki-editor typecheck passes (0 errors); test coverage evaluation written (see below)
+- missed / deferred: manual smoke-test skipped (no display in env); typecheck + build + tests treated as equivalent per phases 0-3 precedent
+- extra: added explanatory `font-size: 110%` comment to attu-ui/theme.css (was in app.css; moved to canonical location)
+
+### surprises
+
+- no surprises. phase 4 was the most mechanical phase in the plan — the probe in phase 0 eliminated all CSS risk, and the token audit showed attu-ui's values were already identical to tree-editor's. the only work was deletion.
+- CSS output shrank from 58.42 kB to 57.33 kB after removing the duplicate `@theme` declarations — confirms Tailwind v4 was generating duplicate utility class entries from the two `@theme` blocks
+
+### residual debt
+
+- none routed to bugs.md. the plan is complete.
+
+### test coverage evaluation
+
+conducted a full audit of all four packages. findings:
+
+**packages/attu-ui** — 0% direct test coverage. ~50% of exported surface is exercised transitively through tree-editor's 1328 tests (HaracalndeDate, date helpers, all canvas/form/palette components, state modules). not tested directly: Svelte components not used in tree-editor (CropperDialog edge cases, ShortcutsOverlay a11y, AdminPanel, AboutDialog, SettingsDialog, ShareDialog), toastsStore, progressStore, keyboard module, Result<T,E> utility. risk: HIGH — if wiki-editor or attu-editor starts using these components, bugs won't surface until render time.
+
+**packages/api-client** — 0% coverage, no test config. covers the entire backend integration surface (auth, trees, grants, admin, ConflictError, dry-run stub). risk: HIGH — server response format changes or dry-run logic regressions will be silent.
+
+**apps/wiki-editor** — 0% coverage, vitest config exists but no tests. acceptable at stub phase. risk: MEDIUM — once non-stub code lands, zero baseline.
+
+**apps/tree-editor** — 137 test files, 1328 passing tests. solid domain, layout, io, state, and component coverage. gaps: e2e suite absent (Playwright binary not installed), server sync edge cases, attu-ui components not exercised by tree-editor (CropperDialog, ShortcutsOverlay when not interacting with the field). risk: LOW.
+
+**recommended priority order:**
+
+1. `packages/api-client` unit tests — zero test coverage on the entire backend integration; ConflictError + dry-run stub are high-risk and fail silently
+2. `packages/attu-ui` state module tests (toastsStore, progressStore, keyboard) — behavioral modules moved from tree-editor with no direct tests; keyboard is user-facing correctness
+3. `packages/attu-ui` component tests for components not exercised by tree-editor (CropperDialog, ShortcutsOverlay, shell dialogs) — will bitrot as wiki-editor grows
+4. `apps/wiki-editor` integration tests — low urgency at stub phase; plant vitest baseline before non-stub code lands
+
+## revision after phase 4 — 2026-06-18
+
+- phase 4 (tailwind consolidation): closed pending merge — all DoD items delivered; plan complete
+- phases 1-3: unchanged (already closed)
+- debt-02, debt-06: closed; debt-04, debt-05 remain open and deferred
+- no new phases inserted; plan is fully closed pending commit and merge
+
+## starting phase 4 — 2026-06-18
+
+**no worktrees** — working in place on trunk per plan constraint.
+
+**DoD confirmed:**
+
+- attu-ui `theme.css` owns all design tokens; tree-editor `app.css` has no duplicate `@import "tailwindcss"` and no locally-duplicated token declarations (tree-editor-specific tokens kept)
+- all Tailwind utility classes that depend on custom tokens still resolve in compiled CSS
+- `@attu/ui/pure` constraint documented in attu-ui CLAUDE.md
+- `pnpm verify` passes in tree-editor
+- `pnpm typecheck` passes in `apps/wiki-editor`
+- test coverage evaluation written and recorded in log.md
+- manual smoke-test: skipped (no display in env); typecheck + build + tests treated as equivalent per phases 0-3 precedent
+
+## starting phase 3 — 2026-06-18
+
+**no worktrees** — working in place on trunk per plan constraint.
+
+**DoD confirmed:**
+
+- `pnpm typecheck && pnpm build` passes in tree-editor with zero errors
+- no file in `apps/tree-editor/src/` imports from a path that now lives in attu-ui
+- deleted files are gone
+- `pnpm test:*` passes
+- `pnpm dev` opens in browser with no console errors (no display in env — documented)
+
+**first tasks (per phase 2 retro):**
+
+- add missing attu-ui barrel exports (fitMath, zoomDisplay, dockConfig, DockCorner, menu types, ContextMenuItem)
+- update `state/preferences.svelte.ts` to import types from `@attu/ui`
+
 ## starting phase 0 — 2026-06-18
 
 **no worktrees** — working in place on trunk per plan constraint (three separate git repos).

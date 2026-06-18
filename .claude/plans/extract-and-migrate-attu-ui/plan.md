@@ -93,7 +93,7 @@ Two residual risks remain. (1) ~~Tailwind v4 utility class propagation~~ — **r
 
 ## phase 3 — tree-editor import migration
 
-**status:** open
+**status:** closed pending merge
 **definition of done:** `pnpm typecheck && pnpm build` passes in tree-editor with zero errors; no file in `apps/tree-editor/src/` imports from a path that now lives in attu-ui; deleted files are gone; `pnpm test:*` passes; `pnpm dev` opens in browser with no console errors and passes a 5-minute manual smoke-test (all main views render, chrome is intact).
 
 **scope:**
@@ -110,14 +110,16 @@ Two residual risks remain. (1) ~~Tailwind v4 utility class propagation~~ — **r
 
 ## phase 4 — tailwind consolidation and full validation
 
-**status:** open
+**status:** closed pending merge
 **definition of done:** attu-ui owns all design tokens; tree-editor imports them from `@attu/ui/theme.css`; all tests pass; no visual regressions in layered, family-view, or hyperbolic views confirmed by manual smoke-test; `apps/wiki-editor` `pnpm typecheck` still passes.
 
-<!-- phase 4: probe confirmed utility classes propagate — conditional fallback branch removed; duplicate-tailwindcss handling added -->
+<!-- phase 4: probe confirmed utility classes propagate — conditional fallback branch removed; duplicate-tailwindcss handling added; @attu/ui/pure constraint documentation added to scope -->
 **scope:**
 
 - in attu-ui: audit `src/lib/theme.css` against tree-editor's Tailwind config; add any missing design tokens (colors, spacing, typography); confirm `./theme.css` is in attu-ui `package.json` exports
 - split `attu-ui/src/lib/theme.css` if needed: the file currently contains both `@import "tailwindcss"` and `@theme { ... }` — consumers importing it already get the tailwindcss base; if that causes problems, split into `theme-tokens.css` (tokens only) and keep `theme.css` as the full entry; probe result in phase 0 log guides this decision
 - in tree-editor `apps/tree-editor/`: remove the `@import "tailwindcss"` from `app.css` (attu-ui/theme.css already supplies it); remove locally-duplicated token declarations from `app.css/@theme`; keep any tree-editor-specific tokens (`--fte-*`, `--color-tree-trunk`) that attu-ui does not own
 - verify all Tailwind utility classes that depend on custom tokens still resolve (compare before/after by grepping for the token names in compiled CSS)
+- document `@attu/ui/pure` subpath constraint in `packages/attu-ui/notes/agents.md` and/or attu-ui CLAUDE.md: any file used in a web worker build context must import from `@attu/ui/pure` (no Svelte files) rather than `@attu/ui`; update `pure.ts` if new pure-TS utilities are added to the barrel
 - run `pnpm verify` in tree-editor; manual smoke-test of all three views; run `pnpm typecheck` in `apps/wiki-editor`
+- evaluate test coverage across all packages: for each of `packages/attu-ui`, `packages/api-client`, `apps/wiki-editor`, and `apps/tree-editor`, report — what is tested, what is not, and where gaps are highest-risk given the migration; produce a written summary with a recommended priority order for filling gaps
