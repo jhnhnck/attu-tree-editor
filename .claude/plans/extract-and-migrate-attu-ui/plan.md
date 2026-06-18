@@ -59,12 +59,12 @@ Two residual risks remain. (1) ~~Tailwind v4 utility class propagation~~ — **r
 
 ## phase 1 — CommandPalette decoupling
 
-**status:** open
+**status:** pending merge
 **definition of done:** `CommandPalette.svelte` has zero imports from `$lib/domain/` or `$lib/layout/`; the palette still opens, filters, and runs commands; existing tests pass; `pnpm typecheck` clean.
 
 **scope:**
 - in attu-ui `src/lib/`: define and export `PaletteItem` type: `{ id: string; label: string; detail?: string; action: () => void }`
-- in tree-editor `apps/tree-editor/src/lib/`: refactor `components/palette/CommandPalette.svelte` — replace direct `domain/types` and `layout/kinship` imports with `items: PaletteItem[]` prop and optional `resolveKinship: (a: PersonId, b: PersonId) => string` prop
+- in tree-editor `apps/tree-editor/src/lib/`: refactor `components/palette/CommandPalette.svelte` — replace direct `domain/types` and `layout/kinship` imports with `items: PaletteItem[]` prop; also fold `commands: Command[]` into `items` so the palette has no dependency on the local `Command` type (required before phase 2 moves it to attu-ui)
 - update `components/palette/commands.ts` to assemble `PaletteItem[]` with tree-domain knowledge and pass it in at the call site
 - pivot criterion: if CommandPalette's UX requires more than two new props to stay domain-agnostic, stop and run plan-revise — the refactor scope may have been underestimated
 
@@ -100,7 +100,8 @@ Two residual risks remain. (1) ~~Tailwind v4 utility class propagation~~ — **r
 
 - rewrite imports across `apps/tree-editor/src/` from local `$lib/components/ui/*`, `$lib/components/form/Field`, `$lib/components/canvas/*`, `$lib/components/shell/*`, `$lib/components/help/*`, `$lib/components/palette/CommandPalette`, `$lib/components/editor/CropperDialog`, `$lib/state/toasts*`, `$lib/state/progress*`, `$lib/state/preferences*`, `$lib/state/auth*`, `$lib/date/*` → `@attu/ui`
 - update `HaracalndeDate` imports in `domain/` and `components/form/DateInput`
-- at the CommandPalette call site(s): pass `items` and `resolveKinship` props using tree-domain data from `commands.ts`
+<!-- phase 3: CommandPalette call site already updated in phase 1 (paletteItems derived, props set); only the import path changes here -->
+- update the CommandPalette import in `App.svelte` from `$lib/components/palette/CommandPalette.svelte` → `@attu/ui` (call site props were set in phase 1; no prop changes needed)
 - delete all now-redundant source files from tree-editor
 - run typecheck, build, full test suite, and 5-minute manual smoke-test before marking phase done
 - phases 2 and 3 may land in separate commits; the duplicate-code window is safe within a single repo

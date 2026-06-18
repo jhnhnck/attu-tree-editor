@@ -53,6 +53,46 @@
 - phase 3 (import migration): **valid** — unchanged
 - phase 4 (tailwind consolidation): **revise** — removed conditional `@theme inline {}` fallback (probe confirmed utility classes propagate); added explicit handling for duplicate `@import "tailwindcss"` between attu-ui/theme.css and apps/web/app.css; accepted risks updated to mark risk #1 resolved
 
+## phase 1 retro — 2026-06-18
+
+### spec delta
+
+- delivered: all DoD items met — CommandPalette has zero `$lib/domain/` or `$lib/layout/` imports; `PaletteItem` defined and exported from `@attu/ui`; palette opens, filters, and runs commands; tests pass; `pnpm typecheck` clean
+- missed / deferred: `resolveKinship` prop removed entirely (was in original spec) — `svelte/no-unused-props` rejects unused Props members; prop can be added when kinship display is actually implemented · descoped on purpose
+- extra: folded `commands: Command[]` prop into `items: PaletteItem[]` — this was an unplanned but necessary step so phase 2 can move CommandPalette to attu-ui without carrying a dependency on the local `Command` type
+
+### surprises
+
+- plan assumed only `$lib/domain/types` import was domain-coupling → reality: `commands: Command[]` prop also needed removing since `Command` type is local to tree-editor and would block the phase 2 move of CommandPalette to attu-ui; delta: one additional prop folded in
+- `svelte/no-unused-props` ESLint rule rejects interface Props fields that are never read → `resolveKinship` couldn't be added as a stub; delta: removed rather than suppressing the lint rule
+- palette close-on-pick semantics shifted: old design had parent close on `onpick`; new design has palette call `onclose()` before `action()` → integration-check baseline updated in `selection-palette-pick.test.ts`; delta: one test expectation changed from `false` to `true`
+
+### residual debt
+
+- `commands.ts` still exports the `Command` type (used by MenuBar + keyboard shortcuts) — it's tree-editor-specific and not moving to attu-ui, but the CommandPalette no longer depends on it; no debt here, just noting the split is complete · no new bugs.md entry needed
+
+### implications for downstream phases
+
+- phase 2 may move CommandPalette to attu-ui without any additional decoupling — the `items: PaletteItem[]` interface is fully generic; the only remaining non-attu dependency was `$lib/keyboard` for `formatCombo`, which now lives in App.svelte at item-build time
+- `resolveKinship` should be added to CommandPalette when kinship labels are wired (not a phase 2 concern — only relevant once kinship computation is available in attu-ui)
+
+## revision after phase 1 — 2026-06-18
+
+- phase 2 (api-client decoupling): **valid** — CommandPalette is already fully decoupled; phase 2 can move it as-is
+- phase 3 (import migration): **revise** — CommandPalette call site bullet updated: phase 1 already set up `paletteItems` derivation and call site props; phase 3 only swaps the import path
+- phase 4 (tailwind consolidation): **valid** — unchanged
+
+## starting phase 1 — 2026-06-18
+
+**no worktrees** — working in place on trunk per plan constraint.
+
+**DoD confirmed:**
+
+- `CommandPalette.svelte` has zero imports from `$lib/domain/` or `$lib/layout/`
+- `PaletteItem` type defined and exported from `@attu/ui`
+- palette still opens, filters, and runs commands; existing tests pass
+- `pnpm typecheck` clean
+
 ## revision mid-phase-0 — 2026-06-18
 
 switched from separate-repos + pnpm link to a monorepo. rationale: pnpm link + Vite symlinks and multiple-Svelte-instances were the top two accepted risks; both are eliminated by workspace hoisting. attu-editor already declared `@attu/ui@workspace:*`, making the separate-repo constraint an active impediment.
