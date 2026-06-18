@@ -14,7 +14,7 @@ vi.mock("@attu/api-client", () => ({
     },
 }));
 
-import ShareDialog from "$lib/components/shell/ShareDialog.svelte";
+import { ShareDialog } from "@attu/ui";
 import { trees as treesApi } from "@attu/api-client";
 
 const mockedList = vi.mocked(treesApi.listGrants);

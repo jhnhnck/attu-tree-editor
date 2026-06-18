@@ -7,6 +7,9 @@ import { describe, expect, it } from "vitest";
 import type { LayeredGraph, LayoutNode, LayoutNodeId } from "$lib/layout/ir";
 import { ghostNodeId } from "$lib/layout/ir";
 import { order, computeInitialOrder } from "$lib/layout/passes/order";
+import { addPerson, createTree, linkParent, linkSpouse } from "$lib/domain/tree";
+import { ROOT_ID } from "$lib/domain/ids";
+import { layer } from "$lib/layout/passes/layer";
 
 // ---------------------------------------------------------------------------
 // Fixture helpers
@@ -701,11 +704,7 @@ describe("order — swap overrides", () => {
 // ---------------------------------------------------------------------------
 
 describe("order — integration with layer() output", () => {
-    it("all nodes from layer() receive an order value", async () => {
-        const { addPerson, createTree, linkParent, linkSpouse } = await import("$lib/domain/tree");
-        const { ROOT_ID } = await import("$lib/domain/ids");
-        const { layer } = await import("$lib/layout/passes/layer");
-
+    it("all nodes from layer() receive an order value", () => {
         let t = createTree("test", {
             given: "root",
             surname: "",
@@ -758,11 +757,7 @@ describe("order — integration with layer() output", () => {
         }
     });
 
-    it("couple (spouseGroup) nodes from layer() are adjacent after order()", async () => {
-        const { addPerson, createTree, linkSpouse } = await import("$lib/domain/tree");
-        const { ROOT_ID } = await import("$lib/domain/ids");
-        const { layer } = await import("$lib/layout/passes/layer");
-
+    it("couple (spouseGroup) nodes from layer() are adjacent after order()", () => {
         let t = createTree("sp", {
             given: "root",
             surname: "",
@@ -788,11 +783,7 @@ describe("order — integration with layer() output", () => {
         expect(dist(og, ROOT_ID, sp.id)).toBe(1);
     });
 
-    it("siblings from layer() are contiguous after order()", async () => {
-        const { addPerson, createTree, linkParent, linkSpouse } = await import("$lib/domain/tree");
-        const { ROOT_ID } = await import("$lib/domain/ids");
-        const { layer } = await import("$lib/layout/passes/layer");
-
+    it("siblings from layer() are contiguous after order()", () => {
         let t = createTree("sib", {
             given: "root",
             surname: "",

@@ -20,7 +20,7 @@ import {
     unforceCollapse,
     unregister,
     updateItem,
-} from "$lib/components/canvas/dockRegistry.svelte";
+} from "@attu/ui";
 import DockProbe from "./fixtures/DockProbe.svelte";
 import GatedDockRegistration from "./fixtures/GatedDockRegistration.svelte";
 

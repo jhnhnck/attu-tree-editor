@@ -5,7 +5,7 @@
 // and that setCorner updates the reactive corner and persists.
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { DockConfig, dockConfig } from "$lib/components/canvas/dockConfig.svelte";
+import { DockConfig, dockConfig } from "@attu/ui";
 
 const LS_KEY = "fte.dock.corner";
 

@@ -13,13 +13,17 @@ import { render, fireEvent } from "@testing-library/svelte";
 export const lastDialogProps: { current: { onclose?: () => void } | undefined } = {
     current: undefined,
 };
-vi.mock("$lib/components/editor/CropperDialog.svelte", () => ({
-    default: function (_anchor: unknown, props: { onclose?: () => void }) {
-        // svelte 5 component factory: anchor + props bag. record the latest props.
-        lastDialogProps.current = props;
-        return {};
-    },
-}));
+vi.mock("@attu/ui", async (importOriginal) => {
+    const orig = await importOriginal<typeof import("@attu/ui")>();
+    return {
+        ...orig,
+        CropperDialog: function (_anchor: unknown, props: { onclose?: () => void }) {
+            // svelte 5 component factory: anchor + props bag. record the latest props.
+            lastDialogProps.current = props;
+            return {};
+        },
+    };
+});
 
 import PortraitField from "$lib/components/editor/PortraitField.svelte";
 import type { PortraitUrlCache } from "$lib/state/portraitUrls.svelte";

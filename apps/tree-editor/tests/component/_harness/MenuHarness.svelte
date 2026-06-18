@@ -3,8 +3,8 @@
     licensed under the MIT license; see LICENSE.md for full text
 -->
 <script lang="ts">
-    import Menu from "$lib/components/shell/Menu.svelte";
-    import type { MenuEntry } from "$lib/components/shell/menu";
+    import { Menu } from "@attu/ui";
+    import type { MenuEntry } from "@attu/ui";
 
     interface Props {
         label: string;

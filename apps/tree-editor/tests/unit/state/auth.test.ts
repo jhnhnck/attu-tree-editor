@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { authStore, DRY_RUN_USER } from "$lib/state/auth.svelte";
+import { authStore, DRY_RUN_USER } from "@attu/ui";
 
 describe("authStore dry-run", () => {
     it("starts with no user and dry-run off", () => {

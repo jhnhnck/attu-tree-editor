@@ -10,11 +10,7 @@
 // wall-clock collisions.
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import {
-    windowManager,
-    NON_CLOSING_IDS,
-    WINDOW_MANAGER_CONSTANTS,
-} from "$lib/components/canvas/windowManager.svelte";
+import { windowManager, NON_CLOSING_IDS, WINDOW_MANAGER_CONSTANTS } from "@attu/ui";
 
 // minimal host element stub. jsdom doesn't compute layout; we patch
 // getBoundingClientRect to return a fixed 1440x900 host so the

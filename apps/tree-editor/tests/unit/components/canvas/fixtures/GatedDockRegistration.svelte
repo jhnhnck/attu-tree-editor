@@ -18,12 +18,12 @@
 
 <script lang="ts">
     import { untrack } from "svelte";
-    import DockRegistration from "$lib/components/canvas/DockRegistration.svelte";
-    import type {
-        DockCorner,
-        DockKind,
-        DockRenderSnippet,
-    } from "$lib/components/canvas/dockRegistry.svelte";
+    import {
+        DockRegistration,
+        type DockCorner,
+        type DockKind,
+        type DockRenderSnippet,
+    } from "@attu/ui";
 
     interface Props {
         initialOpen?: boolean | undefined;

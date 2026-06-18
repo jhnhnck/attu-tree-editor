@@ -4,8 +4,8 @@
     licensed under the MIT license; see LICENSE.md for full text
 -->
 <script lang="ts">
-    import DateInput from "$lib/components/form/DateInput.svelte";
-    import type { HaracalndeDateData } from "$lib/date/HaracalndeDate";
+    import { DateInput } from "@attu/ui";
+    import type { HaracalndeDateData } from "@attu/ui";
 
     interface Props {
         value?: HaracalndeDateData | undefined;

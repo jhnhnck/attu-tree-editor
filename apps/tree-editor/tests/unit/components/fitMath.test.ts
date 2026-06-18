@@ -7,7 +7,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { computeFit, type CanvasChromeInsets } from "$lib/components/canvas/fitMath";
+import { computeFit, type CanvasChromeInsets } from "@attu/ui";
 
 const NO_INSETS: CanvasChromeInsets = { top: 0, right: 0, bottom: 0, left: 0 };
 

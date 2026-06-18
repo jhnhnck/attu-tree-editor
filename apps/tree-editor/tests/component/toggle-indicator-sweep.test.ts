@@ -33,7 +33,7 @@ import { describe, expect, it } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/svelte";
 import { tick } from "svelte";
 import MenuHarness from "./_harness/MenuHarness.svelte";
-import type { MenuEntry } from "$lib/components/shell/menu";
+import type { MenuEntry } from "@attu/ui";
 
 /**
  * the full set of toggle-bearing menu entries from the registry. mirrors

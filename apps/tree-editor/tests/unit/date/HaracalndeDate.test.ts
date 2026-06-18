@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { DateParseErrors, HaracalndeDate } from "$lib/date/HaracalndeDate";
+import { DateParseErrors, HaracalndeDate } from "@attu/ui";
 
 function unwrap<T>(r: { ok: true; value: T } | { ok: false; error: string }): T {
     if (!r.ok) throw new Error(`expected ok, got err: ${r.error}`);

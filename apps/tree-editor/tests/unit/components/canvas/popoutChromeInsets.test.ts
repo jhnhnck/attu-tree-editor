@@ -14,7 +14,7 @@
 // would re-surface the decision instead of silently regressing it.
 
 import { afterEach, describe, expect, it } from "vitest";
-import { measureCanvasChromeInsets } from "$lib/components/canvas/fitMath";
+import { measureCanvasChromeInsets } from "@attu/ui";
 
 // jsdom does not compute layout; getBoundingClientRect returns
 // zero-size rects by default. patch each element's rect with the

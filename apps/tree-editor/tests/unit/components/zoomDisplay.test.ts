@@ -11,7 +11,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { DESIGN_CARD_WIDTH_PX, computeDisplayPercent } from "$lib/components/canvas/zoomDisplay";
+import { DESIGN_CARD_WIDTH_PX, computeDisplayPercent } from "@attu/ui";
 
 describe("computeDisplayPercent — phase 0b zoom 100% contract", () => {
     it("design-card-width constant matches `PERSON_W × UNIT` (4 × 80 = 320 css px)", () => {

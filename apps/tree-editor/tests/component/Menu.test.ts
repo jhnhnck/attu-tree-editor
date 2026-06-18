@@ -6,9 +6,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/svelte";
 import { tick } from "svelte";
-import Menu from "$lib/components/shell/Menu.svelte";
+import { Menu } from "@attu/ui";
 import MenuHarness from "./_harness/MenuHarness.svelte";
-import type { MenuEntry } from "$lib/components/shell/menu";
+import type { MenuEntry } from "@attu/ui";
 
 function items(): MenuEntry[] {
     return [

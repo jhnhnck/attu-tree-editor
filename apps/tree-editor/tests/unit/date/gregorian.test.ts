@@ -4,8 +4,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { HaracalndeDate } from "$lib/date/HaracalndeDate";
-import { approxGregorianLabel, approxGregorianYear } from "$lib/date/gregorian";
+import { HaracalndeDate, approxGregorianLabel, approxGregorianYear } from "@attu/ui";
 
 describe("approxGregorianYear", () => {
     it("PC 1 -> 1", () => {

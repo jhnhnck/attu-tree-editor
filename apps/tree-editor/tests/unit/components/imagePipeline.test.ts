@@ -5,12 +5,8 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/unbound-method */
 import { describe, expect, it, vi } from "vitest";
-import {
-    loadSourceBitmap,
-    __setOrientationProbe,
-    type SourceBitmap,
-} from "$lib/components/editor/loadSourceBitmap";
-import { encodePortrait, DOWNSCALE_RATIO_THRESHOLD } from "$lib/components/editor/encodePortrait";
+import { loadSourceBitmap, __setOrientationProbe, type SourceBitmap } from "@attu/ui";
+import { encodePortrait, DOWNSCALE_RATIO_THRESHOLD } from "@attu/ui";
 
 // shape of an arbitrary SourceBitmap used by encodePortrait. records what
 // transform draw() was invoked with so tests can assert single vs two-step.

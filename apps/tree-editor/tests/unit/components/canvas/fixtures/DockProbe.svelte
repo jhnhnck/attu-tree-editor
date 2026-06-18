@@ -5,7 +5,7 @@
     attribute so unit tests can assert reactive updates.
 -->
 <script lang="ts">
-    import { type DockCorner, itemsForCorner } from "$lib/components/canvas/dockRegistry.svelte";
+    import { type DockCorner, itemsForCorner } from "@attu/ui";
 
     interface Props {
         corner: DockCorner;

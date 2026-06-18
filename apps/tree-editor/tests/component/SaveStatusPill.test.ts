@@ -10,7 +10,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/svelte";
-import SaveStatusPill from "$lib/components/shell/SaveStatusPill.svelte";
+import { SaveStatusPill } from "@attu/ui";
 
 function base() {
     return {

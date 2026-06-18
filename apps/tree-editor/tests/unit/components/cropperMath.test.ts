@@ -13,7 +13,7 @@ import {
     anchorZoom,
     clampTransform,
     MAX_ZOOM_MULTIPLE,
-} from "$lib/components/editor/cropperMath";
+} from "@attu/ui";
 
 describe("coverScale", () => {
     it("returns the larger of the two axis ratios", () => {

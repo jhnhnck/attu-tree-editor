@@ -14,7 +14,7 @@
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { flushSync, mount, unmount } from "svelte";
-import { windowManager } from "$lib/components/canvas/windowManager.svelte";
+import { windowManager } from "@attu/ui";
 import WindowProbe from "./fixtures/WindowProbe.svelte";
 
 function bodyVisible(host: HTMLElement): boolean {

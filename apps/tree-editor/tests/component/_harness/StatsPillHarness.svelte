@@ -9,8 +9,7 @@
     rather than reimplementing the assertion shape.
 -->
 <script lang="ts">
-    import CanvasChromeDock from "$lib/components/canvas/CanvasChromeDock.svelte";
-    import DockRegistration from "$lib/components/canvas/DockRegistration.svelte";
+    import { CanvasChromeDock, DockRegistration } from "@attu/ui";
     import type { EngineKind } from "$lib/state/engine";
 
     interface Props {

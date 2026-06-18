@@ -5,7 +5,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/svelte";
-import ZoomWidget from "$lib/components/canvas/ZoomWidget.svelte";
+import { ZoomWidget } from "@attu/ui";
 
 function baseProps() {
     return {

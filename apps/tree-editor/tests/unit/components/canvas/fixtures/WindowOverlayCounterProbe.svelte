@@ -10,9 +10,7 @@
     the parent's reactive state.
 -->
 <script lang="ts">
-    import Window from "$lib/components/canvas/Window.svelte";
-    import WindowOverlay from "$lib/components/canvas/WindowOverlay.svelte";
-    import DockRegistration from "$lib/components/canvas/DockRegistration.svelte";
+    import { Window, WindowOverlay, DockRegistration } from "@attu/ui";
 
     interface Props {
         // caller receives a callback fired with the new value every

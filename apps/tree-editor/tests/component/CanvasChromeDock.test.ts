@@ -13,9 +13,9 @@ import {
     clearRegistry,
     register,
     type DockCorner,
-} from "$lib/components/canvas/dockRegistry.svelte";
-import { windowManager } from "$lib/components/canvas/windowManager.svelte";
-import CanvasChromeDock from "$lib/components/canvas/CanvasChromeDock.svelte";
+    windowManager,
+    CanvasChromeDock,
+} from "@attu/ui";
 
 const noop = (() => undefined) as unknown as Snippet;
 

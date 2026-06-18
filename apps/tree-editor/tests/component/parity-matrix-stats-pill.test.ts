@@ -21,7 +21,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/svelte";
 import { tick } from "svelte";
-import { clearRegistry } from "$lib/components/canvas/dockRegistry.svelte";
+import { clearRegistry } from "@attu/ui";
 import type { EngineKind } from "$lib/state/engine";
 import StatsPillHarness from "./_harness/StatsPillHarness.svelte";
 

@@ -10,8 +10,7 @@
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { flushSync, mount, unmount } from "svelte";
-import { clearRegistry } from "$lib/components/canvas/dockRegistry.svelte";
-import { windowManager } from "$lib/components/canvas/windowManager.svelte";
+import { clearRegistry, windowManager } from "@attu/ui";
 import WindowOverlayCounterProbe from "./fixtures/WindowOverlayCounterProbe.svelte";
 
 let target: HTMLElement;

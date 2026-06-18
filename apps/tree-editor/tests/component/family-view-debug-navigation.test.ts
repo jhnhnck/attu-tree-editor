@@ -32,7 +32,7 @@ import { tick } from "svelte";
 
 import FamilyViewCanvas from "$lib/components/tree/FamilyViewCanvas.svelte";
 import type { FamilyViewDebugLayerOptions } from "$lib/components/tree/debugTypes";
-import { clearRegistry, itemsForCorner } from "$lib/components/canvas/dockRegistry.svelte";
+import { clearRegistry, itemsForCorner } from "@attu/ui";
 import { loadGedcomFixture } from "./_harness/loadGedcomFixture";
 import { mountWithHostRect } from "./_harness/mountWithHostRect";
 

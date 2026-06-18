@@ -19,7 +19,7 @@ vi.mock("$lib/persistence/trees", async () => {
 });
 
 import { loadTree } from "$lib/persistence/trees";
-import { ok } from "$lib/utils/result";
+import { ok } from "@attu/ui";
 import type { Tree } from "$lib/domain/types";
 
 const mockedLoad = vi.mocked(loadTree);

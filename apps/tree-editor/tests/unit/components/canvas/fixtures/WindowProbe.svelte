@@ -6,7 +6,7 @@
     phase-0 spike).
 -->
 <script lang="ts">
-    import Window from "$lib/components/canvas/Window.svelte";
+    import { Window } from "@attu/ui";
 
     interface Props {
         id: string;

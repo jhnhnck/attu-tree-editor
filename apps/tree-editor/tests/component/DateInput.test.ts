@@ -5,8 +5,8 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/svelte";
-import DateInput from "$lib/components/form/DateInput.svelte";
-import type { HaracalndeDateData } from "$lib/date/HaracalndeDate";
+import { DateInput } from "@attu/ui";
+import type { HaracalndeDateData } from "@attu/ui";
 
 describe("DateInput", () => {
     it("renders the formatted date in the field", () => {

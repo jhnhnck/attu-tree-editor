@@ -5,7 +5,7 @@
 
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/svelte";
-import CommandPalette from "$lib/components/palette/CommandPalette.svelte";
+import { CommandPalette } from "@attu/ui";
 import type { PaletteItem } from "@attu/ui";
 
 beforeAll(() => {
