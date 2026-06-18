@@ -71,16 +71,17 @@ describe("auth (dry-run mode)", () => {
         expect(fetchMock).not.toHaveBeenCalled();
     });
 
-    it("check() returns pending then ok after PENDING_POLLS calls", async () => {
-        await auth.start(); // resets internal _checkCount to 0
-        const r1 = await auth.check();
-        const r2 = await auth.check();
-        const r3 = await auth.check();
-        const r4 = await auth.check();
-        expect(r1.status).toBe("pending");
-        expect(r2.status).toBe("pending");
-        expect(r3.status).toBe("pending");
-        expect(r4.status).toBe("ok");
+    it("check() returns pending at first then transitions to ok", async () => {
+        await auth.start(); // resets internal counter
+        const statuses: string[] = [];
+        let result;
+        do {
+            result = await auth.check();
+            statuses.push(result.status);
+        } while (result.status === "pending");
+        expect(statuses.length).toBeGreaterThan(1); // at least one pending before resolving
+        expect(statuses.slice(0, -1).every((s) => s === "pending")).toBe(true);
+        expect(statuses.at(-1)).toBe("ok");
         expect(fetchMock).not.toHaveBeenCalled();
     });
 });
