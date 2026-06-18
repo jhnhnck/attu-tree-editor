@@ -6,5 +6,7 @@
 // components extracted from tree-editor land here.
 // see ~/Projects/tree-editor/.claude/plans/extract-attu-ui.md for the extraction plan.
 
-// date
-export { HaracalndeDate } from "./date/HaracalndeDate.js";
+// ui
+export { default as Button } from "./components/ui/Button.svelte";
+
+// date — HaracalndeDate extracted in phase 2

@@ -3,6 +3,11 @@
  * licensed under the MIT license; see LICENSE.md for full text
  */
 
+/* phase 0 probe: validates @attu/ui/theme.css resolves via pnpm link;
+ * tree-editor's own @theme block below overrides the imported tokens so
+ * behavior is unchanged. remove once phase 4 consolidates the two sources. */
+@import "@attu/ui/theme.css";
+
 @import "tailwindcss";
 
 /* color tokens matched to attuproject.org's citizen skin

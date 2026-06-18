@@ -24,11 +24,6 @@ export default defineConfig({
     build: {
         target: "es2022",
         sourcemap: true,
-        rollupOptions: {
-            output: {
-                // single entry chunk so resourceloader can reference one file
-                manualChunks: undefined,
-            },
-        },
+        rollupOptions: {},
     },
 });

@@ -19,6 +19,7 @@
     },
     "dependencies": {
         "@attu/api-client": "workspace:*",
+        "@attu/ui": "workspace:*",
         "@lucide/svelte": "^1.16.0",
         "@panzoom/panzoom": "^4.6.2",
         "dexie": "^4.4.2",
