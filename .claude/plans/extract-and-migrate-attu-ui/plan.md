@@ -2,12 +2,12 @@
 
 ## goals
 
-- tree-editor is the pnpm monorepo root; `packages/attu-ui` and `apps/editor` live inside it; git histories from the three original repos merged via `git subtree add --squash`
-- `@attu/ui` is a standalone Svelte 5 + Tailwind v4 package at `packages/attu-ui`, containing all generic UI components, state modules, and `HaracalndeDate`, importable from `apps/web` and `apps/editor` via `workspace:*`
+- tree-editor is the pnpm monorepo root; `packages/attu-ui` and `apps/wiki-editor` live inside it; git histories from the three original repos merged via `git subtree add --squash`
+- `@attu/ui` is a standalone Svelte 5 + Tailwind v4 package at `packages/attu-ui`, containing all generic UI components, state modules, and `HaracalndeDate`, importable from `apps/tree-editor` and `apps/wiki-editor` via `workspace:*`
 - tree-editor imports all generic UI from `@attu/ui`; local duplicate files are deleted; `pnpm typecheck && pnpm build` passes with zero errors
 - `CommandPalette` has zero imports from `domain/` or `layout/`; it accepts `PaletteItem[]` and a `resolveKinship` prop
 - `LinkCodeDialog`, `AboutDialog`, and `ShortcutsOverlay` use native `<dialog>` with `showModal()`
-- attu-editor (`apps/editor`) resolves `@attu/ui` via pnpm workspace and can import components successfully
+- wiki-editor (`apps/wiki-editor`) resolves `@attu/ui` via pnpm workspace and can import components successfully
 
 ## non-goals
 
@@ -22,7 +22,7 @@
 
 - no worktrees; all changes land directly on trunk
 - tree-editor is the single pnpm monorepo root; the original attu-ui and attu-editor repos are retired after their histories are merged in
-- attu-ui merges into `packages/attu-ui`; attu-editor's Svelte app merges into `apps/editor`; attu-editor's MediaWiki PHP extension merges into `extension/`
+- attu-ui merges into `packages/attu-ui`; attu-editor's Svelte app merges into `apps/wiki-editor`; attu-editor's MediaWiki PHP extension merges into `extension/`
 - packages reference each other via `workspace:*` — no `pnpm link` required
 - pnpm@10.33.2, Svelte 5.55.9, Tailwind v4.3.0, TypeScript 6.0.3 enforced at workspace root
 - git history preserved via `git subtree add --squash` for each incoming repo
@@ -64,7 +64,7 @@ Two residual risks remain. (1) ~~Tailwind v4 utility class propagation~~ — **r
 
 **scope:**
 - in attu-ui `src/lib/`: define and export `PaletteItem` type: `{ id: string; label: string; detail?: string; action: () => void }`
-- in tree-editor `apps/web/src/lib/`: refactor `components/palette/CommandPalette.svelte` — replace direct `domain/types` and `layout/kinship` imports with `items: PaletteItem[]` prop and optional `resolveKinship: (a: PersonId, b: PersonId) => string` prop
+- in tree-editor `apps/tree-editor/src/lib/`: refactor `components/palette/CommandPalette.svelte` — replace direct `domain/types` and `layout/kinship` imports with `items: PaletteItem[]` prop and optional `resolveKinship: (a: PersonId, b: PersonId) => string` prop
 - update `components/palette/commands.ts` to assemble `PaletteItem[]` with tree-domain knowledge and pass it in at the call site
 - pivot criterion: if CommandPalette's UX requires more than two new props to stay domain-agnostic, stop and run plan-revise — the refactor scope may have been underestimated
 
@@ -94,10 +94,11 @@ Two residual risks remain. (1) ~~Tailwind v4 utility class propagation~~ — **r
 ## phase 3 — tree-editor import migration
 
 **status:** open
-**definition of done:** `pnpm typecheck && pnpm build` passes in tree-editor with zero errors; no file in `apps/web/src/` imports from a path that now lives in attu-ui; deleted files are gone; `pnpm test:*` passes; `pnpm dev` opens in browser with no console errors and passes a 5-minute manual smoke-test (all main views render, chrome is intact).
+**definition of done:** `pnpm typecheck && pnpm build` passes in tree-editor with zero errors; no file in `apps/tree-editor/src/` imports from a path that now lives in attu-ui; deleted files are gone; `pnpm test:*` passes; `pnpm dev` opens in browser with no console errors and passes a 5-minute manual smoke-test (all main views render, chrome is intact).
 
 **scope:**
-- rewrite imports across `apps/web/src/` from local `$lib/components/ui/*`, `$lib/components/form/Field`, `$lib/components/canvas/*`, `$lib/components/shell/*`, `$lib/components/help/*`, `$lib/components/palette/CommandPalette`, `$lib/components/editor/CropperDialog`, `$lib/state/toasts*`, `$lib/state/progress*`, `$lib/state/preferences*`, `$lib/state/auth*`, `$lib/date/*` → `@attu/ui`
+
+- rewrite imports across `apps/tree-editor/src/` from local `$lib/components/ui/*`, `$lib/components/form/Field`, `$lib/components/canvas/*`, `$lib/components/shell/*`, `$lib/components/help/*`, `$lib/components/palette/CommandPalette`, `$lib/components/editor/CropperDialog`, `$lib/state/toasts*`, `$lib/state/progress*`, `$lib/state/preferences*`, `$lib/state/auth*`, `$lib/date/*` → `@attu/ui`
 - update `HaracalndeDate` imports in `domain/` and `components/form/DateInput`
 - at the CommandPalette call site(s): pass `items` and `resolveKinship` props using tree-domain data from `commands.ts`
 - delete all now-redundant source files from tree-editor
@@ -107,13 +108,13 @@ Two residual risks remain. (1) ~~Tailwind v4 utility class propagation~~ — **r
 ## phase 4 — tailwind consolidation and full validation
 
 **status:** open
-**definition of done:** attu-ui owns all design tokens; tree-editor imports them from `@attu/ui/theme.css`; all tests pass; no visual regressions in layered, family-view, or hyperbolic views confirmed by manual smoke-test; attu-editor `pnpm typecheck` still passes.
+**definition of done:** attu-ui owns all design tokens; tree-editor imports them from `@attu/ui/theme.css`; all tests pass; no visual regressions in layered, family-view, or hyperbolic views confirmed by manual smoke-test; `apps/wiki-editor` `pnpm typecheck` still passes.
 
 <!-- phase 4: probe confirmed utility classes propagate — conditional fallback branch removed; duplicate-tailwindcss handling added -->
 **scope:**
 
 - in attu-ui: audit `src/lib/theme.css` against tree-editor's Tailwind config; add any missing design tokens (colors, spacing, typography); confirm `./theme.css` is in attu-ui `package.json` exports
 - split `attu-ui/src/lib/theme.css` if needed: the file currently contains both `@import "tailwindcss"` and `@theme { ... }` — consumers importing it already get the tailwindcss base; if that causes problems, split into `theme-tokens.css` (tokens only) and keep `theme.css` as the full entry; probe result in phase 0 log guides this decision
-- in tree-editor `apps/web/`: remove the `@import "tailwindcss"` from `app.css` (attu-ui/theme.css already supplies it); remove locally-duplicated token declarations from `app.css/@theme`; keep any tree-editor-specific tokens (`--fte-*`, `--color-tree-trunk`) that attu-ui does not own
+- in tree-editor `apps/tree-editor/`: remove the `@import "tailwindcss"` from `app.css` (attu-ui/theme.css already supplies it); remove locally-duplicated token declarations from `app.css/@theme`; keep any tree-editor-specific tokens (`--fte-*`, `--color-tree-trunk`) that attu-ui does not own
 - verify all Tailwind utility classes that depend on custom tokens still resolve (compare before/after by grepping for the token names in compiled CSS)
-- run `pnpm verify` in tree-editor; manual smoke-test of all three views; run `pnpm typecheck` in attu-editor
+- run `pnpm verify` in tree-editor; manual smoke-test of all three views; run `pnpm typecheck` in `apps/wiki-editor`
