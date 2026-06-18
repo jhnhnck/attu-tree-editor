@@ -3,7 +3,7 @@
  * licensed under the MIT license; see LICENSE.md for full text
  */
 
-import { err, ok, type Result } from "$lib/utils/result";
+import { err, ok, type Result } from "@attu/ui/pure";
 
 /**
  * Schema versions are semver strings `MAJOR.MINOR.PATCH`. A major bump means

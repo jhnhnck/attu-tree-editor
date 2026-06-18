@@ -4,7 +4,7 @@
  */
 
 import type { TreeNode } from "read-gedcom";
-import { HaracalndeDate } from "$lib/date/HaracalndeDate";
+import { HaracalndeDate } from "@attu/ui";
 import type { CoupleRecord, Person, PersonId, Tree } from "$lib/domain/types";
 import { getParents } from "$lib/domain/tree";
 import {

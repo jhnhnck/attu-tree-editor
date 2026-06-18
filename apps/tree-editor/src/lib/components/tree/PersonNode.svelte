@@ -5,7 +5,7 @@
 -->
 <script lang="ts">
     import { Link2 } from "@lucide/svelte";
-    import { HaracalndeDate, type HaracalndeDateData } from "$lib/date/HaracalndeDate";
+    import { HaracalndeDate, type HaracalndeDateData } from "@attu/ui";
     import type { Person } from "$lib/domain/types";
     import type { PersonNodeLevel } from "$lib/components/tree/edges";
     import { decorate } from "$lib/layout/engines/family-view/cardDecorator";

@@ -3,7 +3,7 @@
  * licensed under the MIT license; see LICENSE.md for full text
  */
 
-import type { HaracalndeDateData } from "$lib/date/HaracalndeDate";
+import type { HaracalndeDateData } from "@attu/ui";
 import { ROOT_ID } from "$lib/domain/ids";
 import type { CoupleRecord, ParentRef, Person, PersonId, Tree } from "$lib/domain/types";
 import { legacyGenderCode } from "$lib/domain/personIdentity";

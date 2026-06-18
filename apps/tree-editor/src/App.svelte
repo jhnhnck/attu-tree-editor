@@ -97,12 +97,45 @@
         readPersistedSelection,
         writePersistedSelection,
     } from "$lib/state/selection.svelte";
-    import { createToastsStore } from "$lib/state/toasts.svelte";
-    import { createProgressStore } from "$lib/state/progress.svelte";
+    import {
+        createToastsStore,
+        createProgressStore,
+        authStore,
+        installShortcuts,
+        formatCombo,
+        type ShortcutBinding,
+        type PaletteItem,
+        ProgressStrip,
+        Toasts,
+        ContextMenu,
+        type ContextMenuItem,
+        AuthBar,
+        ShareDialog,
+        AboutDialog,
+        AdminPanel,
+        SettingsDialog,
+        MenuBar,
+        type MenuConfig,
+        type MenuEntry,
+        type IconComponent,
+        ShortcutsOverlay,
+        CommandPalette,
+        ZoomWidget,
+        DESIGN_CARD_WIDTH_PX,
+        computeDisplayPercent,
+        SaveStatusPill,
+        CanvasChromeDock,
+        windowManager,
+        NON_CLOSING_IDS,
+        dockConfig,
+        type DockCorner,
+        WindowOverlay,
+        Window,
+        DockRegistration,
+    } from "@attu/ui";
     import { createPortraitUrlCache } from "$lib/state/portraitUrls.svelte";
     import { createPreferencesStore } from "$lib/state/preferences.svelte";
     import { makeAutosaver } from "$lib/state/autosave";
-    import { authStore } from "$lib/state/auth.svelte";
     import { syncStore } from "$lib/state/sync.svelte";
     import { onUnauthorized, trees as treesApi } from "$lib/api/client";
     import { writeBundle } from "$lib/io/bundle/write";
@@ -114,8 +147,6 @@
         type TreeListing,
     } from "$lib/persistence/trees";
     import { SETTING_KEYS, getSetting, setSetting } from "$lib/persistence/settings";
-    import { installShortcuts, formatCombo, type ShortcutBinding } from "$lib/keyboard";
-    import type { PaletteItem } from "@attu/ui";
     import { SHORTCUTS, groupedShortcuts } from "$lib/shortcuts";
     import type {
         DebugLayerOptions,
@@ -137,38 +168,13 @@
         type EngineKind,
     } from "$lib/state/engine";
     import Inspector from "$lib/components/inspector/Inspector.svelte";
-    import ProgressStrip from "$lib/components/shell/ProgressStrip.svelte";
-    import Toasts from "$lib/components/ui/Toasts.svelte";
-    import ContextMenu, { type ContextMenuItem } from "$lib/components/ui/ContextMenu.svelte";
     import OpenDialog from "$lib/components/shell/OpenDialog.svelte";
-    import AuthBar from "$lib/components/shell/AuthBar.svelte";
-    import ShareDialog from "$lib/components/shell/ShareDialog.svelte";
-    import AboutDialog from "$lib/components/shell/AboutDialog.svelte";
-    import AdminPanel from "$lib/components/shell/AdminPanel.svelte";
-    import SettingsDialog from "$lib/components/shell/SettingsDialog.svelte";
-    import MenuBar from "$lib/components/shell/MenuBar.svelte";
-    import type { MenuConfig, MenuEntry, IconComponent } from "$lib/components/shell/menu";
-    import ShortcutsOverlay from "$lib/components/help/ShortcutsOverlay.svelte";
-    import CommandPalette from "$lib/components/palette/CommandPalette.svelte";
     import {
         buildCommands,
         commandById,
         type Command as PaletteCommand,
         type CommandGroup,
     } from "$lib/components/palette/commands";
-    import ZoomWidget from "$lib/components/canvas/ZoomWidget.svelte";
-    import {
-        DESIGN_CARD_WIDTH_PX,
-        computeDisplayPercent,
-    } from "$lib/components/canvas/zoomDisplay";
-    import SaveStatusPill from "$lib/components/shell/SaveStatusPill.svelte";
-    import CanvasChromeDock from "$lib/components/canvas/CanvasChromeDock.svelte";
-    import { windowManager, NON_CLOSING_IDS } from "$lib/components/canvas/windowManager.svelte";
-    import { dockConfig } from "$lib/components/canvas/dockConfig.svelte";
-    import type { DockCorner } from "$lib/components/canvas/dockRegistry.svelte";
-    import WindowOverlay from "$lib/components/canvas/WindowOverlay.svelte";
-    import Window from "$lib/components/canvas/Window.svelte";
-    import DockRegistration from "$lib/components/canvas/DockRegistration.svelte";
     import type { Person, PersonId } from "$lib/domain/types";
 
     const PLACEHOLDERS = [
@@ -2287,14 +2293,14 @@
     </header>
 
     <main
-        class="relative flex min-h-0 flex-1 overflow-clip"
+        class="relative flex min-h-0 flex-1 overflow-hidden"
         class:flex-row-reverse={prefs.inspectorSide === "left"}
         ondragenter={onDragEnter}
         ondragover={onDragOver}
         ondragleave={onDragLeave}
         ondrop={onDrop}
     >
-        <div class="relative flex-1 overflow-clip" data-canvas-host>
+        <div class="relative flex-1 overflow-hidden" data-canvas-host>
             <ProgressStrip {progress} />
             {#if selectedEngine === "hyperbolic"}
                 <HyperbolicCanvas

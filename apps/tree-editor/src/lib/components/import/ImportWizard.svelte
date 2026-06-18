@@ -5,7 +5,7 @@
 -->
 <script lang="ts">
     import { Upload, FileText, X } from "@lucide/svelte";
-    import Button from "$lib/components/ui/Button.svelte";
+    import { Button } from "@attu/ui";
     import { composeImports } from "$lib/io/import/composeImports";
     import { importFile, type ImportPayload } from "$lib/io/importFile";
     import { persistImportPayload, type ImportApplyMode } from "$lib/io/persistImportPayload";

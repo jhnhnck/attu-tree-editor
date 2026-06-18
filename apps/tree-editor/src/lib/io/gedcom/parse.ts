@@ -6,7 +6,7 @@
 import { parseGedcom as readGedcomParse } from "read-gedcom";
 import type { TreeNode, TreeNodeRoot } from "read-gedcom";
 
-import { HaracalndeDate } from "$lib/date/HaracalndeDate";
+import { HaracalndeDate } from "@attu/ui";
 import { generateId } from "$lib/domain/ids";
 import type {
     CoupleRecord,
@@ -53,7 +53,7 @@ function idFromXref(xref: string, taken: ReadonlySet<string>): PersonId {
     return generateId(taken);
 }
 import { validate, type Finding } from "$lib/domain/validate";
-import { err, ok, type Result } from "$lib/utils/result";
+import { err, ok, type Result } from "@attu/ui";
 
 export interface GedHead {
     /** Verbatim GEDCOM children of the HEAD record for round-trip. */
@@ -510,7 +510,7 @@ function applyFam(
     const husbIds: PersonId[] = [];
     const wifeIds: PersonId[] = [];
     const childIds: PersonId[] = [];
-    let marriageDate: import("$lib/date/HaracalndeDate").HaracalndeDateData | undefined;
+    let marriageDate: import("@attu/ui").HaracalndeDateData | undefined;
     let isPrimary: boolean | undefined;
     let isCurrent: boolean | undefined;
 
@@ -661,7 +661,7 @@ function parseTreesUnion(node: TreeNode, idByXref: Map<string, PersonId>): Union
     let kind: UnionKind | undefined;
     let closed: boolean | undefined;
     let name: string | undefined;
-    let marriageDate: import("$lib/date/HaracalndeDate").HaracalndeDateData | undefined;
+    let marriageDate: import("@attu/ui").HaracalndeDateData | undefined;
     let isPrimary: boolean | undefined;
     let isCurrent: boolean | undefined;
 
@@ -729,7 +729,7 @@ function parseTreesRel(node: TreeNode, idByXref: Map<string, PersonId>): Relatio
     const sourceIds: PersonId[] = [];
     const targetIds: PersonId[] = [];
     let cause: string | undefined;
-    let date: import("$lib/date/HaracalndeDate").HaracalndeDateData | undefined;
+    let date: import("@attu/ui").HaracalndeDateData | undefined;
     let notes: string | undefined;
 
     for (const sub of node.children) {

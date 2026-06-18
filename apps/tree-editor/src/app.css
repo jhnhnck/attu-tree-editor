@@ -3,36 +3,13 @@
  * licensed under the MIT license; see LICENSE.md for full text
  */
 
-/* phase 0 probe: validates @attu/ui/theme.css resolves via pnpm link;
- * tree-editor's own @theme block below overrides the imported tokens so
- * behavior is unchanged. remove once phase 4 consolidates the two sources. */
 @import "@attu/ui/theme.css";
 
-@import "tailwindcss";
-
-/* color tokens matched to attuproject.org's citizen skin
- * (cool dark blue-grey chrome, bright blue accent at hue 220deg)
- *
- * dark values live in @theme so tailwind v4 generates the utility classes
- * (bg-canvas, text-fg, border-line, etc). values are CSS variables on :root
- * and follow normal cascade, so the data-theme selectors below override at
- * runtime when the user picks an explicit theme via the settings dialog.
- */
+/* tree-editor-specific theme tokens. the shared color palette
+ * (--color-canvas, --color-fg, --color-accent, etc.) lives in
+ * @attu/ui/theme.css; only tokens exclusive to tree-editor are here. */
 @theme {
-    --color-canvas: hsl(220 30% 5%); /* #0a0d12 - near-black blue (wiki theme-color) */
-    --color-canvas-elev: hsl(220 35% 10%); /* #111721 - lifted surface */
-    --color-fg: hsl(220 10% 88%); /* #dde0e5 - cool light grey */
-    --color-fg-muted: hsl(220 15% 72%); /* #a4afc1 - brightened for legibility */
-    --color-line: hsl(220 25% 22%); /* #2b3548 - subtle border */
     --color-tree-trunk: hsl(220 25% 44%); /* #54678c - title-bar tree icon trunk fill */
-    --color-accent: hsl(220 100% 65%); /* #4d8aff - link blue */
-    --color-accent-strong: hsl(220 100% 75%); /* #80acff - hover/active */
-    --color-danger: hsl(
-        0 80% 65%
-    ); /* #f04040 - destructive-action red (delete tree, remove person, etc).
-        * intentionally distinct from the lighter `text-red-400` used for
-        * validation-error copy so destructive vs invalid stay readable
-        * side-by-side. bumped from 55% to 65% lightness for dark-bg contrast. */
 
     /* on-path overlay tokens. consumed by .family-view-onpath (card ring)
      * and .family-view-onpath-edge (edge stroke width). dark-theme defaults
@@ -84,86 +61,33 @@
     transition: transform 250ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* prefers-color-scheme switches the palette only when the user has *not*
- * pinned a theme via the settings dialog. without :not([data-theme]) the
- * media query would override an explicit data-theme="dark" for users whose
- * OS is set to light. */
+/* light-mode overrides for tree-editor-specific tokens.
+ * shared palette tokens are overridden inside @attu/ui/theme.css. */
 @media (prefers-color-scheme: light) {
     :root:not([data-theme]) {
-        --color-canvas: hsl(220 30% 97%); /* #f5f7fa */
-        --color-canvas-elev: hsl(220 35% 92%); /* #e4e9f0 */
-        --color-fg: hsl(220 12% 18%); /* #282d35 */
-        --color-fg-muted: hsl(220 12% 35%); /* #4e5769 - darkened for legibility */
-        --color-line: hsl(220 25% 78%); /* #b8c2d4 */
         --color-tree-trunk: hsl(
             220 25% 56%
         ); /* #7385ab - tree icon trunk, darker than line for light bg */
-        --color-accent: hsl(220 100% 45%); /* #0057e6 */
-        --color-accent-strong: hsl(220 100% 35%); /* #0044b3 */
-        --color-danger: hsl(0 70% 45%); /* #c22929 - darker red for light bg legibility */
         --fte-on-path-ring-color: hsl(220 100% 45% / 0.35);
     }
 }
 
 :root[data-theme="light"] {
-    --color-canvas: hsl(220 30% 97%);
-    --color-canvas-elev: hsl(220 35% 92%);
-    --color-fg: hsl(220 12% 18%);
-    --color-fg-muted: hsl(220 12% 35%);
-    --color-line: hsl(220 25% 78%);
     --color-tree-trunk: hsl(220 25% 56%);
-    --color-accent: hsl(220 100% 45%);
-    --color-accent-strong: hsl(220 100% 35%);
-    --color-danger: hsl(0 70% 45%);
     --fte-on-path-ring-color: hsl(220 100% 45% / 0.35);
 }
 
 :root[data-theme="dark"] {
-    --color-canvas: hsl(220 30% 5%);
-    --color-canvas-elev: hsl(220 35% 10%);
-    --color-fg: hsl(220 10% 88%);
-    --color-fg-muted: hsl(220 15% 72%);
-    --color-line: hsl(220 25% 22%);
     --color-tree-trunk: hsl(220 25% 44%);
-    --color-accent: hsl(220 100% 65%);
-    --color-accent-strong: hsl(220 100% 75%);
-    --color-danger: hsl(0 80% 65%); /* bumped from 55% to 65% lightness - see @theme comment */
     --fte-on-path-ring-color: hsl(220 100% 65% / 0.35);
     /* uniform docked-window width; floating windows use it as a min-width
      * so their content can grow wider. consumed by .fte-window-stack. */
     --fte-window-width: 18rem;
 }
 
-html {
-    /* global UI rescale: 1rem = 110% of the user-agent default. scales every
-     * rem-based tailwind utility (spacing, text, gaps, radii) proportionally
-     * while leaving px-based values (borders, icon sizes, canvas world coords)
-     * untouched. the tree canvas itself does not scale - that lives in
-     * layout/constants.ts. */
-    font-size: 110%;
-}
-
 html,
 body {
-    height: 100%;
     overflow: hidden; /* prevent document scroll: canvas uses CSS transforms, not page scroll */
-    margin: 0;
-    font-family:
-        ui-sans-serif,
-        system-ui,
-        -apple-system,
-        sans-serif;
-    -webkit-text-size-adjust: 100%;
-    -webkit-tap-highlight-color: transparent;
-}
-
-@media (prefers-reduced-motion: reduce) {
-    *,
-    *::before,
-    *::after {
-        transition-duration: 0ms !important;
-        animation-duration: 0ms !important;
-    }
 }
 
 /* relationship-vocabulary phase 4 overlay stroke palette.

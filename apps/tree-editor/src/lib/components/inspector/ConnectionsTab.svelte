@@ -58,8 +58,8 @@
         "summoned",
         "manufactured",
     ];
-    import type { HaracalndeDateData } from "$lib/date/HaracalndeDate";
-    import DateInput from "$lib/components/form/DateInput.svelte";
+    import type { HaracalndeDateData } from "@attu/ui";
+    import { DateInput } from "@attu/ui";
     import PersonChooser from "./PersonChooser.svelte";
 
     type LegacyParentRole = "mother" | "father";

@@ -54,7 +54,7 @@
     } from "$lib/domain/consanguinity";
     import type { PersonId, Tree } from "$lib/domain/types";
     import type { CanvasAnchorOpts, CanvasController } from "./canvasController";
-    import { computeFit, measureCanvasChromeInsets } from "$lib/components/canvas/fitMath";
+    import { computeFit, measureCanvasChromeInsets } from "@attu/ui";
     import FamilyViewDebugOverlay from "$lib/components/tree/FamilyViewDebugOverlay.svelte";
     import type { FamilyViewDebugLayerOptions } from "$lib/components/tree/debugTypes";
     import { selectBoundedSubset } from "$lib/layout/engines/family-view/subset";

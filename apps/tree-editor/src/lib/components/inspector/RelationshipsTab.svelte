@@ -8,8 +8,8 @@
     import { Plus, Trash2, X, ArrowRight } from "@lucide/svelte";
     import type { Person, PersonId, Relationship, RelationshipKind, Tree } from "$lib/domain/types";
     import type { RelationshipPatch } from "$lib/domain/tree";
-    import type { HaracalndeDateData } from "$lib/date/HaracalndeDate";
-    import DateInput from "$lib/components/form/DateInput.svelte";
+    import type { HaracalndeDateData } from "@attu/ui";
+    import { DateInput } from "@attu/ui";
     import PersonChooser from "./PersonChooser.svelte";
 
     interface Props {

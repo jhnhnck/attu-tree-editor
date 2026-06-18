@@ -62,10 +62,7 @@
     import type { FamilyViewDebugLayerOptions } from "$lib/components/tree/debugTypes";
     import type { CoiBreakdownRow } from "$lib/domain/consanguinity";
     import type { PersonId, Tree } from "$lib/domain/types";
-    import DockRegistration from "$lib/components/canvas/DockRegistration.svelte";
-    import Window from "$lib/components/canvas/Window.svelte";
-    import { windowManager } from "$lib/components/canvas/windowManager.svelte";
-    import { dockConfig } from "$lib/components/canvas/dockConfig.svelte";
+    import { DockRegistration, Window, windowManager, dockConfig } from "@attu/ui";
 
     interface Props {
         layout: FamilyViewLayout;

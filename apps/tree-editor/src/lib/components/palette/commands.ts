@@ -4,7 +4,7 @@
  * licensed under the MIT license; see LICENSE.md for full text
  */
 
-import type { IconComponent } from "$lib/components/shell/menu";
+import type { IconComponent } from "@attu/ui";
 
 export type CommandGroup =
     | "File"

@@ -3,7 +3,7 @@
  * licensed under the MIT license; see LICENSE.md for full text
  */
 
-import { HaracalndeDate } from "$lib/date/HaracalndeDate";
+import { HaracalndeDate } from "@attu/ui";
 import { ROOT_ID } from "$lib/domain/ids";
 import type {
     CoupleRecord,
@@ -22,7 +22,7 @@ import {
     type FsCoupleExtras,
     type FsHeader,
 } from "$lib/io/familyscript/tokens";
-import { ok, type Result } from "$lib/utils/result";
+import { ok, type Result } from "@attu/ui";
 
 export interface FsParseResult {
     tree: Tree;

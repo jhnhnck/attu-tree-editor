@@ -5,7 +5,7 @@
 -->
 <script lang="ts">
     import { ExternalLink } from "@lucide/svelte";
-    import type { HaracalndeDateData } from "$lib/date/HaracalndeDate";
+    import type { HaracalndeDateData } from "@attu/ui";
     import type { AssignedAtBirth, GenderStruct, Origin, Person } from "$lib/domain/types";
     import type { PersonPatch } from "$lib/domain/tree";
     import type { PortraitUrlCache } from "$lib/state/portraitUrls.svelte";
@@ -18,8 +18,7 @@
         toGenderStruct,
     } from "$lib/domain/personIdentity";
     import { wikiUrlFor, wikiOpenSearch } from "$lib/wiki/linkResolver";
-    import Field from "$lib/components/form/Field.svelte";
-    import DateInput from "$lib/components/form/DateInput.svelte";
+    import { Field, DateInput } from "@attu/ui";
     import PortraitField from "$lib/components/editor/PortraitField.svelte";
 
     interface Props {

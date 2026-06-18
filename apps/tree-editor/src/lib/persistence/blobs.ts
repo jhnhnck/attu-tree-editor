@@ -3,7 +3,7 @@
  * licensed under the MIT license; see LICENSE.md for full text
  */
 
-import { err, ok, type Result } from "$lib/utils/result";
+import { err, ok, type Result } from "@attu/ui";
 import { getDb, type FamilyTreeDb, type StoredBlob } from "$lib/persistence/db";
 
 export interface PutBlobInput {

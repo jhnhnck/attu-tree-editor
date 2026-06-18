@@ -9,7 +9,7 @@
 
 import type { Tree } from "$lib/domain/types";
 import { ConflictError, trees as treesApi, type TreeConflictResponse } from "$lib/api/client";
-import { authStore } from "$lib/state/auth.svelte";
+import { authStore } from "@attu/ui";
 
 export type SyncMode = "local" | "syncing" | "conflict";
 

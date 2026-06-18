@@ -8,7 +8,7 @@
  * imported by both the runtime binder and the static help overlay.
  */
 
-import type { ShortcutScope } from "./keyboard";
+import type { ShortcutScope } from "@attu/ui";
 
 export type ShortcutGroup = "Canvas" | "Selection" | "Add Relatives" | "Search & Command" | "App";
 

@@ -9,7 +9,7 @@ import type { Tree } from "$lib/domain/types";
 import type { Finding } from "$lib/domain/validate";
 import type { BundleManifest, PortraitBlob } from "$lib/io/bundle/write";
 import { parseGedcom, type GedHead } from "$lib/io/gedcom/parse";
-import { err, ok, type Result } from "$lib/utils/result";
+import { err, ok, type Result } from "@attu/ui";
 
 export interface BundleReadResult {
     tree: Tree;

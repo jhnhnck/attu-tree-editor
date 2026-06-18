@@ -3,7 +3,7 @@
  * licensed under the MIT license; see LICENSE.md for full text
  */
 
-import type { HaracalndeDateData } from "$lib/date/HaracalndeDate";
+import type { HaracalndeDateData } from "@attu/ui/pure";
 
 export type PersonId = string;
 /**

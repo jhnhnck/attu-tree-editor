@@ -5,7 +5,7 @@
 
 import { generateId, ROOT_ID } from "$lib/domain/ids";
 import { legacyGenderCode } from "$lib/domain/personIdentity";
-import type { HaracalndeDateData } from "$lib/date/HaracalndeDate";
+import type { HaracalndeDateData } from "@attu/ui/pure";
 import type {
     CoupleRecord,
     Group,
@@ -23,7 +23,7 @@ import type {
     UnionKind,
     UnionRecord,
 } from "$lib/domain/types";
-import { err, ok, type Result } from "$lib/utils/result";
+import { err, ok, type Result } from "@attu/ui/pure";
 
 /**
  * Canonical parent-list reader. Returns `person.parentIds` if it's

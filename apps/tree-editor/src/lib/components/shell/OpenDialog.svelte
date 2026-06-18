@@ -7,7 +7,7 @@
     import { FolderOpen, Search, Trash2, Link as LinkIcon } from "@lucide/svelte";
     import { loadTree, type TreeListing } from "$lib/persistence/trees";
     import type { Tree } from "$lib/domain/types";
-    import Button from "$lib/components/ui/Button.svelte";
+    import { Button } from "@attu/ui";
 
     interface Props {
         listings: readonly TreeListing[];

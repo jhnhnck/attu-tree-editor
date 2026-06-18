@@ -12,7 +12,7 @@ import { detectFormat, type FormatKind } from "$lib/io/detect";
 import { parseFamilyEchoHtml } from "$lib/io/familyecho-html/parse";
 import { parseFamilyScript } from "$lib/io/familyscript/parse";
 import { parseGedcom } from "$lib/io/gedcom/parse";
-import { err, ok, type Result } from "$lib/utils/result";
+import { err, ok, type Result } from "@attu/ui";
 
 export type ImportSourceFormat = Exclude<FormatKind, "unknown">;
 

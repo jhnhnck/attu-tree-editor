@@ -6,7 +6,7 @@
     import { User } from "@lucide/svelte";
     import { putBlob } from "$lib/persistence/blobs";
     import type { PortraitUrlCache } from "$lib/state/portraitUrls.svelte";
-    import CropperDialog from "$lib/components/editor/CropperDialog.svelte";
+    import { CropperDialog } from "@attu/ui";
 
     interface Props {
         treeId: string;

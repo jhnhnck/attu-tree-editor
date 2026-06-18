@@ -9,7 +9,7 @@
 
 import type { PortraitBlob } from "$lib/io/bundle/write";
 import { parseFamilyScript } from "$lib/io/familyscript/parse";
-import { err, ok, type Result } from "$lib/utils/result";
+import { err, ok, type Result } from "@attu/ui";
 import type { Tree } from "$lib/domain/types";
 
 export interface FamilyEchoHtmlParseResult {

@@ -5,7 +5,7 @@
 
 import { CURRENT_SCHEMA_VERSION } from "$lib/domain/schema";
 import type { Tree } from "$lib/domain/types";
-import { err, ok, type Result } from "$lib/utils/result";
+import { err, ok, type Result } from "@attu/ui";
 import { getDb, type FamilyTreeDb, type StoredTree } from "$lib/persistence/db";
 
 /** small projection used by the recents UI; avoids deserializing the full Tree */

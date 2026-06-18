@@ -35,8 +35,7 @@
     import DebugOverlay from "$lib/components/tree/DebugOverlay.svelte";
     import PersonNode from "$lib/components/tree/PersonNode.svelte";
     import InstancePopover from "$lib/components/tree/InstancePopover.svelte";
-    import BackButton from "$lib/components/canvas/BackButton.svelte";
-    import { computeFit, measureCanvasChromeInsets } from "$lib/components/canvas/fitMath";
+    import { BackButton, computeFit, measureCanvasChromeInsets } from "@attu/ui";
     import { buildInstanceEntries, type InstanceEntry } from "$lib/layout/instanceLabels";
     import { displayName, findNeighbour } from "$lib/layout/kinship";
     import type { RenderedSegment, PersonNodeLevel } from "$lib/components/tree/edges";
