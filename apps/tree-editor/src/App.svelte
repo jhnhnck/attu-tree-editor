@@ -2230,7 +2230,7 @@
     {/snippet}
 
     <main
-        class="flex h-full"
+        class="flex flex-1 min-h-0"
         class:flex-row-reverse={prefs.inspectorSide === "left"}
         ondragenter={onDragEnter}
         ondragover={onDragOver}

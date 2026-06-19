@@ -3,7 +3,7 @@
     FamilyTreeEditor - vite entry document; mounts the svelte app at #app
     licensed under the MIT license; see LICENSE.md for full text
 -->
-<html lang="en">
+<html lang="en" class="h-full">
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -11,8 +11,8 @@
         <link rel="icon" type="image/svg+xml" href="/tree_icon.svg" />
         <title>family tree editor</title>
     </head>
-    <body class="bg-canvas text-fg">
-        <div id="app"></div>
+    <body class="h-full bg-canvas text-fg">
+        <div id="app" class="h-full"></div>
         <script type="module" src="/src/main.ts"></script>
     </body>
 </html>

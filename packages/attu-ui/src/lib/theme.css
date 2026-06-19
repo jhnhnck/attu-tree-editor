@@ -4,6 +4,8 @@
  */
 
 @import "tailwindcss";
+/* scan this package's svelte components so consumer apps get all utility classes */
+@source "./components/**/*.svelte";
 
 /* color tokens matched to attuproject.org's citizen skin
  * (cool dark blue-grey chrome, bright blue accent at hue 220deg)

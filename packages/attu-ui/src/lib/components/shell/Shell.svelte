@@ -140,7 +140,7 @@
             </div>
         {/if}
     </header>
-    <div class="relative min-h-0 flex-1 overflow-hidden">
+    <div class="relative flex flex-col min-h-0 flex-1 overflow-hidden">
         {@render children()}
         {#if dock}
             <div class={`pointer-events-none absolute z-30 ${dockCornerClass[dockCorner]}`}>

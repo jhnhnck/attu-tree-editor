@@ -36,4 +36,4 @@
     }
 </script>
 
-<div bind:this={editorEl} class="h-full"></div>
+<div bind:this={editorEl} class="absolute inset-0"></div>
