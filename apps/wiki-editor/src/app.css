@@ -1,0 +1,6 @@
+/*
+ * AttuEditor - global stylesheet; tailwind v4 entry plus theme tokens
+ * licensed under the MIT license; see LICENSE.md for full text
+ */
+
+@import "@attu/ui/theme.css";

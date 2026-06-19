@@ -5,7 +5,7 @@
 
 import { mount } from "svelte";
 import App from "./App.svelte";
-import "@attu/ui/theme.css";
+import "./app.css";
 
 // in production this div is injected by the mediawiki php extension.
 // in dev (vite) the index.html provides it.

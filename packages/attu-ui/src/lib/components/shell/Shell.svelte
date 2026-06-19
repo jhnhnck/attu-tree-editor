@@ -8,6 +8,8 @@
     import type { MenuConfig } from "./menu.js";
     import MenuBar from "./MenuBar.svelte";
 
+    type DockCorner = "tl" | "tr" | "bl" | "br";
+
     interface Props {
         /** page / document title — always rendered in the header */
         title: string;
@@ -23,11 +25,22 @@
         tools?: Snippet;
         /** auth strip; Shell wraps it in ml-auto to push it to the right edge */
         auth?: Snippet;
+        /** corner-pinned overlay (pills, dock windows) rendered on top of content */
+        dock?: Snippet;
+        /** which corner the dock anchors to — defaults to bottom-left */
+        dockCorner?: DockCorner;
         /** fixed/absolute overlays that sit outside the content area: dialogs, toasts, context menus */
         overlays?: Snippet;
         /** main content area — fills remaining height */
         children: Snippet;
     }
+
+    const dockCornerClass: Record<DockCorner, string> = {
+        tl: "top-3 left-3",
+        tr: "top-3 right-3",
+        bl: "bottom-3 left-3",
+        br: "bottom-3 right-3",
+    };
 
     let {
         title,
@@ -37,6 +50,8 @@
         logo,
         tools,
         auth,
+        dock,
+        dockCorner = "bl",
         overlays,
         children,
     }: Props = $props();
@@ -127,6 +142,11 @@
     </header>
     <div class="relative min-h-0 flex-1 overflow-hidden">
         {@render children()}
+        {#if dock}
+            <div class={`pointer-events-none absolute z-30 ${dockCornerClass[dockCorner]}`}>
+                {@render dock()}
+            </div>
+        {/if}
     </div>
     {#if overlays}
         {@render overlays()}

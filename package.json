@@ -11,7 +11,7 @@
     },
     "scripts": {
         "postinstall": "test -d .githooks && git rev-parse --git-dir > /dev/null 2>&1 && git config core.hooksPath .githooks || true",
-        "trees:dev": "zsh scripts/dev.zsh",
+        "dev": "zsh scripts/dev.zsh",
         "editor:dev": "pnpm -F wiki-editor dev",
         "editor:build": "pnpm -F wiki-editor build",
         "editor:typecheck": "pnpm -F wiki-editor typecheck",

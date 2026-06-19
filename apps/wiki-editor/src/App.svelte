@@ -1,7 +1,7 @@
 <script lang="ts">
     import { Shell } from "@attu/ui";
     import type { MenuConfig } from "@attu/ui";
-    import { Undo2, Redo2 } from "@lucide/svelte";
+    import { Undo2, Redo2, BookOpen } from "@lucide/svelte";
     import Editor from "./lib/Editor.svelte";
 
     let { title: pageTitle }: { title: string } = $props();
@@ -20,6 +20,9 @@
 </script>
 
 <Shell title={pageTitle || "untitled"} {menus}>
+    {#snippet logo()}
+        <BookOpen size={18} strokeWidth={2} class="text-accent shrink-0" />
+    {/snippet}
     {#snippet tools()}
         <button
             type="button"

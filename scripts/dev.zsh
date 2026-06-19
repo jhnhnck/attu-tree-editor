@@ -5,8 +5,14 @@ set -eu
 
 project_dir="${0:A:h:h}"
 
-cleanup() { kill "$(jobs -p)" 2>/dev/null; }
-trap cleanup EXIT INT TERM
+cleanup() {
+    local -a pids
+    pids=("${(@f)$(jobs -p 2>/dev/null)}")
+    # first element is empty when no background jobs are running
+    (( ${#pids[1]} )) && kill -- "${pids[@]}" 2>/dev/null || true
+}
+# EXIT fires on all exits (including Ctrl-C); trapping INT as well causes double-cleanup
+trap cleanup EXIT
 
 print -P "%F{cyan}[trees-server]%f starting on :8000 — api + reverse proxy for /trees and /edit"
 (cd "$project_dir/apps/server" && TREES_CONFIG_PATH="$project_dir/data/trees-config.toml" .venv/bin/uvicorn attu_tree.main:app --reload --port 8000) &

@@ -21,7 +21,7 @@ import httpx
 import websockets
 import websockets.exceptions
 from fastapi import FastAPI, Request, WebSocket
-from fastapi.responses import Response
+from fastapi.responses import HTMLResponse, Response
 from starlette.websockets import WebSocketDisconnect
 
 
@@ -115,9 +115,28 @@ async def _ws_proxy(client_ws: WebSocket, base: str, path: str = '') -> None:
             await client_ws.close()
 
 
+_DEV_INDEX = """\
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>attu dev</title></head>
+<body>
+<h2>attu dev server</h2>
+<ul>
+  <li><a href="/trees">tree editor</a> &mdash; :5173</li>
+  <li><a href="/edit">wiki editor</a> &mdash; :5174</li>
+</ul>
+</body>
+</html>
+"""
+
+
 def mount(app: FastAPI) -> None:
     """register /trees and /edit proxy routes. call before the spa catch-all."""
     _methods = ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS']
+
+    @app.get('/', include_in_schema=False)
+    async def _dev_index() -> HTMLResponse:
+        return HTMLResponse(content=_DEV_INDEX)
 
     for prefix, base in _ROUTES.items():
         b = base
@@ -135,6 +154,11 @@ def mount(app: FastAPI) -> None:
             await _ws_proxy(ws, _b, path)
 
         app.add_api_route(prefix, _root, methods=_methods, include_in_schema=False, response_model=None)
+        # starlette's {path:path} regex is `.+` — empty segment after the slash doesn't
+        # match, so vite's /trees → /trees/ redirect would fall through to the 404 catch-all.
+        # explicit trailing-slash route bridges the gap.
+        app.add_api_route(f'{prefix}/', _root, methods=_methods, include_in_schema=False, response_model=None)
         app.add_api_route(f'{prefix}/{{path:path}}', _path, methods=_methods, include_in_schema=False, response_model=None)
         app.add_api_websocket_route(prefix, _ws_root)
+        app.add_api_websocket_route(f'{prefix}/', _ws_root)
         app.add_api_websocket_route(f'{prefix}/{{path:path}}', _ws_path)

@@ -87,3 +87,114 @@ body {
         animation-duration: 0ms !important;
     }
 }
+
+/* docked-window width token. consumed by Window.svelte's var(--fte-window-width).
+ * floating windows use it as a min-width so content can grow wider.
+ * apps override via :root { --fte-window-width: ... } after @import. */
+:root {
+    --fte-window-width: 18rem;
+}
+
+/* pill chrome: corner-docked status indicators use these classes for consistent
+ * padding, radius, border, and background. apps layer extras on top
+ * (font-mono for stats, .fte-pill-icon for icon-only pills). */
+.fte-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.375rem;
+    border: 1px solid var(--color-line);
+    background: color-mix(in srgb, var(--color-canvas-elev) 80%, transparent);
+    color: var(--color-fg-muted);
+    font-size: 0.75rem;
+    line-height: 1rem;
+    transition: border-color 120ms ease-out;
+}
+
+.fte-pill:hover {
+    border-color: var(--color-accent);
+}
+
+.fte-pill[aria-pressed="true"] {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+}
+
+.fte-pill-icon[aria-pressed="true"] {
+    color: var(--color-accent);
+}
+
+/* icon-only square variant */
+.fte-pill-icon {
+    width: 1.5rem;
+    height: 1.5rem;
+    padding: 0;
+    justify-content: center;
+    color: var(--color-fg);
+}
+
+/* normalize pill icon size to match text line-height */
+.fte-pill svg {
+    width: 1rem;
+    height: 1rem;
+}
+
+/* window body content utilities: used inside Window body snippets.
+ * must be global — snippets are declared in the caller but mounted
+ * inside Window's scoped style scope, so scoped rules would not match. */
+.fte-window-section {
+    display: flex;
+    align-items: baseline;
+    gap: 0.375rem;
+    margin-bottom: 0.25rem;
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-fg-muted);
+}
+
+.fte-window-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    line-height: 1rem;
+}
+
+.fte-window-row > :where(:first-child) {
+    color: var(--color-fg-muted);
+}
+
+.fte-window-row > :last-child {
+    text-align: right;
+}
+
+.fte-window-list {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 0.75rem;
+    line-height: 1rem;
+}
+
+.fte-window-button {
+    width: 100%;
+    padding: 0.25rem 0.5rem;
+    border: none;
+    border-radius: 0.25rem;
+    background: var(--color-accent);
+    color: var(--color-canvas);
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 120ms ease-out;
+}
+
+.fte-window-button:hover {
+    background: var(--color-accent-strong);
+}
