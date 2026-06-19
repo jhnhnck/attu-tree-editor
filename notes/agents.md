@@ -333,6 +333,7 @@ commit conventions, comment style, file headers, the feature-completion checklis
 
 **`notes/features/`**
 
+- [`notes/features/attu-ui.md`](features/attu-ui.md) - `@attu/ui` component library: design tokens, component inventory, canonical shell pattern, what not to do
 - [`notes/features/attu-wiki.md`](features/attu-wiki.md) - parent mediawiki project context + routing / cors / link wiring
 - [`notes/features/doom-bot.md`](features/doom-bot.md) - sibling discord bot context + `/trees` slash-command contract
 - [`notes/features/family-view-debug.md`](features/family-view-debug.md) - debug-overlay contracts (palette-pick call path, `RankedSubset.rationale` taxonomy, `AncestorOverlap.breakdown` widen-return)

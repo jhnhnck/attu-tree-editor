@@ -14,6 +14,7 @@ if (!target) {
     throw new Error("missing #attu-editor mount point");
 }
 
-const app = mount(App, { target });
+const title = target.dataset["title"] ?? "";
+const app = mount(App, { target, props: { title } });
 
 export default app;

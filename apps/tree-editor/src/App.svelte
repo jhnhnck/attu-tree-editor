@@ -114,7 +114,7 @@
         AboutDialog,
         AdminPanel,
         SettingsDialog,
-        MenuBar,
+        Shell,
         type MenuConfig,
         type MenuEntry,
         type IconComponent,
@@ -2115,9 +2115,8 @@
     }
 </script>
 
-<div class="bg-canvas text-fg flex h-dvh flex-col">
-    <header class="border-line bg-canvas-elev flex h-9 items-center gap-0.5 border-b px-2">
-        <!-- identity -->
+<Shell {menus}>
+    {#snippet logo()}
         <svg
             xmlns="http://www.w3.org/2000/svg"
             width="22"
@@ -2163,6 +2162,8 @@
                 d="M2181.424,388.904c0,42.997-16.204,59.198-59.197,59.198c-42.994,0-59.197-16.201-59.197-59.198c0-42.996,16.204-59.197,59.197-59.197C2165.22,329.707,2181.424,345.908,2181.424,388.904z"
             />
         </svg>
+    {/snippet}
+        {#snippet title()}
         {#if titleEditing}
             <input
                 bind:this={titleEl}
@@ -2186,15 +2187,8 @@
         {#if readOnly}
             <span class="text-fg-muted text-xs">(read-only)</span>
         {/if}
-
-        <div class="border-line mx-1.5 h-5 w-px shrink-0 border-l"></div>
-
-        <!-- menus -->
-        <MenuBar {menus} />
-
-        <div class="border-line mx-1.5 h-5 w-px shrink-0 border-l"></div>
-
-        <!-- tools -->
+    {/snippet}
+    {#snippet tools()}
         {#if !readOnly}
             <button
                 type="button"
@@ -2283,17 +2277,16 @@
             <HelpCircle size={17} strokeWidth={2.5} />
         </button>
 
-        <!-- auth (save-status pill mounts in the bottom-left chrome bar) -->
-        <div class="ml-auto">
-            <AuthBar
-                onSignedIn={() => void authStore.fetch()}
-                onerror={(msg: string) => toasts.push(msg, "error")}
-            />
-        </div>
-    </header>
+    {/snippet}
+    {#snippet auth()}
+        <AuthBar
+            onSignedIn={() => void authStore.fetch()}
+            onerror={(msg: string) => toasts.push(msg, "error")}
+        />
+    {/snippet}
 
     <main
-        class="relative flex min-h-0 flex-1 overflow-clip"
+        class="flex h-full"
         class:flex-row-reverse={prefs.inspectorSide === "left"}
         ondragenter={onDragEnter}
         ondragover={onDragOver}
@@ -3208,8 +3201,8 @@
             </div>
         {/if}
     </main>
-
-    <Toasts store={toasts} />
+    {#snippet overlays()}
+        <Toasts store={toasts} />
     {#if contextMenu}
         <ContextMenu
             x={contextMenu.x}
@@ -3276,4 +3269,5 @@
             }}
         />
     {/if}
-</div>
+    {/snippet}
+</Shell>

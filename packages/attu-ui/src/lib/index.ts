@@ -79,6 +79,7 @@ export { default as ProgressStrip } from "./components/shell/ProgressStrip.svelt
 export { default as SaveStatusPill } from "./components/shell/SaveStatusPill.svelte";
 export { default as SettingsDialog } from "./components/shell/SettingsDialog.svelte";
 export { default as ShareDialog } from "./components/shell/ShareDialog.svelte";
+export { default as Shell } from "./components/shell/Shell.svelte";
 
 // help
 export { default as ShortcutsOverlay } from "./components/help/ShortcutsOverlay.svelte";
