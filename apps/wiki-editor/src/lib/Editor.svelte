@@ -19,6 +19,7 @@
             extensions: [minimalSetup, theme],
             parent: editorEl,
         });
+        view.focus();
     });
 
     onDestroy(() => {

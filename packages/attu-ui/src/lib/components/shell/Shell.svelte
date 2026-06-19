@@ -49,7 +49,7 @@
             </div>
         {/if}
     </header>
-    <div class="relative min-h-0 flex-1 overflow-clip">
+    <div class="relative min-h-0 flex-1 overflow-hidden">
         {@render children()}
     </div>
     {#if overlays}
