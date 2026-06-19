@@ -20,7 +20,8 @@ import { tick } from "svelte";
 import { fireEvent, render, screen } from "@testing-library/svelte";
 
 import FamilyViewCanvas from "$lib/components/tree/FamilyViewCanvas.svelte";
-import { ContextMenu, type ContextMenuItem } from "@attu/ui";
+import { ContextMenu } from "@attu/ui";
+import type { ContextMenuItem } from "@attu/ui";
 import { createSelectionStore } from "$lib/state/selection.svelte";
 import { createTreeStore } from "$lib/state/tree.svelte";
 import type { PersonId } from "$lib/domain/types";

@@ -16,7 +16,8 @@ export default defineConfig({
         conditions: ["browser"],
     },
     test: {
-        include: ["tests/unit/**/*.test.ts"],
+        include: ["tests/unit/**/*.test.ts", "tests/component/**/*.test.ts"],
+        setupFiles: ["./tests/setup.ts"],
         environment: "jsdom",
         globals: false,
         css: false,
