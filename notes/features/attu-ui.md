@@ -47,7 +47,7 @@ supports dark/light via `prefers-color-scheme` and `data-theme="dark"|"light"` o
 
 | component | use it for |
 | --- | --- |
-| `Shell` | **the root of every attu app** — full-viewport layout with header bar, content area, and overlay slot. accepts `menus`, `logo?`, `title?`, `tools?`, `auth?`, `overlays?`, `children` snippets |
+| `Shell` | **the root of every attu app** — full-viewport layout with header bar, content area, and overlay slot. accepts `title`, `menus` props; `logo?`, `tools?`, `auth?`, `overlays?`, `children` snippets; optional `onTitleChange` and `readOnly` props |
 | `MenuBar` | used internally by Shell — only import directly if you need a standalone dropdown outside the Shell |
 | `Menu` | used internally by MenuBar — don't use directly |
 | `AuthBar` | sign in / sign out strip; pass as the `auth` snippet to Shell |
@@ -155,7 +155,7 @@ const menus: MenuConfig[] = [
 
 ## canonical shell pattern
 
-use `Shell` from `@attu/ui` as the root of every attu app. it handles the full-viewport layout, header CSS, dividers, and overlay host so apps only supply the variable parts via snippets.
+Shell owns all of the header chrome — title, dividers, menu bar. apps pass data via props and supply app-specific content via snippets. **do not pass `{#snippet title()}` — pass a `title` string prop instead.**
 
 ```svelte
 <!-- App.svelte -->
@@ -164,65 +164,58 @@ use `Shell` from `@attu/ui` as the root of every attu app. it handles the full-v
     import type { MenuConfig } from "@attu/ui";
     import { Undo2, Redo2 } from "@lucide/svelte";
 
-    // icon toolbar buttons use raw <button> NOT @attu/ui Button
-    // AuthBar is optional — only in apps backed by the attu server
-    // rename props that clash with snippet names: let { title: pageTitle } = $props()
+    // title is a plain string prop on Shell, not a snippet
+    // pass onTitleChange to make the title editable (tree-editor pattern)
+    // pass readOnly to show the "(read-only)" badge and lock editing
 </script>
 
-<Shell {menus}>
-    {#snippet logo()}
-        <!-- optional: inline SVG or img for the app identity mark -->
-    {/snippet}
+<!-- static title (wiki-editor, read-only views) -->
+<Shell title={pageTitle || "untitled"} {menus}>
+    ...
+</Shell>
 
-    {#snippet title()}
-        <span class="truncate px-1.5 py-0.5 text-sm font-semibold">{pageTitle || "untitled"}</span>
-    {/snippet}
-
-    {#snippet tools()}
-        <!-- icon toolbar buttons: h-7 w-7, rounded, hover:bg-canvas -->
-        <button
-            type="button"
-            class="flex h-7 w-7 items-center justify-center rounded text-fg hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-40"
-            title="Undo (Ctrl+Z)"
-            aria-label="Undo"
-            disabled={!canUndo}
-            onclick={handleUndo}
-        >
-            <Undo2 size={17} strokeWidth={2.5} />
-        </button>
-    {/snippet}
-
-    {#snippet auth()}
-        <!-- Shell wraps this in ml-auto automatically -->
-        <AuthBar
-            onSignedIn={() => void authStore.fetch()}
-            onerror={(msg) => toasts.push(msg, "error")}
-        />
-    {/snippet}
-
-    {#snippet overlays()}
-        <!-- dialogs, toasts, context menus — anything position:fixed -->
-        <Toasts store={toasts} />
-        {#if showAbout}<AboutDialog onClose={() => (showAbout = false)} />{/if}
-    {/snippet}
-
-    <!-- children: main content area, fills remaining height -->
-    <!-- use h-full on the outermost child to fill Shell's flex-1 container -->
-    <main class="flex h-full">
-        <!-- canvas, editor, or other content -->
-    </main>
+<!-- editable title (tree-editor pattern) -->
+<Shell
+    bind:this={shellRef}
+    title={treeStore.tree.name || "untitled"}
+    {menus}
+    onTitleChange={(name) => treeStore.update((t) => ({ ...t, name }))}
+    {readOnly}
+>
+    ...
 </Shell>
 ```
 
+Shell also exposes `startEdit()` via `bind:this` so command-palette / shortcut handlers can trigger inline rename programmatically:
+
+```ts
+let shellRef: { startEdit: () => void } | undefined;
+// ...
+treeRename: () => shellRef?.startEdit(),
+```
+
+### Shell props
+
+| prop | type | default | purpose |
+| --- | --- | --- | --- |
+| `title` | `string` | required | displayed in the header |
+| `menus` | `readonly MenuConfig[]` | required | drives the pill menu bar |
+| `onTitleChange` | `(t: string) => void` | — | enables inline rename on click |
+| `readOnly` | `boolean` | `false` | shows "(read-only)" badge; suppresses edit |
+| `logo` | snippet | — | left-most identity mark (SVG) |
+| `tools` | snippet | — | icon toolbar buttons after menus |
+| `auth` | snippet | — | auth strip (Shell wraps it in `ml-auto`) |
+| `overlays` | snippet | — | `position:fixed` overlays outside the content clip |
+| `children` | snippet | required | main content area |
+
 ### Shell snippet rules
 
-1. **`logo` and `title`** are separated from `MenuBar` by an auto-inserted divider. if neither is present, no divider is inserted.
+1. **`title`** is NOT a snippet — pass it as a string prop. Shell renders the canonical title button/span internally.
 2. **`tools`** is separated from `MenuBar` by an auto-inserted divider. omit the snippet entirely if there are no tool buttons.
 3. **`auth`** is wrapped in `ml-auto` by Shell — don't add it yourself.
-4. **`overlays`** renders after the content area div (outside `overflow-clip`) — use for `position:fixed` overlays that must not be clipped.
-5. **`children`** go inside Shell's `<div class="relative min-h-0 flex-1 overflow-clip">`. use `h-full` on the outermost child.
-6. **prop/snippet name clash** — if a component prop shares a name with a snippet (e.g., a `title` prop and a `{#snippet title()}`), rename the prop via destructuring: `let { title: pageTitle } = $props()`.
-7. **icon buttons are `h-7 w-7`** — 28px square, `flex items-center justify-center`, `rounded`, `hover:bg-canvas`. use `size={17} strokeWidth={2.5}` for lucide icons.
+4. **`overlays`** renders after the content area div (outside `overflow-hidden`) — use for `position:fixed` overlays that must not be clipped.
+5. **`children`** go inside Shell's `<div class="relative min-h-0 flex-1 overflow-hidden">`. use `h-full` on the outermost child.
+6. **icon buttons are `h-7 w-7`** — 28px square, `flex items-center justify-center`, `rounded`, `hover:bg-canvas`. use `size={17} strokeWidth={2.5}` for lucide icons.
 
 ---
 
@@ -230,6 +223,7 @@ use `Shell` from `@attu/ui` as the root of every attu app. it handles the full-v
 
 - **don't import from `@attu/ui` inside a web worker** — the barrel re-exports Svelte components; use `@attu/ui/pure` instead.
 - **don't build the shell manually** — use `Shell`. hand-rolling the header risks using the wrong tokens (`bg-canvas` vs `bg-canvas-elev`), missing `shrink-0`, or adding a second toolbar row with its own border.
+- **don't pass `{#snippet title()}` to Shell** — pass `title` as a string prop. Shell owns the title styling, editing state, and rename input.
 - **don't use `Button` for icon-only toolbar buttons** — `px-3 py-1.5` padding makes them oversized; use raw `<button>` elements.
 - **don't use `action:` on `MenuItem`** — the field is `onclick`. `action` does not exist on the type.
 - **don't try to import components from `@attu/ui/components/...`** — always go through the barrel.

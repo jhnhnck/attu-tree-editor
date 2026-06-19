@@ -19,10 +19,7 @@
     ];
 </script>
 
-<Shell {menus}>
-    {#snippet title()}
-        <span class="truncate px-1.5 py-0.5 text-sm font-semibold">{pageTitle || "untitled"}</span>
-    {/snippet}
+<Shell title={pageTitle || "untitled"} {menus}>
     {#snippet tools()}
         <button
             type="button"

@@ -227,6 +227,8 @@
     const portraitUrls = createPortraitUrlCache();
     const prefs = createPreferencesStore();
 
+    let shellRef: { startEdit: () => void } | undefined;
+
     let recents = $state<TreeListing[]>([]);
     let firstLoadComplete = $state(false);
     let showShare = $state(false);
@@ -909,11 +911,6 @@
 
     // read-only mode: set when loading a tree via /view/<uuid> route
     let readOnly = $state(false);
-
-    // inline-rename state for the title in the title strip
-    let titleEl: HTMLInputElement | undefined = $state();
-    let titleDraft = $state("");
-    let titleEditing = $state(false);
 
     async function refreshRecents(): Promise<void> {
         recents = await listTrees(20);
@@ -1647,40 +1644,6 @@
         return `${String(d)}d ago`;
     }
 
-    function startTitleEdit(): void {
-        if (readOnly) return;
-        titleDraft = treeStore.tree.name;
-        titleEditing = true;
-        queueMicrotask(() => {
-            titleEl?.focus();
-            titleEl?.select();
-        });
-    }
-
-    function commitTitle(): void {
-        if (!titleEditing) return;
-        const next = titleDraft.trim() || "untitled";
-        if (next !== treeStore.tree.name) {
-            treeStore.update((t) => ({ ...t, name: next, updatedAt: Date.now() }));
-        }
-        titleEditing = false;
-    }
-
-    function cancelTitle(): void {
-        titleEditing = false;
-        titleDraft = treeStore.tree.name;
-    }
-
-    function onTitleKey(e: KeyboardEvent): void {
-        if (e.key === "Enter") {
-            e.preventDefault();
-            commitTitle();
-        } else if (e.key === "Escape") {
-            e.preventDefault();
-            cancelTitle();
-        }
-    }
-
     function focusedPerson(): PersonId | undefined {
         return selection.selectedPersonId;
     }
@@ -1818,7 +1781,7 @@
         personAddUnattached: () => addUnattached(),
         paletteFindPerson: () => openPalette("anything"),
         paletteCommands: () => openPalette("commands"),
-        treeRename: () => startTitleEdit(),
+        treeRename: () => shellRef?.startEdit(),
         treeSetRoot: () => withSelected((id) => setRootAction(id)),
         treeDelete: () => void deleteCurrentTree(),
         treeStatistics: () => stub("Statistics"),
@@ -2115,7 +2078,13 @@
     }
 </script>
 
-<Shell {menus}>
+<Shell
+    bind:this={shellRef}
+    title={treeStore.tree.name || "untitled"}
+    {menus}
+    onTitleChange={(name) => treeStore.update((t) => ({ ...t, name, updatedAt: Date.now() }))}
+    {readOnly}
+>
     {#snippet logo()}
         <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -2162,31 +2131,6 @@
                 d="M2181.424,388.904c0,42.997-16.204,59.198-59.197,59.198c-42.994,0-59.197-16.201-59.197-59.198c0-42.996,16.204-59.197,59.197-59.197C2165.22,329.707,2181.424,345.908,2181.424,388.904z"
             />
         </svg>
-    {/snippet}
-        {#snippet title()}
-        {#if titleEditing}
-            <input
-                bind:this={titleEl}
-                bind:value={titleDraft}
-                class="bg-canvas border-accent text-fg rounded border px-1.5 py-0.5 text-sm font-semibold outline-none"
-                onblur={commitTitle}
-                onkeydown={onTitleKey}
-                aria-label="tree title"
-            />
-        {:else}
-            <button
-                type="button"
-                class="text-fg hover:bg-canvas truncate rounded px-1.5 py-0.5 text-sm font-semibold select-text"
-                onclick={startTitleEdit}
-                title={readOnly ? treeStore.tree.name : "click to rename"}
-                disabled={readOnly}
-            >
-                {treeStore.tree.name || "untitled"}
-            </button>
-        {/if}
-        {#if readOnly}
-            <span class="text-fg-muted text-xs">(read-only)</span>
-        {/if}
     {/snippet}
     {#snippet tools()}
         {#if !readOnly}
