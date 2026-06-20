@@ -32,5 +32,10 @@
         "lint:no-hyperbolic-imports": "zsh scripts/lint-no-hyperbolic-imports.zsh",
         "verify": "pnpm typecheck && pnpm lint && pnpm lint:no-hyperbolic-imports && pnpm test:unit && pnpm build && pnpm tree-server:setup && pnpm tree-server:lint && pnpm tree-server:test"
     },
-    "devDependencies": {}
+    "devDependencies": {},
+    "pnpm": {
+        "overrides": {
+            "js-yaml": "^4.2.0"
+        }
+    }
 }

@@ -23,7 +23,7 @@
         "@panzoom/panzoom": "^4.6.2",
         "dexie": "^4.4.4",
         "fflate": "^0.8.3",
-        "read-gedcom": "^0.3.2",
+        "read-gedcom": "0.3.2",
         "svelte": "^5.56.3"
     },
     "devDependencies": {

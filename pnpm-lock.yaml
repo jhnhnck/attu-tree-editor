@@ -32,7 +32,7 @@ importers:
         specifier: ^0.8.3
         version: 0.8.3
       read-gedcom:
-        specifier: ^0.3.2
+        specifier: 0.3.2
         version: 0.3.2
       svelte:
         specifier: ^5.56.3
