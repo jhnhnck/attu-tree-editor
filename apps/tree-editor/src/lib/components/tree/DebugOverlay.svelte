@@ -509,7 +509,7 @@
 
 <style>
     :global(.debug-overlay text) {
-        font-family: ui-monospace, monospace;
+        font-family: "JetBrains Mono", ui-monospace, monospace;
         pointer-events: none;
         user-select: none;
     }

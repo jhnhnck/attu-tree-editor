@@ -175,7 +175,7 @@ body {
 
 .family-view-overlay-severance-mark {
     fill: hsl(0 80% 60%);
-    font-family: ui-monospace, monospace;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
     font-weight: 700;
     paint-order: stroke;
     stroke: var(--color-canvas);

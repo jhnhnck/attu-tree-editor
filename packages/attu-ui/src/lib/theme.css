@@ -4,6 +4,8 @@
  */
 
 @import "tailwindcss";
+@import "@fontsource-variable/inter";
+@import "@fontsource/jetbrains-mono";
 /* scan this package's svelte components so consumer apps get all utility classes */
 @source "./components/**/*.svelte";
 
@@ -15,6 +17,9 @@
  * at runtime when the user picks an explicit theme.
  */
 @theme {
+    --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
     --color-canvas: hsl(220 30% 5%);
     --color-canvas-elev: hsl(220 35% 10%);
     --color-fg: hsl(220 10% 88%);
@@ -72,11 +77,7 @@ html,
 body {
     height: 100%;
     margin: 0;
-    font-family:
-        ui-sans-serif,
-        system-ui,
-        -apple-system,
-        sans-serif;
+    font-family: var(--font-sans);
     -webkit-text-size-adjust: 100%;
     -webkit-tap-highlight-color: transparent;
 }
