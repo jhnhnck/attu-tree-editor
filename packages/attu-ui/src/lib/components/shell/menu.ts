@@ -31,6 +31,8 @@ export interface MenuItem {
      * overlays are off without scanning for the absence of a checkmark.
      */
     checked?: boolean | undefined;
+    /** optional flyout submenu — renders a ▶ indicator and opens a panel to the right on hover */
+    submenu?: readonly MenuEntry[] | undefined;
 }
 
 export type MenuEntry = MenuItem | "divider";

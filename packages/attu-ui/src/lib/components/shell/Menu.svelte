@@ -4,7 +4,7 @@
 -->
 <script lang="ts">
     import { tick } from "svelte";
-    import { Check, Square } from "@lucide/svelte";
+    import { Check, Square, ChevronRight } from "@lucide/svelte";
     import { formatCombo } from "../../keyboard.js";
     import type { IconComponent, MenuEntry, MenuItem } from "./menu";
 
@@ -31,6 +31,11 @@
     // plain Enter/Space and mouse-click leave activeIdx at -1; the first arrow
     // key inside the menu then sets it.
     let openArrowDown = false;
+    // index of the item whose submenu is currently open (-1 = none)
+    let openSubmenuIdx = $state(-1);
+    // fixed-position anchor for the flyout — set on mouseenter so it escapes
+    // the parent's overflow context (overflow-y:auto implicitly clips overflow-x)
+    let submenuPos = $state({ x: 0, y: 0 });
 
     const enabledItems = $derived(
         items
@@ -82,8 +87,12 @@
     function onMenuKey(e: KeyboardEvent): void {
         if (e.key === "Escape") {
             e.preventDefault();
-            onclose();
-            buttonEl?.focus();
+            if (openSubmenuIdx >= 0) {
+                openSubmenuIdx = -1;
+            } else {
+                onclose();
+                buttonEl?.focus();
+            }
         } else if (e.key === "ArrowDown") {
             e.preventDefault();
             moveBy(1);
@@ -92,10 +101,20 @@
             moveBy(-1);
         } else if (e.key === "ArrowLeft") {
             e.preventDefault();
-            onnavigate?.("left");
+            if (openSubmenuIdx >= 0) {
+                openSubmenuIdx = -1;
+            } else {
+                onnavigate?.("left");
+            }
         } else if (e.key === "ArrowRight") {
             e.preventDefault();
-            onnavigate?.("right");
+            // open submenu if current item has one, else navigate to next menu
+            const activeEntry = activeIdx >= 0 ? items[activeIdx] : undefined;
+            if (activeEntry && activeEntry !== "divider" && activeEntry.submenu) {
+                openSubmenuIdx = activeIdx;
+            } else {
+                onnavigate?.("right");
+            }
         } else if (e.key === "Home") {
             e.preventDefault();
             highlightFirst();
@@ -144,6 +163,7 @@
         } else {
             activeIdx = -1;
             openArrowDown = false;
+            openSubmenuIdx = -1;
         }
     });
 </script>
@@ -170,7 +190,7 @@
              blocking modal (z-50) despite sorting above it. -->
         <div
             bind:this={menuEl}
-            class="bg-canvas-elev border-line absolute left-0 top-full z-[55] mt-0.5 min-w-56 rounded-md border py-1 shadow-xl"
+            class="bg-canvas-elev border-line absolute left-0 top-full z-[55] mt-0.5 min-w-56 rounded-md border py-1 shadow-xl max-h-[calc(100vh-3rem)] overflow-y-auto"
             role="menu"
             aria-label={label}
             tabindex="-1"
@@ -183,40 +203,141 @@
                     {@const item = entry as MenuItem}
                     {@const Icon = item.icon as IconComponent | undefined}
                     {@const sc = item.shortcut ?? ""}
-                    <button
-                        type="button"
-                        role="menuitem"
-                        data-idx={i}
-                        disabled={item.disabled ?? false}
-                        class="hover:bg-canvas focus:bg-canvas group flex w-full items-center gap-2 px-3 py-1 text-left text-sm outline-none disabled:cursor-not-allowed disabled:opacity-40"
-                        class:text-danger={item.danger}
-                        onclick={() => selectItem(item)}
-                        tabindex="-1"
-                    >
-                        {#if Icon}
-                            <Icon size={14} strokeWidth={2.25} class="text-fg-muted shrink-0" />
-                        {:else}
-                            <span class="w-3.5 shrink-0"></span>
-                        {/if}
-                        <span class="flex-1">{item.label}</span>
-                        {#if item.checked === true}
-                            <Check size={12} strokeWidth={2.5} class="text-accent shrink-0" />
-                        {:else if item.checked === false}
-                            <!-- explicit off-state for toggleable items so the user can
-                                 tell at a glance which overlays are off without scanning
-                                 for the absence of a checkmark -->
-                            <Square
-                                size={12}
-                                strokeWidth={1.75}
-                                class="text-fg-muted shrink-0 opacity-60"
-                            />
-                        {/if}
-                        {#if sc}
-                            <span class="text-fg-muted ml-3 font-mono text-[11px] tracking-tight">
-                                {formatCombo(sc)}
-                            </span>
-                        {/if}
-                    </button>
+                    {#if item.submenu}
+                        <!-- submenu item: ▶ indicator; opens flyout on hover.
+                             flyout uses position:fixed (set via style) to escape
+                             the parent's overflow-x clip that overflow-y:auto creates -->
+                        <div
+                            role="none"
+                            class="relative"
+                            onmouseenter={(e) => {
+                                openSubmenuIdx = i;
+                                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                                submenuPos = { x: rect.right, y: rect.top };
+                            }}
+                            onmouseleave={() => {
+                                openSubmenuIdx = -1;
+                            }}
+                        >
+                            <button
+                                type="button"
+                                role="menuitem"
+                                data-idx={i}
+                                disabled={item.disabled ?? false}
+                                class="hover:bg-canvas focus:bg-canvas flex w-full items-center gap-2 px-3 py-1 text-left text-sm outline-none disabled:cursor-not-allowed disabled:opacity-40"
+                                class:bg-canvas={openSubmenuIdx === i}
+                                onclick={() => {
+                                    openSubmenuIdx = openSubmenuIdx === i ? -1 : i;
+                                }}
+                                tabindex="-1"
+                            >
+                                {#if Icon}
+                                    <Icon
+                                        size={14}
+                                        strokeWidth={2.25}
+                                        class="text-fg-muted shrink-0"
+                                    />
+                                {:else}
+                                    <span class="w-3.5 shrink-0"></span>
+                                {/if}
+                                <span class="flex-1">{item.label}</span>
+                                <ChevronRight
+                                    size={12}
+                                    strokeWidth={2}
+                                    class="text-fg-muted shrink-0"
+                                />
+                            </button>
+                            {#if openSubmenuIdx === i}
+                                <div
+                                    role="menu"
+                                    aria-label={item.label}
+                                    style="position:fixed;left:{submenuPos.x}px;top:{submenuPos.y}px"
+                                    class="bg-canvas-elev border-line z-[56] min-w-48 rounded-md border py-1 shadow-xl max-h-[calc(100vh-3rem)] overflow-y-auto"
+                                >
+                                    {#each item.submenu as subentry, j (j)}
+                                        {#if subentry === "divider"}
+                                            <div
+                                                class="border-line my-1 border-t"
+                                                role="separator"
+                                            ></div>
+                                        {:else}
+                                            {@const subitem = subentry as MenuItem}
+                                            {@const SubIcon =
+                                                subitem.icon as IconComponent | undefined}
+                                            <button
+                                                type="button"
+                                                role="menuitem"
+                                                disabled={subitem.disabled ?? false}
+                                                class="hover:bg-canvas focus:bg-canvas flex w-full items-center gap-2 px-3 py-1 text-left text-sm outline-none disabled:cursor-not-allowed disabled:opacity-40"
+                                                class:text-danger={subitem.danger}
+                                                onclick={() => selectItem(subitem)}
+                                                tabindex="-1"
+                                            >
+                                                {#if SubIcon}
+                                                    <SubIcon
+                                                        size={14}
+                                                        strokeWidth={2.25}
+                                                        class="text-fg-muted shrink-0"
+                                                    />
+                                                {:else}
+                                                    <span class="w-3.5 shrink-0"></span>
+                                                {/if}
+                                                <span class="flex-1">{subitem.label}</span>
+                                                {#if subitem.shortcut}
+                                                    <span
+                                                        class="text-fg-muted ml-3 font-mono text-[11px] tracking-tight"
+                                                    >
+                                                        {formatCombo(subitem.shortcut)}
+                                                    </span>
+                                                {/if}
+                                            </button>
+                                        {/if}
+                                    {/each}
+                                </div>
+                            {/if}
+                        </div>
+                    {:else}
+                        <button
+                            type="button"
+                            role="menuitem"
+                            data-idx={i}
+                            disabled={item.disabled ?? false}
+                            class="hover:bg-canvas focus:bg-canvas group flex w-full items-center gap-2 px-3 py-1 text-left text-sm outline-none disabled:cursor-not-allowed disabled:opacity-40"
+                            class:text-danger={item.danger}
+                            onclick={() => selectItem(item)}
+                            tabindex="-1"
+                        >
+                            {#if Icon}
+                                <Icon
+                                    size={14}
+                                    strokeWidth={2.25}
+                                    class="text-fg-muted shrink-0"
+                                />
+                            {:else}
+                                <span class="w-3.5 shrink-0"></span>
+                            {/if}
+                            <span class="flex-1">{item.label}</span>
+                            {#if item.checked === true}
+                                <Check size={12} strokeWidth={2.5} class="text-accent shrink-0" />
+                            {:else if item.checked === false}
+                                <!-- explicit off-state for toggleable items so the user can
+                                     tell at a glance which overlays are off without scanning
+                                     for the absence of a checkmark -->
+                                <Square
+                                    size={12}
+                                    strokeWidth={1.75}
+                                    class="text-fg-muted shrink-0 opacity-60"
+                                />
+                            {/if}
+                            {#if sc}
+                                <span
+                                    class="text-fg-muted ml-3 font-mono text-[11px] tracking-tight"
+                                >
+                                    {formatCombo(sc)}
+                                </span>
+                            {/if}
+                        </button>
+                    {/if}
                 {/if}
             {/each}
         </div>
