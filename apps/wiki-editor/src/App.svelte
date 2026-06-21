@@ -91,11 +91,21 @@
         {
             label: "Insert",
             items: [
+                // links — most common wiki insert action
+                { label: "Wikilink…", icon: Link2, shortcut: "Ctrl+K", onclick: () => {} },
                 {
-                    label: "Headings & blocks",
+                    label: "External link…",
+                    icon: ExternalLink,
+                    shortcut: "Ctrl+Shift+K",
+                    onclick: () => {},
+                },
+                "divider",
+                // headings — H2 and H3 cover 90% of article structure
+                { label: "Heading 2", onclick: () => {} },
+                { label: "Heading 3", onclick: () => {} },
+                {
+                    label: "More headings",
                     submenu: [
-                        { label: "Heading 2", onclick: () => {} },
-                        { label: "Heading 3", onclick: () => {} },
                         { label: "Heading 4", onclick: () => {} },
                         { label: "Heading 5", onclick: () => {} },
                         { label: "Heading 6", onclick: () => {} },
@@ -105,71 +115,54 @@
                         { label: "Preformatted block", onclick: () => {} },
                     ],
                 },
+                "divider",
+                // lists
+                { label: "Bullet list item", icon: List, onclick: () => {} },
+                { label: "Numbered list item", icon: ListOrdered, onclick: () => {} },
                 {
-                    label: "Links",
+                    label: "More lists",
                     submenu: [
-                        {
-                            label: "Wikilink…",
-                            icon: Link2,
-                            shortcut: "Ctrl+K",
-                            onclick: () => {},
-                        },
-                        {
-                            label: "External link…",
-                            icon: ExternalLink,
-                            shortcut: "Ctrl+Shift+K",
-                            onclick: () => {},
-                        },
-                        { label: "Redirect…", onclick: () => {} },
-                        { label: "Anchor / bookmark", onclick: () => {} },
-                    ],
-                },
-                {
-                    label: "Lists",
-                    submenu: [
-                        { label: "Bullet list item", icon: List, onclick: () => {} },
-                        { label: "Numbered list item", icon: ListOrdered, onclick: () => {} },
                         { label: "Definition term / definition", onclick: () => {} },
                         "divider",
                         { label: "Increase indent", icon: Indent, onclick: () => {} },
                         { label: "Decrease indent", icon: Outdent, onclick: () => {} },
                     ],
                 },
+                "divider",
+                // content objects
+                { label: "Table…", icon: Table, onclick: () => {} },
+                { label: "Image / file…", onclick: () => {} },
+                { label: "Template…", shortcut: "Ctrl+T", onclick: () => {} },
                 {
-                    label: "Tables",
-                    submenu: [{ label: "Table…", icon: Table, onclick: () => {} }],
-                },
-                {
-                    label: "References",
+                    label: "More templates",
                     submenu: [
-                        { label: "Reference / citation…", onclick: () => {} },
-                        { label: "Named reference…", onclick: () => {} },
-                        { label: "Reuse reference…", onclick: () => {} },
-                        { label: "References list", onclick: () => {} },
-                    ],
-                },
-                {
-                    label: "Templates",
-                    submenu: [
-                        { label: "Template…", shortcut: "Ctrl+T", onclick: () => {} },
                         { label: "Infobox…", onclick: () => {} },
                         { label: "Magic word…", onclick: () => {} },
                         { label: "Parser function…", onclick: () => {} },
                     ],
                 },
+                { label: "Reference / citation…", onclick: () => {} },
                 {
-                    label: "Media",
+                    label: "More references",
                     submenu: [
-                        { label: "Image / file…", onclick: () => {} },
-                        { label: "Gallery", onclick: () => {} },
-                        { label: "File link", onclick: () => {} },
+                        { label: "Named reference…", onclick: () => {} },
+                        { label: "Reuse reference…", onclick: () => {} },
+                        { label: "References list", onclick: () => {} },
                     ],
                 },
+                { label: "Special character…", onclick: () => {} },
+                "divider",
+                // auxiliary / infrequent
                 {
                     label: "Other",
                     submenu: [
+                        { label: "Redirect…", onclick: () => {} },
+                        { label: "Anchor / bookmark", onclick: () => {} },
+                        "divider",
+                        { label: "Gallery", onclick: () => {} },
+                        { label: "File link", onclick: () => {} },
+                        "divider",
                         { label: "Math formula…", onclick: () => {} },
-                        { label: "Special character…", onclick: () => {} },
                         { label: "Signature", onclick: () => {} },
                         { label: "Table of contents", onclick: () => {} },
                         { label: "Timestamp", onclick: () => {} },
@@ -207,9 +200,14 @@
                 { label: "Minimap", onclick: () => {} },
                 { label: "Syntax highlighting theme", onclick: () => {} },
                 "divider",
-                { label: "Zoom in", icon: ZoomIn, shortcut: "Ctrl+=", onclick: () => {} },
-                { label: "Zoom out", icon: ZoomOut, shortcut: "Ctrl+-", onclick: () => {} },
-                { label: "Reset zoom", shortcut: "Ctrl+0", onclick: () => {} },
+                {
+                    label: "Zoom",
+                    submenu: [
+                        { label: "Zoom in", icon: ZoomIn, shortcut: "Ctrl+=", onclick: () => {} },
+                        { label: "Zoom out", icon: ZoomOut, shortcut: "Ctrl+-", onclick: () => {} },
+                        { label: "Reset zoom", shortcut: "Ctrl+0", onclick: () => {} },
+                    ],
+                },
                 "divider",
                 { label: "Zen mode", icon: Focus, shortcut: "Ctrl+Shift+F", onclick: () => {} },
                 { label: "Full-width editor", icon: AlignLeft, onclick: () => {} },
