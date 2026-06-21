@@ -43,4 +43,11 @@ worktree: opted out (working in place on trunk)
 two UX issues surfaced after retro via screenshot comparison against google docs:
 
 1. **no flyout submenus** — Insert menu was 50 flat items with disabled section headers. fix: added `submenu?: readonly MenuEntry[]` to `MenuItem` in `@attu/ui/menu.ts`; updated `Menu.svelte` to render `ChevronRight` indicator and a hover-triggered flyout panel; restructured Insert menu in `App.svelte` to 8 submenu items.
-2. **menus overflow viewport** — `max-h-[calc(100vh-3rem)] overflow-y-auto` added to main dropdown. discovered: `overflow-y: auto` causes computed `overflow-x: auto` (CSS spec), which clips absolutely-positioned flyouts extending to the right. fix: flyout panels use `position: fixed` with coordinates from `getBoundingClientRect()` set on `onmouseenter`, escaping the overflow context entirely.
+2. **menus overflow viewport** — `max-h-[calc(100vh-3rem)] overflow-y-auto` added to main dropdown. discovered: `overflow-y: auto` causes computed `overflow-x: auto` (CSS spec), which clips absolutely-positioned flyouts extending to the right.
+
+two additional fixes from live browser testing:
+
+3. **flyout opened left / hovered closed immediately** — `position:fixed` flyout was outside the parent `div[role="none"]`'s hover area, so `onmouseleave` fired the instant the cursor moved toward it. fix: flyout is now a **sibling** to the scrollable dropdown div (not inside it), using `position:absolute` relative to the outer `.relative` wrapper. left = `dropdownEl.offsetWidth`; top = `itemRect.top - outerEl.getBoundingClientRect().top`. 100ms close-delay (`scheduleClose`/`cancelClose`) lets the cursor travel from trigger to flyout without flicker.
+4. **Insert menu redesign** — all-flyout structure made everything one click too deep. refactored to mostly first-level: Wikilink, Ext link, H2, H3, Bullet, Numbered, Table, Image, Template, Reference, Special char at top; H4-H6+blocks in "More headings", definition+indent in "More lists", infobox/magic/parser in "More templates", named/reuse/ref-list in "More references", infrequent items in "Other". View menu: Zoom in/out/reset collapsed into "Zoom" flyout.
+
+**commits on trunk:** 8f752d5, 349f993, 15eb003

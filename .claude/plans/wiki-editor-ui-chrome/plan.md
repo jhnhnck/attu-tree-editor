@@ -39,7 +39,7 @@ See `pre-mortem.md` for the full analysis. Folded into this plan: (1) Insert men
 
 ## phase 0 — menu bar
 
-**status:** closed pending merge
+**status:** closed — merged to trunk (commits 8f752d5, 349f993, 15eb003)
 **definition of done:** all 8 top-level menus (File, Edit, Insert, Format, View, Page, Tools, Help) open on click; all items from `ui-outline.md` are present with correct labels, dividers, and groupings; selecting any item closes the menu; Insert menu section grouping approach is documented in a comment; `pnpm typecheck` clean
 **scope:**
 - **before writing any code:** decide the Insert menu subgroup approach — either (a) disabled, visually distinct `MenuItem` items used as section headers (requires CSS styling), or (b) a custom `InsertMenu.svelte` that bypasses `MenuConfig` entirely; document the choice in a comment at the top of the Insert menu config
