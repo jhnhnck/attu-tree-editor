@@ -23,25 +23,44 @@
     let { label, items, open, onopen, onclose, onnavigate, onhover }: Props = $props();
 
     let buttonEl: HTMLButtonElement | undefined = $state();
-    let menuEl: HTMLDivElement | undefined = $state();
+    let dropdownEl: HTMLDivElement | undefined = $state();
+    let outerEl: HTMLDivElement | undefined = $state();
     // -1 means "no item highlighted yet" — only an explicit ↑/↓/Home/End sets it
     let activeIdx = $state(-1);
-    // openArrowDown is set by the trigger's ArrowDown key — when true, the very
-    // first item is auto-highlighted on open (matches the menubar convention).
-    // plain Enter/Space and mouse-click leave activeIdx at -1; the first arrow
-    // key inside the menu then sets it.
     let openArrowDown = false;
     // index of the item whose submenu is currently open (-1 = none)
     let openSubmenuIdx = $state(-1);
-    // fixed-position anchor for the flyout — set on mouseenter so it escapes
-    // the parent's overflow context (overflow-y:auto implicitly clips overflow-x)
-    let submenuPos = $state({ x: 0, y: 0 });
+    // top offset of the hovered submenu trigger, relative to the outer div.
+    // used to vertically align the flyout with its trigger item.
+    let submenuTopOffset = $state(0);
+    // delay close so the mouse can travel from trigger item → flyout without closing.
+    let closeTimer: ReturnType<typeof setTimeout> | null = null;
 
     const enabledItems = $derived(
         items
             .map((item, i) => ({ item, i }))
             .filter(({ item }) => item !== "divider" && !item.disabled),
     );
+
+    const flyoutItem = $derived(
+        openSubmenuIdx >= 0 && items[openSubmenuIdx] !== "divider"
+            ? (items[openSubmenuIdx] as MenuItem)
+            : undefined,
+    );
+
+    function cancelClose(): void {
+        if (closeTimer !== null) {
+            clearTimeout(closeTimer);
+            closeTimer = null;
+        }
+    }
+
+    function scheduleClose(): void {
+        cancelClose();
+        closeTimer = setTimeout(() => {
+            openSubmenuIdx = -1;
+        }, 100);
+    }
 
     function toggle(): void {
         if (open) onclose();
@@ -55,7 +74,7 @@
     }
 
     function focusItem(i: number): void {
-        menuEl?.querySelector<HTMLElement>(`[data-idx="${String(i)}"]`)?.focus();
+        dropdownEl?.querySelector<HTMLElement>(`[data-idx="${String(i)}"]`)?.focus();
     }
 
     function highlightFirst(): void {
@@ -70,8 +89,6 @@
 
     function moveBy(delta: number): void {
         if (enabledItems.length === 0) return;
-        // first arrow on an unhighlighted menu jumps to first (ArrowDown) /
-        // last (ArrowUp) — matches the WAI-ARIA menubar pattern
         if (activeIdx < 0) {
             if (delta > 0) highlightFirst();
             else highlightLast();
@@ -108,7 +125,6 @@
             }
         } else if (e.key === "ArrowRight") {
             e.preventDefault();
-            // open submenu if current item has one, else navigate to next menu
             const activeEntry = activeIdx >= 0 ? items[activeIdx] : undefined;
             if (activeEntry && activeEntry !== "divider" && activeEntry.submenu) {
                 openSubmenuIdx = activeIdx;
@@ -132,15 +148,12 @@
             e.preventDefault();
             onnavigate?.("right");
         } else if (e.key === "ArrowDown") {
-            // ArrowDown is the explicit "open and start at first item" gesture
             e.preventDefault();
             if (!open) {
                 openArrowDown = true;
                 onopen();
             }
         } else if (e.key === "Enter" || e.key === " ") {
-            // Enter / Space open the menu but don't pre-highlight — match the
-            // mouse-open behaviour. The first ↑/↓ then sets the highlight.
             e.preventDefault();
             if (!open) onopen();
         }
@@ -148,27 +161,31 @@
 
     $effect(() => {
         if (open) {
-            // focus the menu container so keydown handlers receive the event;
-            // do NOT auto-focus the first item unless the user explicitly
-            // requested it by pressing ArrowDown on the trigger
             void (async () => {
                 await tick();
                 if (openArrowDown) {
                     highlightFirst();
                     openArrowDown = false;
                 } else {
-                    menuEl?.focus();
+                    dropdownEl?.focus();
                 }
             })();
         } else {
             activeIdx = -1;
             openArrowDown = false;
             openSubmenuIdx = -1;
+            cancelClose();
         }
     });
 </script>
 
-<div class="relative">
+<!--
+    outer div: position:relative so both the dropdown AND the flyout sibling
+    are absolutely positioned relative to the same origin. the flyout is a
+    sibling to the dropdown (not inside its overflow-y-auto container) so it
+    never gets clipped by overflow-x:auto (which overflow-y:auto implicitly creates).
+-->
+<div bind:this={outerEl} class="relative">
     <button
         bind:this={buttonEl}
         type="button"
@@ -184,12 +201,11 @@
     </button>
 
     {#if open}
-        <!-- z-[55]: above the inspector sheet (z-50) so a tall dropdown stays
-             clickable over the sheet on narrow viewports. dropdowns close when
-             an action item opens a dialog, so this never coexists with a
-             blocking modal (z-50) despite sorting above it. -->
+        <!-- z-[55]: above the inspector sheet (z-50). -->
+        <!-- scrollable items container — overflow-y-auto is isolated here so it
+             cannot clip the flyout sibling that lives outside this div -->
         <div
-            bind:this={menuEl}
+            bind:this={dropdownEl}
             class="bg-canvas-elev border-line absolute left-0 top-full z-[55] mt-0.5 min-w-56 rounded-md border py-1 shadow-xl max-h-[calc(100vh-3rem)] overflow-y-auto"
             role="menu"
             aria-label={label}
@@ -204,20 +220,23 @@
                     {@const Icon = item.icon as IconComponent | undefined}
                     {@const sc = item.shortcut ?? ""}
                     {#if item.submenu}
-                        <!-- submenu item: ▶ indicator; opens flyout on hover.
-                             flyout uses position:fixed (set via style) to escape
-                             the parent's overflow-x clip that overflow-y:auto creates -->
+                        <!-- submenu trigger: ▶ indicator; opens flyout on hover -->
                         <div
                             role="none"
-                            class="relative"
                             onmouseenter={(e) => {
+                                cancelClose();
                                 openSubmenuIdx = i;
-                                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                                submenuPos = { x: rect.right, y: rect.top };
+                                // compute the item's top offset relative to outerEl so the
+                                // flyout sibling (positioned absolute to outerEl) aligns with it
+                                if (outerEl) {
+                                    const itemRect = (
+                                        e.currentTarget as HTMLElement
+                                    ).getBoundingClientRect();
+                                    const outerRect = outerEl.getBoundingClientRect();
+                                    submenuTopOffset = itemRect.top - outerRect.top;
+                                }
                             }}
-                            onmouseleave={() => {
-                                openSubmenuIdx = -1;
-                            }}
+                            onmouseleave={() => scheduleClose()}
                         >
                             <button
                                 type="button"
@@ -247,54 +266,6 @@
                                     class="text-fg-muted shrink-0"
                                 />
                             </button>
-                            {#if openSubmenuIdx === i}
-                                <div
-                                    role="menu"
-                                    aria-label={item.label}
-                                    style="position:fixed;left:{submenuPos.x}px;top:{submenuPos.y}px"
-                                    class="bg-canvas-elev border-line z-[56] min-w-48 rounded-md border py-1 shadow-xl max-h-[calc(100vh-3rem)] overflow-y-auto"
-                                >
-                                    {#each item.submenu as subentry, j (j)}
-                                        {#if subentry === "divider"}
-                                            <div
-                                                class="border-line my-1 border-t"
-                                                role="separator"
-                                            ></div>
-                                        {:else}
-                                            {@const subitem = subentry as MenuItem}
-                                            {@const SubIcon =
-                                                subitem.icon as IconComponent | undefined}
-                                            <button
-                                                type="button"
-                                                role="menuitem"
-                                                disabled={subitem.disabled ?? false}
-                                                class="hover:bg-canvas focus:bg-canvas flex w-full items-center gap-2 px-3 py-1 text-left text-sm outline-none disabled:cursor-not-allowed disabled:opacity-40"
-                                                class:text-danger={subitem.danger}
-                                                onclick={() => selectItem(subitem)}
-                                                tabindex="-1"
-                                            >
-                                                {#if SubIcon}
-                                                    <SubIcon
-                                                        size={14}
-                                                        strokeWidth={2.25}
-                                                        class="text-fg-muted shrink-0"
-                                                    />
-                                                {:else}
-                                                    <span class="w-3.5 shrink-0"></span>
-                                                {/if}
-                                                <span class="flex-1">{subitem.label}</span>
-                                                {#if subitem.shortcut}
-                                                    <span
-                                                        class="text-fg-muted ml-3 font-mono text-[11px] tracking-tight"
-                                                    >
-                                                        {formatCombo(subitem.shortcut)}
-                                                    </span>
-                                                {/if}
-                                            </button>
-                                        {/if}
-                                    {/each}
-                                </div>
-                            {/if}
                         </div>
                     {:else}
                         <button
@@ -320,9 +291,6 @@
                             {#if item.checked === true}
                                 <Check size={12} strokeWidth={2.5} class="text-accent shrink-0" />
                             {:else if item.checked === false}
-                                <!-- explicit off-state for toggleable items so the user can
-                                     tell at a glance which overlays are off without scanning
-                                     for the absence of a checkmark -->
                                 <Square
                                     size={12}
                                     strokeWidth={1.75}
@@ -341,5 +309,56 @@
                 {/if}
             {/each}
         </div>
+
+        <!-- flyout panel: sibling to the dropdown div, NOT inside the overflow container.
+             left is the dropdown's rendered pixel width (= its right edge relative to outerEl).
+             top aligns with the hovered trigger item. -->
+        {#if flyoutItem?.submenu}
+            <div
+                role="menu"
+                aria-label={flyoutItem.label}
+                tabindex="-1"
+                class="bg-canvas-elev border-line absolute z-[56] min-w-48 rounded-md border py-1 shadow-xl max-h-[calc(100vh-3rem)] overflow-y-auto"
+                style="left:{dropdownEl?.offsetWidth ?? 0}px;top:{submenuTopOffset}px"
+                onmouseenter={() => cancelClose()}
+                onmouseleave={() => scheduleClose()}
+            >
+                {#each flyoutItem.submenu as subentry, j (j)}
+                    {#if subentry === "divider"}
+                        <div class="border-line my-1 border-t" role="separator"></div>
+                    {:else}
+                        {@const subitem = subentry as MenuItem}
+                        {@const SubIcon = subitem.icon as IconComponent | undefined}
+                        <button
+                            type="button"
+                            role="menuitem"
+                            disabled={subitem.disabled ?? false}
+                            class="hover:bg-canvas focus:bg-canvas flex w-full items-center gap-2 px-3 py-1 text-left text-sm outline-none disabled:cursor-not-allowed disabled:opacity-40"
+                            class:text-danger={subitem.danger}
+                            onclick={() => selectItem(subitem)}
+                            tabindex="-1"
+                        >
+                            {#if SubIcon}
+                                <SubIcon
+                                    size={14}
+                                    strokeWidth={2.25}
+                                    class="text-fg-muted shrink-0"
+                                />
+                            {:else}
+                                <span class="w-3.5 shrink-0"></span>
+                            {/if}
+                            <span class="flex-1">{subitem.label}</span>
+                            {#if subitem.shortcut}
+                                <span
+                                    class="text-fg-muted ml-3 font-mono text-[11px] tracking-tight"
+                                >
+                                    {formatCombo(subitem.shortcut)}
+                                </span>
+                            {/if}
+                        </button>
+                    {/if}
+                {/each}
+            </div>
+        {/if}
     {/if}
 </div>
