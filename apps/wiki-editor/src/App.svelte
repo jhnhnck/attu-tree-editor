@@ -1,6 +1,6 @@
 <script lang="ts">
-    import { Shell } from "@attu/ui";
-    import type { MenuConfig } from "@attu/ui";
+    import { Shell, ContextMenu } from "@attu/ui";
+    import type { MenuConfig, ContextMenuItem } from "@attu/ui";
     import {
         BookOpen,
         Undo2,
@@ -58,10 +58,101 @@
         | undefined;
 
     let selectionCoords = $state<{ x: number; y: number } | null>(null);
+    let hasSelection = $state(false);
 
-    function handleSelectionChange(hasSelection: boolean) {
-        selectionCoords = hasSelection && editor ? editor.getCursorCoords() : null;
+    function handleSelectionChange(hasSelection_: boolean) {
+        hasSelection = hasSelection_;
+        selectionCoords = hasSelection_ && editor ? editor.getCursorCoords() : null;
     }
+
+    type ContextType =
+        | "selection"
+        | "wikilink"
+        | "external-link"
+        | "template"
+        | "reference"
+        | "table"
+        | "image";
+
+    let contextMenu = $state<{ type: ContextType; x: number; y: number } | null>(null);
+
+    function handleContextMenu(ctx: { type: ContextType; x: number; y: number }) {
+        contextMenu = ctx;
+    }
+
+    const D: ContextMenuItem = { divider: true };
+    const stub = () => {};
+
+    const contextMenuItems = $derived<readonly ContextMenuItem[]>(
+        !contextMenu
+            ? []
+            : contextMenu.type === "selection"
+              ? [
+                    { label: "Cut", onclick: stub, disabled: !hasSelection },
+                    { label: "Copy", onclick: stub, disabled: !hasSelection },
+                    { label: "Paste", onclick: stub },
+                    { label: "Paste as plain text", onclick: stub },
+                    D,
+                    { label: "Bold", onclick: stub },
+                    { label: "Italic", onclick: stub },
+                    { label: "Wikilink…", onclick: stub },
+                    { label: "Wrap in nowiki", onclick: stub },
+                    { label: "Toggle comment", onclick: stub },
+                    D,
+                    { label: "Find…", onclick: stub },
+                    { label: "Replace…", onclick: stub },
+                ]
+              : contextMenu.type === "wikilink"
+                ? [
+                      { label: "Open page (new tab)", onclick: stub },
+                      { label: "Edit link…", onclick: stub },
+                      { label: "Remove link (keep display text)", onclick: stub },
+                      { label: "Copy link target", onclick: stub },
+                  ]
+                : contextMenu.type === "external-link"
+                  ? [
+                        { label: "Open in new tab", onclick: stub },
+                        { label: "Edit link…", onclick: stub },
+                        { label: "Remove link", onclick: stub },
+                        { label: "Copy URL", onclick: stub },
+                    ]
+                  : contextMenu.type === "template"
+                    ? [
+                          { label: "Edit template parameters…", onclick: stub },
+                          { label: "View template documentation", onclick: stub },
+                          { label: "Substitute (subst:)", onclick: stub },
+                          { label: "Remove template", onclick: stub },
+                      ]
+                    : contextMenu.type === "reference"
+                      ? [
+                            { label: "Edit reference…", onclick: stub },
+                            { label: "Convert to named reference…", onclick: stub },
+                            { label: "Reuse this reference", onclick: stub },
+                            { label: "Remove reference", onclick: stub },
+                        ]
+                      : contextMenu.type === "table"
+                        ? [
+                              { label: "Insert row above", onclick: stub },
+                              { label: "Insert row below", onclick: stub },
+                              D,
+                              { label: "Insert column left", onclick: stub },
+                              { label: "Insert column right", onclick: stub },
+                              D,
+                              { label: "Delete row", onclick: stub },
+                              { label: "Delete column", onclick: stub },
+                              { label: "Delete table", onclick: stub },
+                              D,
+                              { label: "Table properties…", onclick: stub },
+                              { label: "Copy table as wikitext", onclick: stub },
+                          ]
+                        : [
+                              // image
+                              { label: "View file page (new tab)", onclick: stub },
+                              { label: "Edit image options…", onclick: stub },
+                              { label: "Replace image…", onclick: stub },
+                              { label: "Remove image", onclick: stub },
+                          ],
+    );
 
     const menus: MenuConfig[] = [
         {
@@ -285,6 +376,18 @@
     {/snippet}
     {#snippet overlays()}
         <SelectionBar coords={selectionCoords} />
+        {#if contextMenu}
+            <ContextMenu
+                x={contextMenu.x}
+                y={contextMenu.y}
+                items={contextMenuItems}
+                onclose={() => (contextMenu = null)}
+            />
+        {/if}
     {/snippet}
-    <Editor bind:this={editor} onselectionchange={handleSelectionChange} />
+    <Editor
+        bind:this={editor}
+        onselectionchange={handleSelectionChange}
+        oncontextmenu={handleContextMenu}
+    />
 </Shell>
