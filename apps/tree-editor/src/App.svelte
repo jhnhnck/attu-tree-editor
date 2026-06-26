@@ -132,6 +132,12 @@
         WindowOverlay,
         Window,
         DockRegistration,
+        // new dock system (phase 0 walking skeleton)
+        dockStore,
+        DockCornerPanel,
+        DockItemComp as DockItem,
+        DockWindow,
+        DockSurface,
     } from "@attu/ui";
     import { createPortraitUrlCache } from "$lib/state/portraitUrls.svelte";
     import { createPreferencesStore } from "$lib/state/preferences.svelte";
@@ -413,7 +419,9 @@
     //
     // canvas-chrome-v2 phase 2: derived from windowManager.isExpanded (the
     // single source of truth); writes go through setExpanded.
-    const savePopoverOpen = $derived(windowManager.isExpanded("save-status-window"));
+    // phase 0: save-status now tracked by dockStore (new system).
+    // windowManager.isExpanded still drives all other windows.
+    const savePopoverOpen = $derived(dockStore.isExpanded("save-status-window"));
     $effect(() => {
         if (!savePopoverOpen) return;
         const onPointerDown = (e: PointerEvent): void => {
@@ -424,7 +432,7 @@
             const window = target.closest('[data-window-id="save-status-window"]');
             const pill = target.closest('[data-testid="save-status-pill"]');
             if (window || pill) return;
-            windowManager.setExpanded("save-status-window", false);
+            dockStore.setExpanded("save-status-window", false);
         };
         // capture phase so we run before per-component handlers that
         // might stopPropagation on the bubble.
@@ -951,6 +959,16 @@
         return onFinding((f) => {
             toasts.push(f.detail, "info", 2500);
         });
+    });
+
+    // phase 0 skeleton-test: open the DockModal stub for one render cycle to
+    // prove the modal layer works. deleted in phase 1.
+    onMount(() => {
+        dockStore.setCorner(dockConfig.corner);
+        dockStore.openModal("skeleton-test");
+        // close after a brief delay so it doesn't block interaction during dev
+        const t = setTimeout(() => dockStore.closeModal(), 2000);
+        return () => clearTimeout(t);
     });
 
     onMount(async () => {
@@ -1973,9 +1991,21 @@
         { id: "family-view-debug-layout-metrics", label: "layout metrics" },
     ];
 
+    // phase 0: save-status-window is owned by dockStore; all others by windowManager.
+    function isWindowOpen(id: string): boolean {
+        if (id === "save-status-window") return dockStore.isOpen(id);
+        return windowManager.isOpen(id);
+    }
+
     // suffix the menu label with the window's docked sub-state so the
     // Panels section reflects windowState, not just open/closed.
     function panelMenuLabel(id: string, base: string): string {
+        if (id === "save-status-window") {
+            const st = dockStore.windowState(id);
+            if (st === "minimized") return `${base} (minimized)`;
+            if (st === "floating") return `${base} (floating)`;
+            return base;
+        }
         const st = windowManager.windowState(id);
         if (st === "docked-minimized") return `${base} (minimized)`;
         if (st === "floating") return `${base} (floating)`;
@@ -1983,6 +2013,7 @@
     }
 
     function toggleDockPanel(id: string): void {
+        if (id === "save-status-window") return; // non-closing in new system
         if (windowManager.isOpen(id)) windowManager.closeWindow(id);
         else windowManager.openWindow(id);
     }
@@ -2000,8 +2031,8 @@
             "divider",
             ...DOCK_PANEL_ENTRIES.map((p) => ({
                 label: panelMenuLabel(p.id, p.label),
-                checked: windowManager.isOpen(p.id),
-                disabled: NON_CLOSING_IDS.has(p.id),
+                checked: isWindowOpen(p.id),
+                disabled: p.id === "save-status-window" || NON_CLOSING_IDS.has(p.id),
                 onclick: () => toggleDockPanel(p.id),
             })),
         ] satisfies MenuEntry[],
@@ -2366,13 +2397,9 @@
                  popOutStates ∩ idsByKind("window"). -->
             <WindowOverlay />
 
-            <!-- save-status snippet — registered at priority 10 (lowest
-                 in the always-visible status band, so it sits flush at the
-                 bottom of the corner stack via flex-col-reverse). the
-                 popover body has migrated to a sibling Window (kind=
-                 "window" priority=15 forceCollapsible=false); the pill
-                 only renders the trigger button now. -->
-            {#snippet saveStatusSnippet()}
+            <!-- save-status pill (phase 0: migrated to new dockStore).
+                 onPopoverToggle now calls dockStore.pillClick. -->
+            {#snippet saveStatusSnippet(_ctx: { forcedCollapse: boolean })}
                 <SaveStatusPill
                     {lastSavedAt}
                     syncMode={syncStore.mode}
@@ -2381,21 +2408,13 @@
                     dirty={treeStore.dirty}
                     remoteConfigured={authStore.user !== null}
                     popoverOpen={savePopoverOpen}
-                    onPopoverToggle={() => windowManager.pillClick("save-status-window")}
+                    onPopoverToggle={() => dockStore.pillClick("save-status-window")}
                     onretry={() => void forceSave()}
                     onconflict={() =>
                         toasts.push("save conflict — see console for details", "error")}
                 />
             {/snippet}
-            <!-- save-status Window body. three rows:
-                   - local: glyph + state text (dexie persistence)
-                   - remote: glyph + state text (server sync)
-                   - runtime: editRev + last layout-pass timings (debug only)
-                 the runtime row only renders when debugMode === true. it
-                 absorbs the two pieces of data that previously lived in the
-                 standalone debug-timings pill (deleted in canvas-window-
-                 manager phase 4). data-testid="save-status-popover" stays
-                 on the outer wrapper so e2e queries keep resolving. -->
+            <!-- save-status Window body (unchanged from before). -->
             {#snippet saveStatusBody()}
                 <div data-testid="save-status-popover" role="dialog" aria-label="save details">
                     <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-xs">
@@ -2465,12 +2484,6 @@
                             </span>
                         </dd>
                         {#if debugMode}
-                            <!-- runtime row: editRev + last layout-pass duration.
-                                 these two readouts used to live in a standalone
-                                 debug-timings pill at priority 40 in the bl
-                                 dock; canvas-window-manager phase 4 relocated
-                                 them here so the always-visible chrome is no
-                                 longer cluttered while debug mode is on. -->
                             <dt class="text-fg-muted">runtime</dt>
                             <dd
                                 class="text-fg flex items-center gap-2 font-mono"
@@ -2497,7 +2510,7 @@
                         type="button"
                         class="fte-window-button mt-3"
                         onclick={() => {
-                            windowManager.setExpanded("save-status-window", false);
+                            dockStore.setExpanded("save-status-window", false);
                             void forceSave();
                         }}
                     >
@@ -2505,36 +2518,43 @@
                     </button>
                 </div>
             {/snippet}
-            {#snippet saveStatusWindow(_ctx: { forcedCollapse: boolean })}
-                <Window
+            <!-- DockWindow wraps the body; render snippet hands off chrome to DockWindow. -->
+            {#snippet saveStatusWindowRender(_ctx: { forcedCollapse: boolean })}
+                <DockWindow
                     id="save-status-window"
-                    pillId="save-status"
                     title="save"
-                    expanded={savePopoverOpen}
-                    forcedCollapse={false}
                     closeable={false}
-                    onToggleExpanded={() => windowManager.toggleExpanded("save-status-window")}
                     body={saveStatusBody}
                 />
             {/snippet}
-            {#if !readOnly && windowManager.isOpen("save-status-window")}
-                <DockRegistration
+
+            <!-- new dock system: phase 0 registers save-status pill + window.
+                 old DockRegistration for save-status removed; DockCornerPanel
+                 renders the new system's items at the same corner. -->
+            {#if !readOnly}
+                <DockItem
                     id="save-status"
+                    kind="pill"
                     corner={dockConfig.corner}
                     priority={10}
-                    kind="pill"
                     windowId="save-status-window"
+                    closeable={false}
                     render={saveStatusSnippet}
                 />
-                <DockRegistration
+                <DockItem
                     id="save-status-window"
+                    kind="window"
                     corner={dockConfig.corner}
                     priority={15}
-                    kind="window"
-                    forceCollapsible={false}
-                    render={saveStatusWindow}
+                    title="save"
+                    closeable={false}
+                    render={saveStatusWindowRender}
                 />
             {/if}
+
+            <!-- phase 0: new dock corner renders save-status only.
+                 old CanvasChromeDock still renders all other items above. -->
+            <DockCornerPanel corner={dockConfig.corner} />
 
             <!-- canvas-window-manager phase 4: the standalone debug-timings
                  pill (was at priority 40 with data-testid="debug-corner-
@@ -3146,6 +3166,8 @@
         {/if}
     </main>
     {#snippet overlays()}
+        <!-- phase 0: DockSurface hosts the modal layer (DockModal stub). -->
+        <DockSurface />
         <Toasts store={toasts} />
     {#if contextMenu}
         <ContextMenu

@@ -105,3 +105,18 @@ export type { EncodeOptions } from "./components/editor/encodePortrait.js";
 
 // palette
 export { default as CommandPalette } from "./components/palette/CommandPalette.svelte";
+
+// dock (new unified system — phases 0-4 migration, replaces canvas/ singletons)
+// note: DockCorner.svelte is exported as DockCornerPanel here to avoid the
+// naming clash with `type DockCorner` from the old dockRegistry barrel export.
+// phase 2 renames it to DockCorner once the old type export is removed.
+export { dockStore } from "./components/dock/store.svelte.js";
+export type { DockItemDef, DockWindowState as DockWindowStateDock, DockKind as DockKindDock } from "./components/dock/store.svelte.js";
+export { default as DockCornerPanel } from "./components/dock/DockCorner.svelte";
+// DockItemComp: the new registration bridge component (renamed to avoid conflict with
+// the old `type DockItem` re-exported from dockRegistry. phase 2 renames to DockItem
+// once the old type export is deleted from the barrel).
+export { default as DockItemComp } from "./components/dock/DockItem.svelte";
+export { default as DockWindow } from "./components/dock/DockWindow.svelte";
+export { default as DockSurface } from "./components/dock/DockSurface.svelte";
+export { default as DockModal } from "./components/dock/DockModal.svelte";
