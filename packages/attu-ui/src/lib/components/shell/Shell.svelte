@@ -29,6 +29,8 @@
         dock?: Snippet;
         /** which corner the dock anchors to — defaults to bottom-left */
         dockCorner?: DockCorner;
+        /** full-width toolbar row rendered between the header and content area */
+        toolbar?: Snippet;
         /** fixed/absolute overlays that sit outside the content area: dialogs, toasts, context menus */
         overlays?: Snippet;
         /** main content area — fills remaining height */
@@ -52,6 +54,7 @@
         auth,
         dock,
         dockCorner = "bl",
+        toolbar,
         overlays,
         children,
     }: Props = $props();
@@ -140,6 +143,11 @@
             </div>
         {/if}
     </header>
+    {#if toolbar}
+        <div class="flex h-9 shrink-0 items-center border-b border-line bg-canvas-elev">
+            {@render toolbar()}
+        </div>
+    {/if}
     <div class="relative flex flex-col min-h-0 flex-1 overflow-hidden">
         {@render children()}
         {#if dock}

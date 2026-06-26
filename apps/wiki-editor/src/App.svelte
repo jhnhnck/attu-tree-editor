@@ -43,10 +43,24 @@
         Flag,
     } from "@lucide/svelte";
     import Editor from "./lib/Editor.svelte";
+    import Toolbar from "./lib/Toolbar.svelte";
+    import SelectionBar from "./lib/SelectionBar.svelte";
 
     let { title: pageTitle }: { title: string } = $props();
 
-    let editor: { undoEdit: () => void; redoEdit: () => void } | undefined;
+    let editor:
+        | {
+              undoEdit: () => void;
+              redoEdit: () => void;
+              getCursorCoords: () => { x: number; y: number } | null;
+          }
+        | undefined;
+
+    let selectionCoords = $state<{ x: number; y: number } | null>(null);
+
+    function handleSelectionChange(hasSelection: boolean) {
+        selectionCoords = hasSelection && editor ? editor.getCursorCoords() : null;
+    }
 
     const menus: MenuConfig[] = [
         {
@@ -262,29 +276,11 @@
     {#snippet logo()}
         <BookOpen size={18} strokeWidth={2} class="text-accent shrink-0" />
     {/snippet}
-    {#snippet tools()}
-        <button
-            type="button"
-            class="flex h-7 w-7 items-center justify-center rounded text-fg hover:bg-canvas"
-            title="Undo (Ctrl+Z)"
-            aria-label="Undo"
-            onclick={() => {
-                if (editor) editor.undoEdit();
-            }}
-        >
-            <Undo2 size={17} strokeWidth={2.5} />
-        </button>
-        <button
-            type="button"
-            class="flex h-7 w-7 items-center justify-center rounded text-fg hover:bg-canvas"
-            title="Redo (Ctrl+Shift+Z)"
-            aria-label="Redo"
-            onclick={() => {
-                if (editor) editor.redoEdit();
-            }}
-        >
-            <Redo2 size={17} strokeWidth={2.5} />
-        </button>
+    {#snippet toolbar()}
+        <Toolbar />
     {/snippet}
-    <Editor bind:this={editor} />
+    {#snippet overlays()}
+        <SelectionBar coords={selectionCoords} />
+    {/snippet}
+    <Editor bind:this={editor} onselectionchange={handleSelectionChange} />
 </Shell>

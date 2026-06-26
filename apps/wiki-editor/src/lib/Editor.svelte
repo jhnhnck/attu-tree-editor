@@ -3,6 +3,8 @@
     import { EditorView, minimalSetup } from "codemirror";
     import { undo, redo } from "@codemirror/commands";
 
+    let { onselectionchange }: { onselectionchange?: (hasSelection: boolean) => void } = $props();
+
     let editorEl: HTMLDivElement;
     let view: EditorView;
 
@@ -23,7 +25,15 @@
 
     onMount(() => {
         view = new EditorView({
-            extensions: [minimalSetup, theme],
+            extensions: [
+                minimalSetup,
+                theme,
+                EditorView.updateListener.of((update) => {
+                    if (update.selectionSet || update.docChanged) {
+                        onselectionchange?.(!update.state.selection.main.empty);
+                    }
+                }),
+            ],
             parent: editorEl,
         });
         view.focus();
@@ -39,6 +49,15 @@
 
     export function redoEdit() {
         if (view) redo(view);
+    }
+
+    export function getCursorCoords(): { x: number; y: number } | null {
+        if (!view) return null;
+        const sel = view.state.selection.main;
+        if (sel.empty) return null;
+        const coords = view.coordsAtPos(sel.head);
+        if (!coords) return null;
+        return { x: coords.left, y: coords.top };
     }
 </script>
 
