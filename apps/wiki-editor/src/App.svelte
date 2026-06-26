@@ -45,6 +45,7 @@
     import Editor from "./lib/Editor.svelte";
     import Toolbar from "./lib/Toolbar.svelte";
     import SelectionBar from "./lib/SelectionBar.svelte";
+    import WikiEditorPills from "./lib/WikiEditorPills.svelte";
 
     let { title: pageTitle }: { title: string } = $props();
 
@@ -278,6 +279,9 @@
     {/snippet}
     {#snippet toolbar()}
         <Toolbar />
+    {/snippet}
+    {#snippet dock()}
+        <WikiEditorPills />
     {/snippet}
     {#snippet overlays()}
         <SelectionBar coords={selectionCoords} />
