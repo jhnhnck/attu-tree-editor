@@ -46,6 +46,8 @@
     import Toolbar from "./lib/Toolbar.svelte";
     import SelectionBar from "./lib/SelectionBar.svelte";
     import WikiEditorPills from "./lib/WikiEditorPills.svelte";
+    import SettingsModal from "./lib/SettingsModal.svelte";
+    import ShortcutsOverlay from "./lib/ShortcutsOverlay.svelte";
 
     let { title: pageTitle }: { title: string } = $props();
 
@@ -59,6 +61,8 @@
 
     let selectionCoords = $state<{ x: number; y: number } | null>(null);
     let hasSelection = $state(false);
+    let showSettings = $state(false);
+    let showShortcuts = $state(false);
 
     function handleSelectionChange(hasSelection_: boolean) {
         hasSelection = hasSelection_;
@@ -343,7 +347,7 @@
                 { label: "Check wikilinks", onclick: () => {} },
                 { label: "Spellcheck language…", onclick: () => {} },
                 "divider",
-                { label: "Preferences…", icon: Settings, onclick: () => {} },
+                { label: "Preferences…", icon: Settings, onclick: () => (showSettings = true) },
             ],
         },
         {
@@ -354,7 +358,7 @@
                     label: "Keyboard shortcuts",
                     icon: Keyboard,
                     shortcut: "Ctrl+?",
-                    onclick: () => {},
+                    onclick: () => (showShortcuts = true),
                 },
                 "divider",
                 { label: "Report an issue", onclick: () => {} },
@@ -363,6 +367,15 @@
         },
     ];
 </script>
+
+<svelte:window
+    onkeydown={(e: KeyboardEvent) => {
+        if (e.key === "?" && e.ctrlKey && !e.shiftKey && !e.altKey) {
+            e.preventDefault();
+            showShortcuts = true;
+        }
+    }}
+/>
 
 <Shell title={pageTitle || "untitled"} {menus}>
     {#snippet logo()}
@@ -383,6 +396,12 @@
                 items={contextMenuItems}
                 onclose={() => (contextMenu = null)}
             />
+        {/if}
+        {#if showSettings}
+            <SettingsModal onclose={() => (showSettings = false)} />
+        {/if}
+        {#if showShortcuts}
+            <ShortcutsOverlay onclose={() => (showShortcuts = false)} />
         {/if}
     {/snippet}
     <Editor
