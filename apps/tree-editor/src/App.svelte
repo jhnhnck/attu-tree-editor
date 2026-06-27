@@ -123,19 +123,10 @@
         ZoomWidget,
         DESIGN_CARD_WIDTH_PX,
         computeDisplayPercent,
-        SaveStatusPill,
-        CanvasChromeDock,
-        windowManager,
-        NON_CLOSING_IDS,
-        dockConfig,
-        type DockCorner,
-        WindowOverlay,
-        Window,
-        DockRegistration,
-        // new dock system (phase 0 walking skeleton)
+        // new dock system
         dockStore,
-        DockCornerPanel,
-        DockItemComp as DockItem,
+        DockCorner,
+        DockItem,
         DockWindow,
         DockSurface,
     } from "@attu/ui";
@@ -252,13 +243,10 @@
     //     mode" button. parallels authDryRunEnabled's persistence
     //     pattern (fte.debug.authDryRun) — plain boolean, no schema
     //     version, debug-flag precedent documented in agents.md.
-    //   - debug-menu open-state: owned by windowManager.isOpen("debug-menu")
-    //     since canvas-chrome-v2 phase 2 (one state machine for every dock
-    //     window). debug-menu is in windowManager's non-persisted set, so it
-    //     still does NOT survive a reload; closing the menu (titlebar × or
-    //     Ctrl+Shift+D off) leaves debugMode on so the overlays keep
-    //     rendering. the icon-pill aria-pressed reads isOpen; the × routes
-    //     through windowManager.closeWindow directly (no parallel flag).
+    //   - debug-menu open-state: owned by dockStore.isOpen("debug-menu").
+    //     persistent={false} so it does NOT survive a reload; closing the
+    //     menu (titlebar × or Ctrl+Shift+D off) leaves debugMode on so the
+    //     overlays keep rendering. the icon-pill aria-pressed reads isOpen.
     const DEBUG_MODE_LS_KEY = "fte.debug.mode";
     function readDebugModePref(): boolean {
         try {
@@ -288,6 +276,30 @@
     // surface.
     $effect(() => {
         writeDebugModePref(debugMode);
+    });
+
+    // dock corner — local state, persisted to localStorage.
+    const DOCK_CORNER_LS_KEY = "fte.dock.corner";
+    function readCornerPref(): "bl" | "tl" | "tr" | "br" {
+        try {
+            const raw =
+                typeof localStorage === "undefined"
+                    ? null
+                    : localStorage.getItem(DOCK_CORNER_LS_KEY);
+            if (raw === "bl" || raw === "tl" || raw === "tr" || raw === "br") return raw;
+        } catch {
+            // ignore
+        }
+        return "bl";
+    }
+    let corner = $state<"bl" | "tl" | "tr" | "br">(readCornerPref());
+    $effect(() => {
+        try {
+            if (typeof localStorage !== "undefined")
+                localStorage.setItem(DOCK_CORNER_LS_KEY, corner);
+        } catch {
+            // ignore
+        }
     });
 
     // the sheet-mode inspector bridge resolves the canvas-host via
@@ -374,13 +386,9 @@
     let inspectorInitialTab = $state<"personal" | "connections" | "bio">("personal");
     // stats popover: anchored to the people pill in the bottom-left chrome
     // bar. shows editRev (always), and per-person COI + descendant count
-    // when a person is selected. canvas-window-manager phase 2 migrated
-    // the popover body into a Window (kind="window" priority=25
-    // forceCollapsible=false). canvas-chrome-v2 phase 2: expanded-state is
-    // owned by windowManager (single source of truth for docked minimize /
-    // restore), so this is a derived view of isExpanded; writes go through
-    // setExpanded / toggleExpanded.
-    const statsPopoverOpen = $derived(windowManager.isExpanded("stats-window"));
+    // when a person is selected. expanded-state owned by dockStore; writes
+    // go through setExpanded / toggleExpanded.
+    const statsPopoverOpen = $derived(dockStore.isExpanded("stats-window"));
     // canvas-window-manager phase 4: configurable stats pill. clicking
     // a row in the stats Window writes its key here; the trigger pill
     // branches on it to render the chosen metric. "people" is the
@@ -398,7 +406,7 @@
             const window = target.closest('[data-window-id="stats-window"]');
             const pill = target.closest('[data-testid="stats-pill"]');
             if (window || pill) return;
-            windowManager.setExpanded("stats-window", false);
+            dockStore.setExpanded("stats-window", false);
         };
         document.addEventListener("pointerdown", onPointerDown, true);
         return () => document.removeEventListener("pointerdown", onPointerDown, true);
@@ -417,10 +425,7 @@
     // window root carrier (data-window-id="save-status-window") OR the
     // trigger pill so clicks on either keep the popover open.
     //
-    // canvas-chrome-v2 phase 2: derived from windowManager.isExpanded (the
-    // single source of truth); writes go through setExpanded.
-    // phase 0: save-status now tracked by dockStore (new system).
-    // windowManager.isExpanded still drives all other windows.
+    // expanded-state owned by dockStore; writes go through setExpanded.
     const savePopoverOpen = $derived(dockStore.isExpanded("save-status-window"));
     $effect(() => {
         if (!savePopoverOpen) return;
@@ -916,6 +921,61 @@
     let lastSavedAt = $state<number | undefined>(undefined);
     let lastError = $state<string | undefined>(undefined);
     let syncedFlashUntil = $state<number | undefined>(undefined);
+    // save-status pill: 2s tick to retire the synced-flash tone promptly.
+    let saveStatusTick = $state(Date.now());
+    $effect(() => {
+        const t = setInterval(() => {
+            saveStatusTick = Date.now();
+        }, 2_000);
+        return () => clearInterval(t);
+    });
+    type SaveTone = "saved" | "saving" | "synced" | "failed" | "conflict";
+    const saveStatusTone = $derived<SaveTone>(
+        syncStore.mode === "conflict"
+            ? "conflict"
+            : lastError
+              ? "failed"
+              : syncStore.mode === "syncing"
+                ? "saving"
+                : syncedFlashUntil !== undefined && syncedFlashUntil > saveStatusTick
+                  ? "synced"
+                  : "saved",
+    );
+    const saveStatusLocalPersisted = $derived(!treeStore.dirty);
+    const saveStatusRemoteToneClass = $derived(
+        saveStatusTone === "conflict"
+            ? "text-amber-400"
+            : saveStatusTone === "failed"
+              ? "text-rose-400"
+              : saveStatusTone === "saving"
+                ? "text-amber-400"
+                : saveStatusTone === "synced"
+                  ? "text-sky-400"
+                  : "text-fg-muted",
+    );
+    const saveStatusLocalToneClass = $derived(
+        saveStatusLocalPersisted ? "text-emerald-400" : "text-amber-400",
+    );
+    const saveStatusLocalLabel = $derived(
+        saveStatusLocalPersisted ? "saved locally" : "unsaved local changes",
+    );
+    const saveStatusRemoteLabel = $derived(
+        saveStatusTone === "conflict"
+            ? "remote conflict"
+            : saveStatusTone === "failed"
+              ? "remote save failed"
+              : saveStatusTone === "saving"
+                ? "syncing to remote"
+                : saveStatusTone === "synced"
+                  ? "synced to remote"
+                  : authStore.user !== null
+                    ? "remote idle"
+                    : "no remote sync",
+    );
+    const saveStatusAriaLabel = $derived(
+        `save status: ${saveStatusLocalLabel}; ${saveStatusRemoteLabel}`,
+    );
+    const saveStatusTitle = $derived(`${saveStatusLocalLabel} · ${saveStatusRemoteLabel}`);
 
     // read-only mode: set when loading a tree via /view/<uuid> route
     let readOnly = $state(false);
@@ -1955,9 +2015,9 @@
 
     const fileMenu = $derived<MenuConfig>(menuFromGroup("File", "File"));
     const editMenu = $derived<MenuConfig>(menuFromGroup("Edit", "Edit"));
-    // canvas-chrome-v2 phase 3: dock corner picker. radio-style — exactly
-    // one corner is active; selecting persists via dockConfig (fte.dock.corner).
-    const DOCK_CORNER_ITEMS: ReadonlyArray<{ corner: DockCorner; label: string }> = [
+    // dock corner picker. radio-style — exactly one corner is active;
+    // selecting persists via localStorage (fte.dock.corner).
+    const DOCK_CORNER_ITEMS: ReadonlyArray<{ corner: "bl" | "tl" | "tr" | "br"; label: string }> = [
         { corner: "tl", label: "dock corner: top-left" },
         { corner: "tr", label: "dock corner: top-right" },
         { corner: "bl", label: "dock corner: bottom-left" },
@@ -1981,31 +2041,20 @@
         { id: "family-view-debug-layout-metrics", label: "layout metrics" },
     ];
 
-    // phase 0: save-status-window is owned by dockStore; all others by windowManager.
-    function isWindowOpen(id: string): boolean {
-        if (id === "save-status-window") return dockStore.isOpen(id);
-        return windowManager.isOpen(id);
-    }
-
     // suffix the menu label with the window's docked sub-state so the
     // Panels section reflects windowState, not just open/closed.
     function panelMenuLabel(id: string, base: string): string {
-        if (id === "save-status-window") {
-            const st = dockStore.windowState(id);
-            if (st === "minimized") return `${base} (minimized)`;
-            if (st === "floating") return `${base} (floating)`;
-            return base;
-        }
-        const st = windowManager.windowState(id);
-        if (st === "docked-minimized") return `${base} (minimized)`;
+        const st = dockStore.windowState(id);
+        if (st === "minimized") return `${base} (minimized)`;
         if (st === "floating") return `${base} (floating)`;
         return base;
     }
 
     function toggleDockPanel(id: string): void {
-        if (id === "save-status-window") return; // non-closing in new system
-        if (windowManager.isOpen(id)) windowManager.closeWindow(id);
-        else windowManager.openWindow(id);
+        const item = dockStore.getItem(id);
+        if (item?.closeable === false) return;
+        if (dockStore.isOpen(id)) { dockStore.closeWindow(id); }
+        else { dockStore.openWindow(id); dockStore.setExpanded(id, true); }
     }
 
     const viewMenu = $derived<MenuConfig>({
@@ -2015,14 +2064,14 @@
             "divider",
             ...DOCK_CORNER_ITEMS.map((c) => ({
                 label: c.label,
-                checked: dockConfig.corner === c.corner,
-                onclick: () => dockConfig.setCorner(c.corner),
+                checked: corner === c.corner,
+                onclick: () => (corner = c.corner),
             })),
             "divider",
             ...DOCK_PANEL_ENTRIES.map((p) => ({
                 label: panelMenuLabel(p.id, p.label),
-                checked: isWindowOpen(p.id),
-                disabled: p.id === "save-status-window" || NON_CLOSING_IDS.has(p.id),
+                checked: dockStore.isOpen(p.id),
+                disabled: dockStore.getItem(p.id)?.closeable === false,
                 onclick: () => toggleDockPanel(p.id),
             })),
         ] satisfies MenuEntry[],
@@ -2037,14 +2086,18 @@
     // gesture). decision recorded in the phase 3 retro.
     function toggleDebugMode(): void {
         debugMode = !debugMode;
-        if (!debugMode) windowManager.closeWindow("debug-menu");
+        if (!debugMode) dockStore.closeWindow("debug-menu");
     }
-    // open/close toggle for the debug-menu Window. owns the open gesture
-    // (icon-pill click + Ctrl+Shift+D); the menu's open-state lives in
-    // windowManager (non-persisted) so isOpen drives the registration gate.
+    // open/close toggle for the debug-menu Window. when expanded or floating,
+    // collapse to closed; otherwise open and expand.
     function toggleDebugMenu(): void {
-        if (windowManager.isOpen("debug-menu")) windowManager.closeWindow("debug-menu");
-        else windowManager.openWindow("debug-menu");
+        const st = dockStore.windowState("debug-menu");
+        if (st === "expanded" || st === "floating") {
+            dockStore.closeWindow("debug-menu");
+        } else {
+            if (st === "closed") dockStore.openWindow("debug-menu");
+            dockStore.setExpanded("debug-menu", true);
+        }
     }
     const helpMenu = $derived<MenuConfig>({
         label: "Help",
@@ -2337,6 +2390,7 @@
                     debugOptions={familyViewDebugOptions}
                     focusEventsForOverlay={focusEvents}
                     lastEditedId={debugLastEditedId}
+                    dockCorner={corner}
                 />
             {:else}
                 <TreeCanvas
@@ -2370,39 +2424,60 @@
             <!-- ZoomWidget moved out of the canvas into the toolbar; the
                  toolbar slot mounts its trigger button + popover. -->
 
-            <!-- canvas-chrome dock: registry-driven bottom-left container.
-                 every pill and family-view debug panel anchored to this
-                 corner flows through the dock via $derived itemsForCorner
-                 lookups. it carries data-canvas-chrome so fitToView accounts
-                 for the docked items as overlay chrome. -->
-            <CanvasChromeDock corner={dockConfig.corner} />
-
-            <!-- canvas-window-manager overlay: hosts popped-out Windows
-                 above the canvas at z-30..z-49. mounts once inside the
-                 canvas-host so popped-out windows live in host-local
-                 coordinates and clamp follows host resize via a
-                 ResizeObserver. orphan ids (registry entries that
-                 unmount, e.g. family-view panels on engine swap) drop
-                 automatically because the overlay iterates
-                 popOutStates ∩ idsByKind("window"). -->
-            <WindowOverlay />
-
-            <!-- save-status pill (phase 0: migrated to new dockStore).
+            <!-- save-status pill:
                  onPopoverToggle now calls dockStore.pillClick. -->
             {#snippet saveStatusSnippet(_ctx: { forcedCollapse: boolean })}
-                <SaveStatusPill
-                    {lastSavedAt}
-                    syncMode={syncStore.mode}
-                    {syncedFlashUntil}
-                    {lastError}
-                    dirty={treeStore.dirty}
-                    remoteConfigured={authStore.user !== null}
-                    popoverOpen={savePopoverOpen}
-                    onPopoverToggle={() => dockStore.pillClick("save-status-window")}
-                    onretry={() => void forceSave()}
-                    onconflict={() =>
-                        toasts.push("save conflict — see console for details", "error")}
-                />
+                <div class="relative" data-testid="save-status-pill">
+                    <button
+                        type="button"
+                        class="fte-pill gap-1.5"
+                        title={saveStatusTitle}
+                        aria-label={saveStatusAriaLabel}
+                        aria-expanded={savePopoverOpen}
+                        onclick={() => {
+                            if (saveStatusTone === "failed") {
+                                void forceSave();
+                                return;
+                            }
+                            if (saveStatusTone === "conflict") {
+                                toasts.push("save conflict — see console for details", "error");
+                                return;
+                            }
+                            dockStore.pillClick("save-status-window");
+                        }}
+                    >
+                        <span
+                            class={saveStatusLocalToneClass}
+                            data-testid="save-status-local-glyph"
+                            data-state={saveStatusLocalPersisted ? "persisted" : "dirty"}
+                        >
+                            {#if saveStatusLocalPersisted}
+                                <LaptopMinimalCheck size={12} />
+                            {:else}
+                                <LaptopMinimal size={12} />
+                            {/if}
+                        </span>
+                        <span
+                            class={saveStatusRemoteToneClass}
+                            data-testid="save-status-remote-glyph"
+                            data-state={saveStatusTone}
+                        >
+                            {#if saveStatusTone === "conflict"}
+                                <AlertTriangle size={12} />
+                            {:else if saveStatusTone === "failed"}
+                                <AlertCircle size={12} />
+                            {:else if saveStatusTone === "saving"}
+                                <CloudUpload size={12} />
+                            {:else if saveStatusTone === "synced"}
+                                <CloudCheck size={12} />
+                            {:else if authStore.user !== null}
+                                <Cloud size={12} />
+                            {:else}
+                                <CloudOff size={12} />
+                            {/if}
+                        </span>
+                    </button>
+                </div>
             {/snippet}
             <!-- save-status Window body (unchanged from before). -->
             {#snippet saveStatusBody()}
@@ -2525,7 +2600,7 @@
                 <DockItem
                     id="save-status"
                     kind="pill"
-                    corner={dockConfig.corner}
+                    corner={corner}
                     priority={10}
                     windowId="save-status-window"
                     closeable={false}
@@ -2534,7 +2609,7 @@
                 <DockItem
                     id="save-status-window"
                     kind="window"
-                    corner={dockConfig.corner}
+                    corner={corner}
                     priority={15}
                     title="save"
                     closeable={false}
@@ -2542,9 +2617,8 @@
                 />
             {/if}
 
-            <!-- phase 0: new dock corner renders save-status only.
-                 old CanvasChromeDock still renders all other items above. -->
-            <DockCornerPanel corner={dockConfig.corner} />
+            <!-- dock corner: renders all registered pills and windows. -->
+            <DockCorner corner={corner} />
 
             <!-- canvas-window-manager phase 4: the standalone debug-timings
                  pill (was at priority 40 with data-testid="debug-corner-
@@ -2562,7 +2636,7 @@
                  `selectedMetric`, which this snippet branches on. people is
                  the default; rows that need a selection fall back to the
                  people count when no person is selected. -->
-            {#snippet statsPillSnippet()}
+            {#snippet statsPillSnippet(_ctx: { forcedCollapse: boolean })}
                 {#if layoutStats}
                     <button
                         type="button"
@@ -2577,7 +2651,7 @@
                         aria-pressed={statsPopoverOpen}
                         aria-haspopup="dialog"
                         aria-expanded={statsPopoverOpen}
-                        onclick={() => windowManager.pillClick("stats-window")}
+                        onclick={() => dockStore.pillClick("stats-window")}
                         data-testid="stats-pill"
                         data-selected-metric={selectedMetric}
                     >
@@ -2702,33 +2776,24 @@
                     </div>
                 {/if}
             {/snippet}
-            {#snippet statsWindow(_ctx: { forcedCollapse: boolean })}
-                <Window
-                    id="stats-window"
-                    pillId="stats"
-                    title="stats"
-                    expanded={statsPopoverOpen}
-                    forcedCollapse={false}
-                    onToggleExpanded={() => windowManager.toggleExpanded("stats-window")}
-                    body={statsBody}
-                />
+            {#snippet statsWindowRender(_ctx: { forcedCollapse: boolean })}
+                <DockWindow id="stats-window" title="stats" body={statsBody} />
             {/snippet}
-            {#if statsPillVisible && layoutStats && windowManager.isOpen("stats-window")}
-                <DockRegistration
+            {#if statsPillVisible && layoutStats}
+                <DockItem
                     id="stats"
-                    corner={dockConfig.corner}
-                    priority={20}
                     kind="pill"
+                    corner={corner}
+                    priority={20}
                     windowId="stats-window"
                     render={statsPillSnippet}
                 />
-                <DockRegistration
+                <DockItem
                     id="stats-window"
-                    corner={dockConfig.corner}
-                    priority={25}
                     kind="window"
-                    forceCollapsible={false}
-                    render={statsWindow}
+                    corner={corner}
+                    priority={25}
+                    render={statsWindowRender}
                 />
             {/if}
 
@@ -2739,25 +2804,25 @@
                  priority 30 so it sorts after stats (20); the
                  standalone debug-timings pill (was at priority 40)
                  deleted in canvas-window-manager phase 4. -->
-            {#snippet debugIconSnippet()}
+            {#snippet debugIconSnippet(_ctx: { forcedCollapse: boolean })}
                 <button
                     type="button"
                     class="fte-pill fte-pill-icon"
                     aria-label="toggle debug panel"
                     title="debug panel (Ctrl+Shift+D)"
                     data-testid="debug-pill"
-                    aria-pressed={windowManager.isOpen("debug-menu")}
+                    aria-pressed={dockStore.windowState("debug-menu") === "expanded" || dockStore.windowState("debug-menu") === "floating"}
                     onclick={() => toggleDebugMenu()}
                 >
                     <Bug size={12} />
                 </button>
             {/snippet}
             {#if debugMode}
-                <DockRegistration
+                <DockItem
                     id="debug-toggle"
-                    corner={dockConfig.corner}
-                    priority={30}
                     kind="pill"
+                    corner={corner}
+                    priority={30}
                     windowId="debug-menu"
                     render={debugIconSnippet}
                 />
@@ -2771,10 +2836,9 @@
                  (primary control surface beats glance-and-go status)
                  while the rest of the bl stack collapses around it on
                  cramped viewports. close (×) on the Window's titlebar
-                 routes through windowManager.closeWindow("debug-menu"),
-                 unmounting the registration; the custom inline
-                 `Debug · Ctrl+Shift+D ×` titlebar that lived inside the
-                 body deleted in this migration.
+                 close (×) on the DockWindow titlebar unmounts the
+                 registration; the custom inline `Debug · Ctrl+Shift+D ×`
+                 titlebar that lived inside the body deleted in this migration.
 
                  sections: layout / routing / diagnostics / runtime.
                  each toggle is a button-style chip (matches the
@@ -2805,7 +2869,7 @@
                             class="text-fg-muted hover:text-fg text-[10px]"
                             onclick={() => {
                                 debugMode = false;
-                                windowManager.closeWindow("debug-menu");
+                                dockStore.closeWindow("debug-menu");
                             }}
                             data-testid="debug-disable"
                         >
@@ -3072,23 +3136,14 @@
                 </div>
             {/snippet}
             {#snippet debugMenuWindow(_ctx: { forcedCollapse: boolean })}
-                <Window
-                    id="debug-menu"
-                    pillId="debug-toggle"
-                    title="Debug · Ctrl+Shift+D"
-                    expanded={true}
-                    forcedCollapse={false}
-                    onToggleExpanded={() => windowManager.closeWindow("debug-menu")}
-                    body={debugMenuBody}
-                />
+                <DockWindow id="debug-menu" title="Debug · Ctrl+Shift+D" body={debugMenuBody} />
             {/snippet}
-            {#if windowManager.isOpen("debug-menu")}
-                <DockRegistration
+            {#if debugMode}
+                <DockItem
                     id="debug-menu"
-                    corner={dockConfig.corner}
-                    priority={300}
                     kind="window"
-                    forceCollapsible={false}
+                    corner={corner}
+                    priority={300}
                     render={debugMenuWindow}
                 />
             {/if}

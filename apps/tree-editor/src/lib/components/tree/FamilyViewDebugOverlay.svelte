@@ -62,7 +62,7 @@
     import type { FamilyViewDebugLayerOptions } from "$lib/components/tree/debugTypes";
     import type { CoiBreakdownRow } from "$lib/domain/consanguinity";
     import type { PersonId, Tree } from "$lib/domain/types";
-    import { DockRegistration, Window, windowManager, dockConfig } from "@attu/ui";
+    import { dockStore, DockItem, DockWindow } from "@attu/ui";
 
     interface Props {
         layout: FamilyViewLayout;
@@ -120,6 +120,8 @@
         treePeopleCount?: number | undefined;
         /** phase 5: expansion-state size (number of person ids with at least one expanded child set). */
         expansionStateSize?: number | undefined;
+        /** dock corner for registering debug panels */
+        corner: "bl" | "tl" | "tr" | "br";
     }
 
     let {
@@ -144,61 +146,28 @@
         layoutDurationMs,
         treePeopleCount,
         expansionStateSize,
+        corner,
     }: Props = $props();
 
-    // canvas-chrome-v2 phase 2: the five family-view debug panels join the
-    // windowManager open/close state machine so their titlebar × closes
-    // them and phase 3's Panels menu can list them. they auto-open when
-    // family-view first mounts (this overlay only renders while family-view
-    // is active), so visibility stays driven by the debug-layer toggles +
-    // data conditions on each registration below. the ids are in
-    // windowManager's non-persisted set, so a close lasts only the session
-    // and a remount re-opens them.
-    const FAMILY_VIEW_DEBUG_PANEL_IDS = [
-        "family-view-debug-off-subset-warning",
-        "family-view-debug-recenter-missed",
-        "family-view-debug-coi-breakdown",
-        "family-view-debug-focus-log",
-        "family-view-debug-layout-metrics",
-    ];
-    // mount-only auto-open. openWindow reads windowManager's reactive sets
-    // (openedWindows / popOutStates), so tracking would re-run this effect
-    // on every close and immediately re-open a panel the user just dismissed
-    // via its × (cc2-1). untrack pins it to a single run on overlay mount —
-    // the same pattern DockRegistration uses for mount-only register.
-    $effect(() => {
-        untrack(() => {
-            for (const id of FAMILY_VIEW_DEBUG_PANEL_IDS) windowManager.openWindow(id);
-        });
-    });
-
     /**
-     * taskbar model (phase 6): every panel's expand state is now owned by
-     * windowManager — `windowManager.isExpanded(id)` is the single source of
-     * truth and `toggleExpanded(id)` the only mutator. this keeps
-     * `windowState(id)` accurate so the dock's docked-expanded render filter
-     * + the minimize path behave identically for these 5 panels and the
-     * stats / save-status / debug windows. the old local `collapsed` record
-     * and the `offSubsetExpanded` / `recenterMissedExpanded` flags are gone.
+     * every panel's expand state is owned by dockStore — `dockStore.isExpanded(id)`
+     * is the single source of truth and `toggleExpanded(id)` the only mutator.
+     * the old local `collapsed` record and the `offSubsetExpanded` /
+     * `recenterMissedExpanded` flags are gone.
      */
 
     /**
-     * phase 3 canvas-chrome-dock: badge salience via auto-expand-on-appear.
-     * the off-subset and recenter-missed badges (both rare, both important)
-     * re-expand every time their trigger flips from undefined to defined.
+     * badge salience via auto-expand-on-appear: the off-subset and recenter-missed
+     * badges re-expand every time their trigger flips from undefined to defined.
      * user can minimize the window mid-event; the next undefined → defined
-     * transition re-expands. taskbar model (phase 6): this now flips the
-     * windowManager expand state rather than a local flag. wrapped in
-     * `untrack` exactly like the mount-only open effect above, so reading
-     * windowManager's reactive sets inside setExpanded doesn't add them to
-     * this effect's dep set (which would re-run on unrelated window state
-     * changes and re-expand a panel the user just minimized).
+     * transition re-expands. wrapped in `untrack` so reading dockStore's reactive
+     * sets inside setExpanded doesn't add them to this effect's dep set.
      */
     let prevOffSubsetActive = false;
     $effect(() => {
         const active = selectedId !== undefined && offSubsetReason != null;
         if (active && !prevOffSubsetActive) {
-            untrack(() => windowManager.setExpanded("family-view-debug-off-subset-warning", true));
+            untrack(() => dockStore.setExpanded("family-view-debug-off-subset-warning", true));
         }
         prevOffSubsetActive = active;
     });
@@ -207,7 +176,7 @@
     $effect(() => {
         const active = recenterMissedFor !== undefined;
         if (active && !prevRecenterMissedActive) {
-            untrack(() => windowManager.setExpanded("family-view-debug-recenter-missed", true));
+            untrack(() => dockStore.setExpanded("family-view-debug-recenter-missed", true));
         }
         prevRecenterMissedActive = active;
     });
@@ -1166,20 +1135,19 @@
 {/if}
 
 {#snippet debugPanelPill(pid: string, label: string)}
-    <!-- taskbar model (phase 6): every open family-view debug panel gets a
-         real taskbar pill (assumption A1). the pill is the panel's only
-         representation in the dock when minimized; clicking it routes through
-         windowManager.pillClick to restore / focus / minimize. testid is
-         `<id>-pill` so e2e can target the per-panel pill. -->
+    <!-- every open family-view debug panel gets a real taskbar pill. the pill
+         is the panel's only representation in the dock when minimized; clicking
+         it routes through dockStore.pillClick to restore / focus / minimize.
+         testid is `<id>-pill` so e2e can target the per-panel pill. -->
     <button
         type="button"
         class="fte-pill cursor-pointer font-mono"
         title={label}
-        aria-pressed={windowManager.windowState(pid) === "docked-expanded" ||
-            windowManager.windowState(pid) === "floating"}
+        aria-pressed={dockStore.windowState(pid) === "expanded" ||
+            dockStore.windowState(pid) === "floating"}
         data-testid={`${pid}-pill`}
         data-pill-id={pid}
-        onclick={() => windowManager.pillClick(pid)}
+        onclick={() => dockStore.pillClick(pid)}
     >
         <Bug size={12} strokeWidth={2} />
         <span>{label}</span>
@@ -1209,49 +1177,20 @@
     </div>
 {/snippet}
 
-{#snippet offSubsetPanel(ctx: { forcedCollapse: boolean })}
-    <!-- canvas-window-manager phase 2: migrated to Window. titlebar
-         folds the off-subset person name into the title. taskbar model
-         (phase 6): expand state lives in windowManager — auto-expand-
-         on-appear calls windowManager.setExpanded(id, true) on every
-         undefined → defined transition of the selected off-subset
-         person, same salience as pre-migration. -->
-    <Window
+{#snippet offSubsetPanel(_ctx: { forcedCollapse: boolean })}
+    <DockWindow
         id="family-view-debug-off-subset-warning"
-        pillId="family-view-debug-off-subset-warning"
         title={`off-subset · ${nameOfOrDash(selectedId)}`}
-        expanded={windowManager.isExpanded("family-view-debug-off-subset-warning")}
-        forcedCollapse={ctx.forcedCollapse}
-        onToggleExpanded={() =>
-            windowManager.toggleExpanded("family-view-debug-off-subset-warning")}
         body={offSubsetBody}
     />
 {/snippet}
 
-{#if windowManager.isOpen("family-view-debug-off-subset-warning") && layers.showOffSubsetWarning && selectedId !== undefined && offSubsetReason}
-    <!-- phase 3 canvas-chrome-dock: corner badge when `selectedId` exists
-         but the person isn't in the visible subset. reason pulled from
-         phase 1's rationale machinery. priority 200 — lowest of the
-         family-view debug panels so the alert pill sits at the visual
-         bottom of the tl stack (closest to the user's eye after a click). -->
-    <DockRegistration
-        id="family-view-debug-off-subset-warning"
-        corner={dockConfig.corner}
-        priority={200}
-        kind="window"
-        render={offSubsetPanel}
-    />
+{#if layers.showOffSubsetWarning && selectedId !== undefined && offSubsetReason}
+    <DockItem id="family-view-debug-off-subset-warning" kind="window" {corner} priority={200} persistent={false} render={offSubsetPanel} />
     {#snippet offSubsetPill(_ctx: { forcedCollapse: boolean })}
         {@render debugPanelPill("family-view-debug-off-subset-warning", "off-subset")}
     {/snippet}
-    <DockRegistration
-        id="family-view-debug-off-subset-warning-pill"
-        corner={dockConfig.corner}
-        priority={200}
-        kind="pill"
-        windowId="family-view-debug-off-subset-warning"
-        render={offSubsetPill}
-    />
+    <DockItem id="family-view-debug-off-subset-warning-pill" kind="pill" {corner} priority={200} persistent={false} windowId="family-view-debug-off-subset-warning" render={offSubsetPill} />
 {/if}
 
 {#snippet recenterMissedBody()}
@@ -1268,46 +1207,20 @@
     </div>
 {/snippet}
 
-{#snippet recenterMissedPanel(ctx: { forcedCollapse: boolean })}
-    <!-- canvas-window-manager phase 2: migrated to Window. title folds
-         the person name into the always-visible chrome. taskbar model
-         (phase 6): expand state lives in windowManager — auto-expand-
-         on-appear calls windowManager.setExpanded(id, true) on every
-         undefined → defined transition of the missed-recenter target. -->
-    <Window
+{#snippet recenterMissedPanel(_ctx: { forcedCollapse: boolean })}
+    <DockWindow
         id="family-view-debug-recenter-missed"
-        pillId="family-view-debug-recenter-missed"
         title={`no recenter · ${nameOfOrDash(recenterMissedFor)}`}
-        expanded={windowManager.isExpanded("family-view-debug-recenter-missed")}
-        forcedCollapse={ctx.forcedCollapse}
-        onToggleExpanded={() => windowManager.toggleExpanded("family-view-debug-recenter-missed")}
         body={recenterMissedBody}
     />
 {/snippet}
 
-{#if windowManager.isOpen("family-view-debug-recenter-missed") && layers.showPendingRecenter && recenterMissedFor !== undefined}
-    <!-- phase 3 canvas-chrome-dock: red corner badge when the 200ms
-         recenter watchdog fired without a matching `onrecenter` call.
-         primary visual signal for the palette-jump silent-no-op canary.
-         priority 210 — sits just above off-subset in the tl stack. -->
-    <DockRegistration
-        id="family-view-debug-recenter-missed"
-        corner={dockConfig.corner}
-        priority={210}
-        kind="window"
-        render={recenterMissedPanel}
-    />
+{#if layers.showPendingRecenter && recenterMissedFor !== undefined}
+    <DockItem id="family-view-debug-recenter-missed" kind="window" {corner} priority={210} persistent={false} render={recenterMissedPanel} />
     {#snippet recenterMissedPill(_ctx: { forcedCollapse: boolean })}
         {@render debugPanelPill("family-view-debug-recenter-missed", "no recenter")}
     {/snippet}
-    <DockRegistration
-        id="family-view-debug-recenter-missed-pill"
-        corner={dockConfig.corner}
-        priority={210}
-        kind="pill"
-        windowId="family-view-debug-recenter-missed"
-        render={recenterMissedPill}
-    />
+    <DockItem id="family-view-debug-recenter-missed-pill" kind="pill" {corner} priority={210} persistent={false} windowId="family-view-debug-recenter-missed" render={recenterMissedPill} />
 {/if}
 
 {#snippet coiBreakdownBody()}
@@ -1374,58 +1287,20 @@
     </div>
 {/snippet}
 
-{#snippet coiBreakdownPanel(ctx: { forcedCollapse: boolean })}
-    <!-- canvas-window-manager phase 2: migrated to Window. title folds
-         the displayed COI percent into the always-visible chrome
-         (`coi · 6.25%` or `coi · —`). taskbar model (phase 6): expand
-         state is windowManager.isExpanded(id), toggled via toggleExpanded.
-         the registration gate (showCoiBreakdown + non-empty
-         coiBreakdown) is unchanged here — phase 0 retro flagged it as
-         the likely site of the "coi panel doesn't render" bug; the
-         live repro + targeted fix lands in phase 4. -->
-    <Window
+{#snippet coiBreakdownPanel(_ctx: { forcedCollapse: boolean })}
+    <DockWindow
         id="family-view-debug-coi-breakdown"
-        pillId="family-view-debug-coi-breakdown"
         title={`coi · ${coiDisplayed && coiDisplayed.length > 0 ? coiDisplayed : "—"}`}
-        expanded={windowManager.isExpanded("family-view-debug-coi-breakdown")}
-        forcedCollapse={ctx.forcedCollapse}
-        onToggleExpanded={() => windowManager.toggleExpanded("family-view-debug-coi-breakdown")}
         body={coiBreakdownBody}
     />
 {/snippet}
 
-{#if windowManager.isOpen("family-view-debug-coi-breakdown") && layers.showCoiBreakdown}
-    <!-- phase 3 canvas-chrome-dock: per-pair wright contribution table
-         for the focus's COI. user-toggled collapse via the pill, same
-         pattern as layout-metrics. priority 220 — between the badges
-         (200/210) and focus-log (225) / layout-metrics (230).
-
-         canvas-window-manager phase 4: the previous gate ANDed
-         `coiBreakdown && coiBreakdown.length > 0` which silently hid
-         the panel whenever the focus had no measurable consanguinity
-         (an admissible state, not an error). that was the phase-0
-         verdict-E "panel missing" symptom of issue 1. the fix is to
-         register whenever the toggle is on; the body handles the
-         zero-row case gracefully (raw / displayed / Σ render as "—"
-         and the table renders an empty tbody). -->
-    <DockRegistration
-        id="family-view-debug-coi-breakdown"
-        corner={dockConfig.corner}
-        priority={220}
-        kind="window"
-        render={coiBreakdownPanel}
-    />
+{#if layers.showCoiBreakdown}
+    <DockItem id="family-view-debug-coi-breakdown" kind="window" {corner} priority={220} persistent={false} render={coiBreakdownPanel} />
     {#snippet coiBreakdownPill(_ctx: { forcedCollapse: boolean })}
         {@render debugPanelPill("family-view-debug-coi-breakdown", "coi")}
     {/snippet}
-    <DockRegistration
-        id="family-view-debug-coi-breakdown-pill"
-        corner={dockConfig.corner}
-        priority={220}
-        kind="pill"
-        windowId="family-view-debug-coi-breakdown"
-        render={coiBreakdownPill}
-    />
+    <DockItem id="family-view-debug-coi-breakdown-pill" kind="pill" {corner} priority={220} persistent={false} windowId="family-view-debug-coi-breakdown" render={coiBreakdownPill} />
 {/if}
 
 {#snippet focusLogBody()}
@@ -1463,44 +1338,20 @@
     </div>
 {/snippet}
 
-{#snippet focusLogPanel(ctx: { forcedCollapse: boolean })}
-    <!-- canvas-window-manager phase 2: migrated to Window. title folds
-         the event count into the always-visible chrome. taskbar model
-         (phase 6): expand state is windowManager.isExpanded(id), toggled
-         via toggleExpanded. -->
-    <Window
+{#snippet focusLogPanel(_ctx: { forcedCollapse: boolean })}
+    <DockWindow
         id="family-view-debug-focus-log"
-        pillId="family-view-debug-focus-log"
         title={`focus · ${(focusEvents?.length ?? 0).toString()}`}
-        expanded={windowManager.isExpanded("family-view-debug-focus-log")}
-        forcedCollapse={ctx.forcedCollapse}
-        onToggleExpanded={() => windowManager.toggleExpanded("family-view-debug-focus-log")}
         body={focusLogBody}
     />
 {/snippet}
 
-{#if windowManager.isOpen("family-view-debug-focus-log") && layers.logFocusEvents && focusEvents && focusEvents.length > 0}
-    <!-- phase 3 canvas-chrome-dock: append-only focus-event log (newest
-         first). user-toggled collapse via the pill. priority 225 —
-         between coi-breakdown (220) and layout-metrics (230). -->
-    <DockRegistration
-        id="family-view-debug-focus-log"
-        corner={dockConfig.corner}
-        priority={225}
-        kind="window"
-        render={focusLogPanel}
-    />
+{#if layers.logFocusEvents && focusEvents && focusEvents.length > 0}
+    <DockItem id="family-view-debug-focus-log" kind="window" {corner} priority={225} persistent={false} render={focusLogPanel} />
     {#snippet focusLogPill(_ctx: { forcedCollapse: boolean })}
         {@render debugPanelPill("family-view-debug-focus-log", "focus")}
     {/snippet}
-    <DockRegistration
-        id="family-view-debug-focus-log-pill"
-        corner={dockConfig.corner}
-        priority={225}
-        kind="pill"
-        windowId="family-view-debug-focus-log"
-        render={focusLogPill}
-    />
+    <DockItem id="family-view-debug-focus-log-pill" kind="pill" {corner} priority={225} persistent={false} windowId="family-view-debug-focus-log" render={focusLogPill} />
 {/if}
 
 {#snippet layoutMetricsBody()}
@@ -1577,51 +1428,20 @@
     </div>
 {/snippet}
 
-{#snippet layoutMetricsPanel(ctx: { forcedCollapse: boolean })}
-    <!-- canvas-window-manager phase 2: panel renders inside the Window
-         primitive so it shares the same titlebar contract (collapse /
-         pop-out / close) as every other floating canvas surface. taskbar
-         model (phase 6): expand state is windowManager.isExpanded(id),
-         toggled via toggleExpanded; the dock's `forcedCollapse` ctx flag
-         continues to suppress the body via the Window's three-branch
-         effective-expansion derivation.
-
-         title folds the duration into the always-visible chrome
-         (`LM · 23.4ms`). data-testid mapping (canonical in log.md):
-           toggle/click → {id}-titlebar
-           collapse chev → {id}-collapse
-           body content → unchanged (inner div carries
-                          family-view-debug-layout-metrics) -->
-    <Window
+{#snippet layoutMetricsPanel(_ctx: { forcedCollapse: boolean })}
+    <DockWindow
         id="family-view-debug-layout-metrics"
-        pillId="family-view-debug-layout-metrics"
         title={`LM · ${fmtMs(layoutDurationMs)}`}
-        expanded={windowManager.isExpanded("family-view-debug-layout-metrics")}
-        forcedCollapse={ctx.forcedCollapse}
-        onToggleExpanded={() => windowManager.toggleExpanded("family-view-debug-layout-metrics")}
         body={layoutMetricsBody}
     />
 {/snippet}
 
-{#if windowManager.isOpen("family-view-debug-layout-metrics") && layers.showLayoutMetrics}
-    <DockRegistration
-        id="family-view-debug-layout-metrics"
-        corner={dockConfig.corner}
-        priority={230}
-        kind="window"
-        render={layoutMetricsPanel}
-    />
+{#if layers.showLayoutMetrics}
+    <DockItem id="family-view-debug-layout-metrics" kind="window" {corner} priority={230} persistent={false} render={layoutMetricsPanel} />
     {#snippet layoutMetricsPill(_ctx: { forcedCollapse: boolean })}
         {@render debugPanelPill("family-view-debug-layout-metrics", "metrics")}
     {/snippet}
-    <DockRegistration
-        id="family-view-debug-layout-metrics-pill"
-        corner={dockConfig.corner}
-        priority={230}
-        kind="pill"
-        windowId="family-view-debug-layout-metrics"
-        render={layoutMetricsPill}
-    />
+    <DockItem id="family-view-debug-layout-metrics-pill" kind="pill" {corner} priority={230} persistent={false} windowId="family-view-debug-layout-metrics" render={layoutMetricsPill} />
 {/if}
 
 <style>

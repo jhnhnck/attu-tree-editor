@@ -33,7 +33,7 @@ import { tick } from "svelte";
 import FamilyViewCanvas from "$lib/components/tree/FamilyViewCanvas.svelte";
 import type { FamilyViewDebugLayerOptions } from "$lib/components/tree/debugTypes";
 import type { CanvasController } from "$lib/components/tree/canvasController";
-import { clearRegistry, itemsForCorner } from "@attu/ui";
+import { dockStore } from "@attu/ui";
 import type { Tree, PersonId } from "$lib/domain/types";
 import { loadGedcomFixture } from "./_harness/loadGedcomFixture";
 import { mountWithHostRect } from "./_harness/mountWithHostRect";
@@ -79,12 +79,12 @@ describe("family-view debug overlay - phase 4 coi inspector", () => {
         if (!Element.prototype.scrollIntoView) {
             Element.prototype.scrollIntoView = vi.fn();
         }
-        clearRegistry();
+        dockStore.resetForTest();
     });
 
     afterEach(() => {
         document.body.innerHTML = "";
-        clearRegistry();
+        dockStore.resetForTest();
         if ("__treeDebug" in window) {
             delete (window as { __treeDebug?: unknown }).__treeDebug;
         }
@@ -125,15 +125,9 @@ describe("family-view debug overlay - phase 4 coi inspector", () => {
         // snippet's testid trick: the breakdown body renders inside
         // the dock pill, so we read shape via the dock item's render
         // hook and via __treeDebug for the numeric assertions.
-        const tlItems = itemsForCorner("tl");
-        const coi = tlItems.find((i) => i.id === "family-view-debug-coi-breakdown");
-        expect(coi, "showCoiBreakdown should register a tl dock item").toBeDefined();
-        // canvas-window-manager phase 2 migrated coi-breakdown from CanvasChromePill
-        // (kind="panel") to the Window primitive (kind="window"). dockRegistry now
-        // hosts pill/panel/window; the assertion accepts either of the two body
-        // kinds so the contract pins "renders as a body-bearing dock entry"
-        // rather than the now-superseded panel-only shape.
-        expect(coi?.kind === "window" || coi?.kind === "panel").toBe(true);
+        const coi = dockStore.getItem("family-view-debug-coi-breakdown");
+        expect(coi, "showCoiBreakdown should register a dock window item").toBeDefined();
+        expect(coi?.kind).toBe("window");
 
         handle.unmount();
     });

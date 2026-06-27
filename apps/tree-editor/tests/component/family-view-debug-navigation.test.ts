@@ -32,7 +32,7 @@ import { tick } from "svelte";
 
 import FamilyViewCanvas from "$lib/components/tree/FamilyViewCanvas.svelte";
 import type { FamilyViewDebugLayerOptions } from "$lib/components/tree/debugTypes";
-import { clearRegistry, itemsForCorner } from "@attu/ui";
+import { dockStore } from "@attu/ui";
 import { loadGedcomFixture } from "./_harness/loadGedcomFixture";
 import { mountWithHostRect } from "./_harness/mountWithHostRect";
 
@@ -104,14 +104,14 @@ describe("family-view debug overlay - phase 3 navigation diagnostics", () => {
         }
         // clear dock items between cases so registrations from prior
         // tests don't leak into the next one
-        clearRegistry();
+        dockStore.resetForTest();
         cleanups = [];
     });
 
     afterEach(() => {
         for (const fn of cleanups.reverse()) fn();
         document.body.innerHTML = "";
-        clearRegistry();
+        dockStore.resetForTest();
     });
 
     it("showViewportFitTarget mounts the viewport rect; selecting a visible person mounts the target rect", async () => {
@@ -217,14 +217,9 @@ describe("family-view debug overlay - phase 3 navigation diagnostics", () => {
         // that drives it - asserting against the registry is one layer
         // closer to the engine but still catches every regression in
         // the gate (logFocusEvents on + focusEvents non-empty)
-        const tlItems = itemsForCorner("tl");
-        const focusLog = tlItems.find((i) => i.id === "family-view-debug-focus-log");
-        expect(focusLog, "logFocusEvents should register a tl dock item").toBeDefined();
-        // canvas-window-manager phase 2 migrated focus-log from CanvasChromePill
-        // (kind="panel") to the Window primitive (kind="window"). accept either
-        // body-bearing kind so the contract pins registration shape rather
-        // than the now-superseded panel-only form.
-        expect(focusLog?.kind === "window" || focusLog?.kind === "panel").toBe(true);
+        const focusLog = dockStore.getItem("family-view-debug-focus-log");
+        expect(focusLog, "logFocusEvents should register a dock window item").toBeDefined();
+        expect(focusLog?.kind).toBe("window");
 
         handle.unmount();
     });
@@ -254,8 +249,7 @@ describe("family-view debug overlay - phase 3 navigation diagnostics", () => {
         await tick();
         await tick();
 
-        const tlItems = itemsForCorner("tl");
-        const focusLog = tlItems.find((i) => i.id === "family-view-debug-focus-log");
+        const focusLog = dockStore.getItem("family-view-debug-focus-log");
         expect(focusLog).toBeUndefined();
 
         handle.unmount();

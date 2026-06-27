@@ -21,7 +21,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/svelte";
 import { tick } from "svelte";
-import { clearRegistry } from "@attu/ui";
+import { dockStore } from "@attu/ui";
 import type { EngineKind } from "$lib/state/engine";
 import StatsPillHarness from "./_harness/StatsPillHarness.svelte";
 
@@ -52,7 +52,7 @@ describe("parity matrix: stats pill", () => {
     afterEach(() => {
         // dock registry is module-scoped; reset between cells so the
         // n+1 cell never sees the n-th cell's pill registration
-        clearRegistry();
+        dockStore.resetForTest();
         localStorage.removeItem("fte.defaultEngine");
     });
 

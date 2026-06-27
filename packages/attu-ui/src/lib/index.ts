@@ -39,33 +39,11 @@ export { default as DateInput } from "./components/form/DateInput.svelte";
 
 // canvas
 export { default as BackButton } from "./components/canvas/BackButton.svelte";
-export { default as CanvasChromeDock } from "./components/canvas/CanvasChromeDock.svelte";
-export { default as DockRegistration } from "./components/canvas/DockRegistration.svelte";
-export { default as Window } from "./components/canvas/Window.svelte";
-export { default as WindowOverlay } from "./components/canvas/WindowOverlay.svelte";
 export { default as ZoomWidget } from "./components/canvas/ZoomWidget.svelte";
-export { windowManager, WINDOW_MANAGER_CONSTANTS, NON_CLOSING_IDS } from "./components/canvas/windowManager.svelte.js";
-export type { PopOutState, DockWindowState } from "./components/canvas/windowManager.svelte.js";
 export { computeFit, measureCanvasChromeInsets, ZERO_INSETS } from "./components/canvas/fitMath.js";
 export type { CanvasChromeInsets, FitInput, FitOutput } from "./components/canvas/fitMath.js";
 export { computeDisplayPercent, DESIGN_CARD_WIDTH_PX } from "./components/canvas/zoomDisplay.js";
 export type { DisplayPercentInput } from "./components/canvas/zoomDisplay.js";
-export { dockConfig, DockConfig } from "./components/canvas/dockConfig.svelte.js";
-export {
-    clearForcedCollapses,
-    clearRegistry,
-    forceCollapse,
-    idsByKind,
-    isForceCollapsed,
-    itemsForCorner,
-    register,
-    reorderItem,
-    reorderPills,
-    unforceCollapse,
-    unregister,
-    updateItem,
-} from "./components/canvas/dockRegistry.svelte.js";
-export type { DockCorner, DockKind, DockItem, DockRenderCtx, DockRenderSnippet } from "./components/canvas/dockRegistry.svelte.js";
 
 // shell
 export type { MenuConfig, MenuEntry, MenuItem, IconComponent } from "./components/shell/menu.js";
@@ -76,7 +54,6 @@ export { default as LinkCodeDialog } from "./components/shell/LinkCodeDialog.sve
 export { default as Menu } from "./components/shell/Menu.svelte";
 export { default as MenuBar } from "./components/shell/MenuBar.svelte";
 export { default as ProgressStrip } from "./components/shell/ProgressStrip.svelte";
-export { default as SaveStatusPill } from "./components/shell/SaveStatusPill.svelte";
 export { default as SettingsDialog } from "./components/shell/SettingsDialog.svelte";
 export { default as ShareDialog } from "./components/shell/ShareDialog.svelte";
 export { default as Shell } from "./components/shell/Shell.svelte";
@@ -106,17 +83,11 @@ export type { EncodeOptions } from "./components/editor/encodePortrait.js";
 // palette
 export { default as CommandPalette } from "./components/palette/CommandPalette.svelte";
 
-// dock (new unified system — phases 0-4 migration, replaces canvas/ singletons)
-// note: DockCorner.svelte is exported as DockCornerPanel here to avoid the
-// naming clash with `type DockCorner` from the old dockRegistry barrel export.
-// phase 2 renames it to DockCorner once the old type export is removed.
+// dock (unified system)
 export { dockStore } from "./components/dock/store.svelte.js";
-export type { DockItemDef, DockWindowState as DockWindowStateDock, DockKind as DockKindDock } from "./components/dock/store.svelte.js";
-export { default as DockCornerPanel } from "./components/dock/DockCorner.svelte";
-// DockItemComp: the new registration bridge component (renamed to avoid conflict with
-// the old `type DockItem` re-exported from dockRegistry. phase 2 renames to DockItem
-// once the old type export is deleted from the barrel).
-export { default as DockItemComp } from "./components/dock/DockItem.svelte";
+export type { DockItemDef, DockWindowState, DockKind, DockCorner as DockCornerKind, DockRenderCtx, DockRenderSnippet } from "./components/dock/store.svelte.js";
+export { default as DockCorner } from "./components/dock/DockCorner.svelte";
+export { default as DockItem } from "./components/dock/DockItem.svelte";
 export { default as DockWindow } from "./components/dock/DockWindow.svelte";
 export { default as DockSurface } from "./components/dock/DockSurface.svelte";
 export { default as DockModal } from "./components/dock/DockModal.svelte";

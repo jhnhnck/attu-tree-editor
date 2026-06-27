@@ -1,15 +1,12 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!--
-    Phase-0 walking-skeleton harness for the parity-matrix spec.
-    Mirrors App.svelte's top-left dock + statsPill gate
+    Phase-2 harness: mirrors App.svelte's stats-pill gate
     (engine === "layered" || engine === "family-view") and registers
     the same snippet+priority App.svelte uses (priority 20, kind pill,
-    data-testid="stats-pill") so the spec exercises real production
-    plumbing (CanvasChromeDock + DockRegistration + dockRegistry)
-    rather than reimplementing the assertion shape.
+    data-testid="stats-pill") through the new dockStore/DockItem system.
 -->
 <script lang="ts">
-    import { CanvasChromeDock, DockRegistration } from "@attu/ui";
+    import { DockCorner, DockItem } from "@attu/ui";
     import type { EngineKind } from "$lib/state/engine";
 
     interface Props {
@@ -26,9 +23,9 @@
 </script>
 
 <div data-canvas-host class="relative" style="position: relative; width: 800px; height: 400px;">
-    <CanvasChromeDock corner="tl" />
+    <DockCorner corner="tl" />
 
-    {#snippet statsPillSnippet()}
+    {#snippet statsPillSnippet(_ctx: { forcedCollapse: boolean })}
         {#if layoutStats}
             <div class="relative">
                 <button
@@ -49,11 +46,11 @@
         {/if}
     {/snippet}
     {#if statsPillVisible && layoutStats}
-        <DockRegistration
+        <DockItem
             id="stats"
+            kind="pill"
             corner="tl"
             priority={20}
-            kind="pill"
             render={statsPillSnippet}
         />
     {/if}

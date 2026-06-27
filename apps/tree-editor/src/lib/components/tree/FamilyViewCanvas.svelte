@@ -195,6 +195,10 @@
          */
         debugOptions?: { layers: FamilyViewDebugLayerOptions } | undefined;
         /**
+         * dock corner for family-view debug overlay panels.
+         */
+        dockCorner?: "bl" | "tl" | "tr" | "br" | undefined;
+        /**
          * Phase 3 of the family-view debug overlay plan. The canvas owns
          * the `recenterOn` mechanism but App.svelte owns the selection-
          * event origin. These three props close the loop so the overlay
@@ -258,6 +262,7 @@
         onsubsetchange,
         onaddRelative,
         debugOptions,
+        dockCorner,
         onrecenter,
         pendingRecenterSeq,
         recenterMissedFor,
@@ -1543,6 +1548,7 @@
                 {layoutDurationMs}
                 treePeopleCount={Object.keys(tree.people).length}
                 expansionStateSize={debugExpansionStateSize}
+                corner={dockCorner ?? "bl"}
             />
         {/if}
 
