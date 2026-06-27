@@ -40,7 +40,7 @@ describe("DockWindow", () => {
         }
     });
 
-    it("minimize button calls dockStore.toggleExpanded", () => {
+    it("minimize button calls dockStore.toggleExpanded when docked", () => {
         dockStore.setExpanded("w", true);
         const target = document.createElement("div");
         document.body.appendChild(target);
@@ -51,7 +51,29 @@ describe("DockWindow", () => {
         });
         try {
             flushSync();
-            const minBtn = target.querySelector("button[aria-label='minimize']") as HTMLButtonElement;
+            const minBtn = target.querySelector("[aria-label='minimize']") as HTMLElement;
+            expect(minBtn).not.toBeNull();
+            minBtn.click();
+            expect(spy).toHaveBeenCalledWith("w");
+        } finally {
+            spy.mockRestore();
+            void unmount(comp);
+            target.remove();
+        }
+    });
+
+    it("minimize button calls dockStore.redock when floating", () => {
+        dockStore.popOut("w", 100, 100);
+        const target = document.createElement("div");
+        document.body.appendChild(target);
+        const spy = vi.spyOn(dockStore, "redock");
+        const comp = mount(DockWindow, {
+            target,
+            props: { id: "w", title: "Win", body: bodySnippet },
+        });
+        try {
+            flushSync();
+            const minBtn = target.querySelector("[aria-label='minimize']") as HTMLElement;
             expect(minBtn).not.toBeNull();
             minBtn.click();
             expect(spy).toHaveBeenCalledWith("w");
@@ -72,7 +94,7 @@ describe("DockWindow", () => {
         });
         try {
             flushSync();
-            const closeBtn = target.querySelector("button[aria-label='close']") as HTMLButtonElement;
+            const closeBtn = target.querySelector("[aria-label='close']") as HTMLElement;
             expect(closeBtn).not.toBeNull();
             closeBtn.click();
             expect(spy).toHaveBeenCalledWith("w");
@@ -93,7 +115,7 @@ describe("DockWindow", () => {
         });
         try {
             flushSync();
-            const popBtn = target.querySelector("button[aria-label='pop out']") as HTMLButtonElement;
+            const popBtn = target.querySelector("[aria-label='pop out']") as HTMLElement;
             expect(popBtn).not.toBeNull();
             popBtn.click();
             expect(spy).toHaveBeenCalledWith("w", expect.any(Number), expect.any(Number));
@@ -104,7 +126,29 @@ describe("DockWindow", () => {
         }
     });
 
-    it("no pop-out button when floating", () => {
+    it("re-dock button calls dockStore.redockExpanded when floating", () => {
+        dockStore.popOut("w", 100, 100);
+        const target = document.createElement("div");
+        document.body.appendChild(target);
+        const spy = vi.spyOn(dockStore, "redockExpanded");
+        const comp = mount(DockWindow, {
+            target,
+            props: { id: "w", title: "Win", body: bodySnippet },
+        });
+        try {
+            flushSync();
+            const redockBtn = target.querySelector("[aria-label='re-dock']") as HTMLElement;
+            expect(redockBtn).not.toBeNull();
+            redockBtn.click();
+            expect(spy).toHaveBeenCalledWith("w");
+        } finally {
+            spy.mockRestore();
+            void unmount(comp);
+            target.remove();
+        }
+    });
+
+    it("pop-out button shows re-dock label when floating", () => {
         dockStore.popOut("w", 100, 100);
         const target = document.createElement("div");
         document.body.appendChild(target);
@@ -114,8 +158,8 @@ describe("DockWindow", () => {
         });
         try {
             flushSync();
-            const popBtn = target.querySelector("button[aria-label='pop out']");
-            expect(popBtn).toBeNull();
+            expect(target.querySelector("[aria-label='pop out']")).toBeNull();
+            expect(target.querySelector("[aria-label='re-dock']")).not.toBeNull();
         } finally {
             void unmount(comp);
             target.remove();
@@ -131,7 +175,7 @@ describe("DockWindow", () => {
         });
         try {
             flushSync();
-            const closeBtn = target.querySelector("button[aria-label='close']");
+            const closeBtn = target.querySelector("[aria-label='close']");
             expect(closeBtn).toBeNull();
         } finally {
             void unmount(comp);

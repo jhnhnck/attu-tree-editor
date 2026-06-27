@@ -1,14 +1,24 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!--
-    phase 1 — full window chrome. adds:
-      pop-out button (↗) when not floating
-      anchor-aware minimize icon (⌃/⌄ based on corner)
-      drag-to-move when floating (pointer events on titlebar)
-      focus flash animation (is-flashing css class, 300ms)
-      corner derived from dockStore.getItem(id)
+    canonical window chrome restored from canvas-chrome-v2 design:
+      pop/re-dock button always present (corner-aware diagonal arrow)
+      minimize button always present (corner-aware chevron)
+      close button when closeable=true
+      14×14 colored circles: neutral/amber/red at 40% alpha
+      titlebar click → dockStore.focusWindow (flash + z-order)
+      cascade pop-out computed from canvas-host rect + floating count
 -->
 <script lang="ts">
     import type { Snippet } from "svelte";
+    import {
+        ArrowUpRight,
+        ArrowUpLeft,
+        ArrowDownRight,
+        ArrowDownLeft,
+        ChevronUp,
+        ChevronDown,
+        X,
+    } from "@lucide/svelte";
     import { dockStore } from "./store.svelte.js";
 
     interface Props {
@@ -27,9 +37,15 @@
     // derive corner from registry so DockCorner doesn't need to thread it
     const corner = $derived(dockStore.getItem(id)?.corner ?? "bl");
 
-    // anchor-aware minimize icon: bl/br → push down (⌃), tl/tr → push up (⌄)
-    const collapseIcon = $derived(
-        corner === "bl" || corner === "br" ? "⌃" : "⌄"
+    // corner-aware icon derivations — ported from old canvas/Window.svelte
+    const isTop = $derived(corner === "tl" || corner === "tr");
+    const isLeft = $derived(corner === "tl" || corner === "bl");
+    const MinimizeIcon = $derived(isTop ? ChevronUp : ChevronDown);
+    const PopOutIcon = $derived(
+        isTop ? (isLeft ? ArrowDownRight : ArrowDownLeft) : isLeft ? ArrowUpRight : ArrowUpLeft
+    );
+    const ReDockIcon = $derived(
+        isTop ? (isLeft ? ArrowUpLeft : ArrowUpRight) : isLeft ? ArrowDownLeft : ArrowDownRight
     );
 
     // focus flash
@@ -66,7 +82,30 @@
     // drag-to-move when floating
     let dragOffset: { dx: number; dy: number } | null = $state(null);
 
+    function onTitlebarClick(e: MouseEvent): void {
+        // don't fire focus when clicking a window control — controls have their own handlers
+        if ((e.target as Element | null)?.closest("[data-window-control]")) return;
+        dockStore.focusWindow(id);
+    }
+
+    function onPopOutClick(e: MouseEvent): void {
+        const el = e.currentTarget as HTMLElement;
+        const host = el.closest<HTMLElement>("[data-canvas-host]");
+        const n = dockStore.floatingItems.length;
+        let x = 100, y = 100;
+        if (host) {
+            const r = host.getBoundingClientRect();
+            const row = n % 8;
+            const wrap = Math.floor(n / 8);
+            x = r.right - 320 + row * 24;
+            y = r.top + 60 + row * 24 + wrap * 32;
+        }
+        dockStore.popOut(id, x, y);
+    }
+
     function onTitlebarPointerDown(e: PointerEvent): void {
+        // ignore presses that originate from a window control (close/minimize/pop)
+        if ((e.target as Element | null)?.closest("[data-window-control]")) return;
         if (!floating) return;
         e.stopPropagation();
         const el = e.currentTarget as HTMLElement;
@@ -90,50 +129,66 @@
 </script>
 
 <div
-    class={`window-stack${flashing ? " is-flashing" : ""}`}
+    class="window-stack"
     data-window-id={id}
+    data-popped-out={floating ? "true" : undefined}
 >
+    <!-- titlebar is a div (not button) so controls can be real buttons without nesting violations.
+         role="toolbar" satisfies a11y for an interactive row of tools. -->
     <div
-        class="window-titlebar"
+        class="fte-window-titlebar"
+        class:fte-window-titlebar-focused={flashing}
+        class:fte-window-titlebar-popped={floating}
+        aria-label={`${title} window titlebar`}
         role="toolbar"
         tabindex="-1"
-        aria-label={`${title} window controls`}
+        onclick={onTitlebarClick}
+        onkeydown={(e) => { if (e.key === "Enter" && !(e.target as Element | null)?.closest("[data-window-control]")) { dockStore.focusWindow(id); } }}
         onpointerdown={onTitlebarPointerDown}
         onpointermove={onTitlebarPointerMove}
         onpointerup={onTitlebarPointerUp}
-        style={floating ? "cursor: move;" : ""}
     >
-        <span class="window-title">{title}</span>
-        <div class="flex items-center gap-1">
-            {#if !floating}
-                <!-- pop-out button: only when docked -->
-                <button
-                    type="button"
-                    class="fte-window-icon-btn"
-                    aria-label="pop out"
-                    onclick={() => dockStore.popOut(id, 100, 100)}
-                >↗</button>
-            {/if}
-            {#if expanded || floating}
-                <!-- minimize/collapse button -->
-                <button
-                    type="button"
-                    class="fte-window-icon-btn"
-                    aria-label="minimize"
-                    onclick={() => dockStore.toggleExpanded(id)}
-                >
-                    {collapseIcon}
-                </button>
-            {/if}
+        <span class="fte-window-title">{title}</span>
+        <span class="fte-window-controls">
+            <!-- pop/re-dock: always present, toggles icon + action on floating state -->
+            <button
+                type="button"
+                class="fte-window-control fte-window-control-popdock"
+                data-window-control
+                aria-label={floating ? "re-dock" : "pop out"}
+                onclick={(e) => { e.stopPropagation(); floating ? dockStore.redockExpanded(id) : onPopOutClick(e); }}
+                onpointerdown={(e) => e.stopPropagation()}
+            >
+                {#if floating}
+                    <ReDockIcon strokeWidth={2.5} />
+                {:else}
+                    <PopOutIcon strokeWidth={2.5} />
+                {/if}
+            </button>
+            <!-- minimize: always present -->
+            <button
+                type="button"
+                class="fte-window-control fte-window-control-minimize"
+                data-window-control
+                aria-label="minimize"
+                onclick={(e) => { e.stopPropagation(); floating ? dockStore.redock(id) : dockStore.toggleExpanded(id); }}
+                onpointerdown={(e) => e.stopPropagation()}
+            >
+                <MinimizeIcon strokeWidth={2.5} />
+            </button>
             {#if closeable}
                 <button
                     type="button"
-                    class="fte-window-icon-btn"
+                    class="fte-window-control fte-window-control-close"
+                    data-window-control
                     aria-label="close"
-                    onclick={() => dockStore.closeWindow(id)}
-                >×</button>
+                    onclick={(e) => { e.stopPropagation(); dockStore.closeWindow(id); }}
+                    onpointerdown={(e) => e.stopPropagation()}
+                >
+                    <X strokeWidth={2.5} />
+                </button>
             {/if}
-        </div>
+        </span>
     </div>
     {#if expanded || floating}
         <div class="window-body">
@@ -147,26 +202,22 @@
         display: flex;
         flex-direction: column;
         align-items: stretch;
+        gap: 0;
         width: var(--fte-window-width, 18rem);
         border-radius: 0.375rem;
         border: 1px solid var(--color-line);
         background: color-mix(in srgb, var(--color-canvas-elev) 80%, transparent);
         backdrop-filter: blur(4px);
         overflow: hidden;
-        transition: box-shadow 300ms ease-out;
     }
 
-    .window-stack.is-flashing {
-        box-shadow: 0 0 0 2px var(--color-accent);
-        animation: flash-ring 300ms ease-out;
+    /* floating windows can grow wider than the docked width */
+    .window-stack[data-popped-out="true"] {
+        width: auto;
+        min-width: var(--fte-window-width, 18rem);
     }
 
-    @keyframes flash-ring {
-        0% { box-shadow: 0 0 0 3px var(--color-accent); }
-        100% { box-shadow: 0 0 0 0px transparent; }
-    }
-
-    .window-titlebar {
+    .fte-window-titlebar {
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -175,42 +226,83 @@
         color: var(--color-fg-muted);
         font-size: 0.75rem;
         line-height: 1rem;
-        min-height: 1.75rem;
+        cursor: default;
         user-select: none;
+        transition: color 120ms ease-out;
+        min-height: 1.75rem;
     }
 
-    .window-title {
+    .fte-window-titlebar:hover {
+        color: var(--color-fg);
+    }
+
+    @keyframes fte-window-flash {
+        0% { background-color: color-mix(in srgb, var(--color-accent) 22%, transparent); }
+        100% { background-color: transparent; }
+    }
+    .fte-window-titlebar-focused {
+        animation: fte-window-flash 300ms ease-out;
+    }
+
+    /* grab cursor when floating (drag handle) */
+    .fte-window-titlebar-popped {
+        touch-action: none;
+        cursor: grab;
+    }
+    .fte-window-titlebar-popped:active {
+        cursor: grabbing;
+    }
+
+    .fte-window-title {
         flex: 1 1 auto;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+        text-align: left;
         text-transform: lowercase;
     }
+
+    .fte-window-controls {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        flex: 0 0 auto;
+    }
+
+    /* each control is a small circular chip with a semantic fill colour;
+       icon inside renders at stroke 2.5. hover darkens by 20%. */
+    .fte-window-control {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 0.875rem;
+        height: 0.875rem;
+        padding: 0;
+        border: none;
+        border-radius: 9999px;
+        color: var(--color-fg);
+        cursor: pointer;
+        transition: filter 120ms ease-out;
+    }
+
+    .fte-window-control :global(svg) {
+        width: 0.625rem;
+        height: 0.625rem;
+    }
+
+    .fte-window-control:hover {
+        filter: brightness(0.8);
+    }
+
+    /* semantic fills: neutral-600/40, amber-600/40, red-700/40 */
+    .fte-window-control-popdock  { background-color: rgb(82 82 82 / 0.4); }
+    .fte-window-control-minimize { background-color: rgb(217 119 6 / 0.4); }
+    .fte-window-control-close    { background-color: rgb(185 28 28 / 0.4); }
 
     .window-body {
         padding: 0.5rem;
         border-top: 1px solid var(--color-line);
         font-size: 0.75rem;
-    }
-
-    .fte-window-icon-btn {
-        width: 1.25rem;
-        height: 1.25rem;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        border: none;
-        background: transparent;
-        color: var(--color-fg-muted);
-        cursor: pointer;
-        border-radius: 0.2rem;
-        font-size: 0.75rem;
-        padding: 0;
-        flex-shrink: 0;
-    }
-
-    .fte-window-icon-btn:hover {
-        background: var(--color-line);
-        color: var(--color-fg);
+        overflow: auto;
     }
 </style>

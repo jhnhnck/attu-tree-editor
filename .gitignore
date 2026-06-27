@@ -44,6 +44,7 @@ playwright-report/
 test-results/
 .vitest-cache/
 scratch/
+*.png
 
 ### Tooling caches ###
 .turbo/

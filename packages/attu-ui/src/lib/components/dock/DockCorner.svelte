@@ -59,6 +59,8 @@
     // --- drag-to-reorder pills ---
     let dragState = $state<{
         draggingId: string;
+        el: HTMLElement;
+        pointerId: number;
         startX: number;
         startY: number;
         started: boolean;
@@ -67,10 +69,15 @@
     const DRAG_THRESHOLD = 4;
 
     function onPillPointerDown(e: PointerEvent, pillId: string): void {
-        const el = e.currentTarget as HTMLElement;
-        el.setPointerCapture(e.pointerId);
+        // defer setPointerCapture until the drag threshold is exceeded in
+        // onPillPointerMove — capturing immediately on pointerdown redirects
+        // pointerup to this wrapper div and prevents the inner button's
+        // onclick from ever firing (browser generates click on the capturing
+        // element, not the button).
         dragState = {
             draggingId: pillId,
+            el: e.currentTarget as HTMLElement,
+            pointerId: e.pointerId,
             startX: e.clientX,
             startY: e.clientY,
             started: false,
@@ -83,6 +90,11 @@
         const dx = e.clientX - dragState.startX;
         const dy = e.clientY - dragState.startY;
         if (!dragState.started && Math.sqrt(dx * dx + dy * dy) < DRAG_THRESHOLD) return;
+        if (!dragState.started) {
+            // threshold just exceeded — capture the pointer now so the drag
+            // tracks even when the pointer leaves individual pill elements.
+            dragState.el.setPointerCapture(dragState.pointerId);
+        }
         dragState = { ...dragState, started: true };
         // compute drop index based on pointer x relative to pill row
         // use pill elements to determine insertion point

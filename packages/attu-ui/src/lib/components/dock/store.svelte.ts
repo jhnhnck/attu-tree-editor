@@ -97,8 +97,8 @@ class DockStore {
         }
         this.#items.set(item.id, item);
         if (item.kind === "window") {
-            if (item.persistent === false) {
-                // non-persistent: always auto-open as minimized
+            if (item.persistent === false || item.closeable === false) {
+                // non-persistent or non-closeable: always auto-open as minimized
                 this.#windowStates.set(item.id, "minimized");
             } else {
                 // persistent: restore from localStorage if previously opened
@@ -203,7 +203,8 @@ class DockStore {
     pillClick(windowId: string): void {
         const state = this.windowState(windowId);
         if (state === "closed") {
-            this.openWindow(windowId);
+            this.#windowStates.set(windowId, "expanded");
+            this.#persistWindows();
         } else if (state === "minimized") {
             this.#windowStates.set(windowId, "expanded");
             this.#persistWindows();
@@ -235,6 +236,20 @@ class DockStore {
             if (p.z > maxZ) maxZ = p.z;
         }
         this.#positions.set(id, { ...pos, z: maxZ + 1 });
+    }
+
+    redock(id: string): void {
+        this.#windowStates.set(id, "minimized");
+        this.#positions.delete(id);
+        this.#persistWindows();
+    }
+
+    // redock and immediately expand — used by the re-dock (↙) button so it
+    // differs from the minimize button (which redocks to "minimized")
+    redockExpanded(id: string): void {
+        this.#windowStates.set(id, "expanded");
+        this.#positions.delete(id);
+        this.#persistWindows();
     }
 
     moveWindow(id: string, x: number, y: number): void {

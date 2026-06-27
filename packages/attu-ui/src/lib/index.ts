@@ -91,3 +91,5 @@ export { default as DockItem } from "./components/dock/DockItem.svelte";
 export { default as DockWindow } from "./components/dock/DockWindow.svelte";
 export { default as DockSurface } from "./components/dock/DockSurface.svelte";
 export { default as DockModal } from "./components/dock/DockModal.svelte";
+export { default as SaveStatusPill } from "./components/dock/SaveStatusPill.svelte";
+export { default as StatsPill } from "./components/dock/StatsPill.svelte";

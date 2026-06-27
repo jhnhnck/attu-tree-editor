@@ -5,9 +5,10 @@
         dockStore,
         DockCorner,
         DockItem,
-        DockWindow,
         DockSurface,
         DockModal,
+        SaveStatusPill,
+        StatsPill,
     } from "@attu/ui";
     import type { MenuConfig, ContextMenuItem } from "@attu/ui";
     import {
@@ -442,161 +443,24 @@
         <!-- dock corner renders all registered pills and windows -->
         <DockCorner {corner} />
 
-        <!-- save-status pill -->
-        {#snippet savePillRender(_ctx: import("@attu/ui").DockRenderCtx)}
-            <button
-                type="button"
-                class="fte-pill"
-                aria-pressed={dockStore.isExpanded("save-window")}
-                onclick={() => dockStore.pillClick("save-window")}
-                data-testid="wiki-save-pill"
-            >
-                saved
-            </button>
-        {/snippet}
-        {#snippet saveWindowRender(_ctx: import("@attu/ui").DockRenderCtx)}
-            <DockWindow id="save-window" title="save">
-                {#snippet body()}
-                    <div class="fte-window-row mb-2"><span>Last saved</span><span>—</span></div>
-                    <button
-                        type="button"
-                        class="fte-window-button pointer-events-none opacity-50"
-                        disabled
-                    >
-                        Save now
-                    </button>
-                {/snippet}
-            </DockWindow>
-        {/snippet}
-        <DockItem
-            id="wiki-save"
-            kind="pill"
-            {corner}
-            priority={10}
-            windowId="save-window"
-            render={savePillRender}
-        />
-        <DockItem
-            id="save-window"
-            kind="window"
-            {corner}
-            priority={15}
-            title="save"
-            render={saveWindowRender}
-        />
+        <!-- save-status pill (shared attu-ui component) -->
+        <SaveStatusPill pillId="wiki-save" windowId="save-window" {corner} priority={10} />
 
-        <!-- stats pill -->
-        {#snippet statsPillRender(_ctx: import("@attu/ui").DockRenderCtx)}
-            <button
-                type="button"
-                class="fte-pill"
-                aria-pressed={dockStore.isExpanded("stats-window")}
-                onclick={() => dockStore.pillClick("stats-window")}
-                data-testid="wiki-stats-pill"
-            >
-                — words
-            </button>
-        {/snippet}
-        {#snippet statsWindowRender(_ctx: import("@attu/ui").DockRenderCtx)}
-            <DockWindow id="stats-window" title="statistics">
-                {#snippet body()}
-                    <div class="fte-window-row"><span>Words</span><span>—</span></div>
-                    <div class="fte-window-row"><span>Characters</span><span>—</span></div>
-                    <div class="fte-window-row"><span>Sections</span><span>—</span></div>
-                    <div class="fte-window-row"><span>Wikilinks</span><span>—</span></div>
-                    <div class="fte-window-row"><span>External links</span><span>—</span></div>
-                    <div class="fte-window-row"><span>Templates</span><span>—</span></div>
-                    <div class="fte-window-row"><span>References</span><span>—</span></div>
-                {/snippet}
-            </DockWindow>
-        {/snippet}
-        <DockItem
-            id="wiki-stats"
-            kind="pill"
+        <!-- stats pill (shared attu-ui component) -->
+        <StatsPill
+            pillId="wiki-stats"
+            windowId="stats-window"
             {corner}
             priority={20}
-            windowId="stats-window"
-            render={statsPillRender}
-        />
-        <DockItem
-            id="stats-window"
-            kind="window"
-            {corner}
-            priority={25}
-            title="statistics"
-            render={statsWindowRender}
-        />
-
-        <!-- preview pill -->
-        {#snippet previewPillRender(_ctx: import("@attu/ui").DockRenderCtx)}
-            <button
-                type="button"
-                class="fte-pill"
-                aria-pressed={dockStore.isExpanded("preview-window")}
-                onclick={() => dockStore.pillClick("preview-window")}
-                data-testid="wiki-preview-pill"
-            >
-                preview off
-            </button>
-        {/snippet}
-        {#snippet previewWindowRender(_ctx: import("@attu/ui").DockRenderCtx)}
-            <DockWindow id="preview-window" title="preview">
-                {#snippet body()}
-                    <p class="text-xs text-fg-muted">work in progress</p>
-                {/snippet}
-            </DockWindow>
-        {/snippet}
-        <DockItem
-            id="wiki-preview"
-            kind="pill"
-            {corner}
-            priority={30}
-            windowId="preview-window"
-            render={previewPillRender}
-        />
-        <DockItem
-            id="preview-window"
-            kind="window"
-            {corner}
-            priority={35}
-            title="preview"
-            render={previewWindowRender}
-        />
-
-        <!-- editor mode pill -->
-        {#snippet modePillRender(_ctx: import("@attu/ui").DockRenderCtx)}
-            <button
-                type="button"
-                class="fte-pill"
-                aria-pressed={dockStore.isExpanded("mode-window")}
-                onclick={() => dockStore.pillClick("mode-window")}
-                data-testid="wiki-mode-pill"
-            >
-                source
-            </button>
-        {/snippet}
-        {#snippet modeWindowRender(_ctx: import("@attu/ui").DockRenderCtx)}
-            <DockWindow id="mode-window" title="editor mode">
-                {#snippet body()}
-                    <p class="text-xs text-fg-muted">work in progress</p>
-                {/snippet}
-            </DockWindow>
-        {/snippet}
-        <DockItem
-            id="wiki-mode"
-            kind="pill"
-            {corner}
-            priority={40}
-            windowId="mode-window"
-            render={modePillRender}
-        />
-        <DockItem
-            id="mode-window"
-            kind="window"
-            {corner}
-            priority={45}
-            title="editor mode"
-            render={modeWindowRender}
+            rows={[
+                { label: "Words", value: "—" },
+                { label: "Characters", value: "—" },
+                { label: "Sections", value: "—" },
+                { label: "Wikilinks", value: "—" },
+                { label: "External links", value: "—" },
+                { label: "Templates", value: "—" },
+                { label: "References", value: "—" },
+            ]}
         />
 
         <!-- modal: preferences -->

@@ -93,6 +93,18 @@ describe("dockStore — window state", () => {
         expect(dockStore.windowState("w")).toBe("closed");
     });
 
+    it("closeable=false auto-opens as minimized on register", () => {
+        dockStore.register({
+            id: "w",
+            kind: "window",
+            corner: "bl",
+            priority: 10,
+            closeable: false,
+            render: noop,
+        });
+        expect(dockStore.windowState("w")).toBe("minimized");
+    });
+
     it("closeable=false blocks closeWindow", () => {
         dockStore.register({
             id: "w",
@@ -100,7 +112,6 @@ describe("dockStore — window state", () => {
             corner: "bl",
             priority: 10,
             closeable: false,
-            persistent: false,
             render: noop,
         });
         dockStore.closeWindow("w");
@@ -143,10 +154,10 @@ describe("dockStore — pillClick", () => {
         dockStore.register({ id: "w", kind: "window", corner: "bl", priority: 10, render: noop });
     });
 
-    it("closed → minimized", () => {
+    it("closed → expanded", () => {
         expect(dockStore.windowState("w")).toBe("closed");
         dockStore.pillClick("w");
-        expect(dockStore.windowState("w")).toBe("minimized");
+        expect(dockStore.windowState("w")).toBe("expanded");
     });
 
     it("minimized → expanded", () => {
@@ -232,6 +243,52 @@ describe("dockStore — pop-out", () => {
         const fi = dockStore.floatingItems.find(f => f.item.id === "w");
         expect(fi?.pos.x).toBe(200);
         expect(fi?.pos.y).toBe(300);
+    });
+});
+
+describe("dockStore — redock", () => {
+    beforeEach(() => {
+        dockStore.register({ id: "w", kind: "window", corner: "bl", priority: 10, render: noop });
+        dockStore.openWindow("w");
+    });
+
+    it("redock transitions floating → minimized", () => {
+        dockStore.popOut("w", 100, 200);
+        expect(dockStore.windowState("w")).toBe("floating");
+        dockStore.redock("w");
+        expect(dockStore.windowState("w")).toBe("minimized");
+    });
+
+    it("redock removes the floating position", () => {
+        dockStore.popOut("w", 100, 200);
+        dockStore.redock("w");
+        expect(dockStore.floatingItems).toHaveLength(0);
+    });
+
+    it("redock on a non-floating window is a no-op (does not throw)", () => {
+        expect(dockStore.windowState("w")).toBe("minimized");
+        expect(() => dockStore.redock("w")).not.toThrow();
+        expect(dockStore.windowState("w")).toBe("minimized");
+    });
+});
+
+describe("dockStore — redockExpanded", () => {
+    beforeEach(() => {
+        dockStore.register({ id: "w", kind: "window", corner: "bl", priority: 10, render: noop });
+        dockStore.openWindow("w");
+    });
+
+    it("redockExpanded transitions floating → expanded", () => {
+        dockStore.popOut("w", 100, 200);
+        expect(dockStore.windowState("w")).toBe("floating");
+        dockStore.redockExpanded("w");
+        expect(dockStore.windowState("w")).toBe("expanded");
+    });
+
+    it("redockExpanded removes the floating position", () => {
+        dockStore.popOut("w", 100, 200);
+        dockStore.redockExpanded("w");
+        expect(dockStore.floatingItems).toHaveLength(0);
     });
 });
 

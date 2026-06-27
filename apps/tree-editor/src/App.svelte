@@ -130,6 +130,8 @@
         DockWindow,
         DockSurface,
         DockModal,
+        SaveStatusPill,
+        StatsPill,
     } from "@attu/ui";
     import {
         saveStatusGlyph,
@@ -396,54 +398,6 @@
     // selectedPersonId fall back to the people count). rev moved to
     // the save-status Window, so it doesn't appear in this enum.
     let selectedMetric = $state<"people" | "clusters" | "descendants" | "coi">("people");
-    $effect(() => {
-        if (!statsPopoverOpen) return;
-        const onPointerDown = (e: PointerEvent): void => {
-            const target = e.target as Element | null;
-            if (!target) return;
-            // keep open when the click lands inside the stats Window
-            // (docked OR popped-out) or its trigger pill.
-            const window = target.closest('[data-window-id="stats-window"]');
-            const pill = target.closest('[data-testid="stats-pill"]');
-            if (window || pill) return;
-            dockStore.setExpanded("stats-window", false);
-        };
-        document.addEventListener("pointerdown", onPointerDown, true);
-        return () => document.removeEventListener("pointerdown", onPointerDown, true);
-    });
-    // save-status popover state, lifted from SaveStatusPill in
-    // canvas-window-manager phase 0. mirrored as the expanded prop on
-    // the save-status Window (kind="window" priority=15
-    // forceCollapsible=false).
-    //
-    // phase-1 regression fix: the pre-migration SaveStatusPill carried
-    // its own outside-click-close listener. the migration dropped that
-    // listener; we re-wire it here so clicking outside the save-status
-    // Window (titlebar OR body) flips popoverOpen=false, matching the
-    // pre-migration UX. when the window pops out, its body is rendered
-    // in the WindowOverlay; the check walks ancestors looking for the
-    // window root carrier (data-window-id="save-status-window") OR the
-    // trigger pill so clicks on either keep the popover open.
-    //
-    // expanded-state owned by dockStore; writes go through setExpanded.
-    const savePopoverOpen = $derived(dockStore.isExpanded("save-status-window"));
-    $effect(() => {
-        if (!savePopoverOpen) return;
-        const onPointerDown = (e: PointerEvent): void => {
-            const target = e.target as Element | null;
-            if (!target) return;
-            // keep open when the click lands inside the save-status
-            // Window (docked OR popped-out) or its trigger pill.
-            const window = target.closest('[data-window-id="save-status-window"]');
-            const pill = target.closest('[data-testid="save-status-pill"]');
-            if (window || pill) return;
-            dockStore.setExpanded("save-status-window", false);
-        };
-        // capture phase so we run before per-component handlers that
-        // might stopPropagation on the bubble.
-        document.addEventListener("pointerdown", onPointerDown, true);
-        return () => document.removeEventListener("pointerdown", onPointerDown, true);
-    });
     let selectedDescendantCount = $derived.by(() => {
         const sid = selection.selectedPersonId;
         if (!sid || !statsPopoverOpen) return undefined;
@@ -2425,57 +2379,56 @@
             <!-- save-status pill:
                  onPopoverToggle now calls dockStore.pillClick. -->
             {#snippet saveStatusSnippet(_ctx: { forcedCollapse: boolean })}
-                <div class="relative" data-testid="save-status-pill">
-                    <button
-                        type="button"
-                        class="fte-pill gap-1.5"
-                        title={saveStatusTitle}
-                        aria-label={saveStatusAriaLabel}
-                        aria-expanded={savePopoverOpen}
-                        onclick={() => {
-                            if (saveStatusTone === "failed") {
-                                void forceSave();
-                                return;
-                            }
-                            if (saveStatusTone === "conflict") {
-                                toasts.push("save conflict — see console for details", "error");
-                                return;
-                            }
-                            dockStore.pillClick("save-status-window");
-                        }}
+                <button
+                    type="button"
+                    class="fte-pill gap-1.5"
+                    title={saveStatusTitle}
+                    aria-label={saveStatusAriaLabel}
+                    aria-expanded={dockStore.isExpanded("save-status-window")}
+                    data-testid="save-status-pill"
+                    onclick={() => {
+                        if (saveStatusTone === "failed") {
+                            void forceSave();
+                            return;
+                        }
+                        if (saveStatusTone === "conflict") {
+                            toasts.push("save conflict — see console for details", "error");
+                            return;
+                        }
+                        dockStore.pillClick("save-status-window");
+                    }}
+                >
+                    <span
+                        class={saveStatusLocalToneClass}
+                        data-testid="save-status-local-glyph"
+                        data-state={saveStatusLocalPersisted ? "persisted" : "dirty"}
                     >
-                        <span
-                            class={saveStatusLocalToneClass}
-                            data-testid="save-status-local-glyph"
-                            data-state={saveStatusLocalPersisted ? "persisted" : "dirty"}
-                        >
-                            {#if saveStatusLocalPersisted}
-                                <LaptopMinimalCheck size={12} />
-                            {:else}
-                                <LaptopMinimal size={12} />
-                            {/if}
-                        </span>
-                        <span
-                            class={saveStatusRemoteToneClass}
-                            data-testid="save-status-remote-glyph"
-                            data-state={saveStatusTone}
-                        >
-                            {#if saveStatusTone === "conflict"}
-                                <AlertTriangle size={12} />
-                            {:else if saveStatusTone === "failed"}
-                                <AlertCircle size={12} />
-                            {:else if saveStatusTone === "saving"}
-                                <CloudUpload size={12} />
-                            {:else if saveStatusTone === "synced"}
-                                <CloudCheck size={12} />
-                            {:else if authStore.user !== null}
-                                <Cloud size={12} />
-                            {:else}
-                                <CloudOff size={12} />
-                            {/if}
-                        </span>
-                    </button>
-                </div>
+                        {#if saveStatusLocalPersisted}
+                            <LaptopMinimalCheck size={12} />
+                        {:else}
+                            <LaptopMinimal size={12} />
+                        {/if}
+                    </span>
+                    <span
+                        class={saveStatusRemoteToneClass}
+                        data-testid="save-status-remote-glyph"
+                        data-state={saveStatusTone}
+                    >
+                        {#if saveStatusTone === "conflict"}
+                            <AlertTriangle size={12} />
+                        {:else if saveStatusTone === "failed"}
+                            <AlertCircle size={12} />
+                        {:else if saveStatusTone === "saving"}
+                            <CloudUpload size={12} />
+                        {:else if saveStatusTone === "synced"}
+                            <CloudCheck size={12} />
+                        {:else if authStore.user !== null}
+                            <Cloud size={12} />
+                        {:else}
+                            <CloudOff size={12} />
+                        {/if}
+                    </span>
+                </button>
             {/snippet}
             <!-- save-status Window body (unchanged from before). -->
             {#snippet saveStatusBody()}
@@ -2581,37 +2534,15 @@
                     </button>
                 </div>
             {/snippet}
-            <!-- DockWindow wraps the body; render snippet hands off chrome to DockWindow. -->
-            {#snippet saveStatusWindowRender(_ctx: { forcedCollapse: boolean })}
-                <DockWindow
-                    id="save-status-window"
-                    title="save"
-                    closeable={false}
-                    body={saveStatusBody}
-                />
-            {/snippet}
-
-            <!-- new dock system: phase 0 registers save-status pill + window.
-                 old DockRegistration for save-status removed; DockCornerPanel
-                 renders the new system's items at the same corner. -->
             {#if !readOnly}
-                <DockItem
-                    id="save-status"
-                    kind="pill"
+                <SaveStatusPill
+                    pillId="save-status"
+                    windowId="save-status-window"
                     corner={corner}
                     priority={10}
-                    windowId="save-status-window"
                     closeable={false}
-                    render={saveStatusSnippet}
-                />
-                <DockItem
-                    id="save-status-window"
-                    kind="window"
-                    corner={corner}
-                    priority={15}
-                    title="save"
-                    closeable={false}
-                    render={saveStatusWindowRender}
+                    pill={saveStatusSnippet}
+                    body={saveStatusBody}
                 />
             {/if}
 
@@ -2774,24 +2705,14 @@
                     </div>
                 {/if}
             {/snippet}
-            {#snippet statsWindowRender(_ctx: { forcedCollapse: boolean })}
-                <DockWindow id="stats-window" title="stats" body={statsBody} />
-            {/snippet}
             {#if statsPillVisible && layoutStats}
-                <DockItem
-                    id="stats"
-                    kind="pill"
+                <StatsPill
+                    pillId="stats"
+                    windowId="stats-window"
                     corner={corner}
                     priority={20}
-                    windowId="stats-window"
-                    render={statsPillSnippet}
-                />
-                <DockItem
-                    id="stats-window"
-                    kind="window"
-                    corner={corner}
-                    priority={25}
-                    render={statsWindowRender}
+                    pill={statsPillSnippet}
+                    body={statsBody}
                 />
             {/if}
 
@@ -2856,15 +2777,10 @@
                     aria-label="debug overlay controls"
                     data-testid="debug-panel"
                 >
-                    <!-- top-right "disable debug mode" — distinct from
-                         the Window titlebar's × (which only closes the
-                         menu while leaving debugMode on). this button
-                         flips the master switch off so the pill +
-                         overlays + menu all retire in one click. -->
                     <div class="mb-1 flex justify-end">
                         <button
                             type="button"
-                            class="text-fg-muted hover:text-fg text-[10px]"
+                            class="fte-window-muted-action"
                             onclick={() => {
                                 debugMode = false;
                                 dockStore.closeWindow("debug-menu");
@@ -2874,121 +2790,61 @@
                             disable debug mode
                         </button>
                     </div>
-                    <!-- layered-engine sections: only visible while the
-                         layered engine is mounted. family-view + hyperbolic
-                         get their own section blocks below; shared runtime
-                         controls (further down) stay visible in every mode. -->
                     {#if isLayered}
-                        <!-- layout section (layered-only overlays) -->
-                        <div class="mb-2">
-                            <div class="fte-window-section">
-                                <span>layout</span>
-                            </div>
-                            <div class="flex flex-wrap gap-1">
-                                {#each [["showGrid", "grid"], ["showNodeBounds", "node bounds"], ["showSegmentIds", "segment ids"], ["showComponentBounds", "components"]] as const as [key, label] (key)}
-                                    <button
-                                        type="button"
-                                        class={[
-                                            "rounded border px-1.5 py-0.5",
-                                            debugLayers[key]
-                                                ? "border-accent text-accent bg-accent/10"
-                                                : "border-line text-fg-muted hover:text-fg",
-                                        ]}
-                                        aria-pressed={debugLayers[key]}
-                                        onclick={() => (debugLayers[key] = !debugLayers[key])}
-                                        data-testid={`debug-toggle-${key}`}
-                                    >
-                                        {label}
-                                    </button>
-                                {/each}
-                            </div>
+                        <div class="fte-window-section"><span>layout</span></div>
+                        <div class="fte-window-chip-group">
+                            {#each [["showGrid", "grid"], ["showNodeBounds", "node bounds"], ["showSegmentIds", "segment ids"], ["showComponentBounds", "components"]] as const as [key, label] (key)}
+                                <button
+                                    type="button"
+                                    class="fte-window-chip"
+                                    aria-pressed={debugLayers[key]}
+                                    onclick={() => (debugLayers[key] = !debugLayers[key])}
+                                    data-testid={`debug-toggle-${key}`}
+                                >{label}</button>
+                            {/each}
                         </div>
-
-                        <!-- routing section (layered-only overlays) -->
-                        <div class="mb-2">
-                            <div class="fte-window-section">
-                                <span>routing</span>
-                            </div>
-                            <div class="flex flex-wrap gap-1">
-                                {#each [["showGhostArrows", "ghost arrows"], ["showHops", "bridge hops"], ["showOverlapPairs", "overlap pairs"]] as const as [key, label] (key)}
-                                    <button
-                                        type="button"
-                                        class={[
-                                            "rounded border px-1.5 py-0.5",
-                                            debugLayers[key]
-                                                ? "border-accent text-accent bg-accent/10"
-                                                : "border-line text-fg-muted hover:text-fg",
-                                        ]}
-                                        aria-pressed={debugLayers[key]}
-                                        onclick={() => (debugLayers[key] = !debugLayers[key])}
-                                        data-testid={`debug-toggle-${key}`}
-                                    >
-                                        {label}
-                                    </button>
-                                {/each}
-                            </div>
+                        <hr class="fte-window-divider" />
+                        <div class="fte-window-section"><span>routing</span></div>
+                        <div class="fte-window-chip-group">
+                            {#each [["showGhostArrows", "ghost arrows"], ["showHops", "bridge hops"], ["showOverlapPairs", "overlap pairs"]] as const as [key, label] (key)}
+                                <button
+                                    type="button"
+                                    class="fte-window-chip"
+                                    aria-pressed={debugLayers[key]}
+                                    onclick={() => (debugLayers[key] = !debugLayers[key])}
+                                    data-testid={`debug-toggle-${key}`}
+                                >{label}</button>
+                            {/each}
                         </div>
-
-                        <!-- diagnostics section (Phase 3 new, layered-only overlays) -->
-                        <div class="mb-2">
-                            <div class="fte-window-section">
-                                <span>diagnostics</span>
-                            </div>
-                            <div class="flex flex-wrap gap-1">
-                                {#each [["showCycleNodes", "cycle nodes"], ["showBondCentroidDelta", "bond/centroid Δ"], ["showOrphanBadge", "orphans"], ["showRankGutterLabels", "rank labels"], ["showLastEditHalo", "last-edit halo"]] as const as [key, label] (key)}
-                                    <button
-                                        type="button"
-                                        class={[
-                                            "rounded border px-1.5 py-0.5",
-                                            debugLayers[key]
-                                                ? "border-accent text-accent bg-accent/10"
-                                                : "border-line text-fg-muted hover:text-fg",
-                                        ]}
-                                        aria-pressed={debugLayers[key]}
-                                        onclick={() => (debugLayers[key] = !debugLayers[key])}
-                                        data-testid={`debug-toggle-${key}`}
-                                    >
-                                        {label}
-                                    </button>
-                                {/each}
-                            </div>
+                        <hr class="fte-window-divider" />
+                        <div class="fte-window-section"><span>diagnostics</span></div>
+                        <div class="fte-window-chip-group">
+                            {#each [["showCycleNodes", "cycle nodes"], ["showBondCentroidDelta", "bond/centroid Δ"], ["showOrphanBadge", "orphans"], ["showRankGutterLabels", "rank labels"], ["showLastEditHalo", "last-edit halo"]] as const as [key, label] (key)}
+                                <button
+                                    type="button"
+                                    class="fte-window-chip"
+                                    aria-pressed={debugLayers[key]}
+                                    onclick={() => (debugLayers[key] = !debugLayers[key])}
+                                    data-testid={`debug-toggle-${key}`}
+                                >{label}</button>
+                            {/each}
                         </div>
+                        <hr class="fte-window-divider" />
                     {/if}
-
-                    <!-- family-view section: only visible while the
-                         family-view engine is mounted. phase 0 walking
-                         skeleton ships two toggles; phases 1-5 extend. -->
                     {#if isFamilyView}
-                        <div class="mb-2" data-testid="debug-section-family-view">
-                            <div class="fte-window-section">
-                                <span>family-view</span>
-                            </div>
-                            <div class="flex flex-wrap gap-1">
+                        <div data-testid="debug-section-family-view">
+                            <div class="fte-window-section"><span>family-view</span></div>
+                            <div class="fte-window-chip-group">
                                 {#each [["showVisibleSubset", "visible subset"], ["exposeFamilyDebug", "expose __treeDebug"], ["showOrphanBadge", "orphan badge"], ["showEdgeRoles", "edge roles"], ["showOffSubsetPeople", "off-subset people"], ["showSecondaryUnionState", "secondary-union state"], ["showMultiUnionManifold", "multi-union manifold"], ["showCardCollisions", "card collisions"], ["showCoupleCentroidDelta", "couple/centroid Δ"], ["showRankGutterLabels", "rank labels"], ["logFocusEvents", "focus events"], ["showViewportFitTarget", "viewport/target"], ["showOffSubsetWarning", "off-subset warning"], ["showPendingRecenter", "pending recenter"], ["showCoiBreakdown", "coi breakdown"], ["showDuplicateAncestors", "duplicate ancestors"], ["showGrid", "grid"], ["showNodeBounds", "node bounds"], ["showLastEditHalo", "last-edit halo"], ["showLayoutMetrics", "layout metrics"]] as const as [key, label] (key)}
                                     <button
                                         type="button"
-                                        class={[
-                                            "rounded border px-1.5 py-0.5",
-                                            familyViewDebugLayers[key]
-                                                ? "border-accent text-accent bg-accent/10"
-                                                : "border-line text-fg-muted hover:text-fg",
-                                        ]}
+                                        class="fte-window-chip"
                                         aria-pressed={familyViewDebugLayers[key]}
-                                        onclick={() =>
-                                            (familyViewDebugLayers[key] =
-                                                !familyViewDebugLayers[key])}
+                                        onclick={() => (familyViewDebugLayers[key] = !familyViewDebugLayers[key])}
                                         data-testid={`debug-toggle-fv-${key}`}
-                                    >
-                                        {label}
-                                    </button>
+                                    >{label}</button>
                                 {/each}
                             </div>
-
-                            <!-- off-subset list, surfaced inline so it sits
-                                 in the debug menu's column instead of as a
-                                 floating fixed-position panel on the canvas.
-                                 visible only when the showOffSubsetPeople
-                                 toggle is on. -->
                             {#if familyViewDebugLayers.showOffSubsetPeople && familyViewSubset}
                                 <div
                                     class="mt-2 border-t border-line/30 pt-1.5"
@@ -3032,105 +2888,82 @@
                                 </div>
                             {/if}
                         </div>
+                        <hr class="fte-window-divider" />
                     {/if}
-
-                    <!-- runtime section -->
-                    <div class="mb-2">
-                        <div class="fte-window-section">runtime</div>
-                        <div class="flex flex-wrap gap-1">
-                            <button
-                                type="button"
-                                class={[
-                                    "rounded border px-1.5 py-0.5 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-fg-muted",
-                                    debugLayers.exposeTreeDebug
-                                        ? "border-accent text-accent bg-accent/10"
-                                        : "border-line text-fg-muted hover:text-fg",
-                                ]}
-                                aria-pressed={debugLayers.exposeTreeDebug}
-                                disabled={!exposeTreeDebugSupported}
-                                title={exposeTreeDebugSupported
-                                    ? undefined
-                                    : "layered / hyperbolic engines only"}
-                                onclick={() =>
-                                    (debugLayers.exposeTreeDebug = !debugLayers.exposeTreeDebug)}
-                                data-testid="debug-toggle-exposeTreeDebug"
-                            >
-                                expose __treeDebug
-                            </button>
-                            <button
-                                type="button"
-                                class="border-line text-fg-muted hover:text-fg rounded border px-1.5 py-0.5 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-fg-muted"
-                                disabled={!copySnapshotSupported}
-                                onclick={() => void copyLayoutSnapshot()}
-                                data-testid="debug-copy-snapshot"
-                                title={copySnapshotSupported
-                                    ? "copy placed IR + segments to clipboard as JSON"
-                                    : "layered engine only"}
-                            >
-                                copy snapshot
-                            </button>
-                            <button
-                                type="button"
-                                class="border-line text-fg-muted hover:text-fg rounded border px-1.5 py-0.5"
-                                onclick={forceConflict}
-                                disabled={syncStore.revision === null || syncStore.revision <= 0}
-                                data-testid="debug-force-conflict"
-                                title="bump server revision to trigger the 409 conflict UI on next save (requires sign-in + a synced tree)"
-                            >
-                                force conflict
-                            </button>
-                        </div>
-                        <!-- dump / load tree JSON -->
-                        <textarea
-                            class="border-line bg-canvas mt-1.5 h-16 w-full resize-none rounded border px-1 py-0.5 text-[10px] font-mono"
-                            placeholder="paste tree JSON, then click load; or click dump to populate"
-                            bind:value={debugDumpJson}
-                            data-testid="debug-dump-textarea"
-                        ></textarea>
-                        <div class="mt-1 flex gap-1">
-                            <button
-                                type="button"
-                                class="border-line text-fg-muted hover:text-fg rounded border px-1.5 py-0.5"
-                                onclick={dumpTreeJson}
-                                data-testid="debug-dump-json"
-                            >
-                                dump
-                            </button>
-                            <button
-                                type="button"
-                                class="border-line text-fg-muted hover:text-fg rounded border px-1.5 py-0.5"
-                                onclick={loadTreeJson}
-                                data-testid="debug-load-json"
-                            >
-                                load
-                            </button>
-                        </div>
+                    <div class="fte-window-section"><span>runtime</span></div>
+                    <div class="fte-window-chip-group">
+                        <button
+                            type="button"
+                            class="fte-window-chip"
+                            aria-pressed={debugLayers.exposeTreeDebug}
+                            disabled={!exposeTreeDebugSupported}
+                            title={exposeTreeDebugSupported ? undefined : "layered / hyperbolic engines only"}
+                            onclick={() => (debugLayers.exposeTreeDebug = !debugLayers.exposeTreeDebug)}
+                            data-testid="debug-toggle-exposeTreeDebug"
+                        >
+                            expose __treeDebug
+                        </button>
+                        <button
+                            type="button"
+                            class="fte-window-chip"
+                            disabled={!copySnapshotSupported}
+                            onclick={() => void copyLayoutSnapshot()}
+                            data-testid="debug-copy-snapshot"
+                            title={copySnapshotSupported ? "copy placed IR + segments to clipboard as JSON" : "layered engine only"}
+                        >
+                            copy snapshot
+                        </button>
+                        <button
+                            type="button"
+                            class="fte-window-chip"
+                            onclick={forceConflict}
+                            disabled={syncStore.revision === null || syncStore.revision <= 0}
+                            data-testid="debug-force-conflict"
+                            title="bump server revision to trigger the 409 conflict UI on next save (requires sign-in + a synced tree)"
+                        >
+                            force conflict
+                        </button>
                     </div>
-
-                    <!-- shell section: session/auth shims for ui testing -->
-                    <div class="mb-2">
-                        <div class="fte-window-section">shell</div>
-                        <div class="flex flex-wrap gap-1">
-                            <button
-                                type="button"
-                                class={[
-                                    "rounded border px-1.5 py-0.5",
-                                    authDryRunEnabled
-                                        ? "border-accent text-accent bg-accent/10"
-                                        : "border-line text-fg-muted hover:text-fg",
-                                ]}
-                                aria-pressed={authDryRunEnabled}
-                                onclick={() => {
-                                    authDryRunEnabled = !authDryRunEnabled;
-                                    writeAuthDryRunPref(authDryRunEnabled);
-                                }}
-                                data-testid="debug-toggle-authDryRun"
-                                title="synthesise a client-side session so protected-action gating flows without discord linking. backend calls still 401."
-                            >
-                                auth dry-run
-                            </button>
-                        </div>
+                    <textarea
+                        class="border-line bg-canvas mt-1.5 h-16 w-full resize-none rounded border px-1 py-0.5 text-[10px] font-mono"
+                        placeholder="paste tree JSON, then click load; or click dump to populate"
+                        bind:value={debugDumpJson}
+                        data-testid="debug-dump-textarea"
+                    ></textarea>
+                    <div class="fte-window-chip-group mt-1">
+                        <button
+                            type="button"
+                            class="fte-window-chip"
+                            onclick={dumpTreeJson}
+                            data-testid="debug-dump-json"
+                        >dump</button>
+                        <button
+                            type="button"
+                            class="fte-window-chip"
+                            onclick={loadTreeJson}
+                            data-testid="debug-load-json"
+                        >load</button>
                     </div>
+                    <hr class="fte-window-divider" />
+                    <div class="fte-window-section"><span>shell</span></div>
+                    <div class="fte-window-chip-group">
+                        <button
+                            type="button"
+                            class="fte-window-chip"
+                            aria-pressed={authDryRunEnabled}
+                            onclick={() => {
+                                authDryRunEnabled = !authDryRunEnabled;
+                                writeAuthDryRunPref(authDryRunEnabled);
+                            }}
+                            data-testid="debug-toggle-authDryRun"
+                            title="synthesise a client-side session so protected-action gating flows without discord linking. backend calls still 401."
+                        >
+                            auth dry-run
+                        </button>
+                    </div>
+                    {#if authDryRunEnabled}
+                        <div class="fte-window-danger mt-0.5">backend calls still 401</div>
+                    {/if}
                 </div>
             {/snippet}
             {#snippet debugMenuWindow(_ctx: { forcedCollapse: boolean })}
