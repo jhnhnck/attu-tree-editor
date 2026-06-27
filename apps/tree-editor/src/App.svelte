@@ -131,6 +131,10 @@
         DockSurface,
         DockModal,
     } from "@attu/ui";
+    import {
+        saveStatusGlyph,
+        type SaveStatus,
+    } from "$lib/components/shell/saveStatusGlyph";
     import { createPortraitUrlCache } from "$lib/state/portraitUrls.svelte";
     import { createPreferencesStore } from "$lib/state/preferences.svelte";
     import { makeAutosaver } from "$lib/state/autosave";
@@ -933,6 +937,9 @@
                   : "saved",
     );
     const saveStatusLocalPersisted = $derived(!treeStore.dirty);
+    // local status glyph: derived via pure saveStatusGlyph function so it can be unit-tested
+    const localStatus = $derived<SaveStatus>(saveStatusLocalPersisted ? "saved" : "dirty");
+    const localGlyph = $derived(saveStatusGlyph(localStatus));
     const saveStatusRemoteToneClass = $derived(
         saveStatusTone === "conflict"
             ? "text-amber-400"
@@ -945,7 +952,7 @@
                   : "text-fg-muted",
     );
     const saveStatusLocalToneClass = $derived(
-        saveStatusLocalPersisted ? "text-emerald-400" : "text-amber-400",
+        localGlyph.tone === "success" ? "text-emerald-400" : "text-amber-400",
     );
     const saveStatusLocalLabel = $derived(
         saveStatusLocalPersisted ? "saved locally" : "unsaved local changes",
@@ -3190,7 +3197,7 @@
             />
 
             {#snippet adminModalRender(_ctx: { forcedCollapse: boolean })}
-                <DockModal id="admin" title="Admin">
+                <DockModal id="admin" title="Admin" size="lg">
                     {#snippet children()}
                         <AdminPanel />
                     {/snippet}
@@ -3206,7 +3213,7 @@
             />
 
             {#snippet openDialogModalRender(_ctx: { forcedCollapse: boolean })}
-                <DockModal id="open-dialog" title="Open tree">
+                <DockModal id="open-dialog" title="Open tree" size="lg">
                     {#snippet children()}
                         <OpenDialog
                             listings={recents}

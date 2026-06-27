@@ -12,11 +12,12 @@
     interface Props {
         id: string;
         title?: string;
+        size?: "md" | "lg";
         children?: Snippet;
         onopen?: () => void;
     }
 
-    let { id, title, children, onopen }: Props = $props();
+    let { id, title, size = "md", children, onopen }: Props = $props();
 
     function close(): void {
         dockStore.closeModal();
@@ -45,6 +46,7 @@
 <!-- panel -->
 <div
     class="modal-panel"
+    data-size={size}
     role="dialog"
     tabindex="-1"
     aria-modal="true"
@@ -93,6 +95,10 @@
         background: var(--color-canvas-elev);
         pointer-events: auto;
         overflow: hidden;
+    }
+
+    .modal-panel[data-size="lg"] {
+        max-width: min(48rem, calc(100vw - 2rem));
     }
 
     .modal-header {
