@@ -1,15 +1,13 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!--
-    phase 0 stub — pill row + panel stack from dockStore; data-canvas-chrome.
-    no drag-to-reorder, no modal close chips. full implementation in phase 1.
+    phase 1 — full corner chrome. adds:
+      drag-to-reorder pills (pointer events, 4px threshold, drop indicator)
+      modal close chip (renders in pill row when dockStore.activeModal is set)
+      pop-out windows skip the panel stack (only "expanded" windows show there)
 
-    layout mirrors old CanvasChromeDock: pills in a flex-row taskbar,
-    panels stacking away from the corner. corner-aware flex direction:
+    layout: pills in a flex-row taskbar, panels stacking away from the corner.
     bl/br → flex-col-reverse (pills at bottom, panels above).
     tl/tr → flex-col (pills at top, panels below).
-
-    windows render in the panel stack only when docked-expanded.
-    pop-out support added in phase 1 (floating windows skip the stack).
 -->
 <script lang="ts">
     import { dockStore, type DockCorner } from "./store.svelte.js";
@@ -22,8 +20,8 @@
 
     const items = $derived(dockStore.itemsForCorner(corner));
     const pills = $derived(items.filter((it) => it.kind === "pill"));
-    // windows appear in the panel stack only when docked-expanded
-    // (no "panel" kind in new system; only "pill" and "window")
+    // only docked-expanded windows appear in the panel stack
+    // (floating windows are rendered by DockSurface)
     const panels = $derived(
         items.filter(
             (it) => it.kind === "window" && dockStore.windowState(it.id) === "expanded",
@@ -57,6 +55,66 @@
         tr: "top-right",
         br: "bottom-right",
     };
+
+    // --- drag-to-reorder pills ---
+    let dragState = $state<{
+        draggingId: string;
+        startX: number;
+        startY: number;
+        started: boolean;
+        dropIndex: number;
+    } | null>(null);
+    const DRAG_THRESHOLD = 4;
+
+    function onPillPointerDown(e: PointerEvent, pillId: string): void {
+        const el = e.currentTarget as HTMLElement;
+        el.setPointerCapture(e.pointerId);
+        dragState = {
+            draggingId: pillId,
+            startX: e.clientX,
+            startY: e.clientY,
+            started: false,
+            dropIndex: pills.findIndex(p => p.id === pillId),
+        };
+    }
+
+    function onPillPointerMove(e: PointerEvent): void {
+        if (!dragState) return;
+        const dx = e.clientX - dragState.startX;
+        const dy = e.clientY - dragState.startY;
+        if (!dragState.started && Math.sqrt(dx * dx + dy * dy) < DRAG_THRESHOLD) return;
+        dragState = { ...dragState, started: true };
+        // compute drop index based on pointer x relative to pill row
+        // use pill elements to determine insertion point
+        const row = document.querySelector(`[data-dock-pills][data-corner="${corner}"]`);
+        if (!row) return;
+        const pillEls = [...row.querySelectorAll("[data-dock-pill-id]")] as HTMLElement[];
+        let newIndex = pills.length;
+        for (let i = 0; i < pillEls.length; i++) {
+            const rect = pillEls[i]!.getBoundingClientRect();
+            if (e.clientX < rect.left + rect.width / 2) {
+                newIndex = i;
+                break;
+            }
+        }
+        dragState = { ...dragState, dropIndex: newIndex };
+    }
+
+    function onPillPointerUp(): void {
+        if (!dragState || !dragState.started) {
+            dragState = null;
+            return;
+        }
+        // build new order array
+        const draggingId = dragState.draggingId;
+        const dropIndex = dragState.dropIndex;
+        const newOrder = pills
+            .filter(p => p.id !== draggingId)
+            .map(p => p.id);
+        newOrder.splice(dropIndex, 0, draggingId);
+        dockStore.reorderPills(corner, newOrder);
+        dragState = null;
+    }
 </script>
 
 {#if items.length > 0}
@@ -67,20 +125,47 @@
         data-canvas-chrome
         data-testid={`canvas-chrome-dock-${corner}`}
     >
-        {#if pills.length > 0}
+        {#if pills.length > 0 || dockStore.activeModal !== undefined}
             <div
                 class={pillRowClass[corner]}
                 data-dock-pills
+                data-corner={corner}
                 data-testid={`canvas-chrome-pills-${corner}`}
             >
                 {#each pills as item (item.id)}
                     <div
                         class="pointer-events-auto relative"
                         data-dock-pill-id={item.id}
+                        style={dragState?.draggingId === item.id && dragState.started
+                            ? "opacity: 0.5;"
+                            : ""}
+                        onpointerdown={(e) => onPillPointerDown(e, item.id)}
+                        onpointermove={onPillPointerMove}
+                        onpointerup={onPillPointerUp}
+                        role="none"
                     >
+                        {#if dragState?.started && dragState.dropIndex === pills.indexOf(item)}
+                            <div class="drop-indicator"></div>
+                        {/if}
                         {@render item.render({ forcedCollapse: false })}
                     </div>
                 {/each}
+                {#if dragState?.started && dragState.dropIndex === pills.length}
+                    <div class="drop-indicator"></div>
+                {/if}
+                <!-- modal close chip: appears when a modal is active -->
+                {#if dockStore.activeModal !== undefined}
+                    {@const modalId = dockStore.activeModal}
+                    {@const modalItem = dockStore.modalItems.find(m => m.id === modalId)}
+                    <button
+                        type="button"
+                        class="fte-taskbar-modal-chip pointer-events-auto"
+                        onclick={() => dockStore.closeModal()}
+                        data-testid="modal-chip"
+                    >
+                        {modalItem?.title ?? modalId} ×
+                    </button>
+                {/if}
             </div>
         {/if}
         {#if panels.length > 0}
@@ -98,3 +183,16 @@
         {/if}
     </div>
 {/if}
+
+<style>
+    .drop-indicator {
+        position: absolute;
+        left: -3px;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: var(--color-accent);
+        border-radius: 1px;
+        pointer-events: none;
+    }
+</style>

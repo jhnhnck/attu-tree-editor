@@ -961,16 +961,6 @@
         });
     });
 
-    // phase 0 skeleton-test: open the DockModal stub for one render cycle to
-    // prove the modal layer works. deleted in phase 1.
-    onMount(() => {
-        dockStore.setCorner(dockConfig.corner);
-        dockStore.openModal("skeleton-test");
-        // close after a brief delay so it doesn't block interaction during dev
-        const t = setTimeout(() => dockStore.closeModal(), 2000);
-        return () => clearTimeout(t);
-    });
-
     onMount(async () => {
         // hydrate user prefs first so theme + inspector side are applied before
         // any sub-components mount; theme uses prefers-color-scheme until then

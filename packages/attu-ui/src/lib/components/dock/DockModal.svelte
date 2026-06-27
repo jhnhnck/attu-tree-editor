@@ -1,8 +1,9 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!--
-    phase 0 stub — fixed centered panel with close button.
-    backdrop click closes; Escape and onopen added in phase 1.
-    global .fte-modal-* theme tokens added to theme.css in phase 1.
+    phase 1 — full modal chrome. adds:
+      Escape key closes (stopPropagation so other overlays aren't affected)
+      onopen callback (called after mount)
+      backdrop click closes (retained from phase 0)
 -->
 <script lang="ts">
     import type { Snippet } from "svelte";
@@ -15,11 +16,22 @@
         onopen?: () => void;
     }
 
-    let { id, title, children }: Props = $props();
+    let { id, title, children, onopen }: Props = $props();
 
     function close(): void {
         dockStore.closeModal();
     }
+
+    function onkeydown(e: KeyboardEvent): void {
+        if (e.key === "Escape") {
+            e.stopPropagation();
+            close();
+        }
+    }
+
+    $effect(() => {
+        onopen?.();
+    });
 </script>
 
 <!-- backdrop -->
@@ -34,16 +46,17 @@
 <div
     class="modal-panel"
     role="dialog"
+    tabindex="-1"
     aria-modal="true"
     aria-label={title ?? id}
     data-modal-id={id}
+    onkeydown={onkeydown}
 >
     <div class="modal-header">
         <span class="text-sm font-medium text-fg">{title ?? id}</span>
         <button
             type="button"
-            class="fte-window-button"
-            style="width: auto; padding: 0.125rem 0.375rem;"
+            class="fte-icon-btn"
             aria-label="close"
             onclick={close}
         >×</button>
@@ -94,5 +107,25 @@
     .modal-body {
         padding: 0.75rem;
         overflow-y: auto;
+    }
+
+    .fte-icon-btn {
+        width: 1.5rem;
+        height: 1.5rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: none;
+        background: transparent;
+        color: var(--color-fg-muted);
+        cursor: pointer;
+        border-radius: 0.25rem;
+        font-size: 1rem;
+        line-height: 1;
+    }
+
+    .fte-icon-btn:hover {
+        background: var(--color-line);
+        color: var(--color-fg);
     }
 </style>
