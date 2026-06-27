@@ -6,6 +6,7 @@
 -->
 <script lang="ts">
     import type { Snippet } from "svelte";
+    import { Save } from "@lucide/svelte";
     import { dockStore, type DockCorner, type DockRenderSnippet } from "./store.svelte.js";
     import DockItem from "./DockItem.svelte";
     import DockWindow from "./DockWindow.svelte";
@@ -20,8 +21,6 @@
         pill?: DockRenderSnippet;
         // override the window body (no args)
         body?: Snippet;
-        // simple prop for default pill text
-        statusText?: string;
     }
 
     let {
@@ -32,17 +31,16 @@
         closeable = false,
         pill,
         body,
-        statusText = "saved",
     }: Props = $props();
 </script>
 
 {#snippet defaultPill()}
     <button
         type="button"
-        class="fte-pill"
+        class="fte-pill fte-pill-icon"
         aria-pressed={dockStore.isExpanded(windowId)}
         onclick={() => dockStore.pillClick(windowId)}
-    >{statusText}</button>
+    ><Save size={12} /></button>
 {/snippet}
 
 {#snippet defaultBody()}

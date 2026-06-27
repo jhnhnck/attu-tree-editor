@@ -50,6 +50,8 @@
         CloudUpload,
         AlertCircle,
         AlertTriangle,
+        ArrowDownFromLine,
+        Percent,
     } from "@lucide/svelte";
 
     import {
@@ -2433,12 +2435,9 @@
             <!-- save-status Window body (unchanged from before). -->
             {#snippet saveStatusBody()}
                 <div data-testid="save-status-popover" role="dialog" aria-label="save details">
-                    <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-xs">
-                        <dt class="text-fg-muted">local</dt>
-                        <dd
-                            class="text-fg flex items-center gap-1.5"
-                            data-testid="save-status-row-local"
-                        >
+                    <div class="fte-window-row" data-testid="save-status-row-local">
+                        <span>local</span>
+                        <span class="flex items-center gap-1.5">
                             <span class={treeStore.dirty ? "text-amber-400" : "text-emerald-400"}>
                                 {#if treeStore.dirty}
                                     <LaptopMinimal size={12} />
@@ -2453,12 +2452,11 @@
                                       ? "saved"
                                       : `saved · ${fmtRelSimple(lastSavedAt)}`}
                             </span>
-                        </dd>
-                        <dt class="text-fg-muted">remote</dt>
-                        <dd
-                            class="text-fg flex items-center gap-1.5"
-                            data-testid="save-status-row-remote"
-                        >
+                        </span>
+                    </div>
+                    <div class="fte-window-row" data-testid="save-status-row-remote">
+                        <span>remote</span>
+                        <span class="flex items-center gap-1.5">
                             <span
                                 class={syncStore.mode === "conflict"
                                     ? "text-amber-400"
@@ -2498,30 +2496,27 @@
                                     idle
                                 {/if}
                             </span>
-                        </dd>
-                        {#if debugMode}
-                            <dt class="text-fg-muted">runtime</dt>
-                            <dd
-                                class="text-fg flex items-center gap-2 font-mono"
-                                data-testid="save-status-row-runtime"
-                            >
+                        </span>
+                    </div>
+                    {#if debugMode}
+                        <div class="fte-window-row font-mono" data-testid="save-status-row-runtime">
+                            <span>runtime</span>
+                            <span class="flex items-center gap-2">
                                 <span class="text-fg-muted">editRev</span>
-                                <span data-testid="save-status-edit-rev"
-                                    >{String(treeStore.tree.editRev)}</span
-                                >
+                                <span data-testid="save-status-edit-rev">{String(treeStore.tree.editRev)}</span>
                                 {#if debugTimings}
                                     <span class="text-fg-muted">·</span>
-                                    <span data-testid="save-status-debug-timings"
-                                        >{debugTimings.total.toFixed(1)} ms</span
-                                    >
+                                    <span data-testid="save-status-debug-timings">{debugTimings.total.toFixed(1)} ms</span>
                                 {/if}
-                            </dd>
-                        {/if}
-                        {#if lastError}
-                            <dt class="text-rose-400">error</dt>
-                            <dd class="text-rose-400 wrap-break-word">{lastError}</dd>
-                        {/if}
-                    </dl>
+                            </span>
+                        </div>
+                    {/if}
+                    {#if lastError}
+                        <div class="fte-window-row">
+                            <span class="fte-window-danger">error</span>
+                            <span class="fte-window-danger wrap-break-word text-left">{lastError}</span>
+                        </div>
+                    {/if}
                     <button
                         type="button"
                         class="fte-window-button mt-3"
@@ -2569,7 +2564,7 @@
                 {#if layoutStats}
                     <button
                         type="button"
-                        class="fte-pill cursor-pointer font-mono"
+                        class="fte-pill gap-1.5 font-mono"
                         title={selectedMetric === "clusters"
                             ? "clusters (click to switch metric)"
                             : selectedMetric === "descendants"
@@ -2585,26 +2580,17 @@
                         data-selected-metric={selectedMetric}
                     >
                         {#if selectedMetric === "clusters" && layoutStats.components > 1}
-                            <span class="text-amber-400"
-                                >{String(
-                                    layoutStats.components,
-                                )}{#if layoutStats.isolated > 0}+{String(layoutStats.isolated)}{/if}
-                                clusters</span
-                            >
+                            <Network size={12} class="text-amber-400" />
+                            <span class="text-amber-400">{String(layoutStats.components)}{#if layoutStats.isolated > 0}+{String(layoutStats.isolated)}{/if}</span>
                         {:else if selectedMetric === "descendants" && selection.selectedPersonId}
-                            <span
-                                >{selectedDescendantCount === undefined
-                                    ? "—"
-                                    : String(selectedDescendantCount)} descendants</span
-                            >
+                            <ArrowDownFromLine size={12} />
+                            <span>{selectedDescendantCount === undefined ? "—" : String(selectedDescendantCount)}</span>
                         {:else if selectedMetric === "coi" && selection.selectedPersonId}
-                            <span
-                                >coi {selectedCoi !== undefined && selectedCoi > 0
-                                    ? formatCoi(selectedCoi)
-                                    : "—"}</span
-                            >
+                            <Percent size={12} />
+                            <span>{selectedCoi !== undefined && selectedCoi > 0 ? formatCoi(selectedCoi) : "—"}</span>
                         {:else}
-                            {String(layoutStats.totalPeople)} people
+                            <Users size={12} />
+                            <span>{String(layoutStats.totalPeople)}</span>
                         {/if}
                     </button>
                 {/if}
@@ -2618,19 +2604,14 @@
             {#snippet statsBody()}
                 {#if layoutStats}
                     <div
-                        class="text-fg flex flex-col gap-0.5 font-mono"
+                        class="flex flex-col gap-0.5 font-mono"
                         role="dialog"
                         aria-label="tree stats"
                         data-testid="stats-popover"
                     >
                         <button
                             type="button"
-                            class={[
-                                "fte-window-row rounded px-1.5 py-0.5 text-left",
-                                selectedMetric === "people"
-                                    ? "bg-accent/10 text-accent"
-                                    : "hover:bg-canvas-elev",
-                            ]}
+                            class="fte-window-row"
                             aria-pressed={selectedMetric === "people"}
                             onclick={() => (selectedMetric = "people")}
                             data-testid="stats-row-people"
@@ -2641,65 +2622,39 @@
                         {#if layoutStats.components > 1}
                             <button
                                 type="button"
-                                class={[
-                                    "fte-window-row rounded px-1.5 py-0.5 text-left",
-                                    selectedMetric === "clusters"
-                                        ? "bg-accent/10 text-accent"
-                                        : "hover:bg-canvas-elev",
-                                ]}
+                                class="fte-window-row"
                                 aria-pressed={selectedMetric === "clusters"}
                                 onclick={() => (selectedMetric = "clusters")}
                                 data-testid="stats-row-clusters"
                             >
                                 <span>clusters</span>
                                 <span class="text-amber-400"
-                                    >{String(
-                                        layoutStats.components,
-                                    )}{#if layoutStats.isolated > 0}+{String(
-                                            layoutStats.isolated,
-                                        )}{/if}</span
+                                    >{String(layoutStats.components)}{#if layoutStats.isolated > 0}+{String(layoutStats.isolated)}{/if}</span
                                 >
                             </button>
                         {/if}
                         {#if selection.selectedPersonId}
-                            <div class="mt-1 border-t border-line pt-1 text-fg-muted">selected</div>
+                            <hr class="fte-window-divider" />
+                            <div class="fte-window-section">selected</div>
                             <button
                                 type="button"
-                                class={[
-                                    "fte-window-row rounded px-1.5 py-0.5 text-left",
-                                    selectedMetric === "descendants"
-                                        ? "bg-accent/10 text-accent"
-                                        : "hover:bg-canvas-elev",
-                                ]}
+                                class="fte-window-row"
                                 aria-pressed={selectedMetric === "descendants"}
                                 onclick={() => (selectedMetric = "descendants")}
                                 data-testid="stats-row-descendants"
                             >
                                 <span>descendants</span>
-                                <span
-                                    >{selectedDescendantCount === undefined
-                                        ? "—"
-                                        : String(selectedDescendantCount)}</span
-                                >
+                                <span>{selectedDescendantCount === undefined ? "—" : String(selectedDescendantCount)}</span>
                             </button>
                             <button
                                 type="button"
-                                class={[
-                                    "fte-window-row rounded px-1.5 py-0.5 text-left",
-                                    selectedMetric === "coi"
-                                        ? "bg-accent/10 text-accent"
-                                        : "hover:bg-canvas-elev",
-                                ]}
+                                class="fte-window-row"
                                 aria-pressed={selectedMetric === "coi"}
                                 onclick={() => (selectedMetric = "coi")}
                                 data-testid="stats-row-coi"
                             >
                                 <span>coi</span>
-                                <span
-                                    >{selectedCoi !== undefined && selectedCoi > 0
-                                        ? formatCoi(selectedCoi)
-                                        : "—"}</span
-                                >
+                                <span>{selectedCoi !== undefined && selectedCoi > 0 ? formatCoi(selectedCoi) : "—"}</span>
                             </button>
                         {/if}
                     </div>

@@ -177,6 +177,27 @@ body {
     text-align: right;
 }
 
+/* selectable row variant: metric-selector buttons in stats window.
+   when aria-pressed is present, the row gets click affordances. */
+.fte-window-row[aria-pressed] {
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+    cursor: pointer;
+}
+
+.fte-window-row[aria-pressed]:not([aria-pressed="true"]):hover {
+    background: var(--color-canvas-elev);
+}
+
+.fte-window-row[aria-pressed="true"] {
+    background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+    color: var(--color-accent);
+}
+
+.fte-window-row[aria-pressed="true"] > :where(:first-child) {
+    color: var(--color-accent);
+}
+
 .fte-window-list {
     display: flex;
     flex-direction: column;

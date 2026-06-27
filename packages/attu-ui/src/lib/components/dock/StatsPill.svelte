@@ -6,6 +6,7 @@
 -->
 <script lang="ts">
     import type { Snippet } from "svelte";
+    import { BarChart3 } from "@lucide/svelte";
     import { dockStore, type DockCorner, type DockRenderSnippet } from "./store.svelte.js";
     import DockItem from "./DockItem.svelte";
     import DockWindow from "./DockWindow.svelte";
@@ -42,10 +43,10 @@
 {#snippet defaultPill()}
     <button
         type="button"
-        class="fte-pill"
+        class="fte-pill gap-1.5"
         aria-pressed={dockStore.isExpanded(windowId)}
         onclick={() => dockStore.pillClick(windowId)}
-    >{pillLabel}</button>
+    ><BarChart3 size={12} />{pillLabel}</button>
 {/snippet}
 
 {#snippet defaultBody()}
