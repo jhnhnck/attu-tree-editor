@@ -32,7 +32,7 @@ describe("ShareDialog", () => {
         const writeText = vi.fn().mockResolvedValue(undefined);
         Object.assign(navigator, { clipboard: { writeText } });
 
-        render(ShareDialog, { treeId: "tree-123", onClose: vi.fn() });
+        render(ShareDialog, { treeId: "tree-123" });
         const btn = screen.getByTestId("copy-view-link");
         await fireEvent.click(btn);
         // microtasks for the async clipboard write
@@ -56,7 +56,7 @@ describe("ShareDialog", () => {
         });
         const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
 
-        render(ShareDialog, { treeId: "t", onClose: vi.fn() });
+        render(ShareDialog, { treeId: "t" });
         // wait for onMount + listGrants
         await Promise.resolve();
         await Promise.resolve();

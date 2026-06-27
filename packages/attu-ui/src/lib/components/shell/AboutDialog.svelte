@@ -1,44 +1,14 @@
 <!--
-    FamilyTreeEditor - about dialog (app identity, license, acknowledgments).
+    FamilyTreeEditor - about body (app identity, license, acknowledgments).
+    body-only component: wrapped in DockModal by the caller.
     licensed under the MIT license; see LICENSE.md for full text
 -->
 <script lang="ts">
-    import { onMount } from "svelte";
+    import { dockStore } from "../dock/store.svelte.js";
     import Button from "../ui/Button.svelte";
-
-    interface Props {
-        onClose: () => void;
-    }
-
-    const { onClose }: Props = $props();
-
-    let dialogEl: HTMLDialogElement | undefined = $state();
-
-    onMount(() => {
-        dialogEl?.showModal();
-    });
-
-    function onDialogMousedown(e: MouseEvent): void {
-        if (!dialogEl) return;
-        const rect = dialogEl.getBoundingClientRect();
-        if (
-            e.clientX < rect.left ||
-            e.clientX > rect.right ||
-            e.clientY < rect.top ||
-            e.clientY > rect.bottom
-        ) {
-            dialogEl.close();
-            onClose();
-        }
-    }
 </script>
 
-<dialog
-    bind:this={dialogEl}
-    class="bg-canvas-elev border-line text-fg w-full max-w-md rounded-lg border p-6 shadow-lg backdrop:bg-black/50"
-    onmousedown={onDialogMousedown}
-    onclose={onClose}
->
+<div>
     <div class="mb-4 flex items-center gap-3">
         <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -115,8 +85,8 @@
     </ul>
 
     <div class="flex justify-end">
-        <Button type="button" variant="ghost" onclick={onClose}>
+        <Button type="button" variant="ghost" onclick={() => dockStore.closeModal()}>
             {#snippet children()}close{/snippet}
         </Button>
     </div>
-</dialog>
+</div>

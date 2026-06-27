@@ -129,6 +129,7 @@
         DockItem,
         DockWindow,
         DockSurface,
+        DockModal,
     } from "@attu/ui";
     import { createPortraitUrlCache } from "$lib/state/portraitUrls.svelte";
     import { createPreferencesStore } from "$lib/state/preferences.svelte";
@@ -228,11 +229,6 @@
 
     let recents = $state<TreeListing[]>([]);
     let firstLoadComplete = $state(false);
-    let showShare = $state(false);
-    let showAbout = $state(false);
-    let showAdmin = $state(false);
-    let showHelp = $state(false);
-    let showSettings = $state(false);
 
     // debug overlay state. canvas-window-manager phase 3 splits these
     // two flags apart:
@@ -644,14 +640,9 @@
     }
 
     // command palette
-    let showPalette = $state(false);
     let paletteMode = $state<"anything" | "commands">("anything");
 
-    // open-tree dialog
-    let showOpenDialog = $state(false);
-
     // import wizard
-    let showImportWizard = $state(false);
     let importInitialFile = $state<File | undefined>(undefined);
 
     // drag-drop import overlay
@@ -1539,7 +1530,7 @@
 
     function triggerImport(): void {
         importInitialFile = undefined;
-        showImportWizard = true;
+        dockStore.openModal("import-wizard");
     }
 
     async function onImportSuccess(info: {
@@ -1596,7 +1587,7 @@
         const file = e.dataTransfer?.files[0];
         if (!file) return;
         importInitialFile = file;
-        showImportWizard = true;
+        dockStore.openModal("import-wizard");
     }
 
     function onExport(): void {
@@ -1732,7 +1723,7 @@
 
     function openPalette(mode: "anything" | "commands"): void {
         paletteMode = mode;
-        showPalette = true;
+        dockStore.openModal("palette");
     }
 
     function withCanvas(fn: (c: CanvasController) => void, msg = "canvas not ready"): void {
@@ -1764,11 +1755,11 @@
         appRedo: () => treeStore.redo(),
         appSave: () => void forceSave(),
         appNew: () => void startNewTree(),
-        appOpen: () => (showOpenDialog = true),
+        appOpen: () => dockStore.openModal("open-dialog"),
         appImport: () => triggerImport(),
         appExport: () => onExport(),
-        appSettings: () => (showSettings = true),
-        appHelp: () => (showHelp = true),
+        appSettings: () => dockStore.openModal("settings"),
+        appHelp: () => dockStore.openModal("shortcuts"),
         viewFit: () => withCanvas((c) => c.fit()),
         viewZoom100: () => withCanvas((c) => c.zoom100()),
         viewFitSelection: () => withCanvas((c) => c.fitSelection()),
@@ -2113,7 +2104,7 @@
             {
                 label: "About",
                 icon: Info,
-                onclick: () => (showAbout = true),
+                onclick: () => dockStore.openModal("about"),
             },
         ] satisfies MenuEntry[],
     });
@@ -2268,7 +2259,7 @@
                     class="text-fg hover:bg-canvas flex h-7 w-7 items-center justify-center rounded"
                     title="Share"
                     aria-label="Share"
-                    onclick={() => (showShare = !showShare)}
+                    onclick={() => dockStore.openModal("share")}
                 >
                     <Share2 size={17} strokeWidth={2.5} />
                 </button>
@@ -2280,7 +2271,7 @@
                 class="text-fg hover:bg-canvas flex h-7 w-7 items-center justify-center rounded"
                 title="Admin"
                 aria-label="Admin"
-                onclick={() => (showAdmin = !showAdmin)}
+                onclick={() => dockStore.openModal("admin")}
             >
                 <Shield size={17} strokeWidth={2.5} />
             </button>
@@ -2290,7 +2281,7 @@
             class="text-fg hover:bg-canvas flex h-7 w-7 items-center justify-center rounded"
             title="Keyboard shortcuts (?)"
             aria-label="Keyboard shortcuts"
-            onclick={() => (showHelp = true)}
+            onclick={() => dockStore.openModal("shortcuts")}
         >
             <HelpCircle size={17} strokeWidth={2.5} />
         </button>
@@ -3147,6 +3138,152 @@
                     render={debugMenuWindow}
                 />
             {/if}
+
+            <!-- modal registrations: DockSurface renders these when dockStore.activeModal matches -->
+
+            {#snippet settingsModalRender(_ctx: { forcedCollapse: boolean })}
+                <DockModal id="settings" title="Settings">
+                    {#snippet children()}
+                        <SettingsDialog {prefs} />
+                    {/snippet}
+                </DockModal>
+            {/snippet}
+            <DockItem
+                id="settings"
+                kind="modal"
+                corner={corner}
+                priority={0}
+                title="Settings"
+                render={settingsModalRender}
+            />
+
+            {#snippet shareModalRender(_ctx: { forcedCollapse: boolean })}
+                <DockModal id="share" title="Share tree">
+                    {#snippet children()}
+                        <ShareDialog treeId={treeStore.tree.id} />
+                    {/snippet}
+                </DockModal>
+            {/snippet}
+            <DockItem
+                id="share"
+                kind="modal"
+                corner={corner}
+                priority={0}
+                title="Share tree"
+                render={shareModalRender}
+            />
+
+            {#snippet aboutModalRender(_ctx: { forcedCollapse: boolean })}
+                <DockModal id="about" title="About">
+                    {#snippet children()}
+                        <AboutDialog />
+                    {/snippet}
+                </DockModal>
+            {/snippet}
+            <DockItem
+                id="about"
+                kind="modal"
+                corner={corner}
+                priority={0}
+                title="About"
+                render={aboutModalRender}
+            />
+
+            {#snippet adminModalRender(_ctx: { forcedCollapse: boolean })}
+                <DockModal id="admin" title="Admin">
+                    {#snippet children()}
+                        <AdminPanel />
+                    {/snippet}
+                </DockModal>
+            {/snippet}
+            <DockItem
+                id="admin"
+                kind="modal"
+                corner={corner}
+                priority={0}
+                title="Admin"
+                render={adminModalRender}
+            />
+
+            {#snippet openDialogModalRender(_ctx: { forcedCollapse: boolean })}
+                <DockModal id="open-dialog" title="Open tree">
+                    {#snippet children()}
+                        <OpenDialog
+                            listings={recents}
+                            activeId={treeStore.tree.id}
+                            onpick={(id: string) => void loadFromRecents(id)}
+                            ondelete={(id: string) => removeTree(id)}
+                            onnotice={(msg: string) => toasts.push(msg, "info", 2500)}
+                        />
+                    {/snippet}
+                </DockModal>
+            {/snippet}
+            <DockItem
+                id="open-dialog"
+                kind="modal"
+                corner={corner}
+                priority={0}
+                title="Open tree"
+                render={openDialogModalRender}
+            />
+
+            {#snippet shortcutsModalRender(_ctx: { forcedCollapse: boolean })}
+                <DockModal id="shortcuts" title="Keyboard shortcuts">
+                    {#snippet children()}
+                        <ShortcutsOverlay groups={groupedShortcuts()} />
+                    {/snippet}
+                </DockModal>
+            {/snippet}
+            <DockItem
+                id="shortcuts"
+                kind="modal"
+                corner={corner}
+                priority={0}
+                title="Keyboard shortcuts"
+                render={shortcutsModalRender}
+            />
+
+            {#snippet paletteModalRender(_ctx: { forcedCollapse: boolean })}
+                <DockModal id="palette" title="Command palette">
+                    {#snippet children()}
+                        <CommandPalette items={paletteItems} mode={paletteMode} />
+                    {/snippet}
+                </DockModal>
+            {/snippet}
+            <DockItem
+                id="palette"
+                kind="modal"
+                corner={corner}
+                priority={0}
+                title="Command palette"
+                render={paletteModalRender}
+            />
+            {#snippet importWizardModalRender(_ctx: import("@attu/ui").DockRenderCtx)}
+                <DockModal id="import-wizard" title="Import tree">
+                    {#snippet children()}
+                        <ImportWizard
+                            store={treeStore}
+                            currentTree={treeStore.tree}
+                            currentTreeDirty={treeStore.dirty}
+                            initialFile={importInitialFile}
+                            onsuccess={(info: { treeId: string; sourceFormat: string; count: number }) =>
+                                void onImportSuccess(info)}
+                            onfailure={(msg: string) => toasts.push(`import failed: ${msg}`, "error")}
+                            onsaveCurrent={async () => {
+                                await autosaver.flush();
+                            }}
+                        />
+                    {/snippet}
+                </DockModal>
+            {/snippet}
+            <DockItem
+                id="import-wizard"
+                kind="modal"
+                corner={corner}
+                priority={0}
+                title="Import tree"
+                render={importWizardModalRender}
+            />
         </div>
         {#if showInspector}
             <Inspector
@@ -3211,7 +3348,7 @@
         {/if}
     </main>
     {#snippet overlays()}
-        <!-- phase 0: DockSurface hosts the modal layer (DockModal stub). -->
+        <!-- DockSurface renders the active modal (registered via DockItem kind="modal"). -->
         <DockSurface />
         <Toasts store={toasts} />
     {#if contextMenu}
@@ -3223,62 +3360,5 @@
         />
     {/if}
 
-    {#if showShare}
-        <ShareDialog treeId={treeStore.tree.id} onClose={() => (showShare = false)} />
-    {/if}
-
-    {#if showAbout}
-        <AboutDialog onClose={() => (showAbout = false)} />
-    {/if}
-
-    {#if showAdmin}
-        <AdminPanel onClose={() => (showAdmin = false)} />
-    {/if}
-
-    {#if showHelp}
-        <ShortcutsOverlay groups={groupedShortcuts()} onclose={() => (showHelp = false)} />
-    {/if}
-
-    {#if showSettings}
-        <SettingsDialog {prefs} onclose={() => (showSettings = false)} />
-    {/if}
-
-    {#if showPalette}
-        <CommandPalette
-            items={paletteItems}
-            mode={paletteMode}
-            onclose={() => (showPalette = false)}
-        />
-    {/if}
-
-    {#if showOpenDialog}
-        <OpenDialog
-            listings={recents}
-            activeId={treeStore.tree.id}
-            onpick={(id: string) => void loadFromRecents(id)}
-            ondelete={(id: string) => removeTree(id)}
-            onclose={() => (showOpenDialog = false)}
-            onnotice={(msg: string) => toasts.push(msg, "info", 2500)}
-        />
-    {/if}
-
-    {#if showImportWizard}
-        <ImportWizard
-            store={treeStore}
-            currentTree={treeStore.tree}
-            currentTreeDirty={treeStore.dirty}
-            initialFile={importInitialFile}
-            onclose={() => {
-                showImportWizard = false;
-                importInitialFile = undefined;
-            }}
-            onsuccess={(info: { treeId: string; sourceFormat: string; count: number }) =>
-                void onImportSuccess(info)}
-            onfailure={(msg) => toasts.push(`import failed: ${msg}`, "error")}
-            onsaveCurrent={async () => {
-                await autosaver.flush();
-            }}
-        />
-    {/if}
     {/snippet}
 </Shell>

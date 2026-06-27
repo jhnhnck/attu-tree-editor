@@ -5,7 +5,7 @@
 -->
 <script lang="ts">
     import { Upload, FileText, X } from "@lucide/svelte";
-    import { Button } from "@attu/ui";
+    import { Button, dockStore } from "@attu/ui";
     import { composeImports } from "$lib/io/import/composeImports";
     import { importFile, type ImportPayload } from "$lib/io/importFile";
     import { persistImportPayload, type ImportApplyMode } from "$lib/io/persistImportPayload";
@@ -20,7 +20,6 @@
          *  hidden and the wizard treats this as a fresh import. */
         currentTreeDirty: boolean;
         initialFile?: File | undefined;
-        onclose: () => void;
         onsuccess: (info: { treeId: string; sourceFormat: string; count: number }) => void;
         onfailure?: ((message: string) => void) | undefined;
         /** invoked when the user picks "replace" while a tree is open; the
@@ -34,7 +33,6 @@
         currentTree,
         currentTreeDirty,
         initialFile,
-        onclose,
         onsuccess,
         onfailure,
         onsaveCurrent,
@@ -142,59 +140,26 @@
                 sourceFormat: composed.payload.sourceFormat,
                 count: composed.payload.count,
             });
-            onclose();
+            dockStore.closeModal();
         } catch (e) {
             onfailure?.(String(e));
             busy = false;
         }
     }
 
-    function onKey(e: KeyboardEvent): void {
-        if (e.key === "Escape" && !busy) {
-            e.preventDefault();
-            onclose();
-        }
-    }
-
-    $effect(() => {
-        window.addEventListener("keydown", onKey);
-        return () => window.removeEventListener("keydown", onKey);
-    });
-
     $effect(() => {
         if (initialFile) void addFile(initialFile);
     });
 </script>
 
-<!-- svelte-ignore a11y_click_events_have_key_events -->
-<!-- svelte-ignore a11y_no_static_element_interactions -->
-<div
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-    onclick={(e) => e.target === e.currentTarget && !busy && onclose()}
-    data-testid="import-wizard"
->
-    <div
-        class="bg-canvas-elev border-line text-fg flex w-full max-w-xl flex-col rounded-lg border shadow-2xl"
-    >
-        <header class="border-line flex items-center justify-between border-b px-5 py-3">
-            <h2 class="text-base font-semibold">import tree</h2>
-            <button
-                type="button"
-                class="text-fg-muted hover:text-fg text-sm disabled:opacity-50"
-                aria-label="close"
-                onclick={onclose}
-                disabled={busy}
-            >
-                ×
-            </button>
-        </header>
-
-        <div class="flex flex-col gap-4 px-5 py-4">
+<div class="flex flex-col gap-4" data-testid="import-wizard">
             <!-- drop zone -->
             <div
                 class="border-line flex flex-col items-center justify-center gap-2 rounded border-2 border-dashed px-4 py-8 transition-colors"
                 class:border-accent={dragHover}
                 class:bg-canvas={!dragHover}
+                role="region"
+                aria-label="file drop zone"
                 ondrop={onDrop}
                 ondragover={onDragOver}
                 ondragleave={onDragLeave}
@@ -303,13 +268,11 @@
                     </label>
                 </fieldset>
             {/if}
-        </div>
 
-        <footer class="border-line flex items-center justify-end gap-2 border-t px-5 py-3">
-            <Button onclick={onclose} disabled={busy}>cancel</Button>
-            <span data-testid="import-confirm-wrap">
-                <Button variant="primary" onclick={onImport} disabled={!canImport}>import</Button>
-            </span>
-        </footer>
-    </div>
+    <footer class="border-line flex items-center justify-end gap-2 border-t px-5 py-3">
+        <Button onclick={() => dockStore.closeModal()} disabled={busy}>cancel</Button>
+        <span data-testid="import-confirm-wrap">
+            <Button variant="primary" onclick={onImport} disabled={!canImport}>import</Button>
+        </span>
+    </footer>
 </div>

@@ -27,7 +27,7 @@
 
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/svelte";
-import { CommandPalette } from "@attu/ui";
+import { CommandPalette, dockStore } from "@attu/ui";
 import type { PaletteItem } from "@attu/ui";
 import { createSelectionStore } from "$lib/state/selection.svelte";
 import { createTreeStore } from "$lib/state/tree.svelte";
@@ -39,6 +39,7 @@ beforeAll(() => {
     if (!Element.prototype.scrollIntoView) {
         Element.prototype.scrollIntoView = vi.fn();
     }
+    dockStore.resetForTest();
 });
 
 describe("selection state-machine: command-palette person-pick", () => {
@@ -70,13 +71,11 @@ describe("selection state-machine: command-palette person-pick", () => {
             }),
         );
 
-        let paletteClosed = false;
+        // palette drives close by calling dockStore.closeModal() on pick
+        const closeModal = vi.spyOn(dockStore, "closeModal");
         render(CommandPalette, {
             items,
             mode: "anything",
-            onclose: () => {
-                paletteClosed = true;
-            },
         });
 
         const input = screen.getByLabelText<HTMLInputElement>("palette search");
@@ -87,7 +86,8 @@ describe("selection state-machine: command-palette person-pick", () => {
 
         // the invariant: store reflects the picked id
         expect(selection.selectedPersonId).toBe(pickId);
-        // palette drives its own close on pick (calls onclose before action)
-        expect(paletteClosed).toBe(true);
+        // palette drives its own close on pick (calls dockStore.closeModal before action)
+        expect(closeModal).toHaveBeenCalled();
+        closeModal.mockRestore();
     });
 });

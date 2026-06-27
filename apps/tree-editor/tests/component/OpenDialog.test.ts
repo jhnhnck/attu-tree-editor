@@ -3,10 +3,11 @@
  * licensed under the MIT license; see LICENSE.md for full text
  */
 
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/svelte";
 import OpenDialog from "$lib/components/shell/OpenDialog.svelte";
 import type { TreeListing } from "$lib/persistence/trees";
+import { dockStore } from "@attu/ui";
 
 // loadTree is called on selection to fetch the preview; stub it per-test
 vi.mock("$lib/persistence/trees", async () => {
@@ -65,7 +66,6 @@ function baseProps() {
         activeId: undefined as string | undefined,
         onpick: vi.fn(),
         ondelete: vi.fn(),
-        onclose: vi.fn(),
     };
 }
 
@@ -75,6 +75,7 @@ describe("OpenDialog", () => {
         mockedLoad.mockResolvedValue(
             ok({ tree: tree("t1", ["Alpha", "Beta", "Gamma"]), savedAt: Date.now() }),
         );
+        dockStore.resetForTest();
     });
 
     it("renders 'no saved trees yet' when the list is empty", () => {
@@ -128,14 +129,16 @@ describe("OpenDialog", () => {
         expect(screen.getByText("Lisa X")).toBeInTheDocument();
     });
 
-    it("Open button calls onpick with the selected id", async () => {
+    it("Open button calls onpick with the selected id and closes the modal", async () => {
         const props = baseProps();
         const listings = [listing("a", "Alpha", 3, 60_000)];
+        const closeModal = vi.spyOn(dockStore, "closeModal");
         render(OpenDialog, { ...props, listings, activeId: "a" });
         const openBtn = screen.getByRole("button", { name: /^open$/i });
         await fireEvent.click(openBtn);
         expect(props.onpick).toHaveBeenCalledWith("a");
-        expect(props.onclose).toHaveBeenCalled();
+        expect(closeModal).toHaveBeenCalled();
+        closeModal.mockRestore();
     });
 
     it("Delete confirms then calls ondelete", async () => {
@@ -161,11 +164,13 @@ describe("OpenDialog", () => {
         confirmSpy.mockRestore();
     });
 
-    it("Cancel calls onclose", async () => {
+    it("Cancel calls dockStore.closeModal", async () => {
         const props = baseProps();
+        const closeModal = vi.spyOn(dockStore, "closeModal");
         render(OpenDialog, { ...props, listings: [listing("a", "A", 1, 1000)] });
         await fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
-        expect(props.onclose).toHaveBeenCalled();
+        expect(closeModal).toHaveBeenCalled();
+        closeModal.mockRestore();
     });
 
     it("'Open from URL' fires onnotice (stub)", async () => {

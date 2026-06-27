@@ -1,14 +1,16 @@
 <!--
-    FamilyTreeEditor - command palette overlay (Mod+P / Mod+Shift+P)
+    FamilyTreeEditor - command palette body (Mod+P / Mod+Shift+P)
+    body-only component: wrapped in DockModal by the caller.
     one component, two modes: "anything" (people first, then commands)
     and "commands". prefix toggles: `>` jumps to commands, `@` to people,
     `#` to people by exact id. a bare id also matches when present.
     licensed under the MIT license; see LICENSE.md for full text
 -->
 <script lang="ts">
-    import { onDestroy, onMount, tick } from "svelte";
+    import { onMount, tick } from "svelte";
     import { ArrowRight, Command as CommandIcon, Hash, Search, User } from "@lucide/svelte";
     import type { PaletteItem } from "../../palette.js";
+    import { dockStore } from "../dock/store.svelte.js";
 
     type Mode = "anything" | "commands";
 
@@ -21,13 +23,11 @@
     interface Props {
         items: PaletteItem[];
         mode: Mode;
-        onclose: () => void;
     }
 
-    let { items, mode, onclose }: Props = $props();
+    let { items, mode }: Props = $props();
 
     let inputEl: HTMLInputElement | undefined = $state();
-    let containerEl: HTMLDivElement | undefined = $state();
     let listEl: HTMLDivElement | undefined = $state();
     let query = $state("");
     // -1 means "no row highlighted yet" — the first ↑/↓ inside the palette
@@ -169,21 +169,11 @@
 
     onMount(() => {
         void focusInput();
-        window.addEventListener("pointerdown", onWindowDown, true);
     });
-    onDestroy(() => {
-        window.removeEventListener("pointerdown", onWindowDown, true);
-    });
-
-    function onWindowDown(e: PointerEvent): void {
-        if (!containerEl) return;
-        if (e.target instanceof Node && containerEl.contains(e.target)) return;
-        onclose();
-    }
 
     function pickRow(row: Row): void {
         if (!row.enabled) return;
-        onclose();
+        dockStore.closeModal();
         row.item.action();
     }
 
@@ -195,8 +185,9 @@
 
     function onKey(e: KeyboardEvent): void {
         if (e.key === "Escape") {
+            e.stopPropagation();
             e.preventDefault();
-            onclose();
+            dockStore.closeModal();
         } else if (e.key === "ArrowDown") {
             e.preventDefault();
             if (rows.length === 0) return;
@@ -239,108 +230,93 @@
     }
 </script>
 
-<!-- backdrop is non-blocking; outside-click closes via the pointerdown listener -->
 <div
-    class="fixed inset-0 z-60 flex items-start justify-center px-4 pt-[18vh]"
-    role="dialog"
-    aria-modal="true"
-    aria-label="command palette"
+    class="bg-canvas-elev border-line text-fg w-full max-w-130 overflow-hidden"
+    data-palette-container
 >
-    <button
-        type="button"
-        class="absolute inset-0 cursor-default bg-black/30 backdrop-blur-[1px]"
-        aria-label="dismiss"
-        onclick={onclose}
-        tabindex="-1"
-    ></button>
+    <header class="border-line flex items-center gap-2 border-b px-3 py-2">
+        <Search size={14} class="text-fg-muted shrink-0" />
+        <input
+            bind:this={inputEl}
+            bind:value={query}
+            onkeydown={onKey}
+            type="text"
+            class="text-fg placeholder:text-fg-muted flex-1 bg-transparent text-sm outline-none"
+            placeholder={placeholder()}
+            aria-label="palette search"
+            data-palette-search
+            spellcheck="false"
+            autocomplete="off"
+        />
+        <span class="text-fg-muted hidden font-mono text-[10px] sm:inline">
+            {view.idLookup
+                ? "# id"
+                : view.peopleOnly
+                  ? "@ people"
+                  : view.effectiveMode === "commands"
+                    ? "> commands"
+                    : "any"}
+        </span>
+    </header>
 
-    <div
-        bind:this={containerEl}
-        class="bg-canvas-elev border-line text-fg relative w-full max-w-130 overflow-hidden rounded-lg border shadow-2xl"
-    >
-        <header class="border-line flex items-center gap-2 border-b px-3 py-2">
-            <Search size={14} class="text-fg-muted shrink-0" />
-            <input
-                bind:this={inputEl}
-                bind:value={query}
-                onkeydown={onKey}
-                type="text"
-                class="text-fg placeholder:text-fg-muted flex-1 bg-transparent text-sm outline-none"
-                placeholder={placeholder()}
-                aria-label="palette search"
-                spellcheck="false"
-                autocomplete="off"
-            />
-            <span class="text-fg-muted hidden font-mono text-[10px] sm:inline">
-                {view.idLookup
-                    ? "# id"
-                    : view.peopleOnly
-                      ? "@ people"
-                      : view.effectiveMode === "commands"
-                        ? "> commands"
-                        : "any"}
-            </span>
-        </header>
-
-        <div bind:this={listEl} class="max-h-[50vh] overflow-y-auto py-1">
-            {#if rows.length === 0}
-                <div class="text-fg-muted px-3 py-6 text-center text-xs">
-                    {#if view.idLookup && view.q}
-                        no person with id {view.q.toUpperCase()}
-                    {:else}
-                        no matches
-                    {/if}
-                </div>
-            {:else}
-                {#each rows as row, i (row.item.kind + ":" + row.item.id)}
-                    {@const Icon =
-                        row.item.kind === "person" ? User : (row.item.icon ?? CommandIcon)}
-                    <button
-                        type="button"
-                        data-row={i}
-                        data-kind={row.item.kind}
-                        disabled={!row.enabled}
-                        class="hover:bg-canvas group flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm outline-none disabled:cursor-not-allowed disabled:opacity-40"
-                        class:bg-canvas={i === activeIdx}
-                        onmouseenter={() => (activeIdx = i)}
-                        onclick={() => pickRow(row)}
-                    >
-                        <Icon size={14} strokeWidth={2.25} class="text-fg-muted shrink-0" />
-                        <span class="flex-1 truncate">{row.item.label}</span>
-                        <span class="text-fg-muted flex items-center gap-1 font-mono text-[11px]">
-                            {#if row.item.kind === "person"}
-                                <Hash size={10} />
-                            {/if}
-                            {row.item.detail ?? ""}
-                        </span>
-                        <ArrowRight
-                            size={12}
-                            class="text-fg-muted opacity-0 group-hover:opacity-100"
-                        />
-                    </button>
-                {/each}
-            {/if}
-        </div>
-
-        <footer
-            class="border-line text-fg-muted flex items-center justify-between border-t px-3 py-1.5 text-[11px]"
-        >
-            <span class="flex items-center gap-2">
-                <kbd class="border-line bg-canvas rounded border px-1 font-mono">↑↓</kbd>
-                navigate
-                <kbd class="border-line bg-canvas rounded border px-1 font-mono">↵</kbd>
-                select
-                <kbd class="border-line bg-canvas rounded border px-1 font-mono">Esc</kbd>
-                close
-            </span>
-            <span class="hidden items-center gap-1 sm:inline-flex">
-                <kbd class="border-line bg-canvas rounded border px-1 font-mono">&gt;</kbd>
-                commands
-                <kbd class="border-line bg-canvas rounded border px-1 font-mono">@</kbd>
-                people
-                <kbd class="border-line bg-canvas rounded border px-1 font-mono">#</kbd>
-                id
-            </span>
-        </footer>
+    <div bind:this={listEl} class="max-h-[50vh] overflow-y-auto py-1">
+        {#if rows.length === 0}
+            <div class="text-fg-muted px-3 py-6 text-center text-xs">
+                {#if view.idLookup && view.q}
+                    no person with id {view.q.toUpperCase()}
+                {:else}
+                    no matches
+                {/if}
+            </div>
+        {:else}
+            {#each rows as row, i (row.item.kind + ":" + row.item.id)}
+                {@const Icon =
+                    row.item.kind === "person" ? User : (row.item.icon ?? CommandIcon)}
+                <button
+                    type="button"
+                    data-row={i}
+                    data-kind={row.item.kind}
+                    disabled={!row.enabled}
+                    class="hover:bg-canvas group flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm outline-none disabled:cursor-not-allowed disabled:opacity-40"
+                    class:bg-canvas={i === activeIdx}
+                    onmouseenter={() => (activeIdx = i)}
+                    onclick={() => pickRow(row)}
+                >
+                    <Icon size={14} strokeWidth={2.25} class="text-fg-muted shrink-0" />
+                    <span class="flex-1 truncate">{row.item.label}</span>
+                    <span class="text-fg-muted flex items-center gap-1 font-mono text-[11px]">
+                        {#if row.item.kind === "person"}
+                            <Hash size={10} />
+                        {/if}
+                        {row.item.detail ?? ""}
+                    </span>
+                    <ArrowRight
+                        size={12}
+                        class="text-fg-muted opacity-0 group-hover:opacity-100"
+                    />
+                </button>
+            {/each}
+        {/if}
     </div>
+
+    <footer
+        class="border-line text-fg-muted flex items-center justify-between border-t px-3 py-1.5 text-[11px]"
+    >
+        <span class="flex items-center gap-2">
+            <kbd class="border-line bg-canvas rounded border px-1 font-mono">↑↓</kbd>
+            navigate
+            <kbd class="border-line bg-canvas rounded border px-1 font-mono">↵</kbd>
+            select
+            <kbd class="border-line bg-canvas rounded border px-1 font-mono">Esc</kbd>
+            close
+        </span>
+        <span class="hidden items-center gap-1 sm:inline-flex">
+            <kbd class="border-line bg-canvas rounded border px-1 font-mono">&gt;</kbd>
+            commands
+            <kbd class="border-line bg-canvas rounded border px-1 font-mono">@</kbd>
+            people
+            <kbd class="border-line bg-canvas rounded border px-1 font-mono">#</kbd>
+            id
+        </span>
+    </footer>
 </div>

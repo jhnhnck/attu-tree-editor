@@ -7,6 +7,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/svelte";
 import CommandPalette from "$lib/components/palette/CommandPalette.svelte";
 import type { PaletteItem } from "$lib/palette";
+import { dockStore } from "$lib/components/dock/store.svelte";
 
 beforeAll(() => {
     // jsdom doesn't implement Element.scrollIntoView — the palette calls it
@@ -15,6 +16,8 @@ beforeAll(() => {
     if (!Element.prototype.scrollIntoView) {
         Element.prototype.scrollIntoView = vi.fn();
     }
+    // reset dockStore between test files
+    dockStore.resetForTest();
 });
 
 function personItem(id: string, given: string, surname: string): PaletteItem {
@@ -44,7 +47,7 @@ function tinyItems(): PaletteItem[] {
 describe("CommandPalette", () => {
     it("renders rows for the empty input (people + commands)", () => {
         const items: PaletteItem[] = [...tinyItems(), cmdItem("Save", 0), cmdItem("Open", 1)];
-        render(CommandPalette, { items, mode: "anything", onclose: vi.fn() });
+        render(CommandPalette, { items, mode: "anything" });
         expect(screen.getByText("Alpha Smith")).toBeInTheDocument();
         expect(screen.getByText("Beta Jones")).toBeInTheDocument();
         expect(screen.getByText("Save")).toBeInTheDocument();
@@ -57,7 +60,7 @@ describe("CommandPalette", () => {
             cmdItem("Save tree", 0),
             cmdItem("Open dialog", 1),
         ];
-        render(CommandPalette, { items, mode: "commands", onclose: vi.fn() });
+        render(CommandPalette, { items, mode: "commands" });
         const input = screen.getByLabelText<HTMLInputElement>("palette search");
         await fireEvent.input(input, { target: { value: "save" } });
         expect(screen.getByText("Save tree")).toBeInTheDocument();
@@ -66,7 +69,7 @@ describe("CommandPalette", () => {
 
     it("`@` prefix swaps the view to people-only", async () => {
         const items: PaletteItem[] = [...tinyItems(), cmdItem("Save", 0)];
-        render(CommandPalette, { items, mode: "anything", onclose: vi.fn() });
+        render(CommandPalette, { items, mode: "anything" });
         const input = screen.getByLabelText<HTMLInputElement>("palette search");
         await fireEvent.input(input, { target: { value: "@" } });
         expect(screen.getByText("Alpha Smith")).toBeInTheDocument();
@@ -75,7 +78,7 @@ describe("CommandPalette", () => {
 
     it("`>` prefix swaps the view to commands-only", async () => {
         const items: PaletteItem[] = [...tinyItems(), cmdItem("Save", 0)];
-        render(CommandPalette, { items, mode: "anything", onclose: vi.fn() });
+        render(CommandPalette, { items, mode: "anything" });
         const input = screen.getByLabelText<HTMLInputElement>("palette search");
         await fireEvent.input(input, { target: { value: ">" } });
         expect(screen.getByText("Save")).toBeInTheDocument();
@@ -84,34 +87,36 @@ describe("CommandPalette", () => {
 
     it("Enter on the highlighted row fires the item's action and closes", async () => {
         const saveAction = vi.fn();
-        const onclose = vi.fn();
+        const closeModal = vi.spyOn(dockStore, "closeModal");
         const items: PaletteItem[] = [
             ...tinyItems(),
             cmdItem("Save", 0, saveAction),
             cmdItem("Open", 1),
         ];
-        render(CommandPalette, { items, mode: "commands", onclose });
+        render(CommandPalette, { items, mode: "commands" });
         const input = screen.getByLabelText<HTMLInputElement>("palette search");
         await fireEvent.input(input, { target: { value: "save" } });
         await fireEvent.keyDown(input, { key: "Enter" });
         expect(saveAction).toHaveBeenCalledTimes(1);
-        expect(onclose).toHaveBeenCalled();
+        expect(closeModal).toHaveBeenCalled();
+        closeModal.mockRestore();
     });
 
-    it("Esc fires onclose", async () => {
-        const onclose = vi.fn();
+    it("Esc calls dockStore.closeModal", async () => {
+        const closeModal = vi.spyOn(dockStore, "closeModal");
         const items: PaletteItem[] = [...tinyItems(), cmdItem("Save", 0)];
-        render(CommandPalette, { items, mode: "commands", onclose });
+        render(CommandPalette, { items, mode: "commands" });
         const input = screen.getByLabelText<HTMLInputElement>("palette search");
         await fireEvent.keyDown(input, { key: "Escape" });
-        expect(onclose).toHaveBeenCalled();
+        expect(closeModal).toHaveBeenCalled();
+        closeModal.mockRestore();
     });
 
     it("on open, no row carries the bg-canvas highlight class", () => {
         // matches Menu's behaviour: the first row is only highlighted after the
         // user explicitly presses ↑/↓ or hovers a row with the mouse
         const items: PaletteItem[] = [cmdItem("Save", 0)];
-        render(CommandPalette, { items, mode: "commands", onclose: vi.fn() });
+        render(CommandPalette, { items, mode: "commands" });
         const row = screen.getByText("Save").closest("button");
         // class:bg-canvas adds it as a standalone token; check against classList
         expect(row?.classList.contains("bg-canvas")).toBe(false);
@@ -119,7 +124,7 @@ describe("CommandPalette", () => {
 
     it("first ArrowDown highlights row 0; second ArrowDown moves to row 1", async () => {
         const items: PaletteItem[] = [cmdItem("Save", 0), cmdItem("Open", 1)];
-        render(CommandPalette, { items, mode: "commands", onclose: vi.fn() });
+        render(CommandPalette, { items, mode: "commands" });
         const input = screen.getByLabelText<HTMLInputElement>("palette search");
         await fireEvent.keyDown(input, { key: "ArrowDown" });
         const rows = screen.getAllByRole("button").filter((el) => el.dataset["row"] !== undefined);
@@ -131,7 +136,7 @@ describe("CommandPalette", () => {
 
     it("`#` prefix surfaces the person by exact id and hides commands", async () => {
         const items: PaletteItem[] = [...tinyItems(), cmdItem("Save", 0)];
-        render(CommandPalette, { items, mode: "anything", onclose: vi.fn() });
+        render(CommandPalette, { items, mode: "anything" });
         const input = screen.getByLabelText<HTMLInputElement>("palette search");
         await fireEvent.input(input, { target: { value: "#BBBBB" } });
         expect(screen.getByText("Beta Jones")).toBeInTheDocument();
@@ -141,7 +146,7 @@ describe("CommandPalette", () => {
 
     it("`#` lookup is case-insensitive", async () => {
         const items: PaletteItem[] = [...tinyItems(), cmdItem("Save", 0)];
-        render(CommandPalette, { items, mode: "anything", onclose: vi.fn() });
+        render(CommandPalette, { items, mode: "anything" });
         const input = screen.getByLabelText<HTMLInputElement>("palette search");
         await fireEvent.input(input, { target: { value: "#bbbbb" } });
         expect(screen.getByText("Beta Jones")).toBeInTheDocument();
@@ -149,7 +154,7 @@ describe("CommandPalette", () => {
 
     it("`#` with unknown id shows an id-specific empty state", async () => {
         const items: PaletteItem[] = [...tinyItems(), cmdItem("Save", 0)];
-        render(CommandPalette, { items, mode: "anything", onclose: vi.fn() });
+        render(CommandPalette, { items, mode: "anything" });
         const input = screen.getByLabelText<HTMLInputElement>("palette search");
         await fireEvent.input(input, { target: { value: "#ZZZZZ" } });
         expect(screen.getByText(/no person with id ZZZZZ/i)).toBeInTheDocument();
@@ -162,7 +167,7 @@ describe("CommandPalette", () => {
             { ...personItem("BBBBB", "Beta", "Jones"), action: betaAction },
             cmdItem("Save", 0),
         ];
-        render(CommandPalette, { items, mode: "anything", onclose: vi.fn() });
+        render(CommandPalette, { items, mode: "anything" });
         const input = screen.getByLabelText<HTMLInputElement>("palette search");
         await fireEvent.input(input, { target: { value: "BBBBB" } });
         await fireEvent.keyDown(input, { key: "Enter" });
@@ -176,7 +181,7 @@ describe("CommandPalette", () => {
             personItem("BBBBB", "Beta", "Jones"),
             cmdItem("Save", 0),
         ];
-        render(CommandPalette, { items, mode: "anything", onclose: vi.fn() });
+        render(CommandPalette, { items, mode: "anything" });
         const input = screen.getByLabelText<HTMLInputElement>("palette search");
         await fireEvent.input(input, { target: { value: "#AAAAA" } });
         await fireEvent.keyDown(input, { key: "Enter" });
