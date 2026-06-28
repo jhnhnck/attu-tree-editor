@@ -1,6 +1,6 @@
 <script lang="ts">
     import { onMount, onDestroy } from "svelte";
-    import { EditorView, keymap, drawSelection, dropCursor, rectangularSelection, crosshairCursor, highlightActiveLine, highlightSpecialChars, lineNumbers, highlightActiveLineGutter } from "@codemirror/view";
+    import { EditorView, keymap, drawSelection, dropCursor, rectangularSelection, crosshairCursor, highlightActiveLine, highlightSpecialChars, lineNumbers, scrollPastEnd } from "@codemirror/view";
     import { EditorState } from "@codemirror/state";
     import { history, historyKeymap, defaultKeymap, undo, redo } from "@codemirror/commands";
     import { bracketMatching, indentOnInput } from "@codemirror/language";
@@ -76,42 +76,53 @@
     const theme = EditorView.theme({
         "&": {
             height: "100%",
-            background: "var(--color-canvas-elev)",
+            background: "var(--color-editor-bg)",
             color: "var(--color-fg)",
             fontFamily: "var(--font-mono)",
+            fontSize: "0.8125rem",
         },
         ".cm-gutters": {
-            background: "var(--color-canvas)",
-            borderRight: "1px solid var(--color-line)",
+            background: "transparent",
+            border: "none",
             color: "var(--color-fg-muted)",
+            paddingRight: "0.75rem",
+        },
+        ".cm-lineNumbers .cm-gutterElement": {
+            minWidth: "2.5rem",
+            textAlign: "right",
         },
         ".cm-activeLineGutter": {
-            background: "color-mix(in srgb, var(--color-accent) 8%, transparent)",
+            background: "transparent",
+            color: "var(--color-fg)",
         },
         ".cm-activeLine": {
-            background: "color-mix(in srgb, var(--color-accent) 5%, transparent)",
+            background: "color-mix(in srgb, var(--color-fg) 4%, transparent)",
         },
         ".cm-matchingBracket": {
             outline: "1px solid var(--color-accent)",
-            background: "color-mix(in srgb, var(--color-accent) 10%, transparent)",
+            background: "color-mix(in srgb, var(--color-accent) 8%, transparent)",
         },
         ".cm-selectionMatch": {
-            background: "color-mix(in srgb, var(--color-accent) 15%, transparent)",
+            background: "transparent",
+            outline: "1px solid color-mix(in srgb, var(--color-accent) 45%, transparent)",
         },
         ".cm-cursor": { borderLeftColor: "var(--color-fg)" },
         ".cm-scroller": {
             fontFamily: "var(--font-mono)",
             overflow: "auto",
-            padding: "1rem 1.5rem",
+            paddingTop: "2.5rem",
+            paddingBottom: "3rem",
+            paddingLeft: "0.5rem",
+            paddingRight: "1rem",
         },
-        ".cm-content": { maxWidth: "80ch", margin: "0 auto" },
+        ".cm-content": { maxWidth: "none", margin: "0" },
     });
 
     const extensions = [
         lineNumbers(),
-        highlightActiveLineGutter(),
         highlightSpecialChars(),
         history({ minDepth: 10_000 }),
+        scrollPastEnd(),
         drawSelection(),
         dropCursor(),
         EditorState.allowMultipleSelections.of(true),

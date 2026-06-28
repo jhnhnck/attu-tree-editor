@@ -28,6 +28,7 @@
     --color-accent: hsl(220 100% 65%);
     --color-accent-strong: hsl(220 100% 75%);
     --color-danger: hsl(0 80% 65%);
+    --color-editor-bg: hsl(45 15% 7%);
 }
 
 @media (prefers-color-scheme: light) {
@@ -40,6 +41,7 @@
         --color-accent: hsl(220 100% 45%);
         --color-accent-strong: hsl(220 100% 35%);
         --color-danger: hsl(0 70% 45%);
+        --color-editor-bg: hsl(45 30% 95%);
     }
 }
 
@@ -52,6 +54,7 @@
     --color-accent: hsl(220 100% 45%);
     --color-accent-strong: hsl(220 100% 35%);
     --color-danger: hsl(0 70% 45%);
+    --color-editor-bg: hsl(45 30% 95%);
 }
 
 :root[data-theme="dark"] {
@@ -63,6 +66,7 @@
     --color-accent: hsl(220 100% 65%);
     --color-accent-strong: hsl(220 100% 75%);
     --color-danger: hsl(0 80% 65%);
+    --color-editor-bg: hsl(45 15% 7%);
 }
 
 html {
