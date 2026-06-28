@@ -15,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel
 
-from attu_tree import __version__, dev_proxy
+from attu_tree import __version__
 from attu_tree.db import close_db, init_db
 from attu_tree.routers.admin import router as admin_router
 from attu_tree.routers.auth import router as auth_router
@@ -53,7 +53,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         yield
     finally:
         await close_db()
-        await dev_proxy.close()
 
 
 class HealthResponse(BaseModel):
@@ -85,11 +84,6 @@ app.include_router(admin_router)
 @app.get('/health')
 async def health() -> HealthResponse:
     return HealthResponse(status='ok', version=__version__)
-
-
-# dev mode: proxy /trees → vite :5173 and /edit → vite :5174 before the spa catch-all
-if not _STATIC_DIR.exists():
-    dev_proxy.mount(app)
 
 
 # spa serving: hashed assets straight off disk; everything else (including / and

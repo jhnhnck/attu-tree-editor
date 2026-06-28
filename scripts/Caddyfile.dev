@@ -1,0 +1,27 @@
+# dev reverse proxy: caddy on :8000 fronts all three services
+# /trees/* -> vite tree-editor :5173
+# /edit/*  -> vite wiki-editor :5174
+# /*       -> fastapi           :8001
+# websocket upgrades (vite hmr) are handled transparently by reverse_proxy
+{
+	admin off
+}
+
+:8000 {
+	header Cache-Control no-store
+
+	redir /trees /trees/ 302
+	redir /edit /edit/ 302
+
+	handle /trees/* {
+		reverse_proxy localhost:5173
+	}
+
+	handle /edit/* {
+		reverse_proxy localhost:5174
+	}
+
+	handle {
+		reverse_proxy localhost:8001
+	}
+}

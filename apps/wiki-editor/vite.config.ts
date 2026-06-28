@@ -20,8 +20,8 @@ export default defineConfig({
         host: true,
         port: 5174,
         strictPort: false,
-        // when served through the python proxy on :8000, hmr must point back to vite directly
-        hmr: { port: 5174 },
+        // caddy proxies on :8000; base (/edit) becomes the ws path for hmr
+        hmr: { clientPort: 8000 },
     },
     build: {
         target: "es2022",
