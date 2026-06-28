@@ -155,8 +155,6 @@ body {
     margin-bottom: 0.25rem;
     font-size: 9px;
     font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
     color: var(--color-fg-muted);
 }
 
@@ -190,7 +188,8 @@ body {
 }
 
 .fte-window-row[aria-pressed="true"] {
-    background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+    border-left: 2px solid var(--color-accent);
+    padding-left: calc(0.375rem - 2px);
     color: var(--color-accent);
 }
 
@@ -211,18 +210,19 @@ body {
 .fte-window-button {
     width: 100%;
     padding: 0.25rem 0.5rem;
-    border: none;
+    border: 1px solid var(--color-line);
     border-radius: 0.25rem;
-    background: var(--color-accent);
-    color: var(--color-canvas);
+    background: transparent;
+    color: var(--color-fg-muted);
     font-size: 0.75rem;
-    font-weight: 600;
     cursor: pointer;
-    transition: background-color 120ms ease-out;
+    transition: border-color 120ms ease-out, color 120ms ease-out;
 }
 
 .fte-window-button:hover {
-    background: var(--color-accent-strong);
+    border-color: var(--color-accent);
+    color: var(--color-fg);
+    background: transparent;
 }
 
 /* toggle chip: compact interactive button for on/off states; driven by aria-pressed */
