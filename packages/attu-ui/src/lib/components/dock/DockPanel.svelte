@@ -160,9 +160,9 @@
                 onpointerdown={(e) => e.stopPropagation()}
             >
                 {#if floating}
-                    <ReDockIcon strokeWidth={2.5} />
+                    <ReDockIcon size={10} strokeWidth={2.5} />
                 {:else}
-                    <PopOutIcon strokeWidth={2.5} />
+                    <PopOutIcon size={10} strokeWidth={2.5} />
                 {/if}
             </button>
             <!-- minimize: always present -->
@@ -174,7 +174,7 @@
                 onclick={(e) => { e.stopPropagation(); floating ? dockStore.dockPanel(id) : dockStore.toggleExpanded(id); }}
                 onpointerdown={(e) => e.stopPropagation()}
             >
-                <MinimizeIcon strokeWidth={2.5} />
+                <MinimizeIcon size={10} strokeWidth={2.5} />
             </button>
             {#if closeable}
                 <button
@@ -185,7 +185,7 @@
                     onclick={(e) => { e.stopPropagation(); dockStore.closePanel(id); }}
                     onpointerdown={(e) => e.stopPropagation()}
                 >
-                    <X strokeWidth={2.5} />
+                    <X size={10} strokeWidth={2.5} />
                 </button>
             {/if}
         </span>
@@ -286,6 +286,7 @@
     }
 
     .fte-window-control :global(svg) {
+        display: block;
         width: 0.625rem;
         height: 0.625rem;
     }

@@ -453,13 +453,13 @@
             {corner}
             priority={20}
             rows={[
-                { label: "Words", value: "—" },
-                { label: "Characters", value: "—" },
-                { label: "Sections", value: "—" },
-                { label: "Wikilinks", value: "—" },
-                { label: "External links", value: "—" },
-                { label: "Templates", value: "—" },
-                { label: "References", value: "—" },
+                { label: "Words", value: "-" },
+                { label: "Characters", value: "-" },
+                { label: "Sections", value: "-" },
+                { label: "Wikilinks", value: "-" },
+                { label: "External links", value: "-" },
+                { label: "Templates", value: "-" },
+                { label: "References", value: "-" },
             ]}
         />
 

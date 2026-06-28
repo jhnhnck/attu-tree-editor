@@ -33,7 +33,7 @@
         pillId = "stats",
         corner,
         priority = 20,
-        pillLabel = "— words",
+        pillLabel = "- words",
         rows = [],
         pill,
         body,

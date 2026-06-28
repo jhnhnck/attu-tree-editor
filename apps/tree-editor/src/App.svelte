@@ -2584,10 +2584,10 @@
                             <span class="text-amber-400">{String(layoutStats.components)}{#if layoutStats.isolated > 0}+{String(layoutStats.isolated)}{/if}</span>
                         {:else if selectedMetric === "descendants" && selection.selectedPersonId}
                             <ArrowDownFromLine size={12} />
-                            <span>{selectedDescendantCount === undefined ? "—" : String(selectedDescendantCount)}</span>
+                            <span>{selectedDescendantCount === undefined ? "-" : String(selectedDescendantCount)}</span>
                         {:else if selectedMetric === "coi" && selection.selectedPersonId}
                             <Percent size={12} />
-                            <span>{selectedCoi !== undefined && selectedCoi > 0 ? formatCoi(selectedCoi) : "—"}</span>
+                            <span>{selectedCoi !== undefined && selectedCoi > 0 ? formatCoi(selectedCoi) : "-"}</span>
                         {:else}
                             <Users size={12} />
                             <span>{String(layoutStats.totalPeople)}</span>
@@ -2644,7 +2644,7 @@
                                 data-testid="stats-row-descendants"
                             >
                                 <span>descendants</span>
-                                <span>{selectedDescendantCount === undefined ? "—" : String(selectedDescendantCount)}</span>
+                                <span>{selectedDescendantCount === undefined ? "-" : String(selectedDescendantCount)}</span>
                             </button>
                             <button
                                 type="button"
@@ -2654,7 +2654,7 @@
                                 data-testid="stats-row-coi"
                             >
                                 <span>coi</span>
-                                <span>{selectedCoi !== undefined && selectedCoi > 0 ? formatCoi(selectedCoi) : "—"}</span>
+                                <span>{selectedCoi !== undefined && selectedCoi > 0 ? formatCoi(selectedCoi) : "-"}</span>
                             </button>
                         {/if}
                     </div>

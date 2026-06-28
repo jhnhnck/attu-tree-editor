@@ -44,7 +44,7 @@
 {/snippet}
 
 {#snippet defaultBody()}
-    <div class="fte-window-row mb-2"><span>Last saved</span><span>—</span></div>
+    <div class="fte-window-row mb-2"><span>Last saved</span><span>-</span></div>
     <button type="button" class="fte-window-button pointer-events-none opacity-50" disabled>
         Save now
     </button>
