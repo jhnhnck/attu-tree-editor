@@ -34,6 +34,7 @@
 
     let editorEl: HTMLDivElement;
     let view: EditorView;
+    let isDragging = false;
 
     function insideAny(text: string, col: number, re: RegExp): boolean {
         let m: RegExpExecArray | null;
@@ -106,6 +107,12 @@
             background: "transparent",
             outline: "1px solid color-mix(in srgb, var(--color-accent) 45%, transparent)",
         },
+        ".cm-selectionBackground": {
+            background: "color-mix(in srgb, var(--color-accent) 30%, transparent)",
+        },
+        "&.cm-focused .cm-selectionBackground": {
+            background: "color-mix(in srgb, var(--color-accent) 40%, transparent)",
+        },
         ".cm-cursor": { borderLeftColor: "var(--color-fg)" },
         ".cm-scroller": {
             fontFamily: "var(--font-mono)",
@@ -146,7 +153,7 @@
         EditorView.updateListener.of((update) => {
             if (update.selectionSet || update.docChanged) {
                 updateCursorState(update.state);
-                onselectionchange?.(!update.state.selection.main.empty);
+                if (!isDragging) onselectionchange?.(!update.state.selection.main.empty);
             }
         }),
         EditorView.lineWrapping,
@@ -158,6 +165,12 @@
             return [tr, { selection: { anchor: from }, scrollIntoView: true }];
         }),
         EditorView.domEventHandlers({
+            mousedown() { isDragging = true; return false; },
+            mouseup(_, view) {
+                isDragging = false;
+                onselectionchange?.(!view.state.selection.main.empty);
+                return false;
+            },
             wheel(event, view) {
                 event.preventDefault();
                 let dy = event.deltaY;
