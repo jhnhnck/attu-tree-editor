@@ -7,6 +7,7 @@
 -->
 <script lang="ts">
     import type { Snippet } from "svelte";
+    import { X } from "@lucide/svelte";
     import { dockStore } from "./store.svelte.js";
 
     interface Props {
@@ -55,13 +56,14 @@
     onkeydown={onkeydown}
 >
     <div class="modal-header">
-        <span class="text-sm font-medium text-fg">{title ?? id}</span>
+        <span class="text-xs text-fg-muted lowercase">{title ?? id}</span>
         <button
             type="button"
-            class="fte-icon-btn"
+            class="fte-window-control fte-window-control-close"
+            data-dialog-control
             aria-label="close"
             onclick={close}
-        >×</button>
+        ><X size={10} strokeWidth={2.5} /></button>
     </div>
     {#if children}
         <div class="modal-body">
@@ -90,7 +92,7 @@
         width: max-content;
         max-width: min(36rem, calc(100vw - 2rem));
         max-height: calc(100vh - 4rem);
-        border-radius: 0.5rem;
+        border-radius: 0.375rem;
         border: 1px solid var(--color-line);
         background: var(--color-canvas-elev);
         pointer-events: auto;
@@ -105,9 +107,9 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 0.5rem 0.75rem;
+        padding: 0.25rem 0.5rem;
         border-bottom: 1px solid var(--color-line);
-        min-height: 2.5rem;
+        min-height: 1.75rem;
     }
 
     .modal-body {
@@ -115,23 +117,5 @@
         overflow-y: auto;
     }
 
-    .fte-icon-btn {
-        width: 1.5rem;
-        height: 1.5rem;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        border: none;
-        background: transparent;
-        color: var(--color-fg-muted);
-        cursor: pointer;
-        border-radius: 0.25rem;
-        font-size: 1rem;
-        line-height: 1;
-    }
 
-    .fte-icon-btn:hover {
-        background: var(--color-line);
-        color: var(--color-fg);
-    }
 </style>

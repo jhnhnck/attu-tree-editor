@@ -269,37 +269,6 @@
         flex: 0 0 auto;
     }
 
-    /* each control is a small circular chip with a semantic fill colour;
-       icon inside renders at stroke 2.5. hover darkens by 20%. */
-    .fte-window-control {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 0.875rem;
-        height: 0.875rem;
-        padding: 0;
-        border: none;
-        border-radius: 9999px;
-        color: var(--color-fg);
-        cursor: pointer;
-        transition: filter 120ms ease-out;
-    }
-
-    .fte-window-control :global(svg) {
-        display: block;
-        width: 0.625rem;
-        height: 0.625rem;
-    }
-
-    .fte-window-control:hover {
-        filter: brightness(0.8);
-    }
-
-    /* semantic fills: neutral-600/40, amber-600/40, red-700/40 */
-    .fte-window-control-popdock  { background-color: rgb(82 82 82 / 0.4); }
-    .fte-window-control-minimize { background-color: rgb(217 119 6 / 0.4); }
-    .fte-window-control-close    { background-color: rgb(185 28 28 / 0.4); }
-
     .window-body {
         padding: 0.5rem;
         border-top: 1px solid var(--color-line);
