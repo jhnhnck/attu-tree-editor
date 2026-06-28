@@ -150,6 +150,13 @@
             }
         }),
         EditorView.lineWrapping,
+        EditorState.transactionFilter.of((tr) => {
+            if (!tr.isUserEvent("input.paste")) return tr;
+            let from: number | null = null;
+            tr.changes.iterChanges((fromA) => { if (from === null) from = fromA; });
+            if (from === null) return tr;
+            return [tr, { selection: { anchor: from }, scrollIntoView: true }];
+        }),
         EditorView.domEventHandlers({
             wheel(event, view) {
                 event.preventDefault();
