@@ -33,8 +33,8 @@ the canvas-chrome dock system shared by both SPAs. lives in `packages/attu-ui/sr
   kind="panel"            <!-- "pill" | "panel" | "dialog" -->
   corner="bl"
   priority={100}
-  {render}                <!-- DockRenderSnippet: () => Snippet -->
-  windowId?="my-panel"   <!-- pairs a pill to its panel -->
+  {render}                <!-- DockRenderSnippet: Snippet<[{ forcedCollapse: boolean }]> -->
+  panelId?="my-panel"    <!-- pairs a pill to its panel -->
   closeable?={true}
   persistent?={false}     <!-- stays registered when unmounted -->
   title?="my panel"
@@ -48,35 +48,42 @@ a panel goes through four states:
 
 | state | description |
 |---|---|
-| `closed` | no entry in store - no pill, no surface |
-| `docked-minimized` | open, collapsed - pill only, no surface rendered |
-| `docked-expanded` | open, expanded - pill + surface in the corner stack |
+| `closed` | no entry in store - no pill rendered, no surface |
+| `minimized` | open, collapsed - pill only, no surface rendered |
+| `expanded` | open, expanded - pill + surface in the corner stack |
 | `floating` | popped out - free-floats in `DockSurface` at (x, y) |
 
-`dockStore.pillClick(id)` is the single pill entry-point: opens closed, expands minimized, minimizes expanded, re-docks floating.
+`dockStore.togglePanel(id)` is the canonical pill tap handler: closed→expanded, minimized→expanded, expanded→minimized, floating→bring to front.
 
 ### store methods (key ones)
 
 ```ts
-dockStore.openWindow(id)        // add to open set
-dockStore.closeWindow(id)       // remove from open set
-dockStore.toggleExpanded(id)    // minimized <-> expanded
-dockStore.isOpen(id)            // boolean
-dockStore.isExpanded(id)        // boolean
-dockStore.windowState(id)       // "closed" | "docked-minimized" | "docked-expanded" | "floating"
-dockStore.pillClick(id)         // canonical pill tap handler
-dockStore.popOut(id, x, y)     // move to overlay at (x, y)
-dockStore.redock(id)            // move from overlay back to corner
-dockStore.openModal(id)         // show dialog; closes any prior dialog
-dockStore.closeModal()
-dockStore.floatingItems         // array of floating DockItemDef
-dockStore.activeModal           // id of current dialog or null
+dockStore.openPanel(id)           // add to open set (→ minimized)
+dockStore.closePanel(id)          // remove from open set
+dockStore.toggleExpanded(id)      // minimized <-> expanded
+dockStore.setExpanded(id, bool)   // set expanded state explicitly
+dockStore.togglePanel(id)         // 4-branch pill tap machine (canonical)
+dockStore.isOpen(id)              // boolean
+dockStore.isExpanded(id)          // boolean — false when floating (known bug)
+dockStore.panelState(id)          // "closed" | "minimized" | "expanded" | "floating"
+dockStore.floatPanel(id, x, y)   // move to overlay at (x, y)
+dockStore.dockPanel(id)           // move from overlay → minimized
+dockStore.dockPanelExpanded(id)  // move from overlay → expanded
+dockStore.movePanel(id, x, y)    // update floating position (drag)
+dockStore.focusPanel(id)          // flash titlebar + bring to front
+dockStore.reorderPills(corner, ids) // drag-to-reorder pill list
+dockStore.openDialog(id)          // show dialog; closes any prior dialog
+dockStore.closeDialog()
+dockStore.activeDialog            // id of current dialog or undefined
+dockStore.floatingPanels          // array of { item: DockItemDef; pos: { x, y, z } }
 ```
+
+> **known bug:** `isExpanded(id)` returns false when a panel is floating, so pill `aria-pressed` is wrong in floating state. fix: `isExpanded` should return true for both `"expanded"` and `"floating"`. deferred.
 
 ### localStorage keys (no schema version; client-only)
 
 - `fte.dock.corner` - active corner (`"bl" | "tl" | "tr" | "br"`); default `"bl"`
-- `fte.dock.openedWindows` - JSON array of open panel ids; debug ids never written
+- `fte.dock.openedPanels` - JSON array of open panel ids; non-persistent ids never written
 
 ---
 
@@ -95,6 +102,8 @@ titlebar controls left-to-right: `[pop/re-dock] [minimize] [close]`. icons are c
 
 minimize on a floating panel re-docks then collapses (lands as pill-only). pop-out cascades: `x = host.right - 320 + n*24`, `y = host.top + 60 + n*24` (wraps every 8).
 
+control buttons use `.fte-window-control` CSS classes (global in `theme.css`): 14px colored circles at 40% alpha. neutral/amber/red for pop-dock/minimize/close.
+
 ---
 
 ## DockDialog
@@ -105,7 +114,9 @@ minimize on a floating panel re-docks then collapses (lands as pill-only). pop-o
 </DockDialog>
 ```
 
-sizes: `"md"` (448px) or `"lg"` (768px). always fullscreen on mobile. close via Escape, backdrop click, or `dockStore.closeModal()`. only one dialog active at a time - opening a second closes the first.
+sizes: `"md"` (max 36rem) or `"lg"` (max 48rem). max-height `calc(100vh - 4rem)`; body scrolls when content overflows. close via Escape, backdrop click, or `dockStore.closeDialog()`. only one dialog active at a time - opening a second closes the first.
+
+titlebar chrome matches `DockPanel`: lowercase muted title, red circle close button with Lucide X icon.
 
 ---
 
@@ -115,16 +126,16 @@ global classes from `theme.css` (cross the svelte scoping boundary without impor
 
 | class | renders |
 |---|---|
-| `fte-window-section` | small uppercase muted section header |
+| `fte-window-section` | small muted section header |
 | `fte-window-divider` | thin `<hr>` separator between sections |
 | `fte-window-row` | key/value flex row - muted label left, value right |
-| `fte-window-row[aria-pressed]` | selectable row with hover/selected states |
+| `fte-window-row[aria-pressed]` | selectable row with hover/selected states; selected shows left-border accent |
 | `fte-window-list` | compact vertical stack |
-| `fte-window-button` | full-width accent action button |
+| `fte-window-button` | full-width muted outline action button |
 | `fte-window-chip` | small rounded toggle chip (state via `aria-pressed`) |
 | `fte-window-chip-group` | `flex flex-wrap gap-1` container for chips |
 | `fte-window-muted-action` | small muted text button |
-| `fte-window-danger` | rose-400 tinted text for error rows |
+| `fte-window-danger` | danger-tinted text for error rows |
 
 do NOT add border / padding / background inside the body snippet - `DockPanel` already provides the frosted box and `0.5rem` padding. nesting another bordered box is the double-pad trap.
 
@@ -151,23 +162,29 @@ items sort by `order` (asc) then `priority` (asc) then `focusedAt` (desc, panels
 | 200-299 | debug panels (family-view debug panels: 200-230) |
 | 300+ | primary control surfaces (debug-menu 300) |
 
-`persistent: true` items (save-status, stats) are always open - `openWindow`/`closeWindow` no-op; close button hidden.
+`persistent: false` items (debug panels, per-session tools) are removed from localStorage on close. `closeable: false` items (save-status) always auto-open and cannot be closed.
 
 ---
 
 ## registering a new panel
 
 ```svelte
-<!-- in App.svelte -->
-<DockEntry
-  id="my-panel"
-  kind="panel"
-  corner="bl"
-  priority={120}
-  render={pillSnippet}
-  windowId="my-panel"
-/>
-<DockPanel id="my-panel" title="my panel" body={bodySnippet} />
+<!-- in App.svelte — snippet binds to DockEntry via render prop -->
+{#snippet pillRender(ctx: { forcedCollapse: boolean })}
+    <button class="fte-pill fte-pill-icon" aria-pressed={dockStore.isExpanded("my-panel")}
+        onclick={() => dockStore.togglePanel("my-panel")}><MyIcon size={12} /></button>
+{/snippet}
+
+{#snippet panelRender(_ctx: { forcedCollapse: boolean })}
+    <DockPanel id="my-panel" title="my panel" body={bodySnippet} />
+{/snippet}
+
+{#snippet bodySnippet()}
+    <div class="fte-window-row"><span>label</span><span>value</span></div>
+{/snippet}
+
+<DockEntry id="my-pill" kind="pill" corner="bl" priority={120} panelId="my-panel" render={pillRender} />
+<DockEntry id="my-panel" kind="panel" corner="bl" priority={125} render={panelRender} />
 ```
 
 `DockCorner` picks it up automatically via reactive `dockStore.itemsForCorner(corner)`.
