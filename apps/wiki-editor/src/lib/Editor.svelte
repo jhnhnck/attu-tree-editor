@@ -150,6 +150,16 @@
             }
         }),
         EditorView.lineWrapping,
+        EditorView.domEventHandlers({
+            wheel(event, view) {
+                event.preventDefault();
+                let dy = event.deltaY;
+                if (event.deltaMode === 1) dy *= 20;       // lines → px (firefox)
+                else if (event.deltaMode === 2) dy *= 400;  // pages → px
+                view.scrollDOM.scrollTop += dy * 0.35;
+                return true;
+            },
+        }),
     ];
 
     onMount(() => {
