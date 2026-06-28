@@ -81,6 +81,21 @@ defer to `config-tiers` skill for the canonical tier-A/B/C/D plumbing, the `wind
 - [ ] persisted artifacts carry `schemaVersion` and a `Migration` exists when bumped? (rule 9)
 - [ ] no secrets staged from `data/`? (rule 3)
 
+## browser verification (if UI changed)
+
+run the dev server and open the app — do not skip this for UI work. "pnpm typecheck passes" is not proof the UI works.
+
+- [ ] opened the running app at the correct port (`:8000`; `/trees` for tree-editor, `/edit` for wiki-editor) — do not start a new server if one is already running
+- [ ] clicked or triggered every changed interaction in the browser — not inferred, not tested, actually observed
+- [ ] for wiki-editor changes: compared the result against the equivalent tree-editor component to confirm markup structure, CSS tokens, and icon choices match
+
+if the fix doesn't reproduce in a browser, it is not fixed. take a screenshot to `scratch/` if it confirms behavior.
+
+## style guards (before any commit)
+
+- [ ] grep modified files for em-dashes (`—`): `git diff --cached | grep '—'` — em-dashes are banned (CLAUDE.md); use regular hyphens
+- [ ] staged file list matches plan's `## Files touched` allowlist — if any staged file is not in the list, remove it or justify it explicitly before committing
+
 ## final gate
 
 - [ ] every applicable box above is checked
