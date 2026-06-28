@@ -25,13 +25,15 @@ client-side typescript spa (svelte 5, vite, tailwind v4) for viewing and editing
 
 | Module         | Role                                                    |
 | :------------- | :------------------------------------------------------ |
-| `apps/web/`    | client-side svelte 5 spa; bundled by vite               |
-| `apps/server/` | fastapi + aiosqlite backend; single docker container    |
-| `packages/`    | shared workspace packages (api-client lands in phase 5) |
+| `apps/tree-editor/` | family-tree editor svelte 5 spa; bundled by vite        |
+| `apps/wiki-editor/` | attu wiki editor svelte 5 spa; bundled by vite          |
+| `apps/server/`      | fastapi + aiosqlite backend; single docker container    |
+| `packages/attu-ui/` | shared svelte component library + design tokens         |
+| `packages/api-client/` | typed http client for the fastapi backend (`pnpm gen:api`) |
 | `examples/`    | sample `.txt`, `.ged`, and family echo `.html` exports  |
 | `notes/`       | agent guidance and feature specs                        |
 
-### apps/web internals
+### apps/tree-editor internals
 
 | Module                          | Role                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | :------------------------------ | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -48,12 +50,12 @@ client-side typescript spa (svelte 5, vite, tailwind v4) for viewing and editing
 | `src/lib/layout/`               | four-pass IR pipeline (`ir.ts`, `passes/{layer,order,place,route}.ts`) plus the engine boundary (`engine.ts`) and the three engines under `engines/{layered-hv,family-view,hyperbolic-lr}/`. `layout.worker.ts` runs the pipeline off the main thread. shared utilities: `edgeRouter.ts`, `kinship.ts`, `pathHighlight.ts`, `probandTree.ts`. see the `tree-layout-ir` and `tree-debugger` skills                                    |
 | `src/lib/layout/hyperbolic/`    | hyperbolic-disk math + lamping-rao implementation used by the hyperbolic-lr engine. see the `hyperbolic-geometry` skill                                                                                                                                                                                                                                                                                                              |
 | `src/lib/state/`                | runes-based stores: `tree.svelte.ts` (snapshot undo/redo + dirty flag), `selection.svelte.ts`, `viewport.svelte.ts`, `toasts.svelte.ts`, `progress.svelte.ts`, `portraitUrls.svelte.ts` (blob -> object-URL cache), `auth.svelte.ts`, `sync.svelte.ts` (server revision tracking), `preferences.svelte.ts`, `engine.ts` (active layout engine), `preferredUnionMigration.ts`; `autosave.ts` debounces tree changes into Dexie writes |
-| `src/lib/api/`                  | typed http client for the fastapi backend (`client.ts`)                                                                                                                                                                                                                                                                                                                                                                              |
+| `src/lib/api/`                  | thin wrapper around `@api-client` for the fastapi backend (`client.ts`); prefer importing from `packages/api-client/` directly for new code                                                                                                                                                                                                                                                                                          |
 | `src/lib/components/tree/`      | `TreeCanvas.svelte`, `FamilyViewCanvas.svelte`, `HyperbolicCanvas.svelte` (per-engine renderers), `PersonNode.svelte` (foreignObject card), `EdgeLayer.svelte` + `edgePath.ts` (svg connectors), `canvasController.ts` (pan/zoom/focus), `DebugOverlay.svelte` (Ctrl+Shift+D), `InstancePopover.svelte`                                                                                                                              |
 | `src/lib/components/editor/`    | `PersonEditor.svelte` (`<dialog>` form, set-or-delete patches), `PortraitField.svelte` (upload + thumb), `CropperDialog.svelte` + `CropperCanvas.svelte` (canvas-based portrait cropper; cropperjs removed), `cropperMath.ts` / `loadSourceBitmap.ts` / `encodePortrait.ts` (pure helpers; output webp via OffscreenCanvas)                                                                                                          |
 | `src/lib/components/inspector/` | tabbed inspector sidebar: `Inspector.svelte` + `PersonalTab.svelte` / `ConnectionsTab.svelte` / `DetailsTab.svelte` / `RelationshipsTab.svelte` / `GroupsTab.svelte` / `SibshipTab.svelte` + `PersonChooser.svelte`                                                                                                                                                                                                                  |
-| `src/lib/components/shell/`     | top-bar chrome: `MenuBar.svelte` + `Menu.svelte` + `menu.ts` (action registry), `AuthBar.svelte`, `AdminPanel.svelte`, `SaveStatusPill.svelte`, `ProgressStrip.svelte`, dialogs (`OpenDialog`, `ShareDialog`, `SettingsDialog`, `LinkCodeDialog`)                                                                                                                                                                                    |
-| `src/lib/components/canvas/`    | canvas chrome: `ZoomWidget.svelte`, `BackButton.svelte`                                                                                                                                                                                                                                                                                                                                                                              |
+| `src/lib/components/shell/`     | top-bar chrome: `MenuBar.svelte` + `Menu.svelte` + `menu.ts` (action registry), `AuthBar.svelte`, `AdminPanel.svelte`, `ProgressStrip.svelte`, dialogs (`OpenDialog`, `ShareDialog`, `SettingsDialog`, `LinkCodeDialog`); save-status + stats pills now live in `@attu/ui` dock                                                                                                                                                      |
+| `src/lib/components/canvas/`    | canvas chrome: `ZoomWidget.svelte`, `BackButton.svelte`; dock + window/modal system lives in `@attu/ui` - see `notes/features/dock-kit.md`                                                                                                                                                                                                                                                                                          |
 | `src/lib/components/palette/`   | `CommandPalette.svelte` + `commands.ts` (Ctrl+P quick-jump + Ctrl+Shift+P command palette)                                                                                                                                                                                                                                                                                                                                           |
 | `src/lib/components/help/`      | `ShortcutsOverlay.svelte` (the `?` overlay)                                                                                                                                                                                                                                                                                                                                                                                          |
 | `src/lib/components/form/`      | `DateInput.svelte` (parses on blur via `HaracalndeDate.parseNarrative`), `Field.svelte`                                                                                                                                                                                                                                                                                                                                              |
@@ -100,7 +102,7 @@ just `PYTHONUNBUFFERED=1`. no secrets, no `env_file:`. session cookie path is fi
 
 ### web
 
-`apps/web/vite.config.ts` keeps `base: process.env["VITE_BASE"] ?? "/"` (vite dev needs `/`; the production build is locked to `/trees/` by the Dockerfile). the spa wiki base url is **runtime-injected**: fastapi templates `<script>window.__TREES_CONFIG__ = {...}</script>` into `index.html` on serve, populated from tier A. `lib/wiki/linkResolver.ts` reads `window.__TREES_CONFIG__?.wikiBaseUrl` first, then `import.meta.env.VITE_WIKI_BASE_URL` (test fallback), then the default. one image works for any environment by swapping the toml.
+`apps/tree-editor/vite.config.ts` keeps `base: process.env["VITE_BASE"] ?? "/"` (vite dev needs `/`; the production build is locked to `/trees/` by the Dockerfile). the spa wiki base url is **runtime-injected**: fastapi templates `<script>window.__TREES_CONFIG__ = {...}</script>` into `index.html` on serve, populated from tier A. `lib/wiki/linkResolver.ts` reads `window.__TREES_CONFIG__?.wikiBaseUrl` first, then `import.meta.env.VITE_WIKI_BASE_URL` (test fallback), then the default. one image works for any environment by swapping the toml.
 
 precedence: `init_settings` > `TomlConfigSettingsSource` > `env_settings` > `file_secret_settings`. env vars only matter for dev-outside-docker (`TREES_CONFIG_PATH`).
 
@@ -147,12 +149,12 @@ when a test, fixture, doc, or example needs a generic person, use these akarian-
 
 ### web
 
-- **unit**: `apps/web/tests/unit/**/*.test.ts` - vitest, jsdom, no browser deps
-- **component**: `apps/web/tests/component/**/*.test.ts` - vitest + jsdom + `@testing-library/svelte`; ~45 spec files post-`ui-invariant-tests` plan (was 12 before). includes 6 structural-invariant suites (chrome-geometry, auto-fit-suppression, toggle-indicator, parity-matrix, selection-state-machine, keyboard-reachability) that replaced the deleted visual-snapshot floor - see [`notes/features/test-invariants.md`](features/test-invariants.md). `tests/setup.ts` registers jest-dom matchers, per-test cleanup, and no-op global shims for `ResizeObserver` / `IntersectionObserver` / `window.matchMedia` (jsdom 29.1.1 omits all three). `vitest.config.ts` sets `resolve.conditions: ['browser']` so the svelte plugin returns the client build, not the SSR one
-- **e2e**: `apps/web/tests/e2e/**/*.spec.ts` - playwright with `chromium` + `mobile` projects. 8 specs post-plan (was 28); the residual set is browser-only by design (real file picker, real `BrowserContext` cross-tab, real Worker cache-key, real CSS calc, etc.). 0 visual-golden specs remain
+- **unit**: `apps/tree-editor/tests/unit/**/*.test.ts` - vitest, jsdom, no browser deps
+- **component**: `apps/tree-editor/tests/component/**/*.test.ts` - vitest + jsdom + `@testing-library/svelte`; ~45 spec files post-`ui-invariant-tests` plan (was 12 before). includes 6 structural-invariant suites (chrome-geometry, auto-fit-suppression, toggle-indicator, parity-matrix, selection-state-machine, keyboard-reachability) that replaced the deleted visual-snapshot floor - see [`notes/features/test-invariants.md`](features/test-invariants.md). `tests/setup.ts` registers jest-dom matchers, per-test cleanup, and no-op global shims for `ResizeObserver` / `IntersectionObserver` / `window.matchMedia` (jsdom 29.1.1 omits all three). `vitest.config.ts` sets `resolve.conditions: ['browser']` so the svelte plugin returns the client build, not the SSR one
+- **e2e**: `apps/tree-editor/tests/e2e/**/*.spec.ts` - playwright with `chromium` + `mobile` projects. 8 specs post-plan (was 28); the residual set is browser-only by design (real file picker, real `BrowserContext` cross-tab, real Worker cache-key, real CSS calc, etc.). 0 visual-golden specs remain
 - **harnesses**: `tests/component/_harness/` collects reusable mount sandwiches and helpers - `loadGedcomFixture`, `mountWithHostRect`, `stackingContextHitTest`, `MenuHarness`, `TabOrderHarness`, `ToggleMenuHarness`, `StatsPillHarness`, `ImportEditHarness`, `GenderFieldHarness`, `AgabFieldHarness`, `ParentPickerHarness`, `PortraitFieldHarness`. extract a new harness when a second spec needs the same scaffold
 - `pnpm test:unit` runs vitest (unit + component, canonical fast loop), `pnpm test:e2e` runs playwright (residual browser-only set)
-- fixtures live in `apps/web/tests/fixtures/` (purpose-built; `tiny.ged`, `multi-union.ged`, repro tables) and `notes/examples/` (akarian-style gedcom exports). the worktree post-checkout hook auto-symlinks `notes/examples` into each new worktree
+- fixtures live in `apps/tree-editor/tests/fixtures/` (purpose-built; `tiny.ged`, `multi-union.ged`, repro tables) and `notes/examples/` (akarian-style gedcom exports). the worktree post-checkout hook auto-symlinks `notes/examples` into each new worktree
 
 ### server
 
@@ -181,33 +183,9 @@ pnpm verify        # full ci sweep
 
 `pnpm dev` may conflict with a long-running container instance - if you see EADDRINUSE, stop the container before launching the worktree's dev server.
 
-### canvas-chrome dock + Window primitive
+### canvas-chrome dock
 
-the dock is a **taskbar** (canvas-chrome-v2 phase 6): a single row of pills, one per OPEN menu, like an OS taskbar. every floating pill, panel, or window registers through `dockRegistry` ([`apps/web/src/lib/components/canvas/dockRegistry.svelte.ts`](../apps/web/src/lib/components/canvas/dockRegistry.svelte.ts)). `CanvasChromeDock` renders, within each `corner`: the pill row first (so the flex direction lands it at the anchored edge — tl/tr top, bl/br bottom), then the docked-window surfaces. a window's surface renders in the dock ONLY when its `windowState` is `docked-expanded`; a `docked-minimized` window is represented by its pill alone, and a `floating` one paints in the WindowOverlay — so docked windows always expand AWAY from the anchored corner. the active corner is user-configurable (`bl` / `tl` / `tr` / `br`) via `dockConfig.corner`, persisted to `fte.dock.corner`; the full-panels submenu under `view` lists every window and is the only reopen path for a closed family-view panel. items declare `{ id, corner, priority, kind: "pill" | "panel" | "window", render, forceCollapsible?, order?, focusedAt?, windowId? }`; `DockRegistration` is the markup-level bridge. `windowId` pairs a pill to its window (the naming is non-uniform: `save-status`↔`save-status-window`, `debug-toggle`↔`debug-menu`, `<id>-pill`↔`<id>`).
-
-items sort by: `order` ascending (PRIMARY key), then `priority` ascending, then a `focusedAt`-desc tiebreaker scoped to `kind="window"`, then id. `order` defaults to 0 for every item, so until a reorder gesture rewrites it the whole block ties at 0 and the comparator falls straight through to priority / focusedAt / id — default layout + focus-to-front are byte-for-byte unchanged. order is deliberately before priority because every window has a unique priority, so an order-after-priority key would be inert. do NOT "fix" the precedence back. `order` is in-memory session state only — NOT persisted.
-
-**Window primitive** (`apps/web/src/lib/components/canvas/Window.svelte`) is the only chrome contract for every floating canvas surface — debug menu, stats popover, save-status popover, family-view debug panels, future ones. props excluding `id`: `pillId`, `title`, `expanded`, `forcedCollapse`, `onToggleExpanded`, `closeable?`, `onClose?`, `body`. titlebar controls run left-to-right `[pop/dock] [minimize] [close]` with **anchor-aware** lucide icons (read from `dockConfig.corner`): minimize points toward the anchored edge (`ChevronUp` for top corners, `ChevronDown` for bottom); pop-out points diagonally away from the anchor and re-dock back toward it (e.g. tl pops `ArrowDownRight` / re-docks `ArrowUpLeft`; br pops `ArrowUpLeft` / re-docks `ArrowDownRight`); `X` closes (omitted when `closeable={false}`). minimize on a floating window re-docks then collapses (so it lands as pill-only). control + pill icons are sized in rem/em so they scale with the 110% root. the body is a snippet slot; no caller renders its own border / padding / titlebar — the `.fte-window-stack` + `.fte-window-body` chrome owns the frosted box, the `0.5rem` body padding, and the single `border-top` divider. caller wraps `<Window>` inside `<DockRegistration kind="window">`; the Window primitive never calls `register()` itself.
-
-**window state machine** (`windowManager.svelte.ts`, `DockWindowState`): a window is `closed` (no `openedWindows` entry — no pill, no surface), `docked-minimized` (open, `expanded=false` — **pill only, no docked surface**), `docked-expanded` (open, `expanded=true` — pill + surface in the dock), or `floating` (popped out — `expanded` forced true, surface in the overlay). `windowManager.openedWindows` (SvelteSet) is the open gate; `isOpen(id)` reads it; `isExpanded(id)` / `toggleExpanded(id)` drive the minimized↔expanded split and are the SINGLE source of expand-truth for ALL 8 menus — the family-view debug panels route their `expanded` prop through `windowManager` too (phase 6; previously caller-owned `$state`), so `windowState()` is accurate everywhere. `pillClick(id)` is the single pill entry-point: opens a closed window, expands a minimized one, minimizes an expanded one, re-docks-then-focuses a floating one (restoring `lastState`). `NON_CLOSING_IDS` (`save-status-window`) are always open — `openWindow`/`closeWindow` no-op, close button hidden via `closeable={false}`. open-state persists to `fte.dock.openedWindows` EXCEPT the non-persisted set (`debug-menu` + any `family-view-debug-*` id), which live in `openedWindows` for a session but never round-trip to localStorage.
-
-**shared body CSS classes** (`app.css`, global because the body snippet is declared in the caller but mounted inside Window's scoped style scope): `.fte-window-section` (small uppercase muted section header), `.fte-window-row` (key/value flex row — muted label left, value hugs right), `.fte-window-list` (compact vertical stack, used by the focus-log), `.fte-window-button` (full-width accent action button). these add NO edge padding / border / background of their own — the window body already supplies that, so nesting a bordered/padded box inside it is the double-pad trap to avoid.
-
-**pop-out semantics:** clicking the `ArrowUpRight` (pop-out) control on a docked Window moves it to the WindowOverlay (mounted once inside the canvas-host) where it free-floats at `z-30..z-49` in canvas-host-local coordinates. popped-out wrappers do NOT carry `data-canvas-chrome` (phase-0 probe verdict) so `fitToView` pans content under them. drag-to-move via titlebar pointerdown (mouse + synthetic touch); the canvas-host's ResizeObserver re-clamps every popped-out entry on host resize (sheet inspector open / close, window resize). clicking the re-dock control re-docks. **drag-to-reorder lives on the taskbar pills** (phase 6; most menus are minimized and have no titlebar to grab): the dock owns the gesture — a pointerdown on a pill in `[data-dock-pills]` runs horizontal drop math (clientX vs pill midpoints) past a 4px threshold (a click-swallow then suppresses the trailing synthetic click so a reorder doesn't also toggle the pill), paints a vertical drop-indicator, and on drop calls `reorderPills`, which renumbers the pill block's `order` AND mirrors it onto each pill's paired window (via `windowId`) so a docked-expanded surface follows its taskbar position. orphan entries (registry items that unmount, e.g. family-view panels on engine swap) drop from `popOutStates` automatically because the overlay iterates `popOutStates ∩ idsByKind("window")`. modals (`CommandPalette`, `ShortcutsOverlay`, sheet-inspector) live at `z-50+` separate.
-
-**debug-mode split:** `debugMode` (master switch, persisted) gates pill registration + every effect-rendering derivation; the debug menu's open-state is `windowManager.isOpen("debug-menu")` (non-persisted) — `toggleDebugMenu` flips it via `openWindow`/`closeWindow`, the icon pill's `aria-pressed` reads it, and `Ctrl+Shift+D` toggles it. the Window's `×` routes through `windowManager.closeWindow("debug-menu")`; closing the menu leaves overlays running. flipping the `Help > Debug mode` master switch off clears the menu (an effect calls `closeWindow("debug-menu")` when `debugMode` goes false) and retires the pill + overlays. see §18.
-
-**save-status dual indicators:** the save-status pill renders two lucide glyphs inline — local (`laptop-minimal` / `laptop-minimal-check`) + remote (`cloud` / `cloud-check` / `cloud-off` / `cloud-upload` / alert variants). the Window body splits into three rows (local / remote / runtime, the last gated by `debugMode` and absorbing editRev + last-layout-pass timings that previously lived in a standalone debug-timings pill).
-
-**configurable stats pill:** stats Window rows are buttons that write to `selectedMetric: $state<"people" | "clusters" | "descendants" | "coi">`; the stats pill branches on it to render the chosen value. rows fall back to the people count when the selected metric requires a person selection that isn't set.
-
-priority-space convention (status 0-99, tools 100-199, debug 200-299, menus / primary control surfaces 300+):
-
-- `save-status` (10, pill), `save-status-window` (15, window, `forceCollapsible: false`), `stats` (20, pill), `stats-window` (25, window, `forceCollapsible: false`), `debug-toggle` (30, pill) — always-visible status band
-- `family-view-debug-off-subset-warning` (200), `recenter-missed` (210), `coi-breakdown` (220), `focus-log` (225), `layout-metrics` (230) — family-view debug panels, all `kind: "window"`
-- `debug-menu` (300, window, `forceCollapsible: false`) — primary control surface; opts out of the dock's force-collapse pass so it keeps its full measured height. on cramped viewports the menu's presence demotes every other debug panel to its pill form first
-
-mobile / cramped-viewport fallback is structural: when the dock's natural stack exceeds its corner cap, the overflow handler force-collapses items lowest-priority-first (kind="panel" and kind="window") until the stack fits. items with `forceCollapsible: false` are skipped — they stay expanded and crowd the rest of the stack into pills. all collapsible panels reduce to their pill form before the corner enables `overflow-y: auto` as a last resort. the dock's `scheduleMeasure` `$effect` depends on `windowManager.popOutStates.size` so popping a window out re-measures and can unwind a force-collapsed sibling. the phase-5 anchor clamp lives on top of this — if the css-var-driven `bottom:` anchor (sheet inspector open) would push the dock's top edge above the canvas-host, the clamp pins the bottom anchor; an anti-jump hold across the pop-out frame bounds the dock's bottom shift to ≤ 1 pill-height. registering a new item is a one-line `<DockRegistration ... />` next to the snippet that backs it.
+the dock lives in `packages/attu-ui/src/lib/components/dock/` and is shared by both SPAs. see [`notes/features/dock-kit.md`](features/dock-kit.md) for the full API, state machine, CSS primitives, registration pattern, and priority-space convention. the key components are: `DockStore` (singleton in `store.svelte.ts`), `DockCorner` (renders the pill row + stacked panels), `DockWindow` (floating chrome with titlebar), `DockModal` (fixed centered dialog with backdrop), `DockSurface` (mounts floating windows and active modal), `DockItem` (registration bridge), `SaveStatusPill` + `StatsPill` (shared pill+window pairs). apps mount `<DockCorner corner="bl" {dockStore} />` plus `<DockSurface {dockStore} />` and register items via `<DockItem>`.
 
 ---
 
@@ -241,7 +219,7 @@ users can **import** FamilyScript `.txt`, plain GEDCOM `.ged`, GEDZIP `.gdz`, or
 
 ### 8.3 schema versioning + forward migration
 
-every persisted artifact carries `schemaVersion`. the migration runner ([`apps/web/src/lib/domain/schema.ts`](../apps/web/src/lib/domain/schema.ts)) walks a registered chain of `Migration { from, to, migrate }` entries to bring older shapes up to `CURRENT_SCHEMA_VERSION`. this lets us evolve the domain (e.g. replace `motherId`/`fatherId` with `parentIds: PersonId[]`) without invalidating any existing user file.
+every persisted artifact carries `schemaVersion`. the migration runner ([`apps/tree-editor/src/lib/domain/schema.ts`](../apps/tree-editor/src/lib/domain/schema.ts)) walks a registered chain of `Migration { from, to, migrate }` entries to bring older shapes up to `CURRENT_SCHEMA_VERSION`. this lets us evolve the domain (e.g. replace `motherId`/`fatherId` with `parentIds: PersonId[]`) without invalidating any existing user file.
 
 invariants:
 
@@ -265,7 +243,7 @@ the relationship-vocabulary phases (3 through 6b) introduced a family of leading
 - **`_TREES_GROUP`** (phase 6a): top-level group records (dynasty, house, clan, household, faction, order, covenant).
 - **`_TREES_SIBSHIP` / `_TREES_BIRTH_ORDER`** (phase 6b): sibship decorators + birth-order metadata.
 
-source of truth: [`apps/web/src/lib/io/gedcom/extensions.ts`](../apps/web/src/lib/io/gedcom/extensions.ts) (`TREES_EXTENSION_TAGS`). adding a new extension is a one-line change there, plus the actual emit / parse code.
+source of truth: [`apps/tree-editor/src/lib/io/gedcom/extensions.ts`](../apps/tree-editor/src/lib/io/gedcom/extensions.ts) (`TREES_EXTENSION_TAGS`). adding a new extension is a one-line change there, plus the actual emit / parse code.
 
 the serializer registers the namespace via `HEAD.SCHMA` so the file declares its own dialect:
 
@@ -280,7 +258,7 @@ tools that don't understand SCHMA skip it; FamilyTree Editor's own permissive pa
 
 ### 8.5 pronouns drive kinship terms before SEX
 
-`apps/web/src/lib/layout/kinship.ts:kinshipGender(person)` consults `getPronouns(person)` first and falls back to `legacyGenderCode(person)`. so a person with `gender = { identity: "agender", pronouns: "he/him" }` reads as "brother / father / son" in path captions, and a person with `gender = "m"` whose pronouns are `they/them` reads as the neutral "sibling / parent / child". the same is not true of the GEDCOM SEX line (which has to be one of `M / F / U / X` because that's what the standard says); the SEX-derived legacy code is the _fallback_ for kinship rendering, not the source of truth.
+`apps/tree-editor/src/lib/layout/kinship.ts:kinshipGender(person)` consults `getPronouns(person)` first and falls back to `legacyGenderCode(person)`. so a person with `gender = { identity: "agender", pronouns: "he/him" }` reads as "brother / father / son" in path captions, and a person with `gender = "m"` whose pronouns are `they/them` reads as the neutral "sibling / parent / child". the same is not true of the GEDCOM SEX line (which has to be one of `M / F / U / X` because that's what the standard says); the SEX-derived legacy code is the _fallback_ for kinship rendering, not the source of truth.
 
 ---
 
@@ -290,7 +268,7 @@ tools that don't understand SCHMA skip it; FamilyTree Editor's own permissive pa
 2. **vitest <-> vite version coupling**: vitest 3 pairs with vite 6+. if you bump vite, bump vitest in lockstep, or types will conflict across two parallel installs.
 3. **prettier-plugin-tailwindcss**: disabled in phase 0 because it crashes on svelte 5 syntax (`getVisitorKeys is not a function`). re-enable once upstream ships a fix; class sorting is not currently enforced.
 4. **pnpm allowBuilds**: esbuild's postinstall must be allowed in `pnpm-workspace.yaml`'s `allowBuilds`; otherwise vitest's transform fails silently with "missing platform binary" at runtime.
-5. **eslint and config files**: `eslint.config.js` and `svelte.config.js` are excluded from typescript-eslint's project service (see the `disableTypeChecked` block in `apps/web/eslint.config.js`); without it, lint errors with "not found by the project service".
+5. **eslint and config files**: `eslint.config.js` and `svelte.config.js` are excluded from typescript-eslint's project service (see the `disableTypeChecked` block in `apps/tree-editor/eslint.config.js`); without it, lint errors with "not found by the project service".
 6. **fflate's instanceof check**: `fflate` checks `value instanceof Uint8Array` internally and the jsdom realm has its own `Uint8Array` prototype that doesn't match node's. tests that drive `bundle/{read,write}.ts` use `// @vitest-environment node` at the top of the file. do not switch the bundle tests back to jsdom.
 7. **stable serializer ordering**: domain person ids are randomly allocated by the parser, so any output sort that uses them changes every round-trip. the GEDCOM serializer sorts by **xref** instead (which is preserved through round-trip), and uses `~` as a placeholder for missing HUSB / WIFE slots so single-parent FAMs sort the same way mixed-pair FAMs do. preserve that pattern when adding new sortable output.
 8. **`relatives-tree` const enums**: `Gender` and `RelType` are TS const enums; with `isolatedModules` we can't reference their members. The runtime values are plain strings, so `relativesTreeAdapter.ts` casts string literals via `as unknown as RelType` etc. Don't try to `import { RelType }` and use `RelType.blood` - it won't compile.
@@ -322,8 +300,8 @@ tools that don't understand SCHMA skip it; FamilyTree Editor's own permissive pa
 
 17. **auth dry-run debug toggle**: the debug panel's `shell > auth dry-run` chip flips `authStore` into a client-side-only synthetic session (`DRY_RUN_USER` in `state/auth.svelte.ts`, role `admin`). useful for exercising protected-action UI paths without discord linking. persisted in `localStorage["fte.debug.authDryRun"]`; only client-side gating is faked, so any real backend call still 401s. `authStore.realUser` distinguishes from the effective `user`; `AuthBar`'s sign-out short-circuits when only the synthetic session is active.
 
-18. **debug mode vs debug menu open** (canvas-window-manager phase 2): two pieces of state drive the debug surface, not one. `debugMode` is the master switch — persisted in `localStorage["fte.debug.mode"]` (plain boolean, no schema version; debug-flag precedent alongside `fte.debug.authDryRun`). it gates the debug pill's registration and both `debugOptions` / `familyViewDebugOptions` derivations (so layered + family-view overlays only render when debug mode is on). the debug menu's open-state is NOT a separate flag — phase 2 merged the old `debugMenuOpen` into `windowManager.isOpen("debug-menu")`, a non-persisted entry in `windowManager.openedWindows` (the `debug-menu` id is in the non-persisted set, so it never round-trips to `fte.dock.openedWindows`). `toggleDebugMenu` flips it via `openWindow`/`closeWindow`; the icon pill's `aria-pressed` reads it; `Ctrl+Shift+D` toggles it. the Window titlebar's `×` (and `ChevronUp` minimize, since the menu opts out of body-collapse) routes through `windowManager.closeWindow("debug-menu")`, leaving overlays running. flipping `debugMode` off from the help menu's `Help > Debug mode` item runs an effect that calls `closeWindow("debug-menu")` so an open menu auto-closes; the "disable debug mode" button at the top-right of the menu body does the same in one click (sets `debugMode=false` + closes the menu). closing the menu does NOT clear overlays — they keep rendering until the user disables debug mode explicitly.
-19. **dock placement keys** (canvas-chrome-v2 phase 3): the canvas-chrome dock persists two plain (no schema version) localStorage keys, both client-only ui state. `localStorage["fte.dock.corner"]` holds the active corner (`"tl" | "tr" | "bl" | "br"`, default `"tl"`); owned by the `dockConfig` runes singleton (`components/canvas/dockConfig.svelte.ts`), which both App.svelte's `View > dock corner` picker and `FamilyViewDebugOverlay`'s `DockRegistration` bind to, so changing the corner re-homes every docked item without prop-drilling. `localStorage["fte.dock.openedWindows"]` is a JSON array of open window ids owned by `windowManager`; non-persisted ids (`debug-menu` + every `family-view-debug-*` panel) are filtered out on write, so debug surfaces never round-trip across reload. the `View > panels` section lists all 8 dock windows from `windowManager.windowState(id)` and is the only way to reopen a closed family-view debug panel. drag-to-reorder (`DockItem.order`, phase 4) is in-memory session state only — it is NOT persisted to either key, so the dock returns to default `order`-tied layout on reload.
+18. **debug mode vs debug menu open**: two pieces of state drive the debug surface, not one. `debugMode` is the master switch - persisted in `localStorage["fte.debug.mode"]` (plain boolean). it gates the debug pill's registration and both `debugOptions` / `familyViewDebugOptions` derivations (so layered + family-view overlays only render when debug mode is on). the debug menu's open-state is separate - `dockStore.isOpen("debug-menu")` (non-persisted; the `debug-menu` id never round-trips to `fte.dock.openedWindows`). `Ctrl+Shift+D` toggles it. closing the menu via `×` leaves overlays running. flipping `debugMode` off closes the menu as a side effect; the "disable debug mode" button in the menu body does the same. closing the menu does NOT clear overlays.
+19. **dock placement keys**: the dock persists two localStorage keys (no schema version; client-only ui state). `localStorage["fte.dock.corner"]` holds the active corner (`"tl" | "tr" | "bl" | "br"`); `localStorage["fte.dock.openedWindows"]` is a JSON array of open window ids - non-persisted ids (debug-menu + every family-view-debug-* panel) are filtered out on write. drag-to-reorder pill `order` is in-memory only - not persisted.
 
 ---
 
@@ -334,6 +312,8 @@ commit conventions, comment style, file headers, the feature-completion checklis
 **`notes/features/`**
 
 - [`notes/features/attu-ui.md`](features/attu-ui.md) - `@attu/ui` component library: design tokens, component inventory, canonical shell pattern, what not to do
+- [`notes/features/dock-kit.md`](features/dock-kit.md) - dock/window/modal system: DockStore API, state machine, CSS primitives, registration pattern, priority-space convention
+- [`notes/features/wiki-editor.md`](features/wiki-editor.md) - wiki-editor SPA architecture, component structure, how it differs from tree-editor
 - [`notes/features/attu-wiki.md`](features/attu-wiki.md) - parent mediawiki project context + routing / cors / link wiring
 - [`notes/features/doom-bot.md`](features/doom-bot.md) - sibling discord bot context + `/trees` slash-command contract
 - [`notes/features/family-view-debug.md`](features/family-view-debug.md) - debug-overlay contracts (palette-pick call path, `RankedSubset.rationale` taxonomy, `AncestorOverlap.breakdown` widen-return)
@@ -370,24 +350,21 @@ commit conventions, comment style, file headers, the feature-completion checklis
 ```text
 FamilyTreeEditor/
 ├── apps/
-│   ├── web/                                  # svelte 5 spa, vite, tailwind v4
+│   ├── tree-editor/                          # family-tree editor svelte 5 spa
 │   │   ├── src/
 │   │   │   ├── App.svelte
 │   │   │   ├── app.css                       # tailwind v4 entry + tokens
 │   │   │   ├── main.ts
 │   │   │   ├── vite-env.d.ts                 # TreesRuntimeConfig surface
 │   │   │   └── lib/
-│   │   │       ├── api/                      # typed http client
 │   │   │       ├── components/
 │   │   │       │   ├── canvas/               # ZoomWidget, BackButton
 │   │   │       │   ├── editor/               # canvas-based portrait cropper
-│   │   │       │   ├── form/                 # DateInput, Field
-│   │   │       │   ├── help/                 # ShortcutsOverlay
+│   │   │       │   ├── import/               # import wizard
 │   │   │       │   ├── inspector/            # tabbed sidebar
 │   │   │       │   ├── palette/              # CommandPalette + commands
-│   │   │       │   ├── shell/                # menu bar, dialogs, save-status
-│   │   │       │   ├── tree/                 # per-engine canvases + edges
-│   │   │       │   └── ui/                   # primitives
+│   │   │       │   ├── shell/                # menu bar, dialogs, progress strip
+│   │   │       │   └── tree/                 # per-engine canvases + edges
 │   │   │       ├── date/                     # HaracalndeDate
 │   │   │       ├── domain/                   # tree model + ops + validation + schema migrations
 │   │   │       ├── io/
@@ -402,7 +379,7 @@ FamilyTreeEditor/
 │   │   │       │   ├── spikes/               # one-off metric scripts
 │   │   │       │   └── layout.worker.ts
 │   │   │       ├── persistence/              # dexie (db, trees, blobs, settings)
-│   │   │       ├── state/                    # runes-based stores (12 modules)
+│   │   │       ├── state/                    # runes-based stores (autosave, engine, selection, sync, tree, viewport, ...)
 │   │   │       ├── utils/                    # Result<T,E>
 │   │   │       └── wiki/                     # linkResolver
 │   │   ├── tests/{unit,component,e2e,fixtures,spikes}/
@@ -411,11 +388,21 @@ FamilyTreeEditor/
 │   │   ├── index.html
 │   │   ├── package.json
 │   │   ├── playwright.config.ts
-│   │   ├── .prettierrc.json
 │   │   ├── svelte.config.js
 │   │   ├── tsconfig.json
 │   │   ├── vite.config.ts
 │   │   └── vitest.config.ts
+│   ├── wiki-editor/                          # attu wiki editor svelte 5 spa
+│   │   ├── src/
+│   │   │   ├── App.svelte
+│   │   │   ├── app.css
+│   │   │   ├── main.ts
+│   │   │   └── lib/                          # Editor, Toolbar, SelectionBar, SettingsModal, ShortcutsOverlay
+│   │   ├── index.html
+│   │   ├── package.json
+│   │   ├── svelte.config.js
+│   │   ├── tsconfig.json
+│   │   └── vite.config.ts
 │   └── server/                               # fastapi + aiosqlite
 │       ├── attu_tree/
 │       │   ├── __init__.py
@@ -434,7 +421,18 @@ FamilyTreeEditor/
 │       ├── pyproject.toml
 │       └── uv.lock
 ├── packages/
-│   └── api-client/                           # generated typed client (`pnpm gen:api`)
+│   ├── attu-ui/                              # shared svelte component library + design tokens
+│   │   └── src/lib/
+│   │       ├── components/{dock,shell,canvas,editor,form,help,palette,ui}/
+│   │       ├── state/                        # toasts, preferences, auth, progress
+│   │       ├── date/                         # HaracalndeDate + gregorian
+│   │       ├── utils/                        # Result<T,E>
+│   │       ├── keyboard.ts                   # keyboard shortcut helpers
+│   │       ├── palette.ts                    # command palette helpers
+│   │       ├── theme.css                     # design tokens + fte-* CSS classes
+│   │       └── index.ts                      # public exports
+│   └── api-client/                           # typed fetch client (`pnpm gen:api`)
+│       └── src/index.ts                      # auth + trees + admin API + error classes
 ├── data/                                     # gitignored runtime: trees-config.toml, attu_tree.db
 ├── notes/
 │   ├── agents.md                             # this file
@@ -479,5 +477,5 @@ FamilyTreeEditor/
 ## metadata
 
 ```yaml
-last_updated: 23 May 2026
+last_updated: 28 Jun 2026
 ```
