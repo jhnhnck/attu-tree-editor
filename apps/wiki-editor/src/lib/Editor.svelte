@@ -109,6 +109,7 @@
         ".cm-cursor": { borderLeftColor: "var(--color-fg)" },
         ".cm-scroller": {
             fontFamily: "var(--font-mono)",
+            lineHeight: "1.7",
             overflow: "auto",
             paddingTop: "2.5rem",
             paddingBottom: "3rem",
