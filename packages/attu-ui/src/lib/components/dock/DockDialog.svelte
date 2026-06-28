@@ -104,6 +104,7 @@
     }
 
     .modal-header {
+        flex-shrink: 0;
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -113,6 +114,8 @@
     }
 
     .modal-body {
+        flex: 1 1 auto;
+        min-height: 0;
         padding: 0.75rem;
         overflow-y: auto;
     }
