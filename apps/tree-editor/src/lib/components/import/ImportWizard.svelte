@@ -140,7 +140,7 @@
                 sourceFormat: composed.payload.sourceFormat,
                 count: composed.payload.count,
             });
-            dockStore.closeModal();
+            dockStore.closeDialog();
         } catch (e) {
             onfailure?.(String(e));
             busy = false;
@@ -270,7 +270,7 @@
             {/if}
 
     <footer class="border-line flex items-center justify-end gap-2 border-t px-5 py-3">
-        <Button onclick={() => dockStore.closeModal()} disabled={busy}>cancel</Button>
+        <Button onclick={() => dockStore.closeDialog()} disabled={busy}>cancel</Button>
         <span data-testid="import-confirm-wrap">
             <Button variant="primary" onclick={onImport} disabled={!canImport}>import</Button>
         </span>

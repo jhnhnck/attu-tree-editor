@@ -1,28 +1,28 @@
 // SPDX-License-Identifier: MIT
-// unit tests for DockModal component (phase 1)
+// unit tests for DockDialog component (phase 1)
 
 import { describe, it, expect, beforeEach } from "vitest";
 import { mount, unmount, flushSync } from "svelte";
 import { dockStore } from "../../../../src/lib/components/dock/store.svelte.js";
-import DockModal from "../../../../src/lib/components/dock/DockModal.svelte";
+import DockDialog from "../../../../src/lib/components/dock/DockDialog.svelte";
 
 beforeEach(() => {
     dockStore.resetForTest();
-    // open modal so DockModal renders
-    dockStore.openModal("test-modal");
+    // open dialog so DockDialog renders
+    dockStore.openDialog("test-modal");
 });
 
-describe("DockModal", () => {
+describe("DockDialog", () => {
     it("renders the modal panel", () => {
         const target = document.createElement("div");
         document.body.appendChild(target);
-        const comp = mount(DockModal, {
+        const comp = mount(DockDialog, {
             target,
             props: { id: "test-modal", title: "Test Modal" },
         });
         try {
             flushSync();
-            const panel = target.querySelector("[data-modal-id='test-modal']");
+            const panel = target.querySelector("[data-dialog-id='test-modal']");
             expect(panel).not.toBeNull();
         } finally {
             void unmount(comp);
@@ -33,7 +33,7 @@ describe("DockModal", () => {
     it("close button calls dockStore.closeModal", () => {
         const target = document.createElement("div");
         document.body.appendChild(target);
-        const comp = mount(DockModal, {
+        const comp = mount(DockDialog, {
             target,
             props: { id: "test-modal", title: "Test" },
         });
@@ -43,7 +43,7 @@ describe("DockModal", () => {
             expect(closeBtn).not.toBeNull();
             closeBtn.click();
             flushSync();
-            expect(dockStore.activeModal).toBeUndefined();
+            expect(dockStore.activeDialog).toBeUndefined();
         } finally {
             void unmount(comp);
             target.remove();
@@ -53,7 +53,7 @@ describe("DockModal", () => {
     it("backdrop click closes the modal", () => {
         const target = document.createElement("div");
         document.body.appendChild(target);
-        const comp = mount(DockModal, {
+        const comp = mount(DockDialog, {
             target,
             props: { id: "test-modal" },
         });
@@ -63,7 +63,7 @@ describe("DockModal", () => {
             expect(backdrop).not.toBeNull();
             backdrop.click();
             flushSync();
-            expect(dockStore.activeModal).toBeUndefined();
+            expect(dockStore.activeDialog).toBeUndefined();
         } finally {
             void unmount(comp);
             target.remove();
@@ -73,17 +73,17 @@ describe("DockModal", () => {
     it("Escape key closes the modal", () => {
         const target = document.createElement("div");
         document.body.appendChild(target);
-        const comp = mount(DockModal, {
+        const comp = mount(DockDialog, {
             target,
             props: { id: "test-modal" },
         });
         try {
             flushSync();
-            const panel = target.querySelector("[data-modal-id='test-modal']") as HTMLElement;
+            const panel = target.querySelector("[data-dialog-id='test-modal']") as HTMLElement;
             expect(panel).not.toBeNull();
             panel.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
             flushSync();
-            expect(dockStore.activeModal).toBeUndefined();
+            expect(dockStore.activeDialog).toBeUndefined();
         } finally {
             void unmount(comp);
             target.remove();
@@ -94,7 +94,7 @@ describe("DockModal", () => {
         let called = false;
         const target = document.createElement("div");
         document.body.appendChild(target);
-        const comp = mount(DockModal, {
+        const comp = mount(DockDialog, {
             target,
             props: { id: "test-modal", onopen: () => { called = true; } },
         });

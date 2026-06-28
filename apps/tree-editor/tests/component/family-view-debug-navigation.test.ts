@@ -219,7 +219,7 @@ describe("family-view debug overlay - phase 3 navigation diagnostics", () => {
         // the gate (logFocusEvents on + focusEvents non-empty)
         const focusLog = dockStore.getItem("family-view-debug-focus-log");
         expect(focusLog, "logFocusEvents should register a dock window item").toBeDefined();
-        expect(focusLog?.kind).toBe("window");
+        expect(focusLog?.kind).toBe("panel");
 
         handle.unmount();
     });

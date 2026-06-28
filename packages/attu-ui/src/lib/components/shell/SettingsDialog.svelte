@@ -1,6 +1,6 @@
 <!--
     FamilyTreeEditor - settings body (theme + inspector side).
-    body-only component: wrapped in DockModal by the caller.
+    body-only component: wrapped in DockDialog by the caller.
 
     auto-commits on change (no save/cancel, per design profile).
 

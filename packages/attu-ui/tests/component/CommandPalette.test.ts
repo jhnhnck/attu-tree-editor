@@ -87,7 +87,7 @@ describe("CommandPalette", () => {
 
     it("Enter on the highlighted row fires the item's action and closes", async () => {
         const saveAction = vi.fn();
-        const closeModal = vi.spyOn(dockStore, "closeModal");
+        const closeDialog = vi.spyOn(dockStore, "closeDialog");
         const items: PaletteItem[] = [
             ...tinyItems(),
             cmdItem("Save", 0, saveAction),
@@ -98,18 +98,18 @@ describe("CommandPalette", () => {
         await fireEvent.input(input, { target: { value: "save" } });
         await fireEvent.keyDown(input, { key: "Enter" });
         expect(saveAction).toHaveBeenCalledTimes(1);
-        expect(closeModal).toHaveBeenCalled();
-        closeModal.mockRestore();
+        expect(closeDialog).toHaveBeenCalled();
+        closeDialog.mockRestore();
     });
 
-    it("Esc calls dockStore.closeModal", async () => {
-        const closeModal = vi.spyOn(dockStore, "closeModal");
+    it("Esc calls dockStore.closeDialog", async () => {
+        const closeDialog = vi.spyOn(dockStore, "closeDialog");
         const items: PaletteItem[] = [...tinyItems(), cmdItem("Save", 0)];
         render(CommandPalette, { items, mode: "commands" });
         const input = screen.getByLabelText<HTMLInputElement>("palette search");
         await fireEvent.keyDown(input, { key: "Escape" });
-        expect(closeModal).toHaveBeenCalled();
-        closeModal.mockRestore();
+        expect(closeDialog).toHaveBeenCalled();
+        closeDialog.mockRestore();
     });
 
     it("on open, no row carries the bg-canvas highlight class", () => {

@@ -1,6 +1,6 @@
 <!--
-    wiki-editor preferences body — body-only, wrapped in DockModal by App.svelte.
-    close is handled by DockModal's × button or the footer button below.
+    wiki-editor preferences body — body-only, wrapped in DockDialog by App.svelte.
+    close is handled by DockDialog's × button or the footer button below.
 -->
 <script lang="ts">
     import { dockStore } from "@attu/ui";
@@ -47,7 +47,7 @@
     </div>
 {/snippet}
 
-<!-- tab bar: negative margins to flush against DockModal panel edges -->
+<!-- tab bar: negative margins to flush against DockDialog panel edges -->
 <div class="-mx-3 -mt-3 mb-3 flex shrink-0 border-b border-line px-2">
     {#each TABS as t (t.id)}
         <button
@@ -179,7 +179,7 @@
 <div class="-mx-3 -mb-3 mt-3 flex shrink-0 items-center justify-end border-t border-line px-6 py-3">
     <button
         type="button"
-        onclick={() => dockStore.closeModal()}
+        onclick={() => dockStore.closeDialog()}
         class="rounded border border-line bg-canvas px-4 py-1.5 text-sm text-fg hover:bg-canvas-elev"
     >
         Close

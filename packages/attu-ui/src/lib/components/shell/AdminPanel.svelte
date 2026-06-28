@@ -1,6 +1,6 @@
 <!--
     admin panel body: list users, change roles, soft-delete.
-    body-only component: wrapped in DockModal by the caller.
+    body-only component: wrapped in DockDialog by the caller.
     only rendered when authStore.user.role === 'admin'.
 -->
 <script lang="ts">

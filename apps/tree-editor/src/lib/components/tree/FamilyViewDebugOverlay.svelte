@@ -62,7 +62,7 @@
     import type { FamilyViewDebugLayerOptions } from "$lib/components/tree/debugTypes";
     import type { CoiBreakdownRow } from "$lib/domain/consanguinity";
     import type { PersonId, Tree } from "$lib/domain/types";
-    import { dockStore, DockItem, DockWindow } from "@attu/ui";
+    import { dockStore, DockEntry, DockPanel } from "@attu/ui";
 
     interface Props {
         layout: FamilyViewLayout;
@@ -1137,17 +1137,17 @@
 {#snippet debugPanelPill(pid: string, label: string)}
     <!-- every open family-view debug panel gets a real taskbar pill. the pill
          is the panel's only representation in the dock when minimized; clicking
-         it routes through dockStore.pillClick to restore / focus / minimize.
+         it routes through dockStore.togglePanel to restore / focus / minimize.
          testid is `<id>-pill` so e2e can target the per-panel pill. -->
     <button
         type="button"
         class="fte-pill cursor-pointer font-mono"
         title={label}
-        aria-pressed={dockStore.windowState(pid) === "expanded" ||
-            dockStore.windowState(pid) === "floating"}
+        aria-pressed={dockStore.panelState(pid) === "expanded" ||
+            dockStore.panelState(pid) === "floating"}
         data-testid={`${pid}-pill`}
         data-pill-id={pid}
-        onclick={() => dockStore.pillClick(pid)}
+        onclick={() => dockStore.togglePanel(pid)}
     >
         <Bug size={12} strokeWidth={2} />
         <span>{label}</span>
@@ -1178,7 +1178,7 @@
 {/snippet}
 
 {#snippet offSubsetPanel(_ctx: { forcedCollapse: boolean })}
-    <DockWindow
+    <DockPanel
         id="family-view-debug-off-subset-warning"
         title={`off-subset · ${nameOfOrDash(selectedId)}`}
         body={offSubsetBody}
@@ -1186,11 +1186,11 @@
 {/snippet}
 
 {#if layers.showOffSubsetWarning && selectedId !== undefined && offSubsetReason}
-    <DockItem id="family-view-debug-off-subset-warning" kind="window" {corner} priority={200} persistent={false} render={offSubsetPanel} />
+    <DockEntry id="family-view-debug-off-subset-warning" kind="panel" {corner} priority={200} persistent={false} render={offSubsetPanel} />
     {#snippet offSubsetPill(_ctx: { forcedCollapse: boolean })}
         {@render debugPanelPill("family-view-debug-off-subset-warning", "off-subset")}
     {/snippet}
-    <DockItem id="family-view-debug-off-subset-warning-pill" kind="pill" {corner} priority={200} persistent={false} windowId="family-view-debug-off-subset-warning" render={offSubsetPill} />
+    <DockEntry id="family-view-debug-off-subset-warning-pill" kind="pill" {corner} priority={200} persistent={false} panelId="family-view-debug-off-subset-warning" render={offSubsetPill} />
 {/if}
 
 {#snippet recenterMissedBody()}
@@ -1208,7 +1208,7 @@
 {/snippet}
 
 {#snippet recenterMissedPanel(_ctx: { forcedCollapse: boolean })}
-    <DockWindow
+    <DockPanel
         id="family-view-debug-recenter-missed"
         title={`no recenter · ${nameOfOrDash(recenterMissedFor)}`}
         body={recenterMissedBody}
@@ -1216,11 +1216,11 @@
 {/snippet}
 
 {#if layers.showPendingRecenter && recenterMissedFor !== undefined}
-    <DockItem id="family-view-debug-recenter-missed" kind="window" {corner} priority={210} persistent={false} render={recenterMissedPanel} />
+    <DockEntry id="family-view-debug-recenter-missed" kind="panel" {corner} priority={210} persistent={false} render={recenterMissedPanel} />
     {#snippet recenterMissedPill(_ctx: { forcedCollapse: boolean })}
         {@render debugPanelPill("family-view-debug-recenter-missed", "no recenter")}
     {/snippet}
-    <DockItem id="family-view-debug-recenter-missed-pill" kind="pill" {corner} priority={210} persistent={false} windowId="family-view-debug-recenter-missed" render={recenterMissedPill} />
+    <DockEntry id="family-view-debug-recenter-missed-pill" kind="pill" {corner} priority={210} persistent={false} panelId="family-view-debug-recenter-missed" render={recenterMissedPill} />
 {/if}
 
 {#snippet coiBreakdownBody()}
@@ -1288,7 +1288,7 @@
 {/snippet}
 
 {#snippet coiBreakdownPanel(_ctx: { forcedCollapse: boolean })}
-    <DockWindow
+    <DockPanel
         id="family-view-debug-coi-breakdown"
         title={`coi · ${coiDisplayed && coiDisplayed.length > 0 ? coiDisplayed : "—"}`}
         body={coiBreakdownBody}
@@ -1296,11 +1296,11 @@
 {/snippet}
 
 {#if layers.showCoiBreakdown}
-    <DockItem id="family-view-debug-coi-breakdown" kind="window" {corner} priority={220} persistent={false} render={coiBreakdownPanel} />
+    <DockEntry id="family-view-debug-coi-breakdown" kind="panel" {corner} priority={220} persistent={false} render={coiBreakdownPanel} />
     {#snippet coiBreakdownPill(_ctx: { forcedCollapse: boolean })}
         {@render debugPanelPill("family-view-debug-coi-breakdown", "coi")}
     {/snippet}
-    <DockItem id="family-view-debug-coi-breakdown-pill" kind="pill" {corner} priority={220} persistent={false} windowId="family-view-debug-coi-breakdown" render={coiBreakdownPill} />
+    <DockEntry id="family-view-debug-coi-breakdown-pill" kind="pill" {corner} priority={220} persistent={false} panelId="family-view-debug-coi-breakdown" render={coiBreakdownPill} />
 {/if}
 
 {#snippet focusLogBody()}
@@ -1339,7 +1339,7 @@
 {/snippet}
 
 {#snippet focusLogPanel(_ctx: { forcedCollapse: boolean })}
-    <DockWindow
+    <DockPanel
         id="family-view-debug-focus-log"
         title={`focus · ${(focusEvents?.length ?? 0).toString()}`}
         body={focusLogBody}
@@ -1347,11 +1347,11 @@
 {/snippet}
 
 {#if layers.logFocusEvents && focusEvents && focusEvents.length > 0}
-    <DockItem id="family-view-debug-focus-log" kind="window" {corner} priority={225} persistent={false} render={focusLogPanel} />
+    <DockEntry id="family-view-debug-focus-log" kind="panel" {corner} priority={225} persistent={false} render={focusLogPanel} />
     {#snippet focusLogPill(_ctx: { forcedCollapse: boolean })}
         {@render debugPanelPill("family-view-debug-focus-log", "focus")}
     {/snippet}
-    <DockItem id="family-view-debug-focus-log-pill" kind="pill" {corner} priority={225} persistent={false} windowId="family-view-debug-focus-log" render={focusLogPill} />
+    <DockEntry id="family-view-debug-focus-log-pill" kind="pill" {corner} priority={225} persistent={false} panelId="family-view-debug-focus-log" render={focusLogPill} />
 {/if}
 
 {#snippet layoutMetricsBody()}
@@ -1429,7 +1429,7 @@
 {/snippet}
 
 {#snippet layoutMetricsPanel(_ctx: { forcedCollapse: boolean })}
-    <DockWindow
+    <DockPanel
         id="family-view-debug-layout-metrics"
         title={`LM · ${fmtMs(layoutDurationMs)}`}
         body={layoutMetricsBody}
@@ -1437,11 +1437,11 @@
 {/snippet}
 
 {#if layers.showLayoutMetrics}
-    <DockItem id="family-view-debug-layout-metrics" kind="window" {corner} priority={230} persistent={false} render={layoutMetricsPanel} />
+    <DockEntry id="family-view-debug-layout-metrics" kind="panel" {corner} priority={230} persistent={false} render={layoutMetricsPanel} />
     {#snippet layoutMetricsPill(_ctx: { forcedCollapse: boolean })}
         {@render debugPanelPill("family-view-debug-layout-metrics", "metrics")}
     {/snippet}
-    <DockItem id="family-view-debug-layout-metrics-pill" kind="pill" {corner} priority={230} persistent={false} windowId="family-view-debug-layout-metrics" render={layoutMetricsPill} />
+    <DockEntry id="family-view-debug-layout-metrics-pill" kind="pill" {corner} priority={230} persistent={false} panelId="family-view-debug-layout-metrics" render={layoutMetricsPill} />
 {/if}
 
 <style>

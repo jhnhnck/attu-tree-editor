@@ -132,13 +132,13 @@ describe("OpenDialog", () => {
     it("Open button calls onpick with the selected id and closes the modal", async () => {
         const props = baseProps();
         const listings = [listing("a", "Alpha", 3, 60_000)];
-        const closeModal = vi.spyOn(dockStore, "closeModal");
+        const closeDialog = vi.spyOn(dockStore, "closeDialog");
         render(OpenDialog, { ...props, listings, activeId: "a" });
         const openBtn = screen.getByRole("button", { name: /^open$/i });
         await fireEvent.click(openBtn);
         expect(props.onpick).toHaveBeenCalledWith("a");
-        expect(closeModal).toHaveBeenCalled();
-        closeModal.mockRestore();
+        expect(closeDialog).toHaveBeenCalled();
+        closeDialog.mockRestore();
     });
 
     it("Delete confirms then calls ondelete", async () => {
@@ -164,13 +164,13 @@ describe("OpenDialog", () => {
         confirmSpy.mockRestore();
     });
 
-    it("Cancel calls dockStore.closeModal", async () => {
+    it("Cancel calls dockStore.closeDialog", async () => {
         const props = baseProps();
-        const closeModal = vi.spyOn(dockStore, "closeModal");
+        const closeDialog = vi.spyOn(dockStore, "closeDialog");
         render(OpenDialog, { ...props, listings: [listing("a", "A", 1, 1000)] });
         await fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
-        expect(closeModal).toHaveBeenCalled();
-        closeModal.mockRestore();
+        expect(closeDialog).toHaveBeenCalled();
+        closeDialog.mockRestore();
     });
 
     it("'Open from URL' fires onnotice (stub)", async () => {

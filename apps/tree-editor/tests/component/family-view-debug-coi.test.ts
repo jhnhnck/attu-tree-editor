@@ -127,7 +127,7 @@ describe("family-view debug overlay - phase 4 coi inspector", () => {
         // hook and via __treeDebug for the numeric assertions.
         const coi = dockStore.getItem("family-view-debug-coi-breakdown");
         expect(coi, "showCoiBreakdown should register a dock window item").toBeDefined();
-        expect(coi?.kind).toBe("window");
+        expect(coi?.kind).toBe("panel");
 
         handle.unmount();
     });

@@ -1,6 +1,6 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!--
-    shared save-status pill + window pair.
+    shared save-status pill + panel pair.
     both apps import this; wiki-editor uses defaults, tree-editor
     overrides pill and body snippets for its complex dual-indicator UI.
 -->
@@ -8,23 +8,23 @@
     import type { Snippet } from "svelte";
     import { Save } from "@lucide/svelte";
     import { dockStore, type DockCorner, type DockRenderSnippet } from "./store.svelte.js";
-    import DockItem from "./DockItem.svelte";
-    import DockWindow from "./DockWindow.svelte";
+    import DockEntry from "./DockEntry.svelte";
+    import DockPanel from "./DockPanel.svelte";
 
     interface Props {
-        windowId?: string;
+        panelId?: string;
         pillId?: string;
         corner: DockCorner;
         priority?: number;
         closeable?: boolean;
         // override the pill button; receives forcedCollapse ctx
         pill?: DockRenderSnippet;
-        // override the window body (no args)
+        // override the panel body (no args)
         body?: Snippet;
     }
 
     let {
-        windowId = "save-status-window",
+        panelId = "save-status-window",
         pillId = "save-status",
         corner,
         priority = 10,
@@ -38,8 +38,8 @@
     <button
         type="button"
         class="fte-pill fte-pill-icon"
-        aria-pressed={dockStore.isExpanded(windowId)}
-        onclick={() => dockStore.pillClick(windowId)}
+        aria-pressed={dockStore.isExpanded(panelId)}
+        onclick={() => dockStore.togglePanel(panelId)}
     ><Save size={12} /></button>
 {/snippet}
 
@@ -58,25 +58,25 @@
     {/if}
 {/snippet}
 
-{#snippet windowRender(_ctx: { forcedCollapse: boolean })}
-    <DockWindow id={windowId} title="save" {closeable} body={body ?? defaultBody} />
+{#snippet panelRender(_ctx: { forcedCollapse: boolean })}
+    <DockPanel id={panelId} title="save" {closeable} body={body ?? defaultBody} />
 {/snippet}
 
-<DockItem
+<DockEntry
     id={pillId}
     kind="pill"
     {corner}
     {priority}
     {closeable}
-    windowId={windowId}
+    panelId={panelId}
     render={pillRender}
 />
-<DockItem
-    id={windowId}
-    kind="window"
+<DockEntry
+    id={panelId}
+    kind="panel"
     {corner}
     priority={priority + 5}
     title="save"
     {closeable}
-    render={windowRender}
+    render={panelRender}
 />

@@ -2,8 +2,8 @@
 <!--
     phase 1 — full corner chrome. adds:
       drag-to-reorder pills (pointer events, 4px threshold, drop indicator)
-      modal close chip (renders in pill row when dockStore.activeModal is set)
-      pop-out windows skip the panel stack (only "expanded" windows show there)
+      dialog close chip (renders in pill row when dockStore.activeDialog is set)
+      floating panels skip the panel stack (only "expanded" panels show there)
 
     layout: pills in a flex-row taskbar, panels stacking away from the corner.
     bl/br → flex-col-reverse (pills at bottom, panels above).
@@ -20,11 +20,11 @@
 
     const items = $derived(dockStore.itemsForCorner(corner));
     const pills = $derived(items.filter((it) => it.kind === "pill"));
-    // only docked-expanded windows appear in the panel stack
-    // (floating windows are rendered by DockSurface)
+    // only docked-expanded panels appear in the panel stack
+    // (floating panels are rendered by DockSurface)
     const panels = $derived(
         items.filter(
-            (it) => it.kind === "window" && dockStore.windowState(it.id) === "expanded",
+            (it) => it.kind === "panel" && dockStore.panelState(it.id) === "expanded",
         ),
     );
 
@@ -137,7 +137,7 @@
         data-canvas-chrome
         data-testid={`canvas-chrome-dock-${corner}`}
     >
-        {#if pills.length > 0 || dockStore.activeModal !== undefined}
+        {#if pills.length > 0 || dockStore.activeDialog !== undefined}
             <div
                 class={pillRowClass[corner]}
                 data-dock-pills
@@ -166,16 +166,16 @@
                     <div class="drop-indicator"></div>
                 {/if}
                 <!-- modal close chip: appears when a modal is active -->
-                {#if dockStore.activeModal !== undefined}
-                    {@const modalId = dockStore.activeModal}
-                    {@const modalItem = dockStore.modalItems.find(m => m.id === modalId)}
+                {#if dockStore.activeDialog !== undefined}
+                    {@const dialogId = dockStore.activeDialog}
+                    {@const dialogItem = dockStore.dialogs.find(m => m.id === dialogId)}
                     <button
                         type="button"
                         class="fte-taskbar-modal-chip pointer-events-auto"
-                        onclick={() => dockStore.closeModal()}
+                        onclick={() => dockStore.closeDialog()}
                         data-testid="modal-chip"
                     >
-                        {modalItem?.title ?? modalId} ×
+                        {dialogItem?.title ?? dialogId} ×
                     </button>
                 {/if}
             </div>

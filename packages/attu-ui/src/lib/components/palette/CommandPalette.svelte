@@ -1,6 +1,6 @@
 <!--
     FamilyTreeEditor - command palette body (Mod+P / Mod+Shift+P)
-    body-only component: wrapped in DockModal by the caller.
+    body-only component: wrapped in DockDialog by the caller.
     one component, two modes: "anything" (people first, then commands)
     and "commands". prefix toggles: `>` jumps to commands, `@` to people,
     `#` to people by exact id. a bare id also matches when present.
@@ -173,7 +173,7 @@
 
     function pickRow(row: Row): void {
         if (!row.enabled) return;
-        dockStore.closeModal();
+        dockStore.closeDialog();
         row.item.action();
     }
 
@@ -187,7 +187,7 @@
         if (e.key === "Escape") {
             e.stopPropagation();
             e.preventDefault();
-            dockStore.closeModal();
+            dockStore.closeDialog();
         } else if (e.key === "ArrowDown") {
             e.preventDefault();
             if (rows.length === 0) return;

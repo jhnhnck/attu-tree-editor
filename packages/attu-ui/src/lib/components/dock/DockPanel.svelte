@@ -1,12 +1,12 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!--
-    canonical window chrome restored from canvas-chrome-v2 design:
-      pop/re-dock button always present (corner-aware diagonal arrow)
+    canonical panel chrome restored from canvas-chrome-v2 design:
+      float/re-dock button always present (corner-aware diagonal arrow)
       minimize button always present (corner-aware chevron)
       close button when closeable=true
       14×14 colored circles: neutral/amber/red at 40% alpha
-      titlebar click → dockStore.focusWindow (flash + z-order)
-      cascade pop-out computed from canvas-host rect + floating count
+      titlebar click → dockStore.focusPanel (flash + z-order)
+      cascade float computed from canvas-host rect + floating count
 -->
 <script lang="ts">
     import type { Snippet } from "svelte";
@@ -31,9 +31,9 @@
 
     let { id, title, body, closeable = true }: Props = $props();
 
-    const windowStatus = $derived(dockStore.windowState(id));
-    const expanded = $derived(windowStatus === "expanded");
-    const floating = $derived(windowStatus === "floating");
+    const panelStatus = $derived(dockStore.panelState(id));
+    const expanded = $derived(panelStatus === "expanded");
+    const floating = $derived(panelStatus === "floating");
     // derive corner from registry so DockCorner doesn't need to thread it
     const corner = $derived(dockStore.getItem(id)?.corner ?? "bl");
 
@@ -67,7 +67,7 @@
         };
     });
 
-    // expose flash to parent (called when dockStore.focusWindow fires)
+    // expose flash to parent (called when dockStore.focusPanel fires)
     // we hook into the focusedAt change on the item
     const focusedAt = $derived(dockStore.getItem(id)?.focusedAt);
     let prevFocusedAt: number | undefined;
@@ -83,15 +83,15 @@
     let dragOffset: { dx: number; dy: number } | null = $state(null);
 
     function onTitlebarClick(e: MouseEvent): void {
-        // don't fire focus when clicking a window control — controls have their own handlers
+        // don't fire focus when clicking a panel control — controls have their own handlers
         if ((e.target as Element | null)?.closest("[data-window-control]")) return;
-        dockStore.focusWindow(id);
+        dockStore.focusPanel(id);
     }
 
-    function onPopOutClick(e: MouseEvent): void {
+    function onFloatClick(e: MouseEvent): void {
         const el = e.currentTarget as HTMLElement;
         const host = el.closest<HTMLElement>("[data-canvas-host]");
-        const n = dockStore.floatingItems.length;
+        const n = dockStore.floatingPanels.length;
         let x = 100, y = 100;
         if (host) {
             const r = host.getBoundingClientRect();
@@ -100,24 +100,24 @@
             x = r.right - 320 + row * 24;
             y = r.top + 60 + row * 24 + wrap * 32;
         }
-        dockStore.popOut(id, x, y);
+        dockStore.floatPanel(id, x, y);
     }
 
     function onTitlebarPointerDown(e: PointerEvent): void {
-        // ignore presses that originate from a window control (close/minimize/pop)
+        // ignore presses that originate from a panel control (close/minimize/float)
         if ((e.target as Element | null)?.closest("[data-window-control]")) return;
         if (!floating) return;
         e.stopPropagation();
         const el = e.currentTarget as HTMLElement;
         el.setPointerCapture(e.pointerId);
-        const fl = dockStore.floatingItems.find(fi => fi.item.id === id);
+        const fl = dockStore.floatingPanels.find(fi => fi.item.id === id);
         const pos = fl?.pos ?? { x: 0, y: 0 };
         dragOffset = { dx: e.clientX - pos.x, dy: e.clientY - pos.y };
     }
 
     function onTitlebarPointerMove(e: PointerEvent): void {
         if (!dragOffset) return;
-        dockStore.moveWindow(id, e.clientX - dragOffset.dx, e.clientY - dragOffset.dy);
+        dockStore.movePanel(id, e.clientX - dragOffset.dx, e.clientY - dragOffset.dy);
     }
 
     function onTitlebarPointerUp(e: PointerEvent): void {
@@ -139,24 +139,24 @@
         class="fte-window-titlebar"
         class:fte-window-titlebar-focused={flashing}
         class:fte-window-titlebar-popped={floating}
-        aria-label={`${title} window titlebar`}
+        aria-label={`${title} panel titlebar`}
         role="toolbar"
         tabindex="-1"
         onclick={onTitlebarClick}
-        onkeydown={(e) => { if (e.key === "Enter" && !(e.target as Element | null)?.closest("[data-window-control]")) { dockStore.focusWindow(id); } }}
+        onkeydown={(e) => { if (e.key === "Enter" && !(e.target as Element | null)?.closest("[data-window-control]")) { dockStore.focusPanel(id); } }}
         onpointerdown={onTitlebarPointerDown}
         onpointermove={onTitlebarPointerMove}
         onpointerup={onTitlebarPointerUp}
     >
         <span class="fte-window-title">{title}</span>
         <span class="fte-window-controls">
-            <!-- pop/re-dock: always present, toggles icon + action on floating state -->
+            <!-- float/re-dock: always present, toggles icon + action on floating state -->
             <button
                 type="button"
                 class="fte-window-control fte-window-control-popdock"
                 data-window-control
                 aria-label={floating ? "re-dock" : "pop out"}
-                onclick={(e) => { e.stopPropagation(); floating ? dockStore.redockExpanded(id) : onPopOutClick(e); }}
+                onclick={(e) => { e.stopPropagation(); floating ? dockStore.dockPanelExpanded(id) : onFloatClick(e); }}
                 onpointerdown={(e) => e.stopPropagation()}
             >
                 {#if floating}
@@ -171,7 +171,7 @@
                 class="fte-window-control fte-window-control-minimize"
                 data-window-control
                 aria-label="minimize"
-                onclick={(e) => { e.stopPropagation(); floating ? dockStore.redock(id) : dockStore.toggleExpanded(id); }}
+                onclick={(e) => { e.stopPropagation(); floating ? dockStore.dockPanel(id) : dockStore.toggleExpanded(id); }}
                 onpointerdown={(e) => e.stopPropagation()}
             >
                 <MinimizeIcon strokeWidth={2.5} />
@@ -182,7 +182,7 @@
                     class="fte-window-control fte-window-control-close"
                     data-window-control
                     aria-label="close"
-                    onclick={(e) => { e.stopPropagation(); dockStore.closeWindow(id); }}
+                    onclick={(e) => { e.stopPropagation(); dockStore.closePanel(id); }}
                     onpointerdown={(e) => e.stopPropagation()}
                 >
                     <X strokeWidth={2.5} />

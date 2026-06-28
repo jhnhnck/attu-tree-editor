@@ -1,6 +1,6 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!--
-    phase 1 — full modal chrome. adds:
+    phase 1 — full dialog chrome. adds:
       Escape key closes (stopPropagation so other overlays aren't affected)
       onopen callback (called after mount)
       backdrop click closes (retained from phase 0)
@@ -20,7 +20,7 @@
     let { id, title, size = "md", children, onopen }: Props = $props();
 
     function close(): void {
-        dockStore.closeModal();
+        dockStore.closeDialog();
     }
 
     function onkeydown(e: KeyboardEvent): void {
@@ -51,7 +51,7 @@
     tabindex="-1"
     aria-modal="true"
     aria-label={title ?? id}
-    data-modal-id={id}
+    data-dialog-id={id}
     onkeydown={onkeydown}
 >
     <div class="modal-header">

@@ -1,6 +1,6 @@
 <!--
-    wiki-editor keyboard shortcuts body — body-only, wrapped in DockModal by App.svelte.
-    DockModal handles the backdrop, close button, and Escape key.
+    wiki-editor keyboard shortcuts body — body-only, wrapped in DockDialog by App.svelte.
+    DockDialog handles the backdrop, close button, and Escape key.
 -->
 <script lang="ts">
     import { SHORTCUTS } from "./shortcuts.js";

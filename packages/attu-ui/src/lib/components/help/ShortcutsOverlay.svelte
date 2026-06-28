@@ -1,6 +1,6 @@
 <!--
     FamilyTreeEditor - keyboard shortcuts cheatsheet body (?)
-    body-only component: wrapped in DockModal by the caller.
+    body-only component: wrapped in DockDialog by the caller.
     licensed under the MIT license; see LICENSE.md for full text
 -->
 <script lang="ts">

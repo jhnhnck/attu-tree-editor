@@ -7,8 +7,8 @@
     import { authStore } from "../../state/auth.svelte.js";
     import { dockStore } from "../dock/store.svelte.js";
     import Button from "../ui/Button.svelte";
-    import DockItem from "../dock/DockItem.svelte";
-    import DockModal from "../dock/DockModal.svelte";
+    import DockEntry from "../dock/DockEntry.svelte";
+    import DockDialog from "../dock/DockDialog.svelte";
     import LinkCodeDialog from "./LinkCodeDialog.svelte";
 
     interface Props {
@@ -20,9 +20,9 @@
 
     let linkCode = $state<{ code: string; expiresAt: string } | null>(null);
 
-    // clear linkCode when the modal is dismissed externally (Escape or × on DockModal)
+    // clear linkCode when the dialog is dismissed externally (Escape or × on DockDialog)
     $effect(() => {
-        if (linkCode !== null && dockStore.activeModal !== "link-code") {
+        if (linkCode !== null && dockStore.activeDialog !== "link-code") {
             linkCode = null;
         }
     });
@@ -31,7 +31,7 @@
         try {
             const r = await authApi.start();
             linkCode = { code: r.code, expiresAt: r.expires_at };
-            dockStore.openModal("link-code");
+            dockStore.openDialog("link-code");
         } catch {
             onerror?.("could not start sign-in. is the server running?");
         }
@@ -46,13 +46,13 @@
     }
 
     function onSuccess(): void {
-        dockStore.closeModal();
+        dockStore.closeDialog();
         linkCode = null;
         onSignedIn?.();
     }
 
     function onClose(): void {
-        dockStore.closeModal();
+        dockStore.closeDialog();
         linkCode = null;
     }
 </script>
@@ -70,9 +70,9 @@
     </Button>
 {/if}
 
-<!-- link-code modal: registered permanently so DockSurface can render it -->
+<!-- link-code dialog: registered permanently so DockSurface can render it -->
 {#snippet linkCodeRender(_ctx: { forcedCollapse: boolean })}
-    <DockModal id="link-code" title="Sign in with Discord">
+    <DockDialog id="link-code" title="Sign in with Discord">
         {#snippet children()}
             {#if linkCode}
                 <LinkCodeDialog
@@ -83,11 +83,11 @@
                 />
             {/if}
         {/snippet}
-    </DockModal>
+    </DockDialog>
 {/snippet}
-<DockItem
+<DockEntry
     id="link-code"
-    kind="modal"
+    kind="dialog"
     corner="bl"
     priority={0}
     title="Sign in with Discord"

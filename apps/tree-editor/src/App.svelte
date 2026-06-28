@@ -128,10 +128,10 @@
         // new dock system
         dockStore,
         DockCorner,
-        DockItem,
-        DockWindow,
+        DockEntry,
+        DockPanel,
         DockSurface,
-        DockModal,
+        DockDialog,
         SaveStatusPill,
         StatsPill,
     } from "@attu/ui";
@@ -1493,7 +1493,7 @@
 
     function triggerImport(): void {
         importInitialFile = undefined;
-        dockStore.openModal("import-wizard");
+        dockStore.openDialog("import-wizard");
     }
 
     async function onImportSuccess(info: {
@@ -1550,7 +1550,7 @@
         const file = e.dataTransfer?.files[0];
         if (!file) return;
         importInitialFile = file;
-        dockStore.openModal("import-wizard");
+        dockStore.openDialog("import-wizard");
     }
 
     function onExport(): void {
@@ -1686,7 +1686,7 @@
 
     function openPalette(mode: "anything" | "commands"): void {
         paletteMode = mode;
-        dockStore.openModal("palette");
+        dockStore.openDialog("palette");
     }
 
     function withCanvas(fn: (c: CanvasController) => void, msg = "canvas not ready"): void {
@@ -1718,11 +1718,11 @@
         appRedo: () => treeStore.redo(),
         appSave: () => void forceSave(),
         appNew: () => void startNewTree(),
-        appOpen: () => dockStore.openModal("open-dialog"),
+        appOpen: () => dockStore.openDialog("open-dialog"),
         appImport: () => triggerImport(),
         appExport: () => onExport(),
-        appSettings: () => dockStore.openModal("settings"),
-        appHelp: () => dockStore.openModal("shortcuts"),
+        appSettings: () => dockStore.openDialog("settings"),
+        appHelp: () => dockStore.openDialog("shortcuts"),
         viewFit: () => withCanvas((c) => c.fit()),
         viewZoom100: () => withCanvas((c) => c.zoom100()),
         viewFitSelection: () => withCanvas((c) => c.fitSelection()),
@@ -1996,9 +1996,9 @@
     ];
 
     // suffix the menu label with the window's docked sub-state so the
-    // Panels section reflects windowState, not just open/closed.
+    // Panels section reflects panelState, not just open/closed.
     function panelMenuLabel(id: string, base: string): string {
-        const st = dockStore.windowState(id);
+        const st = dockStore.panelState(id);
         if (st === "minimized") return `${base} (minimized)`;
         if (st === "floating") return `${base} (floating)`;
         return base;
@@ -2007,8 +2007,8 @@
     function toggleDockPanel(id: string): void {
         const item = dockStore.getItem(id);
         if (item?.closeable === false) return;
-        if (dockStore.isOpen(id)) { dockStore.closeWindow(id); }
-        else { dockStore.openWindow(id); dockStore.setExpanded(id, true); }
+        if (dockStore.isOpen(id)) { dockStore.closePanel(id); }
+        else { dockStore.openPanel(id); dockStore.setExpanded(id, true); }
     }
 
     const viewMenu = $derived<MenuConfig>({
@@ -2040,16 +2040,16 @@
     // gesture). decision recorded in the phase 3 retro.
     function toggleDebugMode(): void {
         debugMode = !debugMode;
-        if (!debugMode) dockStore.closeWindow("debug-menu");
+        if (!debugMode) dockStore.closePanel("debug-menu");
     }
     // open/close toggle for the debug-menu Window. when expanded or floating,
     // collapse to closed; otherwise open and expand.
     function toggleDebugMenu(): void {
-        const st = dockStore.windowState("debug-menu");
+        const st = dockStore.panelState("debug-menu");
         if (st === "expanded" || st === "floating") {
-            dockStore.closeWindow("debug-menu");
+            dockStore.closePanel("debug-menu");
         } else {
-            if (st === "closed") dockStore.openWindow("debug-menu");
+            if (st === "closed") dockStore.openPanel("debug-menu");
             dockStore.setExpanded("debug-menu", true);
         }
     }
@@ -2067,7 +2067,7 @@
             {
                 label: "About",
                 icon: Info,
-                onclick: () => dockStore.openModal("about"),
+                onclick: () => dockStore.openDialog("about"),
             },
         ] satisfies MenuEntry[],
     });
@@ -2222,7 +2222,7 @@
                     class="text-fg hover:bg-canvas flex h-7 w-7 items-center justify-center rounded"
                     title="Share"
                     aria-label="Share"
-                    onclick={() => dockStore.openModal("share")}
+                    onclick={() => dockStore.openDialog("share")}
                 >
                     <Share2 size={17} strokeWidth={2.5} />
                 </button>
@@ -2234,7 +2234,7 @@
                 class="text-fg hover:bg-canvas flex h-7 w-7 items-center justify-center rounded"
                 title="Admin"
                 aria-label="Admin"
-                onclick={() => dockStore.openModal("admin")}
+                onclick={() => dockStore.openDialog("admin")}
             >
                 <Shield size={17} strokeWidth={2.5} />
             </button>
@@ -2244,7 +2244,7 @@
             class="text-fg hover:bg-canvas flex h-7 w-7 items-center justify-center rounded"
             title="Keyboard shortcuts (?)"
             aria-label="Keyboard shortcuts"
-            onclick={() => dockStore.openModal("shortcuts")}
+            onclick={() => dockStore.openDialog("shortcuts")}
         >
             <HelpCircle size={17} strokeWidth={2.5} />
         </button>
@@ -2379,7 +2379,7 @@
                  toolbar slot mounts its trigger button + popover. -->
 
             <!-- save-status pill:
-                 onPopoverToggle now calls dockStore.pillClick. -->
+                 onPopoverToggle now calls dockStore.togglePanel. -->
             {#snippet saveStatusSnippet(_ctx: { forcedCollapse: boolean })}
                 <button
                     type="button"
@@ -2397,7 +2397,7 @@
                             toasts.push("save conflict — see console for details", "error");
                             return;
                         }
-                        dockStore.pillClick("save-status-window");
+                        dockStore.togglePanel("save-status-window");
                     }}
                 >
                     <span
@@ -2532,7 +2532,7 @@
             {#if !readOnly}
                 <SaveStatusPill
                     pillId="save-status"
-                    windowId="save-status-window"
+                    panelId="save-status-window"
                     corner={corner}
                     priority={10}
                     closeable={false}
@@ -2553,7 +2553,7 @@
                  while debug mode is on. -->
 
             <!-- stats pill, registered at priority 20. trigger button only —
-                 the popover body migrated to a sibling Window (kind="window"
+                 the popover body migrated to a sibling Window (kind="panel"
                  priority=25 forceCollapsible=false) in canvas-window-manager
                  phase 2. canvas-window-manager phase 4 makes the pill text
                  configurable: clicking a row in the stats Window body sets
@@ -2575,7 +2575,7 @@
                         aria-pressed={statsPopoverOpen}
                         aria-haspopup="dialog"
                         aria-expanded={statsPopoverOpen}
-                        onclick={() => dockStore.pillClick("stats-window")}
+                        onclick={() => dockStore.togglePanel("stats-window")}
                         data-testid="stats-pill"
                         data-selected-metric={selectedMetric}
                     >
@@ -2663,7 +2663,7 @@
             {#if statsPillVisible && layoutStats}
                 <StatsPill
                     pillId="stats"
-                    windowId="stats-window"
+                    panelId="stats-window"
                     corner={corner}
                     priority={20}
                     pill={statsPillSnippet}
@@ -2685,24 +2685,24 @@
                     aria-label="toggle debug panel"
                     title="debug panel (Ctrl+Shift+D)"
                     data-testid="debug-pill"
-                    aria-pressed={dockStore.windowState("debug-menu") === "expanded" || dockStore.windowState("debug-menu") === "floating"}
+                    aria-pressed={dockStore.panelState("debug-menu") === "expanded" || dockStore.panelState("debug-menu") === "floating"}
                     onclick={() => toggleDebugMenu()}
                 >
                     <Bug size={12} />
                 </button>
             {/snippet}
             {#if debugMode}
-                <DockItem
+                <DockEntry
                     id="debug-toggle"
                     kind="pill"
                     corner={corner}
                     priority={30}
-                    windowId="debug-menu"
+                    panelId="debug-menu"
                     render={debugIconSnippet}
                 />
             {/if}
             <!-- debug menu — canvas-window-manager phase 2 migrated this
-                 surface from kind="panel" to kind="window" so it shares the
+                 surface from kind="panel" to kind="panel" so it shares the
                  Window primitive's titlebar (collapse / pop-out / close)
                  with every other floating canvas surface. priority 300,
                  forceCollapsible=false retained — opting out of force-
@@ -2710,7 +2710,7 @@
                  (primary control surface beats glance-and-go status)
                  while the rest of the bl stack collapses around it on
                  cramped viewports. close (×) on the Window's titlebar
-                 close (×) on the DockWindow titlebar unmounts the
+                 close (×) on the DockPanel titlebar unmounts the
                  registration; the custom inline `Debug · Ctrl+Shift+D ×`
                  titlebar that lived inside the body deleted in this migration.
 
@@ -2738,7 +2738,7 @@
                             class="fte-window-muted-action"
                             onclick={() => {
                                 debugMode = false;
-                                dockStore.closeWindow("debug-menu");
+                                dockStore.closePanel("debug-menu");
                             }}
                             data-testid="debug-disable"
                         >
@@ -2922,30 +2922,30 @@
                 </div>
             {/snippet}
             {#snippet debugMenuWindow(_ctx: { forcedCollapse: boolean })}
-                <DockWindow id="debug-menu" title="Debug · Ctrl+Shift+D" body={debugMenuBody} />
+                <DockPanel id="debug-menu" title="Debug · Ctrl+Shift+D" body={debugMenuBody} />
             {/snippet}
             {#if debugMode}
-                <DockItem
+                <DockEntry
                     id="debug-menu"
-                    kind="window"
+                    kind="panel"
                     corner={corner}
                     priority={300}
                     render={debugMenuWindow}
                 />
             {/if}
 
-            <!-- modal registrations: DockSurface renders these when dockStore.activeModal matches -->
+            <!-- dialog registrations: DockSurface renders these when dockStore.activeDialog matches -->
 
             {#snippet settingsModalRender(_ctx: { forcedCollapse: boolean })}
-                <DockModal id="settings" title="Settings">
+                <DockDialog id="settings" title="Settings">
                     {#snippet children()}
                         <SettingsDialog {prefs} />
                     {/snippet}
-                </DockModal>
+                </DockDialog>
             {/snippet}
-            <DockItem
+            <DockEntry
                 id="settings"
-                kind="modal"
+                kind="dialog"
                 corner={corner}
                 priority={0}
                 title="Settings"
@@ -2953,15 +2953,15 @@
             />
 
             {#snippet shareModalRender(_ctx: { forcedCollapse: boolean })}
-                <DockModal id="share" title="Share tree">
+                <DockDialog id="share" title="Share tree">
                     {#snippet children()}
                         <ShareDialog treeId={treeStore.tree.id} />
                     {/snippet}
-                </DockModal>
+                </DockDialog>
             {/snippet}
-            <DockItem
+            <DockEntry
                 id="share"
-                kind="modal"
+                kind="dialog"
                 corner={corner}
                 priority={0}
                 title="Share tree"
@@ -2969,15 +2969,15 @@
             />
 
             {#snippet aboutModalRender(_ctx: { forcedCollapse: boolean })}
-                <DockModal id="about" title="About">
+                <DockDialog id="about" title="About">
                     {#snippet children()}
                         <AboutDialog />
                     {/snippet}
-                </DockModal>
+                </DockDialog>
             {/snippet}
-            <DockItem
+            <DockEntry
                 id="about"
-                kind="modal"
+                kind="dialog"
                 corner={corner}
                 priority={0}
                 title="About"
@@ -2985,15 +2985,15 @@
             />
 
             {#snippet adminModalRender(_ctx: { forcedCollapse: boolean })}
-                <DockModal id="admin" title="Admin" size="lg">
+                <DockDialog id="admin" title="Admin" size="lg">
                     {#snippet children()}
                         <AdminPanel />
                     {/snippet}
-                </DockModal>
+                </DockDialog>
             {/snippet}
-            <DockItem
+            <DockEntry
                 id="admin"
-                kind="modal"
+                kind="dialog"
                 corner={corner}
                 priority={0}
                 title="Admin"
@@ -3001,7 +3001,7 @@
             />
 
             {#snippet openDialogModalRender(_ctx: { forcedCollapse: boolean })}
-                <DockModal id="open-dialog" title="Open tree" size="lg">
+                <DockDialog id="open-dialog" title="Open tree" size="lg">
                     {#snippet children()}
                         <OpenDialog
                             listings={recents}
@@ -3011,11 +3011,11 @@
                             onnotice={(msg: string) => toasts.push(msg, "info", 2500)}
                         />
                     {/snippet}
-                </DockModal>
+                </DockDialog>
             {/snippet}
-            <DockItem
+            <DockEntry
                 id="open-dialog"
-                kind="modal"
+                kind="dialog"
                 corner={corner}
                 priority={0}
                 title="Open tree"
@@ -3023,15 +3023,15 @@
             />
 
             {#snippet shortcutsModalRender(_ctx: { forcedCollapse: boolean })}
-                <DockModal id="shortcuts" title="Keyboard shortcuts">
+                <DockDialog id="shortcuts" title="Keyboard shortcuts">
                     {#snippet children()}
                         <ShortcutsOverlay groups={groupedShortcuts()} />
                     {/snippet}
-                </DockModal>
+                </DockDialog>
             {/snippet}
-            <DockItem
+            <DockEntry
                 id="shortcuts"
-                kind="modal"
+                kind="dialog"
                 corner={corner}
                 priority={0}
                 title="Keyboard shortcuts"
@@ -3039,22 +3039,22 @@
             />
 
             {#snippet paletteModalRender(_ctx: { forcedCollapse: boolean })}
-                <DockModal id="palette" title="Command palette">
+                <DockDialog id="palette" title="Command palette">
                     {#snippet children()}
                         <CommandPalette items={paletteItems} mode={paletteMode} />
                     {/snippet}
-                </DockModal>
+                </DockDialog>
             {/snippet}
-            <DockItem
+            <DockEntry
                 id="palette"
-                kind="modal"
+                kind="dialog"
                 corner={corner}
                 priority={0}
                 title="Command palette"
                 render={paletteModalRender}
             />
             {#snippet importWizardModalRender(_ctx: import("@attu/ui").DockRenderCtx)}
-                <DockModal id="import-wizard" title="Import tree">
+                <DockDialog id="import-wizard" title="Import tree">
                     {#snippet children()}
                         <ImportWizard
                             store={treeStore}
@@ -3069,11 +3069,11 @@
                             }}
                         />
                     {/snippet}
-                </DockModal>
+                </DockDialog>
             {/snippet}
-            <DockItem
+            <DockEntry
                 id="import-wizard"
-                kind="modal"
+                kind="dialog"
                 corner={corner}
                 priority={0}
                 title="Import tree"
@@ -3143,7 +3143,7 @@
         {/if}
     </main>
     {#snippet overlays()}
-        <!-- DockSurface renders the active modal (registered via DockItem kind="modal"). -->
+        <!-- DockSurface renders the active modal (registered via DockEntry kind="dialog"). -->
         <DockSurface />
         <Toasts store={toasts} />
     {#if contextMenu}

@@ -3,10 +3,10 @@
     Phase-2 harness: mirrors App.svelte's stats-pill gate
     (engine === "layered" || engine === "family-view") and registers
     the same snippet+priority App.svelte uses (priority 20, kind pill,
-    data-testid="stats-pill") through the new dockStore/DockItem system.
+    data-testid="stats-pill") through the new dockStore/DockEntry system.
 -->
 <script lang="ts">
-    import { DockCorner, DockItem } from "@attu/ui";
+    import { DockCorner, DockEntry } from "@attu/ui";
     import type { EngineKind } from "$lib/state/engine";
 
     interface Props {
@@ -46,7 +46,7 @@
         {/if}
     {/snippet}
     {#if statsPillVisible && layoutStats}
-        <DockItem
+        <DockEntry
             id="stats"
             kind="pill"
             corner="tl"

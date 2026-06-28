@@ -1,6 +1,6 @@
 <!--
     sign-in body: shows a 6-char code, polls /api/auth/check, closes on ok.
-    body-only component: wrapped in DockModal by the caller.
+    body-only component: wrapped in DockDialog by the caller.
     the code was issued by the server when the user clicked "sign in" in AuthBar.
 -->
 <script lang="ts">

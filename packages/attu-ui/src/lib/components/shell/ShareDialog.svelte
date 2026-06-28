@@ -1,6 +1,6 @@
 <!--
     share / manage access body for a tree.
-    body-only component: wrapped in DockModal by the caller.
+    body-only component: wrapped in DockDialog by the caller.
     - copy view-link button (clipboard)
     - list current grants with revoke
     - add grant by discord id
@@ -176,7 +176,7 @@
     >
         {#snippet children()}{busy ? "sharing…" : "share"}{/snippet}
     </Button>
-    <Button type="button" variant="ghost" onclick={() => dockStore.closeModal()}>
+    <Button type="button" variant="ghost" onclick={() => dockStore.closeDialog()}>
         {#snippet children()}close{/snippet}
     </Button>
 </div>

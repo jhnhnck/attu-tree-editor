@@ -71,8 +71,8 @@ describe("selection state-machine: command-palette person-pick", () => {
             }),
         );
 
-        // palette drives close by calling dockStore.closeModal() on pick
-        const closeModal = vi.spyOn(dockStore, "closeModal");
+        // palette drives close by calling dockStore.closeDialog() on pick
+        const closeDialog = vi.spyOn(dockStore, "closeDialog");
         render(CommandPalette, {
             items,
             mode: "anything",
@@ -87,7 +87,7 @@ describe("selection state-machine: command-palette person-pick", () => {
         // the invariant: store reflects the picked id
         expect(selection.selectedPersonId).toBe(pickId);
         // palette drives its own close on pick (calls dockStore.closeModal before action)
-        expect(closeModal).toHaveBeenCalled();
-        closeModal.mockRestore();
+        expect(closeDialog).toHaveBeenCalled();
+        closeDialog.mockRestore();
     });
 });

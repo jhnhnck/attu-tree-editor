@@ -4,9 +4,9 @@
         ContextMenu,
         dockStore,
         DockCorner,
-        DockItem,
+        DockEntry,
         DockSurface,
-        DockModal,
+        DockDialog,
         SaveStatusPill,
         StatsPill,
     } from "@attu/ui";
@@ -381,7 +381,7 @@
                 {
                     label: "Preferences…",
                     icon: Settings,
-                    onclick: () => dockStore.openModal("settings"),
+                    onclick: () => dockStore.openDialog("settings"),
                 },
             ],
         },
@@ -393,7 +393,7 @@
                     label: "Keyboard shortcuts",
                     icon: Keyboard,
                     shortcut: "Ctrl+?",
-                    onclick: () => dockStore.openModal("shortcuts"),
+                    onclick: () => dockStore.openDialog("shortcuts"),
                 },
                 "divider",
                 { label: "Report an issue", onclick: () => {} },
@@ -407,7 +407,7 @@
     onkeydown={(e: KeyboardEvent) => {
         if (e.key === "?" && e.ctrlKey && !e.shiftKey && !e.altKey) {
             e.preventDefault();
-            dockStore.openModal("shortcuts");
+            dockStore.openDialog("shortcuts");
         }
     }}
 />
@@ -444,12 +444,12 @@
         <DockCorner {corner} />
 
         <!-- save-status pill (shared attu-ui component) -->
-        <SaveStatusPill pillId="wiki-save" windowId="save-window" {corner} priority={10} />
+        <SaveStatusPill pillId="wiki-save" panelId="save-window" {corner} priority={10} />
 
         <!-- stats pill (shared attu-ui component) -->
         <StatsPill
             pillId="wiki-stats"
-            windowId="stats-window"
+            panelId="stats-window"
             {corner}
             priority={20}
             rows={[
@@ -465,15 +465,15 @@
 
         <!-- modal: preferences -->
         {#snippet settingsModalRender(_ctx: import("@attu/ui").DockRenderCtx)}
-            <DockModal id="settings" title="Preferences" size="lg">
+            <DockDialog id="settings" title="Preferences" size="lg">
                 {#snippet children()}
                     <SettingsModal />
                 {/snippet}
-            </DockModal>
+            </DockDialog>
         {/snippet}
-        <DockItem
+        <DockEntry
             id="settings"
-            kind="modal"
+            kind="dialog"
             {corner}
             priority={0}
             title="Preferences"
@@ -482,15 +482,15 @@
 
         <!-- modal: keyboard shortcuts -->
         {#snippet shortcutsModalRender(_ctx: import("@attu/ui").DockRenderCtx)}
-            <DockModal id="shortcuts" title="Keyboard Shortcuts">
+            <DockDialog id="shortcuts" title="Keyboard Shortcuts">
                 {#snippet children()}
                     <ShortcutsOverlay />
                 {/snippet}
-            </DockModal>
+            </DockDialog>
         {/snippet}
-        <DockItem
+        <DockEntry
             id="shortcuts"
-            kind="modal"
+            kind="dialog"
             {corner}
             priority={0}
             title="Keyboard Shortcuts"

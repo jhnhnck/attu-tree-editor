@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
-// unit tests for DockWindow component (phase 1)
+// unit tests for DockPanel component (phase 1)
 
 import { describe, it, expect, beforeEach } from "vitest";
 import { mount, unmount, flushSync } from "svelte";
 import { vi } from "vitest";
 import { dockStore } from "../../../../src/lib/components/dock/store.svelte.js";
 import type { DockRenderSnippet } from "../../../../src/lib/components/dock/store.svelte.js";
-import DockWindow from "../../../../src/lib/components/dock/DockWindow.svelte";
+import DockPanel from "../../../../src/lib/components/dock/DockPanel.svelte";
 
 const noop = (() => undefined) as unknown as DockRenderSnippet;
 
@@ -19,15 +19,15 @@ const bodySnippet = (() => {
 
 beforeEach(() => {
     dockStore.resetForTest();
-    dockStore.register({ id: "w", kind: "window", corner: "bl", priority: 10, render: noop });
-    dockStore.openWindow("w");
+    dockStore.register({ id: "w", kind: "panel", corner: "bl", priority: 10, render: noop });
+    dockStore.openPanel("w");
 });
 
-describe("DockWindow", () => {
+describe("DockPanel", () => {
     it("renders with title", () => {
         const target = document.createElement("div");
         document.body.appendChild(target);
-        const comp = mount(DockWindow, {
+        const comp = mount(DockPanel, {
             target,
             props: { id: "w", title: "My Window", body: bodySnippet },
         });
@@ -45,7 +45,7 @@ describe("DockWindow", () => {
         const target = document.createElement("div");
         document.body.appendChild(target);
         const spy = vi.spyOn(dockStore, "toggleExpanded");
-        const comp = mount(DockWindow, {
+        const comp = mount(DockPanel, {
             target,
             props: { id: "w", title: "Win", body: bodySnippet },
         });
@@ -62,12 +62,12 @@ describe("DockWindow", () => {
         }
     });
 
-    it("minimize button calls dockStore.redock when floating", () => {
-        dockStore.popOut("w", 100, 100);
+    it("minimize button calls dockStore.dockPanel when floating", () => {
+        dockStore.floatPanel("w", 100, 100);
         const target = document.createElement("div");
         document.body.appendChild(target);
-        const spy = vi.spyOn(dockStore, "redock");
-        const comp = mount(DockWindow, {
+        const spy = vi.spyOn(dockStore, "dockPanel");
+        const comp = mount(DockPanel, {
             target,
             props: { id: "w", title: "Win", body: bodySnippet },
         });
@@ -84,11 +84,11 @@ describe("DockWindow", () => {
         }
     });
 
-    it("close button calls dockStore.closeWindow", () => {
+    it("close button calls dockStore.closePanel", () => {
         const target = document.createElement("div");
         document.body.appendChild(target);
-        const spy = vi.spyOn(dockStore, "closeWindow");
-        const comp = mount(DockWindow, {
+        const spy = vi.spyOn(dockStore, "closePanel");
+        const comp = mount(DockPanel, {
             target,
             props: { id: "w", title: "Win", body: bodySnippet, closeable: true },
         });
@@ -105,11 +105,11 @@ describe("DockWindow", () => {
         }
     });
 
-    it("pop-out button calls dockStore.popOut when not floating", () => {
+    it("pop-out button calls dockStore.floatPanel when not floating", () => {
         const target = document.createElement("div");
         document.body.appendChild(target);
-        const spy = vi.spyOn(dockStore, "popOut");
-        const comp = mount(DockWindow, {
+        const spy = vi.spyOn(dockStore, "floatPanel");
+        const comp = mount(DockPanel, {
             target,
             props: { id: "w", title: "Win", body: bodySnippet },
         });
@@ -126,12 +126,12 @@ describe("DockWindow", () => {
         }
     });
 
-    it("re-dock button calls dockStore.redockExpanded when floating", () => {
-        dockStore.popOut("w", 100, 100);
+    it("re-dock button calls dockStore.dockPanelExpanded when floating", () => {
+        dockStore.floatPanel("w", 100, 100);
         const target = document.createElement("div");
         document.body.appendChild(target);
-        const spy = vi.spyOn(dockStore, "redockExpanded");
-        const comp = mount(DockWindow, {
+        const spy = vi.spyOn(dockStore, "dockPanelExpanded");
+        const comp = mount(DockPanel, {
             target,
             props: { id: "w", title: "Win", body: bodySnippet },
         });
@@ -149,10 +149,10 @@ describe("DockWindow", () => {
     });
 
     it("pop-out button shows re-dock label when floating", () => {
-        dockStore.popOut("w", 100, 100);
+        dockStore.floatPanel("w", 100, 100);
         const target = document.createElement("div");
         document.body.appendChild(target);
-        const comp = mount(DockWindow, {
+        const comp = mount(DockPanel, {
             target,
             props: { id: "w", title: "Win", body: bodySnippet },
         });
@@ -169,7 +169,7 @@ describe("DockWindow", () => {
     it("closeable=false hides the close button", () => {
         const target = document.createElement("div");
         document.body.appendChild(target);
-        const comp = mount(DockWindow, {
+        const comp = mount(DockPanel, {
             target,
             props: { id: "w", title: "Win", body: bodySnippet, closeable: false },
         });

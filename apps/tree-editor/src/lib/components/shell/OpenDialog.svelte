@@ -1,6 +1,6 @@
 <!--
     FamilyTreeEditor - Open tree body: searchable list + preview + open/delete
-    body-only component: wrapped in DockModal by the caller.
+    body-only component: wrapped in DockDialog by the caller.
     licensed under the MIT license; see LICENSE.md for full text
 -->
 <script lang="ts">
@@ -107,7 +107,7 @@
     function openSelected(): void {
         if (!selectedId) return;
         onpick(selectedId);
-        dockStore.closeModal();
+        dockStore.closeDialog();
     }
 
     async function deleteSelected(): Promise<void> {
@@ -272,7 +272,7 @@
                     delete
                 {/snippet}
             </Button>
-            <Button type="button" variant="ghost" onclick={() => dockStore.closeModal()}>
+            <Button type="button" variant="ghost" onclick={() => dockStore.closeDialog()}>
                 {#snippet children()}cancel{/snippet}
             </Button>
             <Button

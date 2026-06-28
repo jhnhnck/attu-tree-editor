@@ -23,7 +23,7 @@
         corner: DockCorner;
         priority: number;
         render: DockRenderSnippet;
-        windowId?: string | undefined;
+        panelId?: string | undefined;
         closeable?: boolean | undefined;
         persistent?: boolean | undefined;
         title?: string | undefined;
@@ -31,12 +31,12 @@
         order?: number | undefined;
     }
 
-    let { id, kind, corner, priority, render, windowId, closeable, persistent, title, focusedAt, order }: Props = $props();
+    let { id, kind, corner, priority, render, panelId, closeable, persistent, title, focusedAt, order }: Props = $props();
 
     // mount-only register / unmount-only unregister — id is immutable per
     // instance (parent re-mounts if it changes).
     $effect(() => {
-        untrack(() => dockStore.register({ id, kind, corner, priority, render, windowId, closeable, persistent, title, focusedAt, order }));
+        untrack(() => dockStore.register({ id, kind, corner, priority, render, panelId, closeable, persistent, title, focusedAt, order }));
         return () => untrack(() => dockStore.unregister(id));
     });
 
@@ -50,7 +50,7 @@
               priority: number;
               kind: DockKind;
               render: DockRenderSnippet;
-              windowId: string | undefined;
+              panelId: string | undefined;
               closeable: boolean | undefined;
               persistent: boolean | undefined;
               title: string | undefined;
@@ -60,14 +60,14 @@
         | undefined;
 
     $effect(() => {
-        const next = { corner, priority, kind, render, windowId, closeable, persistent, title, focusedAt, order };
+        const next = { corner, priority, kind, render, panelId, closeable, persistent, title, focusedAt, order };
         if (
             prev !== undefined &&
             prev.corner === next.corner &&
             prev.priority === next.priority &&
             prev.kind === next.kind &&
             prev.render === next.render &&
-            prev.windowId === next.windowId &&
+            prev.panelId === next.panelId &&
             prev.closeable === next.closeable &&
             prev.persistent === next.persistent &&
             prev.title === next.title &&

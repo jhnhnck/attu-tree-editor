@@ -85,11 +85,11 @@ export { default as CommandPalette } from "./components/palette/CommandPalette.s
 
 // dock (unified system)
 export { dockStore } from "./components/dock/store.svelte.js";
-export type { DockItemDef, DockWindowState, DockKind, DockCorner as DockCornerKind, DockRenderCtx, DockRenderSnippet } from "./components/dock/store.svelte.js";
+export type { DockItemDef, DockPanelState, DockKind, DockCorner as DockCornerKind, DockRenderCtx, DockRenderSnippet } from "./components/dock/store.svelte.js";
 export { default as DockCorner } from "./components/dock/DockCorner.svelte";
-export { default as DockItem } from "./components/dock/DockItem.svelte";
-export { default as DockWindow } from "./components/dock/DockWindow.svelte";
+export { default as DockEntry } from "./components/dock/DockEntry.svelte";
+export { default as DockPanel } from "./components/dock/DockPanel.svelte";
 export { default as DockSurface } from "./components/dock/DockSurface.svelte";
-export { default as DockModal } from "./components/dock/DockModal.svelte";
+export { default as DockDialog } from "./components/dock/DockDialog.svelte";
 export { default as SaveStatusPill } from "./components/dock/SaveStatusPill.svelte";
 export { default as StatsPill } from "./components/dock/StatsPill.svelte";

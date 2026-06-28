@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
-// unit tests for DockItem registration bridge (phase 1)
+// unit tests for DockEntry registration bridge (phase 1)
 
 import { describe, it, expect, beforeEach } from "vitest";
 import { mount, unmount, flushSync } from "svelte";
 import { vi } from "vitest";
 import { dockStore } from "../../../../src/lib/components/dock/store.svelte.js";
 import type { DockRenderSnippet } from "../../../../src/lib/components/dock/store.svelte.js";
-import DockItem from "../../../../src/lib/components/dock/DockItem.svelte";
+import DockEntry from "../../../../src/lib/components/dock/DockEntry.svelte";
 
 const noop = (() => undefined) as unknown as DockRenderSnippet;
 
@@ -14,11 +14,11 @@ beforeEach(() => {
     dockStore.resetForTest();
 });
 
-describe("DockItem", () => {
+describe("DockEntry", () => {
     it("registers the item on mount and unregisters on unmount", () => {
         const target = document.createElement("div");
         document.body.appendChild(target);
-        const comp = mount(DockItem, {
+        const comp = mount(DockEntry, {
             target,
             props: {
                 id: "test-item",
@@ -43,7 +43,7 @@ describe("DockItem", () => {
         const spy = vi.spyOn(dockStore, "updateItem");
         const target = document.createElement("div");
         document.body.appendChild(target);
-        const comp = mount(DockItem, {
+        const comp = mount(DockEntry, {
             target,
             props: {
                 id: "test-item",

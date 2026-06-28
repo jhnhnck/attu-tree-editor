@@ -49,8 +49,8 @@ describe("DockCorner", () => {
     });
 
     it("panel appears when window is expanded", () => {
-        dockStore.register({ id: "w", kind: "window", corner: "bl", priority: 10, render: noop });
-        dockStore.openWindow("w");
+        dockStore.register({ id: "w", kind: "panel", corner: "bl", priority: 10, render: noop });
+        dockStore.openPanel("w");
         dockStore.setExpanded("w", true);
         const target = document.createElement("div");
         document.body.appendChild(target);
@@ -69,8 +69,8 @@ describe("DockCorner", () => {
     });
 
     it("panel absent when window is minimized", () => {
-        dockStore.register({ id: "w", kind: "window", corner: "bl", priority: 10, render: noop });
-        dockStore.openWindow("w");
+        dockStore.register({ id: "w", kind: "panel", corner: "bl", priority: 10, render: noop });
+        dockStore.openPanel("w");
         // stays minimized by default
         const target = document.createElement("div");
         document.body.appendChild(target);
@@ -87,17 +87,17 @@ describe("DockCorner", () => {
         }
     });
 
-    it("modal chip appears when activeModal is set", () => {
+    it("dialog chip appears when activeDialog is set", () => {
         dockStore.register({ id: "p1", kind: "pill", corner: "bl", priority: 10, render: noop });
         dockStore.register({
             id: "my-modal",
-            kind: "modal",
+            kind: "dialog",
             corner: "bl",
             priority: 0,
             title: "My Modal",
             render: noop,
         });
-        dockStore.openModal("my-modal");
+        dockStore.openDialog("my-modal");
         const target = document.createElement("div");
         document.body.appendChild(target);
         const comp = mount(DockCorner, {
@@ -115,9 +115,9 @@ describe("DockCorner", () => {
         }
     });
 
-    it("clicking modal chip calls dockStore.closeModal", () => {
+    it("clicking dialog chip calls dockStore.closeDialog", () => {
         dockStore.register({ id: "p1", kind: "pill", corner: "bl", priority: 10, render: noop });
-        dockStore.openModal("some-modal");
+        dockStore.openDialog("some-modal");
         const target = document.createElement("div");
         document.body.appendChild(target);
         const comp = mount(DockCorner, {
@@ -130,7 +130,7 @@ describe("DockCorner", () => {
             expect(chip).not.toBeNull();
             chip.click();
             flushSync();
-            expect(dockStore.activeModal).toBeUndefined();
+            expect(dockStore.activeDialog).toBeUndefined();
         } finally {
             void unmount(comp);
             target.remove();

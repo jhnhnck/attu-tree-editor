@@ -27,7 +27,7 @@ describe("DockSurface", () => {
         }
     });
 
-    it("floating window renders at correct position", () => {
+    it("floating panel renders at correct position", () => {
         const renderSnippet = (() => {
             const d = document.createElement("div");
             d.setAttribute("data-testid", "floating-window-content");
@@ -36,13 +36,13 @@ describe("DockSurface", () => {
 
         dockStore.register({
             id: "fw",
-            kind: "window",
+            kind: "panel",
             corner: "bl",
             priority: 10,
             render: renderSnippet,
         });
-        dockStore.openWindow("fw");
-        dockStore.popOut("fw", 150, 250);
+        dockStore.openPanel("fw");
+        dockStore.floatPanel("fw", 150, 250);
 
         const target = document.createElement("div");
         document.body.appendChild(target);
@@ -59,11 +59,11 @@ describe("DockSurface", () => {
         }
     });
 
-    it("floating window z-index is in 30-49 range", () => {
+    it("floating panel z-index is in 30-49 range", () => {
         const renderSnippet = noop;
-        dockStore.register({ id: "fw", kind: "window", corner: "bl", priority: 10, render: renderSnippet });
-        dockStore.openWindow("fw");
-        dockStore.popOut("fw", 50, 50);
+        dockStore.register({ id: "fw", kind: "panel", corner: "bl", priority: 10, render: renderSnippet });
+        dockStore.openPanel("fw");
+        dockStore.floatPanel("fw", 50, 50);
 
         const target = document.createElement("div");
         document.body.appendChild(target);
@@ -81,7 +81,7 @@ describe("DockSurface", () => {
         }
     });
 
-    it("modal renders when activeModal matches a registered modal item", () => {
+    it("dialog renders when activeDialog matches a registered modal item", () => {
         const modalRender = (() => {
             const d = document.createElement("div");
             d.setAttribute("data-testid", "modal-content");
@@ -90,12 +90,12 @@ describe("DockSurface", () => {
 
         dockStore.register({
             id: "my-modal",
-            kind: "modal",
+            kind: "dialog",
             corner: "bl",
             priority: 0,
             render: modalRender,
         });
-        dockStore.openModal("my-modal");
+        dockStore.openDialog("my-modal");
 
         const target = document.createElement("div");
         document.body.appendChild(target);
@@ -111,10 +111,10 @@ describe("DockSurface", () => {
         }
     });
 
-    it("modal layer absent when activeModal is undefined", () => {
+    it("dialog layer absent when activeDialog is undefined", () => {
         dockStore.register({
             id: "my-modal",
-            kind: "modal",
+            kind: "dialog",
             corner: "bl",
             priority: 0,
             render: noop,
