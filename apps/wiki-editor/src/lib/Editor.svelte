@@ -17,11 +17,20 @@
         | "image";
 
     interface Props {
+        line?: number;
+        col?: number;
+        selectionLength?: number;
         onselectionchange?: (hasSelection: boolean) => void;
         oncontextmenu?: (ctx: { type: ContextType; x: number; y: number }) => void;
     }
 
-    let { onselectionchange, oncontextmenu }: Props = $props();
+    let {
+        line = $bindable(1),
+        col = $bindable(1),
+        selectionLength = $bindable(0),
+        onselectionchange,
+        oncontextmenu,
+    }: Props = $props();
 
     let editorEl: HTMLDivElement;
     let view: EditorView;
@@ -54,6 +63,14 @@
         event.preventDefault();
         const type = classifyContext(event);
         oncontextmenu?.({ type, x: event.clientX, y: event.clientY });
+    }
+
+    function updateCursorState(state: EditorState): void {
+        const sel = state.selection.main;
+        const lineInfo = state.doc.lineAt(sel.head);
+        line = lineInfo.number;
+        col = sel.head - lineInfo.from + 1;
+        selectionLength = sel.empty ? 0 : Math.abs(sel.to - sel.from);
     }
 
     const theme = EditorView.theme({
@@ -116,6 +133,7 @@
         theme,
         EditorView.updateListener.of((update) => {
             if (update.selectionSet || update.docChanged) {
+                updateCursorState(update.state);
                 onselectionchange?.(!update.state.selection.main.empty);
             }
         }),
@@ -129,6 +147,7 @@
         });
         view.dom.addEventListener("contextmenu", handleContextMenu);
         view.focus();
+        updateCursorState(view.state);
     });
 
     onDestroy(() => {
@@ -142,6 +161,21 @@
 
     export function redoEdit() {
         if (view) redo(view);
+    }
+
+    export function getContent(): string {
+        return view ? view.state.doc.toString() : "";
+    }
+
+    export function setContent(text: string): void {
+        if (!view) return;
+        view.dispatch({
+            changes: { from: 0, to: view.state.doc.length, insert: text },
+        });
+    }
+
+    export function focus(): void {
+        view?.focus();
     }
 
     export function getCursorCoords(): { x: number; y: number } | null {
