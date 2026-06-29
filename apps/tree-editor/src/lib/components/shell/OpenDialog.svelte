@@ -132,10 +132,7 @@
     }
 </script>
 
-<div
-    class="text-fg flex h-[70vh] w-full max-w-3xl flex-col"
-    data-testid="open-dialog"
->
+<div class="text-fg flex h-[70vh] w-full max-w-3xl flex-col" data-testid="open-dialog">
     <div class="flex flex-1 overflow-hidden">
         <!-- left pane: search + list -->
         <div class="border-line flex w-1/2 flex-col border-r">
@@ -247,9 +244,7 @@
         </div>
     </div>
 
-    <footer
-        class="border-line flex items-center justify-between gap-2 border-t px-5 py-3 text-sm"
-    >
+    <footer class="border-line flex items-center justify-between gap-2 border-t px-5 py-3 text-sm">
         <button
             type="button"
             class="text-fg-muted hover:text-fg inline-flex items-center gap-1.5 text-xs"
@@ -275,12 +270,7 @@
             <Button type="button" variant="ghost" onclick={() => dockStore.closeDialog()}>
                 {#snippet children()}cancel{/snippet}
             </Button>
-            <Button
-                type="button"
-                variant="primary"
-                disabled={!selectedId}
-                onclick={openSelected}
-            >
+            <Button type="button" variant="primary" disabled={!selectedId} onclick={openSelected}>
                 {#snippet children()}
                     <FolderOpen size={14} class="mr-1" />
                     open

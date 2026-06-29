@@ -135,10 +135,7 @@
         SaveStatusPill,
         StatsPill,
     } from "@attu/ui";
-    import {
-        saveStatusGlyph,
-        type SaveStatus,
-    } from "$lib/components/shell/saveStatusGlyph";
+    import { saveStatusGlyph, type SaveStatus } from "$lib/components/shell/saveStatusGlyph";
     import { createPortraitUrlCache } from "$lib/state/portraitUrls.svelte";
     import { createPreferencesStore } from "$lib/state/preferences.svelte";
     import { makeAutosaver } from "$lib/state/autosave";
@@ -2007,8 +2004,12 @@
     function toggleDockPanel(id: string): void {
         const item = dockStore.getItem(id);
         if (item?.closeable === false) return;
-        if (dockStore.isOpen(id)) { dockStore.closePanel(id); }
-        else { dockStore.openPanel(id); dockStore.setExpanded(id, true); }
+        if (dockStore.isOpen(id)) {
+            dockStore.closePanel(id);
+        } else {
+            dockStore.openPanel(id);
+            dockStore.setExpanded(id, true);
+        }
     }
 
     const viewMenu = $derived<MenuConfig>({
@@ -2104,13 +2105,17 @@
             recenterMissedId = missingId;
         }, PENDING_RECENTER_MS);
     }
+
+    function handleTitleChange(name: string) {
+        treeStore.update((t) => ({ ...t, name, updatedAt: Date.now() }));
+    }
 </script>
 
 <Shell
     bind:this={shellRef}
     title={treeStore.tree.name || "untitled"}
     {menus}
-    onTitleChange={(name) => treeStore.update((t) => ({ ...t, name, updatedAt: Date.now() }))}
+    onTitleChange={handleTitleChange}
     {readOnly}
 >
     {#snippet logo()}
@@ -2248,7 +2253,6 @@
         >
             <HelpCircle size={17} strokeWidth={2.5} />
         </button>
-
     {/snippet}
     {#snippet auth()}
         <AuthBar
@@ -2503,10 +2507,14 @@
                             <span>runtime</span>
                             <span class="flex items-center gap-2">
                                 <span class="text-fg-muted">editRev</span>
-                                <span data-testid="save-status-edit-rev">{String(treeStore.tree.editRev)}</span>
+                                <span data-testid="save-status-edit-rev"
+                                    >{String(treeStore.tree.editRev)}</span
+                                >
                                 {#if debugTimings}
                                     <span class="text-fg-muted">·</span>
-                                    <span data-testid="save-status-debug-timings">{debugTimings.total.toFixed(1)} ms</span>
+                                    <span data-testid="save-status-debug-timings"
+                                        >{debugTimings.total.toFixed(1)} ms</span
+                                    >
                                 {/if}
                             </span>
                         </div>
@@ -2514,7 +2522,9 @@
                     {#if lastError}
                         <div class="fte-window-row">
                             <span class="fte-window-danger">error</span>
-                            <span class="fte-window-danger wrap-break-word text-left">{lastError}</span>
+                            <span class="fte-window-danger wrap-break-word text-left"
+                                >{lastError}</span
+                            >
                         </div>
                     {/if}
                     <button
@@ -2533,7 +2543,7 @@
                 <SaveStatusPill
                     pillId="save-status"
                     panelId="save-status-window"
-                    corner={corner}
+                    {corner}
                     priority={10}
                     closeable={false}
                     pill={saveStatusSnippet}
@@ -2542,7 +2552,7 @@
             {/if}
 
             <!-- dock corner: renders all registered pills and windows. -->
-            <DockCorner corner={corner} />
+            <DockCorner {corner} />
 
             <!-- canvas-window-manager phase 4: the standalone debug-timings
                  pill (was at priority 40 with data-testid="debug-corner-
@@ -2581,13 +2591,27 @@
                     >
                         {#if selectedMetric === "clusters" && layoutStats.components > 1}
                             <Network size={12} class="text-amber-400" />
-                            <span class="text-amber-400">{String(layoutStats.components)}{#if layoutStats.isolated > 0}+{String(layoutStats.isolated)}{/if}</span>
+                            <span class="text-amber-400"
+                                >{String(
+                                    layoutStats.components,
+                                )}{#if layoutStats.isolated > 0}+{String(
+                                        layoutStats.isolated,
+                                    )}{/if}</span
+                            >
                         {:else if selectedMetric === "descendants" && selection.selectedPersonId}
                             <ArrowDownFromLine size={12} />
-                            <span>{selectedDescendantCount === undefined ? "-" : String(selectedDescendantCount)}</span>
+                            <span
+                                >{selectedDescendantCount === undefined
+                                    ? "-"
+                                    : String(selectedDescendantCount)}</span
+                            >
                         {:else if selectedMetric === "coi" && selection.selectedPersonId}
                             <Percent size={12} />
-                            <span>{selectedCoi !== undefined && selectedCoi > 0 ? formatCoi(selectedCoi) : "-"}</span>
+                            <span
+                                >{selectedCoi !== undefined && selectedCoi > 0
+                                    ? formatCoi(selectedCoi)
+                                    : "-"}</span
+                            >
                         {:else}
                             <Users size={12} />
                             <span>{String(layoutStats.totalPeople)}</span>
@@ -2629,7 +2653,11 @@
                             >
                                 <span>clusters</span>
                                 <span class="text-amber-400"
-                                    >{String(layoutStats.components)}{#if layoutStats.isolated > 0}+{String(layoutStats.isolated)}{/if}</span
+                                    >{String(
+                                        layoutStats.components,
+                                    )}{#if layoutStats.isolated > 0}+{String(
+                                            layoutStats.isolated,
+                                        )}{/if}</span
                                 >
                             </button>
                         {/if}
@@ -2644,7 +2672,11 @@
                                 data-testid="stats-row-descendants"
                             >
                                 <span>descendants</span>
-                                <span>{selectedDescendantCount === undefined ? "-" : String(selectedDescendantCount)}</span>
+                                <span
+                                    >{selectedDescendantCount === undefined
+                                        ? "-"
+                                        : String(selectedDescendantCount)}</span
+                                >
                             </button>
                             <button
                                 type="button"
@@ -2654,7 +2686,11 @@
                                 data-testid="stats-row-coi"
                             >
                                 <span>coi</span>
-                                <span>{selectedCoi !== undefined && selectedCoi > 0 ? formatCoi(selectedCoi) : "-"}</span>
+                                <span
+                                    >{selectedCoi !== undefined && selectedCoi > 0
+                                        ? formatCoi(selectedCoi)
+                                        : "-"}</span
+                                >
                             </button>
                         {/if}
                     </div>
@@ -2664,7 +2700,7 @@
                 <StatsPill
                     pillId="stats"
                     panelId="stats-window"
-                    corner={corner}
+                    {corner}
                     priority={20}
                     pill={statsPillSnippet}
                     body={statsBody}
@@ -2685,7 +2721,8 @@
                     aria-label="toggle debug panel"
                     title="debug panel (Ctrl+Shift+D)"
                     data-testid="debug-pill"
-                    aria-pressed={dockStore.panelState("debug-menu") === "expanded" || dockStore.panelState("debug-menu") === "floating"}
+                    aria-pressed={dockStore.panelState("debug-menu") === "expanded" ||
+                        dockStore.panelState("debug-menu") === "floating"}
                     onclick={() => toggleDebugMenu()}
                 >
                     <Bug size={12} />
@@ -2695,7 +2732,7 @@
                 <DockEntry
                     id="debug-toggle"
                     kind="pill"
-                    corner={corner}
+                    {corner}
                     priority={30}
                     panelId="debug-menu"
                     render={debugIconSnippet}
@@ -2754,8 +2791,8 @@
                                     class="fte-window-chip"
                                     aria-pressed={debugLayers[key]}
                                     onclick={() => (debugLayers[key] = !debugLayers[key])}
-                                    data-testid={`debug-toggle-${key}`}
-                                >{label}</button>
+                                    data-testid={`debug-toggle-${key}`}>{label}</button
+                                >
                             {/each}
                         </div>
                         <hr class="fte-window-divider" />
@@ -2767,8 +2804,8 @@
                                     class="fte-window-chip"
                                     aria-pressed={debugLayers[key]}
                                     onclick={() => (debugLayers[key] = !debugLayers[key])}
-                                    data-testid={`debug-toggle-${key}`}
-                                >{label}</button>
+                                    data-testid={`debug-toggle-${key}`}>{label}</button
+                                >
                             {/each}
                         </div>
                         <hr class="fte-window-divider" />
@@ -2780,8 +2817,8 @@
                                     class="fte-window-chip"
                                     aria-pressed={debugLayers[key]}
                                     onclick={() => (debugLayers[key] = !debugLayers[key])}
-                                    data-testid={`debug-toggle-${key}`}
-                                >{label}</button>
+                                    data-testid={`debug-toggle-${key}`}>{label}</button
+                                >
                             {/each}
                         </div>
                         <hr class="fte-window-divider" />
@@ -2795,9 +2832,11 @@
                                         type="button"
                                         class="fte-window-chip"
                                         aria-pressed={familyViewDebugLayers[key]}
-                                        onclick={() => (familyViewDebugLayers[key] = !familyViewDebugLayers[key])}
-                                        data-testid={`debug-toggle-fv-${key}`}
-                                    >{label}</button>
+                                        onclick={() =>
+                                            (familyViewDebugLayers[key] =
+                                                !familyViewDebugLayers[key])}
+                                        data-testid={`debug-toggle-fv-${key}`}>{label}</button
+                                    >
                                 {/each}
                             </div>
                             <div class="fte-window-section mt-1.5"><span>panel overlays</span></div>
@@ -2806,9 +2845,11 @@
                                     <button
                                         type="button"
                                         class="fte-window-chip"
-                                        onclick={() => (familyViewDebugLayers[key] = !familyViewDebugLayers[key])}
-                                        data-testid={`debug-toggle-fv-${key}`}
-                                    >{label}</button>
+                                        onclick={() =>
+                                            (familyViewDebugLayers[key] =
+                                                !familyViewDebugLayers[key])}
+                                        data-testid={`debug-toggle-fv-${key}`}>{label}</button
+                                    >
                                 {/each}
                             </div>
                             {#if familyViewDebugLayers.showOffSubsetPeople && familyViewSubset}
@@ -2863,8 +2904,11 @@
                             class="fte-window-chip"
                             aria-pressed={debugLayers.exposeTreeDebug}
                             disabled={!exposeTreeDebugSupported}
-                            title={exposeTreeDebugSupported ? undefined : "layered / hyperbolic engines only"}
-                            onclick={() => (debugLayers.exposeTreeDebug = !debugLayers.exposeTreeDebug)}
+                            title={exposeTreeDebugSupported
+                                ? undefined
+                                : "layered / hyperbolic engines only"}
+                            onclick={() =>
+                                (debugLayers.exposeTreeDebug = !debugLayers.exposeTreeDebug)}
                             data-testid="debug-toggle-exposeTreeDebug"
                         >
                             expose __treeDebug
@@ -2875,7 +2919,9 @@
                             disabled={!copySnapshotSupported}
                             onclick={() => void copyLayoutSnapshot()}
                             data-testid="debug-copy-snapshot"
-                            title={copySnapshotSupported ? "copy placed IR + segments to clipboard as JSON" : "layered engine only"}
+                            title={copySnapshotSupported
+                                ? "copy placed IR + segments to clipboard as JSON"
+                                : "layered engine only"}
                         >
                             copy snapshot
                         </button>
@@ -2894,21 +2940,20 @@
                         class="border-line bg-canvas mt-1.5 h-16 w-full resize-none rounded border px-1 py-0.5 text-[10px] font-mono"
                         placeholder="paste tree JSON, then click load; or click dump to populate"
                         bind:value={debugDumpJson}
-                        data-testid="debug-dump-textarea"
-                    ></textarea>
+                        data-testid="debug-dump-textarea"></textarea>
                     <div class="fte-window-chip-group mt-1">
                         <button
                             type="button"
                             class="fte-window-chip"
                             onclick={dumpTreeJson}
-                            data-testid="debug-dump-json"
-                        >dump</button>
+                            data-testid="debug-dump-json">dump</button
+                        >
                         <button
                             type="button"
                             class="fte-window-chip"
                             onclick={loadTreeJson}
-                            data-testid="debug-load-json"
-                        >load</button>
+                            data-testid="debug-load-json">load</button
+                        >
                     </div>
                     <hr class="fte-window-divider" />
                     <div class="fte-window-section"><span>shell</span></div>
@@ -2933,13 +2978,18 @@
                 </div>
             {/snippet}
             {#snippet debugMenuWindow(_ctx: { forcedCollapse: boolean })}
-                <DockPanel id="debug-menu" title="Debug · Ctrl+Shift+D" body={debugMenuBody} onclose={() => (debugMode = false)} />
+                <DockPanel
+                    id="debug-menu"
+                    title="Debug · Ctrl+Shift+D"
+                    body={debugMenuBody}
+                    onclose={() => (debugMode = false)}
+                />
             {/snippet}
             {#if debugMode}
                 <DockEntry
                     id="debug-menu"
                     kind="panel"
-                    corner={corner}
+                    {corner}
                     priority={300}
                     render={debugMenuWindow}
                 />
@@ -2957,7 +3007,7 @@
             <DockEntry
                 id="settings"
                 kind="dialog"
-                corner={corner}
+                {corner}
                 priority={0}
                 title="Settings"
                 render={settingsModalRender}
@@ -2973,7 +3023,7 @@
             <DockEntry
                 id="share"
                 kind="dialog"
-                corner={corner}
+                {corner}
                 priority={0}
                 title="Share tree"
                 render={shareModalRender}
@@ -2989,7 +3039,7 @@
             <DockEntry
                 id="about"
                 kind="dialog"
-                corner={corner}
+                {corner}
                 priority={0}
                 title="About"
                 render={aboutModalRender}
@@ -3005,7 +3055,7 @@
             <DockEntry
                 id="admin"
                 kind="dialog"
-                corner={corner}
+                {corner}
                 priority={0}
                 title="Admin"
                 render={adminModalRender}
@@ -3027,7 +3077,7 @@
             <DockEntry
                 id="open-dialog"
                 kind="dialog"
-                corner={corner}
+                {corner}
                 priority={0}
                 title="Open tree"
                 render={openDialogModalRender}
@@ -3043,7 +3093,7 @@
             <DockEntry
                 id="shortcuts"
                 kind="dialog"
-                corner={corner}
+                {corner}
                 priority={0}
                 title="Keyboard shortcuts"
                 render={shortcutsModalRender}
@@ -3059,7 +3109,7 @@
             <DockEntry
                 id="palette"
                 kind="dialog"
-                corner={corner}
+                {corner}
                 priority={0}
                 title="Command palette"
                 render={paletteModalRender}
@@ -3072,9 +3122,13 @@
                             currentTree={treeStore.tree}
                             currentTreeDirty={treeStore.dirty}
                             initialFile={importInitialFile}
-                            onsuccess={(info: { treeId: string; sourceFormat: string; count: number }) =>
-                                void onImportSuccess(info)}
-                            onfailure={(msg: string) => toasts.push(`import failed: ${msg}`, "error")}
+                            onsuccess={(info: {
+                                treeId: string;
+                                sourceFormat: string;
+                                count: number;
+                            }) => void onImportSuccess(info)}
+                            onfailure={(msg: string) =>
+                                toasts.push(`import failed: ${msg}`, "error")}
                             onsaveCurrent={async () => {
                                 await autosaver.flush();
                             }}
@@ -3085,7 +3139,7 @@
             <DockEntry
                 id="import-wizard"
                 kind="dialog"
-                corner={corner}
+                {corner}
                 priority={0}
                 title="Import tree"
                 render={importWizardModalRender}
@@ -3157,14 +3211,13 @@
         <!-- DockSurface renders the active modal (registered via DockEntry kind="dialog"). -->
         <DockSurface />
         <Toasts store={toasts} />
-    {#if contextMenu}
-        <ContextMenu
-            x={contextMenu.x}
-            y={contextMenu.y}
-            items={menuItems(contextMenu.personId)}
-            onclose={() => (contextMenu = undefined)}
-        />
-    {/if}
-
+        {#if contextMenu}
+            <ContextMenu
+                x={contextMenu.x}
+                y={contextMenu.y}
+                items={menuItems(contextMenu.personId)}
+                onclose={() => (contextMenu = undefined)}
+            />
+        {/if}
     {/snippet}
 </Shell>

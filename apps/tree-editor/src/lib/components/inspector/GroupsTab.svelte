@@ -281,8 +281,7 @@
                             class="border-line bg-canvas-elev text-fg flex-1 resize-y rounded border px-1.5 py-0.5"
                             placeholder="optional armorial blazon"
                             value={g.armorial?.description ?? ""}
-                            onblur={(e) => onArmorialBlur(g, e)}
-                        ></textarea>
+                            onblur={(e) => onArmorialBlur(g, e)}></textarea>
                     </label>
                 </li>
             {/each}

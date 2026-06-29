@@ -153,121 +153,116 @@
 </script>
 
 <div class="flex flex-col gap-4" data-testid="import-wizard">
-            <!-- drop zone -->
-            <div
-                class="border-line flex flex-col items-center justify-center gap-2 rounded border-2 border-dashed px-4 py-8 transition-colors"
-                class:border-accent={dragHover}
-                class:bg-canvas={!dragHover}
-                role="region"
-                aria-label="file drop zone"
-                ondrop={onDrop}
-                ondragover={onDragOver}
-                ondragleave={onDragLeave}
-                data-testid="import-drop-zone"
-            >
-                <Upload size={20} class="text-fg-muted" />
-                <p class="text-fg-muted text-xs">drop files here, or</p>
-                <label class="text-accent hover:underline cursor-pointer text-xs">
-                    browse
-                    <input
-                        type="file"
-                        class="sr-only"
-                        accept=".txt,.ged,.gedcom,.gdz,.zip,.html,.htm"
-                        onchange={onBrowse}
-                        data-testid="import-browse"
-                    />
-                </label>
-                <p class="text-fg-muted text-[10px]">
-                    familyscript .txt &middot; gedcom .ged &middot; gedzip .gdz &middot; family echo
-                    .html
-                </p>
-            </div>
+    <!-- drop zone -->
+    <div
+        class="border-line flex flex-col items-center justify-center gap-2 rounded border-2 border-dashed px-4 py-8 transition-colors"
+        class:border-accent={dragHover}
+        class:bg-canvas={!dragHover}
+        role="region"
+        aria-label="file drop zone"
+        ondrop={onDrop}
+        ondragover={onDragOver}
+        ondragleave={onDragLeave}
+        data-testid="import-drop-zone"
+    >
+        <Upload size={20} class="text-fg-muted" />
+        <p class="text-fg-muted text-xs">drop files here, or</p>
+        <label class="text-accent hover:underline cursor-pointer text-xs">
+            browse
+            <input
+                type="file"
+                class="sr-only"
+                accept=".txt,.ged,.gedcom,.gdz,.zip,.html,.htm"
+                onchange={onBrowse}
+                data-testid="import-browse"
+            />
+        </label>
+        <p class="text-fg-muted text-[10px]">
+            familyscript .txt &middot; gedcom .ged &middot; gedzip .gdz &middot; family echo .html
+        </p>
+    </div>
 
-            <!-- file rows -->
-            {#if rows.length > 0}
-                <ul class="flex flex-col gap-1" data-testid="import-rows">
-                    {#each rows as row (row.id)}
-                        <li
-                            class="border-line bg-canvas flex items-center gap-2 rounded border px-2 py-1.5 text-xs"
-                            class:border-red-500={row.error !== undefined}
-                            data-testid="import-row"
+    <!-- file rows -->
+    {#if rows.length > 0}
+        <ul class="flex flex-col gap-1" data-testid="import-rows">
+            {#each rows as row (row.id)}
+                <li
+                    class="border-line bg-canvas flex items-center gap-2 rounded border px-2 py-1.5 text-xs"
+                    class:border-red-500={row.error !== undefined}
+                    data-testid="import-row"
+                >
+                    <FileText size={14} class="text-fg-muted shrink-0" />
+                    <span class="flex-1 truncate" title={row.file.name}>{row.file.name}</span>
+                    {#if row.payload}
+                        <span class="text-fg-muted shrink-0 font-mono text-[10px] uppercase"
+                            >{row.payload.sourceFormat}</span
                         >
-                            <FileText size={14} class="text-fg-muted shrink-0" />
-                            <span class="flex-1 truncate" title={row.file.name}
-                                >{row.file.name}</span
+                        <span class="text-fg-muted shrink-0">{row.payload.count} people</span>
+                        {#if row.payload.portraits.length > 0}
+                            <span class="text-fg-muted shrink-0"
+                                >{row.payload.portraits.length} portraits</span
                             >
-                            {#if row.payload}
-                                <span class="text-fg-muted shrink-0 font-mono text-[10px] uppercase"
-                                    >{row.payload.sourceFormat}</span
-                                >
-                                <span class="text-fg-muted shrink-0"
-                                    >{row.payload.count} people</span
-                                >
-                                {#if row.payload.portraits.length > 0}
-                                    <span class="text-fg-muted shrink-0"
-                                        >{row.payload.portraits.length} portraits</span
-                                    >
-                                {/if}
-                            {:else if row.error}
-                                <span class="shrink-0 text-red-500">{row.error}</span>
-                            {:else}
-                                <span class="text-fg-muted shrink-0 italic">parsing…</span>
-                            {/if}
-                            <button
-                                type="button"
-                                class="text-fg-muted hover:text-fg shrink-0"
-                                aria-label="remove"
-                                onclick={() => removeRow(row.id)}
-                                disabled={busy}
-                            >
-                                <X size={12} />
-                            </button>
-                        </li>
-                    {/each}
-                </ul>
-            {/if}
+                        {/if}
+                    {:else if row.error}
+                        <span class="shrink-0 text-red-500">{row.error}</span>
+                    {:else}
+                        <span class="text-fg-muted shrink-0 italic">parsing…</span>
+                    {/if}
+                    <button
+                        type="button"
+                        class="text-fg-muted hover:text-fg shrink-0"
+                        aria-label="remove"
+                        onclick={() => removeRow(row.id)}
+                        disabled={busy}
+                    >
+                        <X size={12} />
+                    </button>
+                </li>
+            {/each}
+        </ul>
+    {/if}
 
-            <!-- name field -->
-            {#if parsedRows.length > 0}
-                <label class="flex flex-col gap-1 text-xs">
-                    <span class="text-fg-muted">tree name</span>
-                    <input
-                        type="text"
-                        class="border-line bg-canvas focus:border-accent rounded border px-2 py-1.5 text-sm outline-none"
-                        bind:value={treeName}
-                        placeholder="imported tree"
-                        spellcheck="false"
-                        data-testid="import-name"
-                    />
-                </label>
-            {/if}
+    <!-- name field -->
+    {#if parsedRows.length > 0}
+        <label class="flex flex-col gap-1 text-xs">
+            <span class="text-fg-muted">tree name</span>
+            <input
+                type="text"
+                class="border-line bg-canvas focus:border-accent rounded border px-2 py-1.5 text-sm outline-none"
+                bind:value={treeName}
+                placeholder="imported tree"
+                spellcheck="false"
+                data-testid="import-name"
+            />
+        </label>
+    {/if}
 
-            <!-- replace / merge radio (only when a tree is already open) -->
-            {#if hasOpenTree && parsedRows.length > 0}
-                <fieldset class="flex flex-col gap-1 text-xs">
-                    <legend class="text-fg-muted">target</legend>
-                    <label class="flex items-center gap-2">
-                        <input
-                            type="radio"
-                            name="import-mode"
-                            value="replace"
-                            bind:group={mode}
-                            data-testid="import-mode-replace"
-                        />
-                        <span>save current and open the imported tree</span>
-                    </label>
-                    <label class="flex items-center gap-2">
-                        <input
-                            type="radio"
-                            name="import-mode"
-                            value="merge"
-                            bind:group={mode}
-                            data-testid="import-mode-merge"
-                        />
-                        <span>merge into the current tree</span>
-                    </label>
-                </fieldset>
-            {/if}
+    <!-- replace / merge radio (only when a tree is already open) -->
+    {#if hasOpenTree && parsedRows.length > 0}
+        <fieldset class="flex flex-col gap-1 text-xs">
+            <legend class="text-fg-muted">target</legend>
+            <label class="flex items-center gap-2">
+                <input
+                    type="radio"
+                    name="import-mode"
+                    value="replace"
+                    bind:group={mode}
+                    data-testid="import-mode-replace"
+                />
+                <span>save current and open the imported tree</span>
+            </label>
+            <label class="flex items-center gap-2">
+                <input
+                    type="radio"
+                    name="import-mode"
+                    value="merge"
+                    bind:group={mode}
+                    data-testid="import-mode-merge"
+                />
+                <span>merge into the current tree</span>
+            </label>
+        </fieldset>
+    {/if}
 
     <footer class="border-line flex items-center justify-end gap-2 border-t px-5 py-3">
         <Button onclick={() => dockStore.closeDialog()} disabled={busy}>cancel</Button>

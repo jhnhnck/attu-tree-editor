@@ -282,8 +282,7 @@
                                 class="border-line bg-canvas-elev text-fg flex-1 resize-y rounded border px-1.5 py-0.5"
                                 placeholder="optional"
                                 value={rel.notes ?? ""}
-                                onblur={(e) => onNotesBlur(rel, e)}
-                            ></textarea>
+                                onblur={(e) => onNotesBlur(rel, e)}></textarea>
                         </label>
                     </div>
                 </li>

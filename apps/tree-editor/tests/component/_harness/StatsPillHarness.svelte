@@ -46,12 +46,6 @@
         {/if}
     {/snippet}
     {#if statsPillVisible && layoutStats}
-        <DockEntry
-            id="stats"
-            kind="pill"
-            corner="tl"
-            priority={20}
-            render={statsPillSnippet}
-        />
+        <DockEntry id="stats" kind="pill" corner="tl" priority={20} render={statsPillSnippet} />
     {/if}
 </div>
