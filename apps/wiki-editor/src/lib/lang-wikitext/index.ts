@@ -19,11 +19,15 @@ interface WikitextState {
     inNowiki: boolean; // inside <nowiki>
     inWikilink: boolean; // inside [[...]]
     wikilinkSeenPipe: boolean; // inside wikilink, past the | separator
+    inWikilinkNs: boolean; // scanning namespace prefix (Category:, File:, Image:)
+    inNsLink: boolean; // in a category/file link; target after nsPrefix is nsName
     inExtLink: boolean; // inside [url label], positioned after url, before ]
     headingLevel: number; // 0 = not in heading; 1-6 = current level (phase 1)
     templateDepth: number; // {{ }} nesting count (phase 2)
     inTemplateName: boolean; // just after {{, before first | or }} (phase 2)
     inTable: boolean; // inside {| |} table (phase 2)
+    inMath: boolean; // inside <math>...</math> opaque block (phase 3)
+    inPre: boolean; // inside <pre>...</pre> opaque block (phase 3)
 }
 
 function startState(): WikitextState {
@@ -32,13 +36,20 @@ function startState(): WikitextState {
         inNowiki: false,
         inWikilink: false,
         wikilinkSeenPipe: false,
+        inWikilinkNs: false,
+        inNsLink: false,
         inExtLink: false,
         headingLevel: 0,
         templateDepth: 0,
         inTemplateName: false,
         inTable: false,
+        inMath: false,
+        inPre: false,
     };
 }
+
+// wikilink prefixes that get namespace treatment
+const NS_PREFIX_RE = /^(Category|File|Image)\s*:/i;
 
 const wikitextLanguage = StreamLanguage.define<WikitextState>({
     name: "wikitext",
@@ -81,6 +92,15 @@ const wikitextLanguage = StreamLanguage.define<WikitextState>({
         tableSep: tags.separator,
         tableCap: tags.meta,
         tableHead: tags.heading,
+        // phase 3 - categories, files, magic words, misc html
+        nsPrefix: tags.namespace,
+        nsName: tags.tagName,
+        magicWord: tags.processingInstruction,
+        mathContent: tags.string,
+        preBlock: tags.blockComment,
+        htmlTag: tags.tagName,
+        signature: tags.meta,
+        bareExtBracket: tags.invalid,
     },
     startState,
     copyState(state: WikitextState): WikitextState {
@@ -90,9 +110,12 @@ const wikitextLanguage = StreamLanguage.define<WikitextState>({
         // inline constructs cannot cross blank lines
         state.inWikilink = false;
         state.wikilinkSeenPipe = false;
+        state.inWikilinkNs = false;
+        state.inNsLink = false;
         state.inExtLink = false;
         state.headingLevel = 0;
         // templates CAN span blank lines in MediaWiki; do not reset templateDepth
+        // math/pre blocks can also span blank lines
     },
     token(stream: StringStream, state: WikitextState): string | null {
         // reset heading at start of new (non-blank) line
@@ -120,22 +143,61 @@ const wikitextLanguage = StreamLanguage.define<WikitextState>({
             return "nowiki";
         }
 
-        // wikilink interior: closing bracket, pipe separator, or target/label text
+        // math block continuation - opaque: inner content not parsed as wikitext
+        if (state.inMath) {
+            if (stream.match("</math>")) {
+                state.inMath = false;
+                return "mathContent";
+            }
+            if (!stream.skipTo("</math>")) stream.skipToEnd();
+            return "mathContent";
+        }
+
+        // pre block continuation - opaque
+        if (state.inPre) {
+            if (stream.match("</pre>")) {
+                state.inPre = false;
+                return "preBlock";
+            }
+            if (!stream.skipTo("</pre>")) stream.skipToEnd();
+            return "preBlock";
+        }
+
+        // wikilink interior: namespace prefix, closing bracket, pipe, target, or label
         if (state.inWikilink) {
             if (stream.match("]]")) {
                 state.inWikilink = false;
                 state.wikilinkSeenPipe = false;
+                state.inWikilinkNs = false;
+                state.inNsLink = false;
                 return "wikiLinkBracket";
             }
             if (stream.eat("|")) {
                 state.wikilinkSeenPipe = true;
+                state.inWikilinkNs = false;
                 return "wikiLinkSep";
             }
-            // consume target or label text up to | or ]]
+            // emit namespace prefix (Category:, File:, Image: including the colon)
+            if (state.inWikilinkNs) {
+                while (
+                    !stream.eol() &&
+                    stream.peek() !== ":" &&
+                    stream.peek() !== "|" &&
+                    !stream.match("]]", false)
+                ) {
+                    stream.next();
+                }
+                if (!stream.eol() && stream.peek() === ":") stream.next();
+                state.inWikilinkNs = false;
+                return "nsPrefix";
+            }
+            // scan remaining target or label text up to | or ]]
             while (!stream.eol() && stream.peek() !== "|" && !stream.match("]]", false)) {
                 stream.next();
             }
-            return state.wikilinkSeenPipe ? "wikiLinkLabel" : "wikiLinkTarget";
+            if (state.wikilinkSeenPipe) return "wikiLinkLabel";
+            if (state.inNsLink) return "nsName"; // name after Category:/File: prefix
+            return "wikiLinkTarget"; // regular wikilink target
         }
 
         // external link label and closing bracket
@@ -241,6 +303,30 @@ const wikitextLanguage = StreamLanguage.define<WikitextState>({
             return "code";
         }
 
+        // --- phase 3: opaque html blocks ---
+
+        // <math>...</math> opaque: content not parsed as wikitext
+        if (stream.match("<math>")) {
+            if (stream.skipTo("</math>")) {
+                stream.match("</math>");
+            } else {
+                stream.skipToEnd();
+                state.inMath = true;
+            }
+            return "mathContent";
+        }
+
+        // <pre>...</pre> opaque block
+        if (stream.match("<pre>")) {
+            if (stream.skipTo("</pre>")) {
+                stream.match("</pre>");
+            } else {
+                stream.skipToEnd();
+                state.inPre = true;
+            }
+            return "preBlock";
+        }
+
         // --- phase 2: templates and references ---
 
         // {{{ template parameter reference }}} - must check before {{ }}
@@ -299,6 +385,19 @@ const wikitextLanguage = StreamLanguage.define<WikitextState>({
         if (stream.match(/^<ref(\s[^>]*)?\s*\/>/)) return "refTag";
         if (stream.match(/^<ref(\s[^>]*)?>/)) return "refTag";
 
+        // --- phase 3: magic words, misc html, signatures ---
+
+        // behavior switches and magic words __WORD__
+        if (stream.match(/^__[A-Z]+__/)) return "magicWord";
+
+        // misc html inline tags: <s>, <u>, <sup>, <sub>, <br />, <hr />
+        if (stream.match(/^<\/?(s|u|sup|sub|br|hr)(\s[^>]*)?\s*\/?>/)) return "htmlTag";
+
+        // signature/timestamp: ~~~~~ before ~~~~ before ~~~ (longer match first)
+        if (stream.match("~~~~~")) return "signature";
+        if (stream.match("~~~~")) return "signature";
+        if (stream.match("~~~")) return "signature";
+
         // --- phase 0 inline tokens (detection order is load-bearing) ---
 
         // detection order is load-bearing: bold-italic before bold before italic
@@ -315,9 +414,17 @@ const wikitextLanguage = StreamLanguage.define<WikitextState>({
             return "italic";
         }
 
-        // wikilink [[target|label]]
+        // wikilink [[target|label]] - detect namespace prefix for Category/File/Image
         if (stream.match("[[")) {
             state.inWikilink = true;
+            state.inNsLink = false;
+            state.inWikilinkNs = false;
+            // peek at the remaining content to detect namespace prefix
+            const rest = stream.string.slice(stream.pos);
+            if (NS_PREFIX_RE.test(rest)) {
+                state.inWikilinkNs = true;
+                state.inNsLink = true;
+            }
             return "wikiLinkBracket";
         }
 
@@ -334,6 +441,10 @@ const wikitextLanguage = StreamLanguage.define<WikitextState>({
             }
             return "extLinkUrl";
         }
+
+        // bare [ or ] not part of wikilink or ext link - common editing mistake
+        // known false positive: fires on parser function args like {{#if: [val] | yes | no }}
+        if (stream.eat("[") || stream.eat("]")) return "bareExtBracket";
 
         stream.next();
         return null;
@@ -377,6 +488,15 @@ const wikitextHighlight = HighlightStyle.define([
     { tag: tags.keyword, color: "var(--color-accent)", fontStyle: "italic" },
     { tag: tags.tagName, color: "var(--color-accent-strong)", fontWeight: "600" },
     { tag: tags.heading, fontWeight: "600", color: "var(--color-fg)" },
+    // phase 3 - categories, files, magic words, misc html
+    { tag: tags.namespace, color: "var(--color-fg-muted)", fontWeight: "600" },
+    { tag: tags.processingInstruction, color: "var(--color-fg-muted)", fontStyle: "italic" },
+    { tag: tags.string, color: "var(--color-fg-muted)" },
+    {
+        tag: tags.invalid,
+        color: "color-mix(in srgb, red 60%, var(--color-fg))",
+        textDecoration: "underline wavy",
+    },
 ]);
 
 export function wikitext(): LanguageSupport {

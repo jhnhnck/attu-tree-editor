@@ -370,6 +370,13 @@ describe("lang-wikitext - phase 2 tokens", () => {
         });
     });
 
+    describe("regular wikilinks still get wikiLinkTarget (not nsName)", () => {
+        it("plain wikilink target is wikiLinkTarget", () => {
+            const spans = tokenize("[[Sandbox]]");
+            expect(hasToken(spans, "wikiLinkTarget", "Sandbox")).toBe(true);
+        });
+    });
+
     describe("phase 2 perf budget", () => {
         it("200-line article with 12 templates tokenizes in < 16ms", () => {
             const lines: string[] = [];
@@ -394,6 +401,152 @@ describe("lang-wikitext - phase 2 tokens", () => {
             ensureSyntaxTree(state, input.length, 2000);
             const elapsed = performance.now() - start;
             expect(elapsed).toBeLessThan(16);
+        });
+    });
+});
+
+describe("lang-wikitext - phase 3 tokens", () => {
+    describe("categories and file links", () => {
+        it("[[Category:Name]] emits nsPrefix for Category: and nsName for name", () => {
+            const spans = tokenize("[[Category:History]]");
+            expect(hasToken(spans, "nsPrefix")).toBe(true);
+            expect(hasToken(spans, "nsName")).toBe(true);
+        });
+
+        it("[[File:Image.png]] emits nsPrefix for File:", () => {
+            const spans = tokenize("[[File:Image.png|thumb|Caption]]");
+            expect(hasToken(spans, "nsPrefix")).toBe(true);
+        });
+
+        it("[[Image:Photo.jpg]] emits nsPrefix for Image:", () => {
+            const spans = tokenize("[[Image:Photo.jpg]]");
+            expect(hasToken(spans, "nsPrefix")).toBe(true);
+        });
+
+        it("case-insensitive: [[category:Name]] still gets nsPrefix", () => {
+            const spans = tokenize("[[category:Name]]");
+            expect(hasToken(spans, "nsPrefix")).toBe(true);
+        });
+
+        it("regular wikilink is NOT treated as ns link", () => {
+            const spans = tokenize("[[SomePage]]");
+            expect(hasToken(spans, "wikiLinkTarget", "SomePage")).toBe(true);
+            expect(spans.every((s) => s.name !== "nsPrefix")).toBe(true);
+        });
+    });
+
+    describe("magic words", () => {
+        it("__NOTOC__ is a magicWord token", () => {
+            const spans = tokenize("__NOTOC__");
+            expect(hasToken(spans, "magicWord", "__NOTOC__")).toBe(true);
+        });
+
+        it("__NOINDEX__ is a magicWord token", () => {
+            const spans = tokenize("__NOINDEX__");
+            expect(hasToken(spans, "magicWord")).toBe(true);
+        });
+
+        it("__FORCETOC__ is a magicWord token", () => {
+            const spans = tokenize("__FORCETOC__");
+            expect(hasToken(spans, "magicWord")).toBe(true);
+        });
+    });
+
+    describe("<math> opaque block", () => {
+        it("math content is mathContent (not parsed as wikitext)", () => {
+            const spans = tokenize("<math>x^2 + y^2</math>");
+            expect(hasToken(spans, "mathContent")).toBe(true);
+        });
+
+        it("bold inside math is NOT tokenized as bold", () => {
+            const spans = tokenize("<math>'''not bold'''</math>");
+            expect(spans.every((s) => s.name !== "bold")).toBe(true);
+        });
+    });
+
+    describe("<pre> opaque block", () => {
+        it("pre block is preBlock token", () => {
+            const spans = tokenize("<pre>code here</pre>");
+            expect(hasToken(spans, "preBlock")).toBe(true);
+        });
+
+        it("markup inside <pre> is NOT tokenized", () => {
+            const spans = tokenize("<pre>'''not bold'''</pre>");
+            expect(spans.every((s) => s.name !== "bold")).toBe(true);
+        });
+    });
+
+    describe("misc html tags", () => {
+        it("<s> strikethrough is htmlTag", () => {
+            const spans = tokenize("<s>text</s>");
+            expect(hasToken(spans, "htmlTag")).toBe(true);
+        });
+
+        it("<u> underline is htmlTag", () => {
+            const spans = tokenize("<u>text</u>");
+            expect(hasToken(spans, "htmlTag")).toBe(true);
+        });
+
+        it("<sup> superscript is htmlTag", () => {
+            const spans = tokenize("x<sup>2</sup>");
+            expect(hasToken(spans, "htmlTag")).toBe(true);
+        });
+
+        it("<sub> subscript is htmlTag", () => {
+            const spans = tokenize("H<sub>2</sub>O");
+            expect(hasToken(spans, "htmlTag")).toBe(true);
+        });
+
+        it("<br /> is htmlTag", () => {
+            const spans = tokenize("line<br />break");
+            expect(hasToken(spans, "htmlTag")).toBe(true);
+        });
+    });
+
+    describe("signatures", () => {
+        it("~~~~~ timestamp signature is signature token", () => {
+            const spans = tokenize("text ~~~~~");
+            expect(hasToken(spans, "signature", "~~~~~")).toBe(true);
+        });
+
+        it("~~~~ full signature is signature token", () => {
+            const spans = tokenize("text ~~~~");
+            expect(hasToken(spans, "signature", "~~~~")).toBe(true);
+        });
+
+        it("~~~ name-only signature is signature token", () => {
+            const spans = tokenize("text ~~~");
+            expect(hasToken(spans, "signature", "~~~")).toBe(true);
+        });
+
+        it("~~~~~ detection order: ~~~~~ before ~~~~", () => {
+            // should produce one signature token for the whole string, not two
+            const spans = tokenize("~~~~~");
+            const sigs = spans.filter((s) => s.name === "signature");
+            expect(sigs.length).toBe(1);
+            expect(sigs[0]!.text).toBe("~~~~~");
+        });
+    });
+
+    describe("bare bracket validation", () => {
+        it("bare [ not part of wikilink or ext link is bareExtBracket", () => {
+            const spans = tokenize("text [ text");
+            expect(hasToken(spans, "bareExtBracket", "[")).toBe(true);
+        });
+
+        it("bare ] is bareExtBracket", () => {
+            const spans = tokenize("text ] text");
+            expect(hasToken(spans, "bareExtBracket", "]")).toBe(true);
+        });
+
+        it("[[ wikilink does not trigger bareExtBracket", () => {
+            const spans = tokenize("[[Article]]");
+            expect(spans.every((s) => s.name !== "bareExtBracket")).toBe(true);
+        });
+
+        it("[https://... ext link does not trigger bareExtBracket", () => {
+            const spans = tokenize("[https://example.com]");
+            expect(spans.every((s) => s.name !== "bareExtBracket")).toBe(true);
         });
     });
 });
