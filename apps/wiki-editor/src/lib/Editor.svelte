@@ -4,6 +4,7 @@
     import { EditorState } from "@codemirror/state";
     import { history, historyKeymap, defaultKeymap, undo, redo } from "@codemirror/commands";
     import { bracketMatching, indentOnInput } from "@codemirror/language";
+    import { wikitext } from "$lib/lang-wikitext";
     import { closeBrackets, closeBracketsKeymap, autocompletion, completionKeymap } from "@codemirror/autocomplete";
     import { highlightSelectionMatches, searchKeymap } from "@codemirror/search";
 
@@ -137,6 +138,7 @@
         rectangularSelection(),
         crosshairCursor(),
         highlightActiveLine(),
+        wikitext(),
         bracketMatching(),
         closeBrackets(),
         autocompletion({ activateOnTyping: false }),
