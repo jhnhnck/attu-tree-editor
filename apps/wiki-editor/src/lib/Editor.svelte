@@ -108,10 +108,10 @@
             outline: "1px solid color-mix(in srgb, var(--color-accent) 45%, transparent)",
         },
         ".cm-selectionBackground": {
-            background: "color-mix(in srgb, var(--color-accent) 30%, transparent)",
+            background: "var(--color-editor-selection) !important",
         },
         "&.cm-focused .cm-selectionBackground": {
-            background: "color-mix(in srgb, var(--color-accent) 40%, transparent)",
+            background: "var(--color-editor-selection) !important",
         },
         ".cm-cursor": { borderLeftColor: "var(--color-fg)" },
         ".cm-scroller": {

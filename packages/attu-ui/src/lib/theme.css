@@ -10,7 +10,7 @@
 @source "./components/**/*.svelte";
 
 /* color tokens matched to attuproject.org's citizen skin
- * (cool dark blue-grey chrome, bright blue accent at hue 220deg)
+ * (slate blue-grey chrome, desaturated slate-blue accent at hue 210-212deg)
  *
  * dark values live in @theme so tailwind v4 generates the utility classes
  * (bg-canvas, text-fg, border-line, etc). the data-theme selectors override
@@ -20,53 +20,57 @@
     --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
     --font-mono: "JetBrains Mono", ui-monospace, monospace;
 
-    --color-canvas: hsl(220 30% 5%);
-    --color-canvas-elev: hsl(220 35% 10%);
-    --color-fg: hsl(220 10% 88%);
-    --color-fg-muted: hsl(220 15% 72%);
-    --color-line: hsl(220 25% 22%);
-    --color-accent: hsl(220 100% 65%);
-    --color-accent-strong: hsl(220 100% 75%);
+    --color-canvas: hsl(210 5% 4%);
+    --color-canvas-elev: hsl(210 7% 8%);
+    --color-fg: hsl(210 4% 88%);
+    --color-fg-muted: hsl(210 5% 68%);
+    --color-line: hsl(210 8% 20%);
+    --color-accent: hsl(212 60% 60%);
+    --color-accent-strong: hsl(212 60% 72%);
     --color-danger: hsl(0 80% 65%);
     --color-editor-bg: hsl(45 15% 7%);
+    --color-editor-selection: hsl(210 18% 26%);
 }
 
 @media (prefers-color-scheme: light) {
     :root:not([data-theme]) {
-        --color-canvas: hsl(220 30% 97%);
-        --color-canvas-elev: hsl(220 35% 92%);
-        --color-fg: hsl(220 12% 18%);
-        --color-fg-muted: hsl(220 12% 35%);
-        --color-line: hsl(220 25% 78%);
-        --color-accent: hsl(220 100% 45%);
-        --color-accent-strong: hsl(220 100% 35%);
+        --color-canvas: hsl(210 20% 97%);
+        --color-canvas-elev: hsl(210 25% 92%);
+        --color-fg: hsl(210 8% 18%);
+        --color-fg-muted: hsl(210 8% 35%);
+        --color-line: hsl(210 15% 78%);
+        --color-accent: hsl(212 60% 40%);
+        --color-accent-strong: hsl(212 60% 30%);
         --color-danger: hsl(0 70% 45%);
         --color-editor-bg: hsl(45 30% 95%);
+        --color-editor-selection: hsl(210 40% 70%);
     }
 }
 
 :root[data-theme="light"] {
-    --color-canvas: hsl(220 30% 97%);
-    --color-canvas-elev: hsl(220 35% 92%);
-    --color-fg: hsl(220 12% 18%);
-    --color-fg-muted: hsl(220 12% 35%);
-    --color-line: hsl(220 25% 78%);
-    --color-accent: hsl(220 100% 45%);
-    --color-accent-strong: hsl(220 100% 35%);
+    --color-canvas: hsl(210 20% 97%);
+    --color-canvas-elev: hsl(210 25% 92%);
+    --color-fg: hsl(210 8% 18%);
+    --color-fg-muted: hsl(210 8% 35%);
+    --color-line: hsl(210 15% 78%);
+    --color-accent: hsl(212 60% 40%);
+    --color-accent-strong: hsl(212 60% 30%);
     --color-danger: hsl(0 70% 45%);
     --color-editor-bg: hsl(45 30% 95%);
+    --color-editor-selection: hsl(210 40% 70%);
 }
 
 :root[data-theme="dark"] {
-    --color-canvas: hsl(220 30% 5%);
-    --color-canvas-elev: hsl(220 35% 10%);
-    --color-fg: hsl(220 10% 88%);
-    --color-fg-muted: hsl(220 15% 72%);
-    --color-line: hsl(220 25% 22%);
-    --color-accent: hsl(220 100% 65%);
-    --color-accent-strong: hsl(220 100% 75%);
+    --color-canvas: hsl(210 5% 4%);
+    --color-canvas-elev: hsl(210 7% 8%);
+    --color-fg: hsl(210 4% 88%);
+    --color-fg-muted: hsl(210 5% 68%);
+    --color-line: hsl(210 8% 20%);
+    --color-accent: hsl(212 60% 60%);
+    --color-accent-strong: hsl(212 60% 72%);
     --color-danger: hsl(0 80% 65%);
     --color-editor-bg: hsl(45 15% 7%);
+    --color-editor-selection: hsl(210 18% 26%);
 }
 
 html {

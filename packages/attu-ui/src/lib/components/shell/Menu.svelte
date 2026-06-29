@@ -189,7 +189,7 @@
     <button
         bind:this={buttonEl}
         type="button"
-        class="text-fg hover:bg-canvas inline-flex cursor-pointer items-center gap-0.5 rounded px-2 py-1 text-sm font-medium select-none focus:outline-none focus-visible:bg-canvas"
+        class="text-fg hover:bg-canvas inline-flex cursor-pointer items-center gap-0.5 rounded px-2 py-1 text-xs font-medium select-none focus:outline-none focus-visible:bg-canvas"
         class:bg-canvas={open}
         aria-haspopup="menu"
         aria-expanded={open}
