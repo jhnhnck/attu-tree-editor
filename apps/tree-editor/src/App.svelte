@@ -1967,8 +1967,8 @@
         checked?: boolean;
     }
 
-    const fileMenu = $derived<MenuConfig>(menuFromGroup("File", "File"));
-    const editMenu = $derived<MenuConfig>(menuFromGroup("Edit", "Edit"));
+    const fileMenu = $derived<MenuConfig>(menuFromGroup("file", "File"));
+    const editMenu = $derived<MenuConfig>(menuFromGroup("edit", "Edit"));
     // dock corner picker. radio-style — exactly one corner is active;
     // selecting persists via localStorage (fte.dock.corner).
     const DOCK_CORNER_ITEMS: ReadonlyArray<{ corner: "bl" | "tl" | "tr" | "br"; label: string }> = [
@@ -2012,9 +2012,9 @@
     }
 
     const viewMenu = $derived<MenuConfig>({
-        label: "View",
+        label: "view",
         items: [
-            ...menuFromGroup("View", "View").items,
+            ...menuFromGroup("view", "View").items,
             "divider",
             ...DOCK_CORNER_ITEMS.map((c) => ({
                 label: c.label,
@@ -2030,8 +2030,8 @@
             })),
         ] satisfies MenuEntry[],
     });
-    const insertMenu = $derived<MenuConfig>(menuFromGroup("Insert", "Insert"));
-    const treeMenu = $derived<MenuConfig>(menuFromGroup("Tree", "Tree"));
+    const insertMenu = $derived<MenuConfig>(menuFromGroup("insert", "Insert"));
+    const treeMenu = $derived<MenuConfig>(menuFromGroup("tree", "Tree"));
     // help-menu Debug mode toggle: master switch for the debug surface
     // (pill + overlays + menu visibility). flipping off atomically
     // closes the debug-menu Window too — if the user disables debug mode
@@ -2054,18 +2054,18 @@
         }
     }
     const helpMenu = $derived<MenuConfig>({
-        label: "Help",
+        label: "help",
         items: [
-            ...menuFromGroup("Help", "Help").items,
+            ...menuFromGroup("help", "Help").items,
             "divider",
             {
-                label: "Debug mode",
+                label: "debug mode",
                 checked: debugMode,
                 onclick: toggleDebugMode,
             },
             "divider",
             {
-                label: "About",
+                label: "about",
                 icon: Info,
                 onclick: () => dockStore.openDialog("about"),
             },

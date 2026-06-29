@@ -31,19 +31,19 @@
     } from "@lucide/svelte";
 
     const PARAGRAPH_STYLES = [
-        "Paragraph",
-        "Heading 2",
-        "Heading 3",
-        "Heading 4",
-        "Heading 5",
-        "Heading 6",
-        "Preformatted",
-        "Block quote",
+        "paragraph",
+        "heading 2",
+        "heading 3",
+        "heading 4",
+        "heading 5",
+        "heading 6",
+        "preformatted",
+        "block quote",
     ] as const;
 
     let styleOpen = $state(false);
     let overflowOpen = $state(false);
-    let currentStyle = $state<string>("Paragraph");
+    let currentStyle = $state<string>("paragraph");
 </script>
 
 {#snippet btn(Icon: Component, title: string)}
