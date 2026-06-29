@@ -4,9 +4,30 @@
 -->
 <script lang="ts">
     import { tick } from "svelte";
-    import { Check, Square, ChevronRight } from "@lucide/svelte";
-    import { formatCombo } from "../../keyboard.js";
+    import { Check, Square, ChevronRight, ArrowBigUp, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Command, CornerDownLeft, ChevronsUp, ChevronsDown, Delete, Home, MoveRight, MoveLeft } from "@lucide/svelte";
+    import { formatComboTokens } from "../../keyboard.js";
     import type { IconComponent, MenuEntry, MenuItem } from "./menu";
+    import type { Component } from "svelte";
+
+    const TOKEN_ICONS: Record<string, Component> = {
+        shift: ArrowBigUp,
+        cmd: Command,
+        arrowup: ArrowUp,
+        arrowdown: ArrowDown,
+        arrowleft: ArrowLeft,
+        arrowright: ArrowRight,
+        enter: CornerDownLeft,
+        pageup: ChevronsUp,
+        pagedown: ChevronsDown,
+        delete: Delete,
+        backspace: Delete,
+        home: Home,
+        end: MoveRight,
+        tab: MoveLeft,
+    };
+    const TOKEN_FALLBACK: Record<string, string> = {
+        ctrl: "^", alt: "alt", escape: "esc", insert: "ins", space: "spc",
+    };
 
     interface Props {
         label: string;
@@ -206,7 +227,7 @@
              cannot clip the flyout sibling that lives outside this div -->
         <div
             bind:this={dropdownEl}
-            class="bg-canvas-elev border-line absolute left-0 top-full z-[55] mt-0.5 min-w-56 rounded-md border py-1 shadow-xl max-h-[calc(100vh-3rem)] overflow-y-auto"
+            class="bg-canvas-elev border-line absolute left-0 top-full z-[55] mt-0.5 min-w-[21rem] rounded-md border py-1 shadow-xl max-h-[calc(100vh-3rem)] overflow-y-auto"
             role="menu"
             aria-label={label}
             tabindex="-1"
@@ -243,7 +264,7 @@
                                 role="menuitem"
                                 data-idx={i}
                                 disabled={item.disabled ?? false}
-                                class="hover:bg-canvas focus:bg-canvas flex w-full items-center gap-2 px-3 py-1 text-left text-sm outline-none disabled:cursor-not-allowed disabled:opacity-40"
+                                class="hover:bg-canvas focus:bg-canvas flex w-full items-center gap-2 px-3 py-1 text-left text-xs outline-none disabled:cursor-not-allowed disabled:opacity-40"
                                 class:bg-canvas={openSubmenuIdx === i}
                                 onclick={() => {
                                     openSubmenuIdx = openSubmenuIdx === i ? -1 : i;
@@ -273,7 +294,7 @@
                             role="menuitem"
                             data-idx={i}
                             disabled={item.disabled ?? false}
-                            class="hover:bg-canvas focus:bg-canvas group flex w-full items-center gap-2 px-3 py-1 text-left text-sm outline-none disabled:cursor-not-allowed disabled:opacity-40"
+                            class="hover:bg-canvas focus:bg-canvas group flex w-full items-center gap-2 px-3 py-1 text-left text-xs outline-none disabled:cursor-not-allowed disabled:opacity-40"
                             class:text-danger={item.danger}
                             onclick={() => selectItem(item)}
                             tabindex="-1"
@@ -298,10 +319,15 @@
                                 />
                             {/if}
                             {#if sc}
-                                <span
-                                    class="text-fg-muted ml-3 font-mono text-[11px] tracking-tight"
-                                >
-                                    {formatCombo(sc)}
+                                <span class="text-fg-muted ml-auto flex items-center gap-px pl-4">
+                                    {#each formatComboTokens(sc) as token}
+                                        {@const Icon = TOKEN_ICONS[token]}
+                                        {#if Icon}
+                                            <Icon size={12} strokeWidth={2} />
+                                        {:else}
+                                            <span class="font-mono text-xs leading-none">{TOKEN_FALLBACK[token] ?? token}</span>
+                                        {/if}
+                                    {/each}
                                 </span>
                             {/if}
                         </button>
@@ -333,7 +359,7 @@
                             type="button"
                             role="menuitem"
                             disabled={subitem.disabled ?? false}
-                            class="hover:bg-canvas focus:bg-canvas flex w-full items-center gap-2 px-3 py-1 text-left text-sm outline-none disabled:cursor-not-allowed disabled:opacity-40"
+                            class="hover:bg-canvas focus:bg-canvas flex w-full items-center gap-2 px-3 py-1 text-left text-xs outline-none disabled:cursor-not-allowed disabled:opacity-40"
                             class:text-danger={subitem.danger}
                             onclick={() => selectItem(subitem)}
                             tabindex="-1"
@@ -349,10 +375,15 @@
                             {/if}
                             <span class="flex-1">{subitem.label}</span>
                             {#if subitem.shortcut}
-                                <span
-                                    class="text-fg-muted ml-3 font-mono text-[11px] tracking-tight"
-                                >
-                                    {formatCombo(subitem.shortcut)}
+                                <span class="text-fg-muted ml-auto flex items-center gap-px pl-4">
+                                    {#each formatComboTokens(subitem.shortcut) as token}
+                                        {@const SubKbdIcon = TOKEN_ICONS[token]}
+                                        {#if SubKbdIcon}
+                                            <SubKbdIcon size={12} strokeWidth={2} />
+                                        {:else}
+                                            <span class="font-mono text-xs leading-none">{TOKEN_FALLBACK[token] ?? token}</span>
+                                        {/if}
+                                    {/each}
                                 </span>
                             {/if}
                         </button>

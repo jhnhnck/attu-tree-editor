@@ -150,32 +150,51 @@ export function installShortcuts(bindings: readonly ShortcutBinding[]): void {
     });
 }
 
-const KEY_DISPLAY: Record<string, string> = {
-    ArrowUp: "↑",
-    ArrowDown: "↓",
-    ArrowLeft: "←",
-    ArrowRight: "→",
-    Enter: "↵",
-    Escape: "Esc",
-    " ": "Space",
+// semantic token ids — resolved to icons or fallback text in the renderer
+const SPECIAL_TOKEN: Record<string, string> = {
+    ArrowUp: "arrowup",
+    ArrowDown: "arrowdown",
+    ArrowLeft: "arrowleft",
+    ArrowRight: "arrowright",
+    Enter: "enter",
+    Escape: "escape",
+    Tab: "tab",
+    Backspace: "backspace",
+    Delete: "delete",
+    Home: "home",
+    End: "end",
+    PageUp: "pageup",
+    PageDown: "pagedown",
+    Insert: "insert",
+    " ": "space",
 };
 
-/** human-readable rendering of a combo, platform-aware. */
-export function formatCombo(combo: string): string {
+/** semantic token per key/modifier — renderer maps these to icons or text. */
+export function formatComboTokens(combo: string): string[] {
     const parts = combo.split("+").map((s) => s.trim());
-    const sep = isMac ? "" : "+";
-    return parts
-        .map((p) => {
-            const lower = p.toLowerCase();
-            if (lower === "mod") return isMac ? "⌘" : "Ctrl";
-            if (lower === "meta" || lower === "cmd") return "⌘";
-            if (lower === "ctrl") return "Ctrl";
-            if (lower === "shift") return isMac ? "⇧" : "Shift";
-            if (lower === "alt") return isMac ? "⌥" : "Alt";
-            const special = SPECIAL_KEYS[lower];
-            if (special && KEY_DISPLAY[special]) return KEY_DISPLAY[special];
-            if (special) return special;
-            return p.length === 1 ? p.toUpperCase() : p;
-        })
-        .join(sep);
+    return parts.map((p) => {
+        const lower = p.toLowerCase();
+        if (lower === "mod") return isMac ? "cmd" : "ctrl";
+        if (lower === "meta" || lower === "cmd") return "cmd";
+        if (lower === "ctrl") return "ctrl";
+        if (lower === "shift") return "shift";
+        if (lower === "alt") return "alt";
+        const special = SPECIAL_KEYS[lower];
+        if (special && SPECIAL_TOKEN[special]) return SPECIAL_TOKEN[special];
+        if (special) return special.toLowerCase();
+        return p.length === 1 ? p.toUpperCase() : p;
+    });
+}
+
+const TOKEN_TEXT: Record<string, string> = {
+    ctrl: "^", cmd: "⌘", shift: "↑", alt: "alt",
+    arrowup: "↑", arrowdown: "↓", arrowleft: "←", arrowright: "→",
+    enter: "↵", escape: "esc", tab: "tab", backspace: "⌫", delete: "del",
+    home: "home", end: "end", pageup: "pgup", pagedown: "pgdn",
+    insert: "ins", space: "spc",
+};
+
+/** joined display string — for callers that don't render chips. */
+export function formatCombo(combo: string): string {
+    return formatComboTokens(combo).map(t => TOKEN_TEXT[t] ?? t).join("");
 }
