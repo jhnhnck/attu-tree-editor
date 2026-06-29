@@ -172,9 +172,10 @@
                 return false;
             },
             wheel(event, view) {
+                if (event.deltaMode === 0) return false;  // trackpad pixels: native is fine
                 event.preventDefault();
                 let dy = event.deltaY;
-                if (event.deltaMode === 1) dy *= 20;       // lines → px (firefox)
+                if (event.deltaMode === 1) dy *= 20;       // lines → px (firefox wheel)
                 else if (event.deltaMode === 2) dy *= 400;  // pages → px
                 view.scrollDOM.scrollTop += dy * 0.35;
                 return true;

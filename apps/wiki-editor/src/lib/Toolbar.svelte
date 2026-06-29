@@ -71,7 +71,7 @@
     <div class="relative shrink-0">
         <button
             type="button"
-            class="flex h-7 items-center gap-1 rounded px-2 text-xs text-fg hover:bg-canvas"
+            class="flex h-7 w-28 items-center justify-between rounded px-2 text-xs text-fg hover:bg-canvas"
             onclick={() => {
                 styleOpen = !styleOpen;
             }}
