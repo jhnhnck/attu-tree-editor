@@ -2727,7 +2727,7 @@
                  that overflow engages the dock's force-collapse pass. -->
             {#snippet debugMenuBody()}
                 <div
-                    class="pointer-events-auto max-h-[min(80vh,calc(100vh-var(--inspector-sheet-height,0px)-16rem))] overflow-y-auto text-fg text-xs font-mono"
+                    class="pointer-events-auto max-h-[min(55vh,calc(100vh-var(--inspector-sheet-height,0px)-25rem))] overflow-y-auto text-fg text-xs font-mono"
                     role="dialog"
                     aria-label="debug overlay controls"
                     data-testid="debug-panel"
@@ -2790,11 +2790,22 @@
                         <div data-testid="debug-section-family-view">
                             <div class="fte-window-section"><span>family-view</span></div>
                             <div class="fte-window-chip-group">
-                                {#each [["showVisibleSubset", "visible subset"], ["exposeFamilyDebug", "expose __treeDebug"], ["showOrphanBadge", "orphan badge"], ["showEdgeRoles", "edge roles"], ["showOffSubsetPeople", "off-subset people"], ["showSecondaryUnionState", "secondary-union state"], ["showMultiUnionManifold", "multi-union manifold"], ["showCardCollisions", "card collisions"], ["showCoupleCentroidDelta", "couple/centroid Δ"], ["showRankGutterLabels", "rank labels"], ["logFocusEvents", "focus events"], ["showViewportFitTarget", "viewport/target"], ["showOffSubsetWarning", "off-subset warning"], ["showPendingRecenter", "pending recenter"], ["showCoiBreakdown", "coi breakdown"], ["showDuplicateAncestors", "duplicate ancestors"], ["showGrid", "grid"], ["showNodeBounds", "node bounds"], ["showLastEditHalo", "last-edit halo"], ["showLayoutMetrics", "layout metrics"]] as const as [key, label] (key)}
+                                {#each [["showVisibleSubset", "visible subset"], ["exposeFamilyDebug", "expose __treeDebug"], ["showOrphanBadge", "orphan badge"], ["showEdgeRoles", "edge roles"], ["showOffSubsetPeople", "off-subset people"], ["showSecondaryUnionState", "secondary-union state"], ["showMultiUnionManifold", "multi-union manifold"], ["showCardCollisions", "card collisions"], ["showCoupleCentroidDelta", "couple/centroid Δ"], ["showRankGutterLabels", "rank labels"], ["showViewportFitTarget", "viewport/target"], ["showDuplicateAncestors", "duplicate ancestors"], ["showGrid", "grid"], ["showNodeBounds", "node bounds"], ["showLastEditHalo", "last-edit halo"]] as const as [key, label] (key)}
                                     <button
                                         type="button"
                                         class="fte-window-chip"
                                         aria-pressed={familyViewDebugLayers[key]}
+                                        onclick={() => (familyViewDebugLayers[key] = !familyViewDebugLayers[key])}
+                                        data-testid={`debug-toggle-fv-${key}`}
+                                    >{label}</button>
+                                {/each}
+                            </div>
+                            <div class="fte-window-section mt-1.5"><span>panel overlays</span></div>
+                            <div class="fte-window-chip-group">
+                                {#each [["logFocusEvents", "focus events"], ["showOffSubsetWarning", "off-subset warning"], ["showPendingRecenter", "pending recenter"], ["showCoiBreakdown", "coi breakdown"], ["showLayoutMetrics", "layout metrics"]] as const as [key, label] (key)}
+                                    <button
+                                        type="button"
+                                        class="fte-window-chip"
                                         onclick={() => (familyViewDebugLayers[key] = !familyViewDebugLayers[key])}
                                         data-testid={`debug-toggle-fv-${key}`}
                                     >{label}</button>
@@ -2922,7 +2933,7 @@
                 </div>
             {/snippet}
             {#snippet debugMenuWindow(_ctx: { forcedCollapse: boolean })}
-                <DockPanel id="debug-menu" title="Debug · Ctrl+Shift+D" body={debugMenuBody} />
+                <DockPanel id="debug-menu" title="Debug · Ctrl+Shift+D" body={debugMenuBody} onclose={() => (debugMode = false)} />
             {/snippet}
             {#if debugMode}
                 <DockEntry

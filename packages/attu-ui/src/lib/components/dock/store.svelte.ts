@@ -95,6 +95,20 @@ class DockStore {
         if (this.#items.has(item.id)) {
             throw new Error(`dockStore: duplicate id ${JSON.stringify(item.id)}`);
         }
+        // if this pill has no explicit order but existing pills in the same corner
+        // do (i.e. the user has drag-reordered), place it after them so the
+        // drag arrangement is preserved when new pills mount at runtime
+        if (item.kind === "pill" && item.order === undefined) {
+            let maxOrder: number | undefined;
+            for (const it of this.#items.values()) {
+                if (it.corner === item.corner && it.kind === "pill" && it.order !== undefined) {
+                    if (maxOrder === undefined || it.order > maxOrder) maxOrder = it.order;
+                }
+            }
+            if (maxOrder !== undefined) {
+                item = { ...item, order: maxOrder + 10 };
+            }
+        }
         this.#items.set(item.id, item);
         if (item.kind === "panel") {
             if (item.persistent === false || item.closeable === false) {

@@ -27,9 +27,11 @@
         body: Snippet;
         // false → hide close button
         closeable?: boolean;
+        // called after the panel is closed (e.g. to reset parent state)
+        onclose?: () => void;
     }
 
-    let { id, title, body, closeable = true }: Props = $props();
+    let { id, title, body, closeable = true, onclose }: Props = $props();
 
     const panelStatus = $derived(dockStore.panelState(id));
     const expanded = $derived(panelStatus === "expanded");
@@ -182,7 +184,7 @@
                     class="fte-window-control fte-window-control-close"
                     data-window-control
                     aria-label="close"
-                    onclick={(e) => { e.stopPropagation(); dockStore.closePanel(id); }}
+                    onclick={(e) => { e.stopPropagation(); dockStore.closePanel(id); onclose?.(); }}
                     onpointerdown={(e) => e.stopPropagation()}
                 >
                     <X size={10} strokeWidth={2.5} />

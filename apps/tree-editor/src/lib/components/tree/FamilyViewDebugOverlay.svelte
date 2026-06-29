@@ -1187,10 +1187,12 @@
 
 {#if layers.showOffSubsetWarning && selectedId !== undefined && offSubsetReason}
     <DockEntry id="family-view-debug-off-subset-warning" kind="panel" {corner} priority={200} persistent={false} render={offSubsetPanel} />
-    {#snippet offSubsetPill(_ctx: { forcedCollapse: boolean })}
-        {@render debugPanelPill("family-view-debug-off-subset-warning", "off-subset")}
-    {/snippet}
-    <DockEntry id="family-view-debug-off-subset-warning-pill" kind="pill" {corner} priority={200} persistent={false} panelId="family-view-debug-off-subset-warning" render={offSubsetPill} />
+    {#if dockStore.isOpen("family-view-debug-off-subset-warning")}
+        {#snippet offSubsetPill(_ctx: { forcedCollapse: boolean })}
+            {@render debugPanelPill("family-view-debug-off-subset-warning", "off-subset")}
+        {/snippet}
+        <DockEntry id="family-view-debug-off-subset-warning-pill" kind="pill" {corner} priority={200} persistent={false} panelId="family-view-debug-off-subset-warning" render={offSubsetPill} />
+    {/if}
 {/if}
 
 {#snippet recenterMissedBody()}
@@ -1217,10 +1219,12 @@
 
 {#if layers.showPendingRecenter && recenterMissedFor !== undefined}
     <DockEntry id="family-view-debug-recenter-missed" kind="panel" {corner} priority={210} persistent={false} render={recenterMissedPanel} />
-    {#snippet recenterMissedPill(_ctx: { forcedCollapse: boolean })}
-        {@render debugPanelPill("family-view-debug-recenter-missed", "no recenter")}
-    {/snippet}
-    <DockEntry id="family-view-debug-recenter-missed-pill" kind="pill" {corner} priority={210} persistent={false} panelId="family-view-debug-recenter-missed" render={recenterMissedPill} />
+    {#if dockStore.isOpen("family-view-debug-recenter-missed")}
+        {#snippet recenterMissedPill(_ctx: { forcedCollapse: boolean })}
+            {@render debugPanelPill("family-view-debug-recenter-missed", "no recenter")}
+        {/snippet}
+        <DockEntry id="family-view-debug-recenter-missed-pill" kind="pill" {corner} priority={210} persistent={false} panelId="family-view-debug-recenter-missed" render={recenterMissedPill} />
+    {/if}
 {/if}
 
 {#snippet coiBreakdownBody()}
@@ -1297,10 +1301,12 @@
 
 {#if layers.showCoiBreakdown}
     <DockEntry id="family-view-debug-coi-breakdown" kind="panel" {corner} priority={220} persistent={false} render={coiBreakdownPanel} />
-    {#snippet coiBreakdownPill(_ctx: { forcedCollapse: boolean })}
-        {@render debugPanelPill("family-view-debug-coi-breakdown", "coi")}
-    {/snippet}
-    <DockEntry id="family-view-debug-coi-breakdown-pill" kind="pill" {corner} priority={220} persistent={false} panelId="family-view-debug-coi-breakdown" render={coiBreakdownPill} />
+    {#if dockStore.isOpen("family-view-debug-coi-breakdown")}
+        {#snippet coiBreakdownPill(_ctx: { forcedCollapse: boolean })}
+            {@render debugPanelPill("family-view-debug-coi-breakdown", "coi")}
+        {/snippet}
+        <DockEntry id="family-view-debug-coi-breakdown-pill" kind="pill" {corner} priority={220} persistent={false} panelId="family-view-debug-coi-breakdown" render={coiBreakdownPill} />
+    {/if}
 {/if}
 
 {#snippet focusLogBody()}
@@ -1348,10 +1354,12 @@
 
 {#if layers.logFocusEvents && focusEvents && focusEvents.length > 0}
     <DockEntry id="family-view-debug-focus-log" kind="panel" {corner} priority={225} persistent={false} render={focusLogPanel} />
-    {#snippet focusLogPill(_ctx: { forcedCollapse: boolean })}
-        {@render debugPanelPill("family-view-debug-focus-log", "focus")}
-    {/snippet}
-    <DockEntry id="family-view-debug-focus-log-pill" kind="pill" {corner} priority={225} persistent={false} panelId="family-view-debug-focus-log" render={focusLogPill} />
+    {#if dockStore.isOpen("family-view-debug-focus-log")}
+        {#snippet focusLogPill(_ctx: { forcedCollapse: boolean })}
+            {@render debugPanelPill("family-view-debug-focus-log", "focus")}
+        {/snippet}
+        <DockEntry id="family-view-debug-focus-log-pill" kind="pill" {corner} priority={225} persistent={false} panelId="family-view-debug-focus-log" render={focusLogPill} />
+    {/if}
 {/if}
 
 {#snippet layoutMetricsBody()}
@@ -1438,10 +1446,12 @@
 
 {#if layers.showLayoutMetrics}
     <DockEntry id="family-view-debug-layout-metrics" kind="panel" {corner} priority={230} persistent={false} render={layoutMetricsPanel} />
-    {#snippet layoutMetricsPill(_ctx: { forcedCollapse: boolean })}
-        {@render debugPanelPill("family-view-debug-layout-metrics", "metrics")}
-    {/snippet}
-    <DockEntry id="family-view-debug-layout-metrics-pill" kind="pill" {corner} priority={230} persistent={false} panelId="family-view-debug-layout-metrics" render={layoutMetricsPill} />
+    {#if dockStore.isOpen("family-view-debug-layout-metrics")}
+        {#snippet layoutMetricsPill(_ctx: { forcedCollapse: boolean })}
+            {@render debugPanelPill("family-view-debug-layout-metrics", "metrics")}
+        {/snippet}
+        <DockEntry id="family-view-debug-layout-metrics-pill" kind="pill" {corner} priority={230} persistent={false} panelId="family-view-debug-layout-metrics" render={layoutMetricsPill} />
+    {/if}
 {/if}
 
 <style>

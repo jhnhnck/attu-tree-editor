@@ -144,9 +144,12 @@
                 data-corner={corner}
                 data-testid={`canvas-chrome-pills-${corner}`}
             >
-                {#each pills as item (item.id)}
+                {#each pills as item, i (item.id)}
+                    {#if dragState?.started && dragState.dropIndex === i}
+                        <div class="drop-indicator-pill"></div>
+                    {/if}
                     <div
-                        class="pointer-events-auto relative"
+                        class="pointer-events-auto"
                         data-dock-pill-id={item.id}
                         style={dragState?.draggingId === item.id && dragState.started
                             ? "opacity: 0.5;"
@@ -156,14 +159,11 @@
                         onpointerup={onPillPointerUp}
                         role="none"
                     >
-                        {#if dragState?.started && dragState.dropIndex === pills.indexOf(item)}
-                            <div class="drop-indicator"></div>
-                        {/if}
                         {@render item.render({ forcedCollapse: false })}
                     </div>
                 {/each}
                 {#if dragState?.started && dragState.dropIndex === pills.length}
-                    <div class="drop-indicator"></div>
+                    <div class="drop-indicator-pill"></div>
                 {/if}
                 <!-- modal close chip: appears when a modal is active -->
                 {#if dockStore.activeDialog !== undefined}
@@ -197,14 +197,13 @@
 {/if}
 
 <style>
-    .drop-indicator {
-        position: absolute;
-        left: -3px;
-        top: 0;
-        bottom: 0;
-        width: 2px;
+    .drop-indicator-pill {
+        width: 0.25rem;
+        align-self: stretch;
+        min-height: 1.25rem;
+        border-radius: 9999px;
         background: var(--color-accent);
-        border-radius: 1px;
         pointer-events: none;
+        flex-shrink: 0;
     }
 </style>
