@@ -4,14 +4,17 @@
 -->
 <script lang="ts">
     import { tick } from "svelte";
-    import { Check, Square, ChevronRight, ArrowBigUp, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Command, CornerDownLeft, ChevronsUp, ChevronsDown, Delete, Home, MoveRight, MoveLeft } from "@lucide/svelte";
+    import { Check, Square, ChevronRight, ArrowBigUp, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Diamond, CornerDownLeft, ChevronsUp, ChevronsDown, Delete, ArrowUpToLine, ArrowDownToLine, ArrowRightLeft, ChevronUp, Option, SquareArrowRightEnter, CircleArrowOutUpLeft, Space } from "@lucide/svelte";
     import { formatComboTokens } from "../../keyboard.js";
     import type { IconComponent, MenuEntry, MenuItem } from "./menu";
     import type { Component } from "svelte";
 
     const TOKEN_ICONS: Record<string, Component> = {
+        ctrl: ChevronUp,
         shift: ArrowBigUp,
-        cmd: Command,
+        alt: Option,
+        cmd: Diamond,
+        meta: Diamond,
         arrowup: ArrowUp,
         arrowdown: ArrowDown,
         arrowleft: ArrowLeft,
@@ -21,13 +24,14 @@
         pagedown: ChevronsDown,
         delete: Delete,
         backspace: Delete,
-        home: Home,
-        end: MoveRight,
-        tab: MoveLeft,
+        home: ArrowUpToLine,
+        end: ArrowDownToLine,
+        insert: SquareArrowRightEnter,
+        tab: ArrowRightLeft,
+        escape: CircleArrowOutUpLeft,
+        space: Space,
     };
-    const TOKEN_FALLBACK: Record<string, string> = {
-        ctrl: "^", alt: "alt", escape: "esc", insert: "ins", space: "spc",
-    };
+    const TOKEN_FALLBACK: Record<string, string> = {};
 
     interface Props {
         label: string;
@@ -323,7 +327,7 @@
                                     {#each formatComboTokens(sc) as token}
                                         {@const Icon = TOKEN_ICONS[token]}
                                         {#if Icon}
-                                            <Icon size={12} strokeWidth={2} />
+                                            <Icon size={14} strokeWidth={2} />
                                         {:else}
                                             <span class="font-mono text-xs leading-none">{TOKEN_FALLBACK[token] ?? token}</span>
                                         {/if}
@@ -379,7 +383,7 @@
                                     {#each formatComboTokens(subitem.shortcut) as token}
                                         {@const SubKbdIcon = TOKEN_ICONS[token]}
                                         {#if SubKbdIcon}
-                                            <SubKbdIcon size={12} strokeWidth={2} />
+                                            <SubKbdIcon size={14} strokeWidth={2} />
                                         {:else}
                                             <span class="font-mono text-xs leading-none">{TOKEN_FALLBACK[token] ?? token}</span>
                                         {/if}
