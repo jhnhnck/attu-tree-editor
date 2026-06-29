@@ -20,7 +20,7 @@ interface WikitextState {
     inWikilink: boolean; // inside [[...]]
     wikilinkSeenPipe: boolean; // inside wikilink, past the | separator
     inExtLink: boolean; // inside [url label], positioned after url, before ]
-    headingLevel: number; // 0 = not in heading; 2–6 = current level (phase 1)
+    headingLevel: number; // 0 = not in heading; 1–6 = current level (phase 1)
     templateDepth: number; // {{ }} nesting count (phase 2)
     inTable: boolean; // inside {| |} table (phase 2)
 }
@@ -41,6 +41,7 @@ function startState(): WikitextState {
 const wikitextLanguage = StreamLanguage.define<WikitextState>({
     name: "wikitext",
     tokenTable: {
+        // phase 0 - inline
         bold: tags.strong,
         italic: tags.emphasis,
         boldItalic: boldItalicTag,
@@ -54,6 +55,19 @@ const wikitextLanguage = StreamLanguage.define<WikitextState>({
         extLinkLabel: tags.labelName,
         comment: tags.blockComment,
         nowiki: tags.escape,
+        // phase 1 - block level
+        headingMark: tags.punctuation,
+        heading1: tags.heading1,
+        heading2: tags.heading2,
+        heading3: tags.heading3,
+        heading4: tags.heading4,
+        heading5: tags.heading5,
+        heading6: tags.heading6,
+        hr: tags.contentSeparator,
+        pre: tags.meta,
+        list: tags.list,
+        defTerm: tags.definitionKeyword,
+        defIndent: tags.content,
     },
     startState,
     copyState(state: WikitextState): WikitextState {
@@ -67,6 +81,11 @@ const wikitextLanguage = StreamLanguage.define<WikitextState>({
         state.headingLevel = 0;
     },
     token(stream: StringStream, state: WikitextState): string | null {
+        // reset heading at start of new (non-blank) line
+        if (stream.sol() && state.headingLevel > 0) {
+            state.headingLevel = 0;
+        }
+
         // multi-line comment continuation
         if (state.inComment) {
             if (stream.match("-->")) {
@@ -115,6 +134,57 @@ const wikitextLanguage = StreamLanguage.define<WikitextState>({
             return "extLinkLabel";
         }
 
+        // --- block-level tokens (start of line only) ---
+        if (stream.sol()) {
+            // hr: 4+ dashes occupying the entire line - must not fire mid-line
+            if (/^-{4,}\s*$/.test(stream.string)) {
+                stream.skipToEnd();
+                return "hr";
+            }
+
+            // heading: = at start of line
+            const eqMatch = stream.match(/^(={1,6})/) as RegExpMatchArray | null;
+            if (eqMatch) {
+                state.headingLevel = eqMatch[0].length;
+                return "headingMark";
+            }
+
+            // preformatted: line starts with a space
+            if (stream.peek() === " ") {
+                stream.skipToEnd();
+                return "pre";
+            }
+
+            // unordered / ordered list markers
+            if (stream.match(/^[*#]+/)) return "list";
+
+            // definition term
+            if (stream.eat(";")) return "defTerm";
+
+            // definition indent / blockquote
+            if (stream.eat(":")) return "defIndent";
+        }
+
+        // heading content and closing marks (when inside a heading)
+        if (state.headingLevel > 0) {
+            const level = state.headingLevel;
+            // closing delimiters: exactly `level` = signs, rest of line is whitespace
+            const closingRe = new RegExp(`^={${level}}\\s*$`);
+            if (stream.match(closingRe)) {
+                state.headingLevel = 0;
+                return "headingMark";
+            }
+            // consume heading content until the closing = sequence (or EOL)
+            while (!stream.eol()) {
+                if (closingRe.test(stream.string.slice(stream.pos))) break;
+                stream.next();
+            }
+            if (stream.eol()) state.headingLevel = 0;
+            return `heading${level}`;
+        }
+
+        // --- inline tokens ---
+
         // <nowiki> opening tag
         if (stream.match("<nowiki>")) {
             state.inNowiki = true;
@@ -132,7 +202,7 @@ const wikitextLanguage = StreamLanguage.define<WikitextState>({
             return "comment";
         }
 
-        // <code>...</code> (treated as single-line for phase 0)
+        // <code>...</code> (treated as single-line)
         if (stream.match("<code>")) {
             while (!stream.eol()) {
                 if (stream.match("</code>")) break;
@@ -181,6 +251,7 @@ const wikitextLanguage = StreamLanguage.define<WikitextState>({
 });
 
 const wikitextHighlight = HighlightStyle.define([
+    // phase 0 - inline
     { tag: tags.strong, fontWeight: "700" },
     { tag: tags.emphasis, fontStyle: "italic" },
     { tag: boldItalicTag, fontWeight: "700", fontStyle: "italic" },
@@ -196,6 +267,19 @@ const wikitextHighlight = HighlightStyle.define([
     { tag: tags.url, color: "var(--color-accent)", textDecoration: "underline" },
     { tag: tags.blockComment, color: "var(--color-fg-muted)", fontStyle: "italic" },
     { tag: tags.escape, color: "var(--color-fg-muted)" },
+    // phase 1 - block level
+    { tag: tags.punctuation, color: "var(--color-fg-muted)", opacity: "0.5" },
+    { tag: tags.heading1, fontWeight: "700", color: "var(--color-fg)" },
+    { tag: tags.heading2, fontWeight: "700", color: "var(--color-fg)" },
+    { tag: tags.heading3, fontWeight: "600", color: "var(--color-fg)" },
+    { tag: tags.heading4, fontWeight: "600", color: "var(--color-fg)" },
+    { tag: tags.heading5, fontWeight: "500", color: "var(--color-fg)" },
+    { tag: tags.heading6, fontWeight: "500", color: "var(--color-fg)" },
+    { tag: tags.contentSeparator, color: "var(--color-fg-muted)", opacity: "0.4" },
+    { tag: tags.list, color: "var(--color-accent)", fontWeight: "600" },
+    { tag: tags.definitionKeyword, color: "var(--color-accent)", fontWeight: "600" },
+    { tag: tags.content, color: "var(--color-fg-muted)" },
+    { tag: tags.meta, color: "var(--color-fg-muted)", fontFamily: "var(--font-mono)" },
 ]);
 
 export function wikitext(): LanguageSupport {

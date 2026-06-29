@@ -22,7 +22,7 @@ function hasToken(spans: TokenSpan[], name: string, text?: string): boolean {
     return spans.some((s) => s.name === name && (text === undefined || s.text === text));
 }
 
-describe("lang-wikitext — inline tokens", () => {
+describe("lang-wikitext - inline tokens", () => {
     describe("bold / italic", () => {
         it("tokenizes bold", () => {
             const spans = tokenize("'''bold'''");
@@ -127,6 +127,128 @@ describe("lang-wikitext — inline tokens", () => {
 
         it("mixed malformed markup does not throw", () => {
             expect(() => tokenize("[[unclosed '''unterminated <!-- no end")).not.toThrow();
+        });
+
+        it("adjacent bold then italic on one line produce two distinct token spans", () => {
+            const spans = tokenize("'''bold''' ''italic''");
+            expect(hasToken(spans, "bold")).toBe(true);
+            expect(hasToken(spans, "italic")).toBe(true);
+        });
+
+        it("multi-line HTML comment: state continues across lines", () => {
+            const input = "before\n<!-- start\ncontinued\nend --> after";
+            const spans = tokenize(input);
+            const commentSpans = spans.filter((s) => s.name === "comment");
+            expect(commentSpans.length).toBeGreaterThan(0);
+            expect(spans.every((s) => s.name !== "bold")).toBe(true);
+        });
+    });
+});
+
+describe("lang-wikitext - block-level tokens", () => {
+    describe("headings", () => {
+        it("h1: = marks become headingMark, content becomes heading1", () => {
+            const spans = tokenize("=Heading=");
+            expect(hasToken(spans, "headingMark", "=")).toBe(true);
+            expect(hasToken(spans, "heading1", "Heading")).toBe(true);
+        });
+
+        it("h2: == marks and content", () => {
+            const spans = tokenize("== Section ==");
+            expect(hasToken(spans, "headingMark", "==")).toBe(true);
+            expect(hasToken(spans, "heading2")).toBe(true);
+        });
+
+        it("h3 through h6 are recognized", () => {
+            for (let n = 3; n <= 6; n++) {
+                const eq = "=".repeat(n);
+                const spans = tokenize(`${eq}Title${eq}`);
+                expect(hasToken(spans, `heading${n}`)).toBe(true);
+            }
+        });
+
+        it("heading marks are dim (headingMark token, not heading content)", () => {
+            const spans = tokenize("== Title ==");
+            const marks = spans.filter((s) => s.name === "headingMark");
+            const content = spans.filter((s) => s.name === "heading2");
+            expect(marks.length).toBeGreaterThan(0);
+            expect(content.length).toBeGreaterThan(0);
+        });
+
+        it("unterminated heading (no closing =) does not throw", () => {
+            expect(() => tokenize("== No close")).not.toThrow();
+        });
+    });
+
+    describe("horizontal rule", () => {
+        it("---- alone on a line becomes hr", () => {
+            const spans = tokenize("----");
+            expect(hasToken(spans, "hr")).toBe(true);
+        });
+
+        it("---- mid-line (----template----) does NOT produce hr", () => {
+            const spans = tokenize("----template----");
+            expect(spans.every((s) => s.name !== "hr")).toBe(true);
+        });
+
+        it("more than 4 dashes on their own line is still hr", () => {
+            const spans = tokenize("----------");
+            expect(hasToken(spans, "hr")).toBe(true);
+        });
+    });
+
+    describe("preformatted", () => {
+        it("line starting with a space is pre", () => {
+            const spans = tokenize(" preformatted line");
+            expect(hasToken(spans, "pre")).toBe(true);
+        });
+    });
+
+    describe("lists", () => {
+        it("* bullet list marker", () => {
+            const spans = tokenize("* item");
+            expect(hasToken(spans, "list", "*")).toBe(true);
+        });
+
+        it("** nested bullet", () => {
+            const spans = tokenize("** nested");
+            expect(hasToken(spans, "list", "**")).toBe(true);
+        });
+
+        it("# ordered list marker", () => {
+            const spans = tokenize("# numbered");
+            expect(hasToken(spans, "list", "#")).toBe(true);
+        });
+
+        it("## nested ordered list", () => {
+            const spans = tokenize("## sub-numbered");
+            expect(hasToken(spans, "list", "##")).toBe(true);
+        });
+    });
+
+    describe("definition lists", () => {
+        it("; definition term", () => {
+            const spans = tokenize(";term");
+            expect(hasToken(spans, "defTerm", ";")).toBe(true);
+        });
+
+        it(": definition indent", () => {
+            const spans = tokenize(":indent");
+            expect(hasToken(spans, "defIndent", ":")).toBe(true);
+        });
+    });
+
+    describe("block edge cases", () => {
+        it("block tokens only fire at SOL - * mid-line is not a list", () => {
+            const spans = tokenize("text * not a list");
+            expect(spans.every((s) => s.name !== "list")).toBe(true);
+        });
+
+        it("inline tokens still work after a block token on previous line", () => {
+            const input = "== Heading ==\n'''bold'''";
+            const spans = tokenize(input);
+            expect(hasToken(spans, "heading2")).toBe(true);
+            expect(hasToken(spans, "bold")).toBe(true);
         });
     });
 });
