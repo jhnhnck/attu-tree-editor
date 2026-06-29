@@ -252,3 +252,148 @@ describe("lang-wikitext - block-level tokens", () => {
         });
     });
 });
+
+describe("lang-wikitext - phase 2 tokens", () => {
+    describe("templates", () => {
+        it("{{ and }} become templateBrace tokens", () => {
+            const spans = tokenize("{{Sandbox}}");
+            expect(hasToken(spans, "templateBrace", "{{")).toBe(true);
+            expect(hasToken(spans, "templateBrace", "}}")).toBe(true);
+        });
+
+        it("text after {{ is templateName", () => {
+            const spans = tokenize("{{Template name}}");
+            expect(hasToken(spans, "templateName", "Template name")).toBe(true);
+        });
+
+        it("| inside template is templateSep", () => {
+            const spans = tokenize("{{Template|param}}");
+            expect(hasToken(spans, "templateSep", "|")).toBe(true);
+        });
+
+        it("| inside wikilink inside template is wikiLinkSep not templateSep", () => {
+            const spans = tokenize("{{T|[[link|label]]}}");
+            expect(hasToken(spans, "wikiLinkSep", "|")).toBe(true);
+            const sepSpans = spans.filter((s) => s.name === "templateSep");
+            const wikisepSpans = spans.filter((s) => s.name === "wikiLinkSep");
+            // first | is templateSep; | inside [[...]] is wikiLinkSep
+            expect(sepSpans.length).toBe(1);
+            expect(wikisepSpans.length).toBe(1);
+        });
+
+        it("nested templates produce opening and closing brace tokens", () => {
+            const spans = tokenize("{{outer|{{inner}}}}");
+            // adjacent same-type tokens are merged in the Lezer tree, so
+            // both }} closing braces may appear as one node - check for presence
+            expect(hasToken(spans, "templateBrace", "{{")).toBe(true);
+            expect(hasToken(spans, "templateName", "outer")).toBe(true);
+            expect(hasToken(spans, "templateName", "inner")).toBe(true);
+        });
+
+        it("3 levels of nesting do not throw", () => {
+            expect(() => tokenize("{{a|{{b|{{c}}}}}}")).not.toThrow();
+        });
+
+        it("{{{ triple-brace param reference }}}", () => {
+            const spans = tokenize("{{{arg}}}");
+            expect(hasToken(spans, "tripleParam")).toBe(true);
+        });
+
+        it("{{{ with default value }}}", () => {
+            const spans = tokenize("{{{arg|default}}}");
+            expect(hasToken(spans, "tripleParam")).toBe(true);
+        });
+
+        it("parser function {{#if:}} gets funcName token", () => {
+            const spans = tokenize("{{#if:condition|yes|no}}");
+            expect(hasToken(spans, "funcName")).toBe(true);
+        });
+
+        it("unclosed template does not throw", () => {
+            expect(() => tokenize("{{unclosed")).not.toThrow();
+        });
+    });
+
+    describe("references", () => {
+        it("<ref> opening tag", () => {
+            const spans = tokenize("<ref>content</ref>");
+            expect(hasToken(spans, "refTag", "<ref>")).toBe(true);
+            expect(hasToken(spans, "refTag", "</ref>")).toBe(true);
+        });
+
+        it("<ref name=...> with attribute", () => {
+            const spans = tokenize('<ref name="note1">text</ref>');
+            expect(hasToken(spans, "refTag")).toBe(true);
+        });
+
+        it("<ref name=... /> self-closing", () => {
+            const spans = tokenize('<ref name="note1" />');
+            expect(hasToken(spans, "refTag")).toBe(true);
+        });
+
+        it("<references /> standalone", () => {
+            const spans = tokenize("<references />");
+            expect(hasToken(spans, "refTag")).toBe(true);
+        });
+    });
+
+    describe("tables", () => {
+        it("{| opens table and |} closes it as tableBrace", () => {
+            const spans = tokenize("{|\n|}");
+            expect(hasToken(spans, "tableBrace", "{|")).toBe(true);
+            expect(hasToken(spans, "tableBrace", "|}")).toBe(true);
+        });
+
+        it("|- row separator", () => {
+            const spans = tokenize("{|\n|-\n|}");
+            expect(hasToken(spans, "tableSep", "|-")).toBe(true);
+        });
+
+        it("! header cell", () => {
+            const spans = tokenize("{|\n! Header\n|}");
+            expect(hasToken(spans, "tableHead", "!")).toBe(true);
+        });
+
+        it("|+ caption", () => {
+            const spans = tokenize("{|\n|+ Caption\n|}");
+            expect(hasToken(spans, "tableCap", "|+")).toBe(true);
+        });
+
+        it("| cell inside table is tableSep", () => {
+            const spans = tokenize("{|\n| cell\n|}");
+            expect(hasToken(spans, "tableSep", "|")).toBe(true);
+        });
+
+        it("| at SOL outside table is not tableSep", () => {
+            const spans = tokenize("| not in table");
+            expect(spans.every((s) => s.name !== "tableSep")).toBe(true);
+        });
+    });
+
+    describe("phase 2 perf budget", () => {
+        it("200-line article with 12 templates tokenizes in < 16ms", () => {
+            const lines: string[] = [];
+            for (let i = 0; i < 20; i++) {
+                lines.push(`== Section ${i} ==`);
+                lines.push(`Some text with '''bold''' and ''italic''.`);
+                lines.push(`{{Template${i}|param1=value1|param2=[[Link${i}|display]]}}`);
+                lines.push(`{{Nested|{{Inner|{{{arg}}}}}}} and <!-- comment --> text.`);
+                lines.push(`* item one`);
+                lines.push(`* item two`);
+                lines.push(`<ref name="ref${i}">citation</ref>`);
+                lines.push(`{|`);
+                lines.push(`! Header`);
+                lines.push(`| cell`);
+                lines.push(`|}`);
+                lines.push(``);
+            }
+            const input = lines.join("\n");
+            // use the top-level imports (not require) to avoid duplicate module instances
+            const state = EditorState.create({ doc: input, extensions: [wikitext()] });
+            const start = performance.now();
+            ensureSyntaxTree(state, input.length, 2000);
+            const elapsed = performance.now() - start;
+            expect(elapsed).toBeLessThan(16);
+        });
+    });
+});

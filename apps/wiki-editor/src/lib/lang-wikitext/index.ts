@@ -20,8 +20,9 @@ interface WikitextState {
     inWikilink: boolean; // inside [[...]]
     wikilinkSeenPipe: boolean; // inside wikilink, past the | separator
     inExtLink: boolean; // inside [url label], positioned after url, before ]
-    headingLevel: number; // 0 = not in heading; 1–6 = current level (phase 1)
+    headingLevel: number; // 0 = not in heading; 1-6 = current level (phase 1)
     templateDepth: number; // {{ }} nesting count (phase 2)
+    inTemplateName: boolean; // just after {{, before first | or }} (phase 2)
     inTable: boolean; // inside {| |} table (phase 2)
 }
 
@@ -34,6 +35,7 @@ function startState(): WikitextState {
         inExtLink: false,
         headingLevel: 0,
         templateDepth: 0,
+        inTemplateName: false,
         inTable: false,
     };
 }
@@ -68,6 +70,17 @@ const wikitextLanguage = StreamLanguage.define<WikitextState>({
         list: tags.list,
         defTerm: tags.definitionKeyword,
         defIndent: tags.content,
+        // phase 2 - templates, refs, tables
+        templateBrace: tags.brace,
+        tripleParam: tags.variableName,
+        templateName: tags.typeName,
+        funcName: tags.keyword,
+        templateSep: tags.separator,
+        refTag: tags.tagName,
+        tableBrace: tags.brace,
+        tableSep: tags.separator,
+        tableCap: tags.meta,
+        tableHead: tags.heading,
     },
     startState,
     copyState(state: WikitextState): WikitextState {
@@ -79,6 +92,7 @@ const wikitextLanguage = StreamLanguage.define<WikitextState>({
         state.wikilinkSeenPipe = false;
         state.inExtLink = false;
         state.headingLevel = 0;
+        // templates CAN span blank lines in MediaWiki; do not reset templateDepth
     },
     token(stream: StringStream, state: WikitextState): string | null {
         // reset heading at start of new (non-blank) line
@@ -163,6 +177,22 @@ const wikitextLanguage = StreamLanguage.define<WikitextState>({
 
             // definition indent / blockquote
             if (stream.eat(":")) return "defIndent";
+
+            // table open/close and row/cell markers
+            if (stream.match("{|")) {
+                state.inTable = true;
+                return "tableBrace";
+            }
+            if (stream.match("|}")) {
+                state.inTable = false;
+                return "tableBrace";
+            }
+            if (stream.match("|-")) return "tableSep";
+            // |+ caption before | cell (longer match first)
+            if (stream.match("|+")) return "tableCap";
+            if (stream.eat("!")) return "tableHead";
+            // bare | cell separator (only inside a table)
+            if (state.inTable && stream.eat("|")) return "tableSep";
         }
 
         // heading content and closing marks (when inside a heading)
@@ -210,6 +240,66 @@ const wikitextLanguage = StreamLanguage.define<WikitextState>({
             }
             return "code";
         }
+
+        // --- phase 2: templates and references ---
+
+        // {{{ template parameter reference }}} - must check before {{ }}
+        if (stream.match("{{{")) {
+            while (!stream.eol() && !stream.match("}}}", false)) stream.next();
+            if (!stream.eol()) stream.match("}}}");
+            return "tripleParam";
+        }
+
+        // {{ template open
+        if (stream.match("{{")) {
+            state.templateDepth++;
+            state.inTemplateName = true;
+            return "templateBrace";
+        }
+
+        // }} template close
+        if (stream.match("}}")) {
+            state.templateDepth = Math.max(0, state.templateDepth - 1);
+            return "templateBrace";
+        }
+
+        // template name: text immediately after {{, before first | or }}
+        if (state.inTemplateName && state.templateDepth > 0) {
+            state.inTemplateName = false;
+            const ch = stream.peek();
+            if (ch !== undefined && ch !== "|" && !stream.match("}}", false) && !stream.eol()) {
+                // parser function: name starts with #
+                const isFunc = ch === "#";
+                while (
+                    !stream.eol() &&
+                    stream.peek() !== "|" &&
+                    !stream.match("}}", false) &&
+                    !stream.match("[[", false)
+                ) {
+                    // stop parser function name at the colon
+                    if (isFunc && stream.peek() === ":") {
+                        stream.next();
+                        break;
+                    }
+                    stream.next();
+                }
+                return isFunc ? "funcName" : "templateName";
+            }
+            // nothing to consume as name (edge case: {{ followed by | or }})
+        }
+
+        // | separator inside a template (not a wikilink - wikilink | is caught above)
+        if (state.templateDepth > 0 && stream.eat("|")) {
+            return "templateSep";
+        }
+
+        // reference tags (order matters: </ref> before <ref; <references/> before <ref/>)
+        if (stream.match("</ref>")) return "refTag";
+        if (stream.match(/^<references\s*\/>/)) return "refTag";
+        if (stream.match(/^<ref(\s[^>]*)?\s*\/>/)) return "refTag";
+        if (stream.match(/^<ref(\s[^>]*)?>/)) return "refTag";
+
+        // --- phase 0 inline tokens (detection order is load-bearing) ---
 
         // detection order is load-bearing: bold-italic before bold before italic
         if (stream.match("'''''")) {
@@ -280,6 +370,13 @@ const wikitextHighlight = HighlightStyle.define([
     { tag: tags.definitionKeyword, color: "var(--color-accent)", fontWeight: "600" },
     { tag: tags.content, color: "var(--color-fg-muted)" },
     { tag: tags.meta, color: "var(--color-fg-muted)", fontFamily: "var(--font-mono)" },
+    // phase 2 - templates, refs, tables
+    // tags.brace inherits from tags.bracket (dim/muted) - no new rule needed
+    { tag: tags.variableName, color: "var(--color-accent-strong)" },
+    { tag: tags.typeName, color: "var(--color-accent)" },
+    { tag: tags.keyword, color: "var(--color-accent)", fontStyle: "italic" },
+    { tag: tags.tagName, color: "var(--color-accent-strong)", fontWeight: "600" },
+    { tag: tags.heading, fontWeight: "600", color: "var(--color-fg)" },
 ]);
 
 export function wikitext(): LanguageSupport {
