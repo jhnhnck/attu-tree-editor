@@ -117,7 +117,7 @@
     {#if loadingGrants}
         <p class="text-fg-muted px-3 py-2 text-xs">loading…</p>
     {:else if grantsError}
-        <p class="text-error px-3 py-2 text-xs">{grantsError}</p>
+        <p class="text-danger px-3 py-2 text-xs">{grantsError}</p>
     {:else if grants.length === 0}
         <p class="text-fg-muted px-3 py-2 text-xs italic">no shares yet</p>
     {:else}
@@ -130,7 +130,7 @@
                     <span class="text-fg-muted">{g.role}</span>
                     <button
                         type="button"
-                        class="text-error hover:text-error/80"
+                        class="text-danger hover:text-danger/80"
                         onclick={() => void revoke(g)}
                         aria-label="revoke {g.display_name}"
                     >
@@ -164,7 +164,7 @@
 </select>
 
 {#if message}
-    <p class="mb-3 text-sm {message.ok ? 'text-success' : 'text-error'}">{message.text}</p>
+    <p class="mb-3 text-sm {message.ok ? 'text-accent' : 'text-danger'}">{message.text}</p>
 {/if}
 
 <div class="flex gap-2">

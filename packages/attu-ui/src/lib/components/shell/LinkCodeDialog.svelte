@@ -90,11 +90,11 @@
 </button>
 
 {#if expiredOrNotFound}
-    <p class="text-error mb-4 text-center text-sm">
+    <p class="text-danger mb-4 text-center text-sm">
         code expired. close and click "sign in" for a new one.
     </p>
 {:else if status === "ok"}
-    <p class="text-success mb-4 text-center text-sm">linked! signing you in…</p>
+    <p class="text-accent mb-4 text-center text-sm">linked! signing you in…</p>
 {:else}
     <p class="text-fg-muted mb-4 text-center text-sm">
         waiting for discord…

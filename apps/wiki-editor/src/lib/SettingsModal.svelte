@@ -3,7 +3,7 @@
     close is handled by DockDialog's × button or the footer button below.
 -->
 <script lang="ts">
-    import { dockStore } from "@attu/ui";
+    import { dockStore, Button } from "@attu/ui";
     import { SHORTCUTS } from "./shortcuts.js";
 
     type Tab = "editor" | "autosave" | "preview" | "shortcuts" | "account";
@@ -177,11 +177,7 @@
 
 <!-- footer -->
 <div class="-mx-3 -mb-3 mt-3 flex shrink-0 items-center justify-end border-t border-line px-6 py-3">
-    <button
-        type="button"
-        onclick={() => dockStore.closeDialog()}
-        class="rounded border border-line bg-canvas px-4 py-1.5 text-sm text-fg hover:bg-canvas-elev"
-    >
-        Close
-    </button>
+    <Button variant="ghost" onclick={() => dockStore.closeDialog()}>
+        {#snippet children()}close{/snippet}
+    </Button>
 </div>
