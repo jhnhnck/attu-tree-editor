@@ -4,12 +4,12 @@ How a tree gets into the editor: supported formats, the wizard, the parse → pe
 
 | format | extensions | source | reader | exports? |
 |---|---|---|---|---|
-| FamilyScript | `.txt` | Family Echo console | [familyscript/parse.ts](../../apps/web/src/lib/io/familyscript/parse.ts) | no (import-only) |
-| GEDCOM 5.5 / 7 | `.ged`, `.gedcom` | most genealogy tools | [gedcom/parse.ts](../../apps/web/src/lib/io/gedcom/parse.ts) | no (import-only) |
-| GEDZIP | `.gdz`, `.zip` | this editor + spec-compliant tools | [bundle/read.ts](../../apps/web/src/lib/io/bundle/read.ts) | yes (only export) |
-| Family Echo HTML | `.html`, `.htm` | familyecho.com "save tree as HTML" | [familyecho-html/parse.ts](../../apps/web/src/lib/io/familyecho-html/parse.ts) | no (import-only) |
+| FamilyScript | `.txt` | Family Echo console | [familyscript/parse.ts](../../apps/tree-editor/src/lib/io/familyscript/parse.ts) | no (import-only) |
+| GEDCOM 5.5 / 7 | `.ged`, `.gedcom` | most genealogy tools | [gedcom/parse.ts](../../apps/tree-editor/src/lib/io/gedcom/parse.ts) | no (import-only) |
+| GEDZIP | `.gdz`, `.zip` | this editor + spec-compliant tools | [bundle/read.ts](../../apps/tree-editor/src/lib/io/bundle/read.ts) | yes (only export) |
+| Family Echo HTML | `.html`, `.htm` | familyecho.com "save tree as HTML" | [familyecho-html/parse.ts](../../apps/tree-editor/src/lib/io/familyecho-html/parse.ts) | no (import-only) |
 
-format detection: extension + magic bytes (zip header, first 256 chars). source of truth: [io/detect.ts](../../apps/web/src/lib/io/detect.ts).
+format detection: extension + magic bytes (zip header, first 256 chars). source of truth: [io/detect.ts](../../apps/tree-editor/src/lib/io/detect.ts).
 
 ## pipeline
 
@@ -46,20 +46,20 @@ interface ImportPayload {
 
 | concern | file |
 |---|---|
-| format detection | [lib/io/detect.ts](../../apps/web/src/lib/io/detect.ts) |
-| file → payload dispatcher | [lib/io/importFile.ts](../../apps/web/src/lib/io/importFile.ts) |
-| FamilyScript parser | [lib/io/familyscript/parse.ts](../../apps/web/src/lib/io/familyscript/parse.ts) |
-| FamilyScript tag tables (pedi codes, gender codes) | [lib/io/familyscript/tokens.ts](../../apps/web/src/lib/io/familyscript/tokens.ts) |
-| GEDCOM parser | [lib/io/gedcom/parse.ts](../../apps/web/src/lib/io/gedcom/parse.ts) |
-| GEDCOM serializer (round-trips Person slots) | [lib/io/gedcom/serialize.ts](../../apps/web/src/lib/io/gedcom/serialize.ts) |
-| GEDZIP bundle reader (gedcom.ged + media/) | [lib/io/bundle/read.ts](../../apps/web/src/lib/io/bundle/read.ts) |
-| GEDZIP bundle writer | [lib/io/bundle/write.ts](../../apps/web/src/lib/io/bundle/write.ts) |
-| Family Echo HTML wrapper | [lib/io/familyecho-html/parse.ts](../../apps/web/src/lib/io/familyecho-html/parse.ts) |
-| pairwise tree merge | [lib/io/merge/merge.ts](../../apps/web/src/lib/io/merge/merge.ts) |
-| n-way fold over pairwise merge | [lib/io/import/composeImports.ts](../../apps/web/src/lib/io/import/composeImports.ts) |
-| payload → IDB + treeStore.reset | [lib/io/persistImportPayload.ts](../../apps/web/src/lib/io/persistImportPayload.ts) |
-| wizard UI | [lib/components/import/ImportWizard.svelte](../../apps/web/src/lib/components/import/ImportWizard.svelte) |
-| wizard mount + canvas drag-drop wiring | [App.svelte](../../apps/web/src/App.svelte) (search `ImportWizard`) |
+| format detection | [lib/io/detect.ts](../../apps/tree-editor/src/lib/io/detect.ts) |
+| file → payload dispatcher | [lib/io/importFile.ts](../../apps/tree-editor/src/lib/io/importFile.ts) |
+| FamilyScript parser | [lib/io/familyscript/parse.ts](../../apps/tree-editor/src/lib/io/familyscript/parse.ts) |
+| FamilyScript tag tables (pedi codes, gender codes) | [lib/io/familyscript/tokens.ts](../../apps/tree-editor/src/lib/io/familyscript/tokens.ts) |
+| GEDCOM parser | [lib/io/gedcom/parse.ts](../../apps/tree-editor/src/lib/io/gedcom/parse.ts) |
+| GEDCOM serializer (round-trips Person slots) | [lib/io/gedcom/serialize.ts](../../apps/tree-editor/src/lib/io/gedcom/serialize.ts) |
+| GEDZIP bundle reader (gedcom.ged + media/) | [lib/io/bundle/read.ts](../../apps/tree-editor/src/lib/io/bundle/read.ts) |
+| GEDZIP bundle writer | [lib/io/bundle/write.ts](../../apps/tree-editor/src/lib/io/bundle/write.ts) |
+| Family Echo HTML wrapper | [lib/io/familyecho-html/parse.ts](../../apps/tree-editor/src/lib/io/familyecho-html/parse.ts) |
+| pairwise tree merge | [lib/io/merge/merge.ts](../../apps/tree-editor/src/lib/io/merge/merge.ts) |
+| n-way fold over pairwise merge | [lib/io/import/composeImports.ts](../../apps/tree-editor/src/lib/io/import/composeImports.ts) |
+| payload → IDB + treeStore.reset | [lib/io/persistImportPayload.ts](../../apps/tree-editor/src/lib/io/persistImportPayload.ts) |
+| wizard UI | [lib/components/import/ImportWizard.svelte](../../apps/tree-editor/src/lib/components/import/ImportWizard.svelte) |
+| wizard mount + canvas drag-drop wiring | [App.svelte](../../apps/tree-editor/src/App.svelte) (search `ImportWizard`) |
 
 ## import wizard
 
@@ -79,8 +79,8 @@ opens on `Mod+I` or the File > Import menu item, or by dragging a file onto the 
 │ └─────────────────────────────────────────┘ │
 │  tree name: [imported tree            ]     │
 │  target:                                    │
-│   ( ) save current and open the imported    │
-│   (•) merge into the current tree           │
+│   (•) save current and open the imported    │
+│   ( ) merge into the current tree           │
 │                          [ cancel ][import] │
 └─────────────────────────────────────────────┘
 ```
@@ -101,13 +101,13 @@ no network and no `c=<share-code>` parameter is involved; the html is everything
 
 ## multi-file merge composition
 
-`composeImports(payloads[])` left-folds N payloads via the existing pairwise `mergeTrees`. fold order = drop order; identical inputs in the same order produce identical outputs (asserted in [composeImports.test.ts](../../apps/web/tests/unit/io/import/composeImports.test.ts)). when fold step k merges in payload k+1, the next step's portraits get their `personId` remapped through the merge's `bIdMap`. a portrait whose target is absent from the merge result is dropped silently rather than persisted to a ghost person.
+`composeImports(payloads[])` left-folds N payloads via the existing pairwise `mergeTrees`. fold order = drop order; identical inputs in the same order produce identical outputs (asserted in [composeImports.test.ts](../../apps/tree-editor/tests/unit/io/import/composeImports.test.ts)). when fold step k merges in payload k+1, the next step's portraits get their `personId` remapped through the merge's `bIdMap`. a portrait whose target is absent from the merge result is dropped silently rather than persisted to a ghost person.
 
 if "merge into current" is selected, the active tree becomes the leftmost input.
 
 ## portrait persistence
 
-`persistImportPayload` walks the payload's `portraits[]`, calls `putBlob` per blob into IDB, and links the returned blob id onto `person.portraitBlobId`. ext → mime mapping is in `persistImportPayload.ts`. orphan blobs from merge conflicts where the source loses are left in IDB; eager GC is on the deferred list. covered by [tests/unit/io/persistImportPayload.test.ts](../../apps/web/tests/unit/io/persistImportPayload.test.ts) and [tests/unit/io/familyecho-html/parse.test.ts](../../apps/web/tests/unit/io/familyecho-html/parse.test.ts).
+`persistImportPayload` walks the payload's `portraits[]`, calls `putBlob` per blob into IDB, and links the returned blob id onto `person.portraitBlobId`. ext → mime mapping is in `persistImportPayload.ts`. orphan blobs from merge conflicts where the source loses are left in IDB; eager GC is on the deferred list. covered by [tests/unit/io/persistImportPayload.test.ts](../../apps/tree-editor/tests/unit/io/persistImportPayload.test.ts) and [tests/unit/io/familyecho-html/parse.test.ts](../../apps/tree-editor/tests/unit/io/familyecho-html/parse.test.ts).
 
 ## not implemented (and why)
 
@@ -123,10 +123,10 @@ the FamilyScript serializer was retired in an earlier plan; there is no plan to 
 
 ## adding a new import format
 
-1. add the format discriminant to `FormatKind` in [detect.ts](../../apps/web/src/lib/io/detect.ts) and the extension / content sniff
+1. add the format discriminant to `FormatKind` in [detect.ts](../../apps/tree-editor/src/lib/io/detect.ts) and the extension / content sniff
 2. write the parser; return an `ImportPayload`
-3. route it in [importFile.ts](../../apps/web/src/lib/io/importFile.ts)
-4. unit-test the parser against a fixture under [apps/web/tests/fixtures/](../../apps/web/tests/fixtures/)
+3. route it in [importFile.ts](../../apps/tree-editor/src/lib/io/importFile.ts)
+4. unit-test the parser against a fixture under [apps/tree-editor/tests/fixtures/](../../apps/tree-editor/tests/fixtures/)
 5. the wizard, persistence, and merge composition all flow off `ImportPayload`; no UI changes needed
 
 ## see also
@@ -141,5 +141,5 @@ the FamilyScript serializer was retired in an earlier plan; there is no plan to 
 ## metadata
 
 ```yaml
-last_updated: 24 May 2026
+last_updated: 30 June 2026
 ```

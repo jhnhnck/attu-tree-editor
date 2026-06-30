@@ -89,7 +89,7 @@ dockStore.floatingPanels          // array of { item: DockItemDef; pos: { x, y, 
 
 ## DockPanel chrome
 
-`DockPanel` props: `id`, `title`, `body` (Snippet), `closeable?` (default true).
+`DockPanel` props: `id`, `title`, `body` (Snippet), `closeable?` (default true), `onclose?` (called after the panel closes).
 
 titlebar controls left-to-right: `[pop/re-dock] [minimize] [close]`. icons are corner-aware:
 
@@ -100,7 +100,7 @@ titlebar controls left-to-right: `[pop/re-dock] [minimize] [close]`. icons are c
 | bl | ArrowUpRight | ArrowDownLeft | ChevronDown |
 | br | ArrowUpLeft | ArrowDownRight | ChevronDown |
 
-minimize on a floating panel re-docks then collapses (lands as pill-only). pop-out cascades: `x = host.right - 320 + n*24`, `y = host.top + 60 + n*24` (wraps every 8).
+minimize on a floating panel re-docks then collapses (lands as pill-only). pop-out cascades: `row = n % 8`, `x = host.right - 320 + row*24`, `y = host.top + 60 + row*24 + floor(n/8)*32` (wraps every 8, dropping a row).
 
 control buttons use `.fte-window-control` CSS classes (global in `theme.css`): 14px colored circles at 40% alpha. neutral/amber/red for pop-dock/minimize/close.
 

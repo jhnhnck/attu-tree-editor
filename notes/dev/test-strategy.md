@@ -2,7 +2,7 @@
 
 decisions backing the structural-invariant test floor introduced by the `ui-invariant-tests` plan. complements `notes/dev/testing.md` (which describes the layers); this file records the *why* behind the geometry-test approach and per-engine mount caveats.
 
-added: 2026-05-26 (phase 0 walking skeleton). last revised: 2026-05-27 (phase 7 close).
+added: 2026-05-26 (phase 0 walking skeleton). last revised: 2026-06-30 (paths updated for the `apps/web` → `apps/tree-editor` rename).
 
 ---
 
@@ -10,7 +10,7 @@ added: 2026-05-26 (phase 0 walking skeleton). last revised: 2026-05-27 (phase 7 
 
 chosen approach: **(a) jsdom + per-test `getBoundingClientRect` mocks + a stacking-context-aware `document.elementFromPoint` stub**.
 
-rationale: the load-bearing chrome-geometry bug is [620ce7c](../bugs.md) (union picker trapped behind sibling cards by a `transform: translate3d` stacking context). approach (a)'s `elementFromPoint` stub reads `style.transform` / `style.zIndex` and walks the stacking-context chain, so a pointer aimed at the picker correctly resolves to *sibling* with the buggy dom and to *picker* with the post-fix dom. this was verified via the phase-0 probe (observations recorded in the probes summary section below) and promoted to the skeleton spec `apps/web/tests/component/chrome-geometry-picker.test.ts`. infra cost: zero - no new dependency, no new runner, runs under the existing `pnpm test:unit`.
+rationale: the load-bearing chrome-geometry bug is [620ce7c](../bugs.md) (union picker trapped behind sibling cards by a `transform: translate3d` stacking context). approach (a)'s `elementFromPoint` stub reads `style.transform` / `style.zIndex` and walks the stacking-context chain, so a pointer aimed at the picker correctly resolves to *sibling* with the buggy dom and to *picker* with the post-fix dom. this was verified via the phase-0 probe (observations recorded in the probes summary section below) and promoted to the skeleton spec `apps/tree-editor/tests/component/chrome-geometry-picker.test.ts`. infra cost: zero - no new dependency, no new runner, runs under the existing `pnpm test:unit`.
 
 rejected: **(b) real-browser runner (vitest browser mode / `@playwright/experimental-ct-svelte` / happy-dom)**.
 
@@ -28,7 +28,7 @@ trigger to revisit: a chrome-geometry regression in the wild that approach (a)'s
 
 ## tree-canvas (layered engine) mount under jsdom: blocked
 
-`TreeCanvas.svelte` does **not** mount cleanly in jsdom. it spawns a `Worker` from `apps/web/src/lib/layout/layout.worker.ts` and jsdom does not implement the Worker constructor. there is no cheap shim — the worker is the layout pass, not a peripheral. implication: the parity-matrix layered-engine column either substitutes `FamilyViewCanvas` as a stand-in for engine-agnostic capabilities or marks the cell `expectedSkip` with the Worker rationale. App-level mounts (debug pill, debug-toggle visibility) pull the worker in transitively, so those rows skip for layered.
+`TreeCanvas.svelte` does **not** mount cleanly in jsdom. it spawns a `Worker` from `apps/tree-editor/src/lib/layout/layout.worker.ts` and jsdom does not implement the Worker constructor. there is no cheap shim — the worker is the layout pass, not a peripheral. implication: the parity-matrix layered-engine column either substitutes `FamilyViewCanvas` as a stand-in for engine-agnostic capabilities or marks the cell `expectedSkip` with the Worker rationale. App-level mounts (debug pill, debug-toggle visibility) pull the worker in transitively, so those rows skip for layered.
 
 ---
 
@@ -40,13 +40,13 @@ trigger to revisit: a chrome-geometry regression in the wild that approach (a)'s
 4. call `document.elementFromPoint(x, y)` at a point inside *both* the surface and the competing sibling - the collision point is what makes the test catch regressions, not just present-shape.
 5. assert `hit === surface`. paired pre-fix / post-fix tests make the regression target explicit and let `bugs.md`-driven historical replays compare the two.
 
-when a second spec needs the stub, promote `setRect` + `makeStackingAwareElementFromPoint` to `apps/web/tests/component/_harness/geometry.ts` and import from there. that promotion landed in phase 2 — the canonical helper now lives at `apps/web/tests/component/_harness/stackingContextHitTest.ts` (see next section).
+when a second spec needs the stub, promote `setRect` + `makeStackingAwareElementFromPoint` to `apps/tree-editor/tests/component/_harness/geometry.ts` and import from there. that promotion landed in phase 2 — the canonical helper now lives at `apps/tree-editor/tests/component/_harness/stackingContextHitTest.ts` (see next section).
 
 ---
 
 ## chrome-geometry primitive: `stackingContextHitTest`
 
-`apps/web/tests/component/_harness/stackingContextHitTest.ts` exports three helpers, all imported together by every chrome-geometry spec:
+`apps/tree-editor/tests/component/_harness/stackingContextHitTest.ts` exports three helpers, all imported together by every chrome-geometry spec:
 
 - `setRect(el, {x,y,w,h})` — overrides one element's `getBoundingClientRect` with a fixed rect. per-element, unlike `mountWithHostRect` which paints the whole prototype.
 - `makeStackingAwareElementFromPoint(root)` — returns a replacement `document.elementFromPoint` that walks `root`, collects every element whose mocked rect contains `(x, y)`, ranks them by an outermost-stacking-context-first chain of `(z-index, dom-order)`, and returns the topmost. parents with `style.transform != none` or an explicit `style.zIndex` create a stacking context (the css subset family-view uses).

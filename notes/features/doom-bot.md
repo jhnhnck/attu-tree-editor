@@ -98,9 +98,10 @@ X-Attu-Signature: sha256=<hex>
 
 signature payload is the literal byte string `"<X-Attu-Timestamp>.<raw_body>"` keyed by the hmac secret. the server rejects:
 
-- missing or malformed headers (400)
+- missing headers (422, fastapi's default required-header validation)
+- malformed timestamp, i.e. non-integer (401)
+- timestamp implausibly out of range (`ts < 0` or `ts > 10_000_000_000`, i.e. year 2286) (401)
 - timestamp outside ±300s of server clock (401, replay protection)
-- timestamp implausibly out of range (`ts < 0` or `ts > 10_000_000_000`, i.e. year 2286) (400)
 - signature mismatch (401)
 
 bot side: build the signature before sending; never log either header value.
@@ -111,7 +112,7 @@ bot side: build the signature before sending; never log either header value.
 
 base url: read from `ATTU_TREES_API_BASE_URL` (or the dev/prod variants below). default to the in-network docker dns name `http://attu-tree:8000` when running inside the shared compose stack; fall back to `https://attuproject.org/trees` for cross-network calls.
 
-all bodies are json. all responses are json with `application/problem+json` for errors.
+all bodies are json. all responses are json, including errors (fastapi's default `application/json` with a `detail` field, not RFC 7807 `application/problem+json`).
 
 ### redeem a link code
 
@@ -203,16 +204,17 @@ success (200):
 {
   "trees": [
     {
-      "id": "0192e3d8-7c1c-7e80-aabb-ccddeeff0011",
+      "id": "0192e3d8-7c1c-4e80-aabb-ccddeeff0011",
       "name": "Akarian Royal House",
       "role": "owner",
+      "revision": 4,
       "updated_at": "2026-04-26T18:30:42Z"
     }
   ]
 }
 ```
 
-`role` is one of `owner`, `editor`, `viewer`. id is a uuid v7. errors:
+`role` is one of `owner`, `editor`, `viewer`. id is a uuid4. errors:
 
 - 404 `user_not_linked` - the discord user has never run `/trees link`; bot prompts them to do so
 
@@ -230,7 +232,7 @@ Content-Type: application/json
 }
 ```
 
-success (200):
+success (201):
 
 ```json
 { "user_id": "0192e3d8-...", "role": "editor" }
@@ -240,7 +242,7 @@ server checks the actor owns the tree (or is admin). errors:
 
 - 403 `not_owner` - actor doesn't own it and isn't admin
 - 404 `tree_not_found`
-- 400 `invalid_role` - role must be `viewer` or `editor`
+- 422 (pydantic validation) - `role` must be `viewer` or `editor`
 
 if `target_discord_id` has no user row yet, the server creates a stub user (the grant becomes active the first time that target runs `/trees link`). the bot does not need to special-case this.
 
@@ -370,7 +372,7 @@ reply on success: `removed **{target_display}**'s access to **{tree_name}**.`
 | `ATTU_TREES_DEV_BASE_URL` | dev backend base url; trailing slash optional | `http://attu-tree-dev:8000` or `https://attuproject.org/trees-dev` |
 | `ATTU_TREES_PROD_BASE_URL` | prod backend base url | `http://attu-tree:8000` or `https://attuproject.org/trees` |
 
-these live in `assets/attu-bot.toml` (the bot's tier-2 config), not `.env`, matching the configuration-tier rules above. the public docker-compose service names `attu-tree` / `attu-tree-dev` resolve inside the shared `attu_dev` / `attu_prod` networks; cross-host setups should use the public urls instead.
+these live in `assets/attu-bot.toml` (the bot's tier-2 config), not `.env`, matching the configuration-tier rules above. the public docker-compose container names `attu-tree` / `attu-tree-dev` resolve inside the shared `attu_dev` / `attu_prod` networks; cross-host setups should use the public urls instead.
 
 the bot picks between the two urls per request, based on the code's char[1] for `/trees link`. for the other commands (`/trees show`, `/trees share`, `/trees unshare`) the bot needs another route signal, since those don't carry a code. current cut: pin those commands to **prod only** until the editor exposes a cross-backend user-trees search. dev users can do everything *except* re-share / re-list through the bot until they re-link in prod.
 
@@ -396,5 +398,5 @@ never echo raw server error bodies into discord.
 ## metadata
 
 ```yaml
-last_updated: 23 May 2026
+last_updated: 30 June 2026
 ```

@@ -4,9 +4,9 @@
 
 editor-side touch points:
 
-- url builder: [`apps/web/src/lib/wiki/linkResolver.ts`](../../apps/web/src/lib/wiki/linkResolver.ts) (`wikiUrlFor(title, baseUrl?)`)
-- compose unit: [`docker-compose.yml`](../../docker-compose.yml) (service `attu-tree`, joins network `attu_dev` / `attu_prod`)
-- inspector ui: [`apps/web/src/lib/components/inspector/DetailsTab.svelte`](../../apps/web/src/lib/components/inspector/DetailsTab.svelte) (`wikiTitle` field + "view ↗")
+- url builder: [`apps/tree-editor/src/lib/wiki/linkResolver.ts`](../../apps/tree-editor/src/lib/wiki/linkResolver.ts) (`wikiUrlFor(title, baseUrl?)`)
+- compose unit: [`docker-compose.yml`](../../docker-compose.yml) (service `family-tree`, container `attu-tree`, joins network `attu_dev` / `attu_prod`)
+- inspector ui: [`apps/tree-editor/src/lib/components/inspector/PersonalTab.svelte`](../../apps/tree-editor/src/lib/components/inspector/PersonalTab.svelte) (`wikiTitle` field + "view" link)
 
 ---
 
@@ -207,5 +207,5 @@ if/when doom-bot's RAG ingestor (`attubot/wiki/`) starts pulling family-tree sum
 ## metadata
 
 ```yaml
-last_updated: 23 May 2026
+last_updated: 30 June 2026
 ```

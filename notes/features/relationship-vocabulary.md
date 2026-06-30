@@ -6,14 +6,17 @@ reads alongside [`notes/agents.md`](../agents.md) §8.1 (the "permissive schema 
 
 editor-side touch points:
 
-- domain types: [`apps/web/src/lib/domain/types.ts`](../../apps/web/src/lib/domain/types.ts)
-- linking ops: [`apps/web/src/lib/domain/tree.ts`](../../apps/web/src/lib/domain/tree.ts) (`linkParent`, `linkSpouse`, `updateCouple`)
-- validation: [`apps/web/src/lib/domain/validate.ts`](../../apps/web/src/lib/domain/validate.ts)
-- segment vocabulary: [`apps/web/src/lib/layout/edgeRouter.ts`](../../apps/web/src/lib/layout/edgeRouter.ts) (`EdgeKind`, `EdgeRole`, `Segment`)
-- four-pass IR: [`apps/web/src/lib/layout/passes/`](../../apps/web/src/lib/layout/passes/) (`layer.ts`, `order.ts`, `place.ts`, `route.ts`)
-- renderer: [`apps/web/src/lib/components/tree/EdgeLayer.svelte`](../../apps/web/src/lib/components/tree/EdgeLayer.svelte) + [`edgePath.ts`](../../apps/web/src/lib/components/tree/edgePath.ts)
-- hyperbolic engine: [`apps/web/src/lib/layout/engines/hyperbolic-lr/layout.ts`](../../apps/web/src/lib/layout/engines/hyperbolic-lr/layout.ts)
-- inspector ui: [`apps/web/src/lib/components/inspector/PersonalTab.svelte`](../../apps/web/src/lib/components/inspector/PersonalTab.svelte), [`ConnectionsTab.svelte`](../../apps/web/src/lib/components/inspector/ConnectionsTab.svelte)
+- domain types: [`apps/tree-editor/src/lib/domain/types.ts`](../../apps/tree-editor/src/lib/domain/types.ts)
+- linking ops: [`apps/tree-editor/src/lib/domain/tree.ts`](../../apps/tree-editor/src/lib/domain/tree.ts) (`linkParent`, `linkSpouse`, `updateCouple`)
+- validation: [`apps/tree-editor/src/lib/domain/validate.ts`](../../apps/tree-editor/src/lib/domain/validate.ts)
+- segment vocabulary: [`apps/tree-editor/src/lib/layout/edgeRouter.ts`](../../apps/tree-editor/src/lib/layout/edgeRouter.ts) (`EdgeKind`, `EdgeRole`, `Segment`)
+- four-pass IR: [`apps/tree-editor/src/lib/layout/passes/`](../../apps/tree-editor/src/lib/layout/passes/) (`layer.ts`, `order.ts`, `place.ts`, `route.ts`)
+- renderer: [`apps/tree-editor/src/lib/components/tree/EdgeLayer.svelte`](../../apps/tree-editor/src/lib/components/tree/EdgeLayer.svelte) + [`edgePath.ts`](../../apps/tree-editor/src/lib/components/tree/edgePath.ts)
+- hyperbolic engine: [`apps/tree-editor/src/lib/layout/engines/hyperbolic-lr/layout.ts`](../../apps/tree-editor/src/lib/layout/engines/hyperbolic-lr/layout.ts)
+- inspector ui: [`apps/tree-editor/src/lib/components/inspector/PersonalTab.svelte`](../../apps/tree-editor/src/lib/components/inspector/PersonalTab.svelte), [`ConnectionsTab.svelte`](../../apps/tree-editor/src/lib/components/inspector/ConnectionsTab.svelte), [`RelationshipsTab.svelte`](../../apps/tree-editor/src/lib/components/inspector/RelationshipsTab.svelte), [`GroupsTab.svelte`](../../apps/tree-editor/src/lib/components/inspector/GroupsTab.svelte), [`SibshipTab.svelte`](../../apps/tree-editor/src/lib/components/inspector/SibshipTab.svelte)
+- family-view engine (where most of the shipped vocabulary actually renders - not discussed by name elsewhere in this doc): [`apps/tree-editor/src/lib/layout/engines/family-view/`](../../apps/tree-editor/src/lib/layout/engines/family-view/) (`overlays.ts`, `overlayRouter.ts` for A* overlay routing, `sibships.ts`, `groups.ts`, `nPartnerGeometry.ts`, `cardDecorator.ts`, `edgePath.ts`)
+
+> **status (30 June 2026)**: this is the pre-implementation design study; phases 1 through 6b+ described below shipped across schema versions 2.0.0-3.4.0 (see `domain/types.ts`, `domain/tree.ts`). source of truth for the shipped GEDCOM extension tags is [`agents.md`](../agents.md) §8.4 and [`io/gedcom/extensions.ts`](../../apps/tree-editor/src/lib/io/gedcom/extensions.ts). the data-model + domain-op layer (§2.1, §3, §6, §8) shipped close to as proposed. the segment/overlay rendering layer (§2.2-§2.3, §5) shipped too, but mostly under a *different* engine and different type names than proposed here: it landed in the new `family-view` engine (not the `passes/` four-pass IR or `EdgeKind`/`EdgeRole` discussed in §2.2/§5), with its own `OverlayKind` enum (`sworn-bond` / `transformation` / `alias` / `severance`) rather than the proposed `union-manifold` / `multi-parent-drop` / `identity-arc` segment kinds. §9's two-tier compatible/accurate export did **not** ship - `ExportTarget` is still `'gedzip' | 'json'` and the serializer still emits `GEDC/VERS 5.5.1` (with the `_TREES_*` tags + `HEAD.SCHMA` already riding on every export, single-tier). treat §2-§8 below as the original baseline + proposal, not as a description of current behaviour.
 
 ---
 
@@ -88,14 +91,14 @@ once relationships are too dense - polycule co-parenting across three households
 
 ---
 
-## 2. current state of the editor
+## 2. editor state at design time (baseline)
 
-what is already permissive, what is hard-coded, what's an enum-with-unused-members.
+what was already permissive, what was hard-coded, what was an enum-with-unused-members, before phases 1-6b+ shipped (see status note above).
 
 ### 2.1 data model
 
 ```ts
-// apps/web/src/lib/domain/types.ts
+// apps/tree-editor/src/lib/domain/types.ts
 type Gender = "m" | "f" | "u";
 
 interface Person {
@@ -136,7 +139,7 @@ interface CoupleRecord {
 ### 2.2 layout pipeline + segment vocabulary
 
 ```ts
-// apps/web/src/lib/layout/edgeRouter.ts
+// apps/tree-editor/src/lib/layout/edgeRouter.ts
 type EdgeKind = "bond" | "parent-drop" | "sibling-bus" | "child-drop" | "stub";
 type EdgeRole = "blood" | "adopted" | "half" | "married" | "divorced";
 ```
@@ -154,7 +157,7 @@ n-ary union support needs touchpoints in every pass:
 
 ### 2.3 renderer
 
-[`edgePath.ts`](../../apps/web/src/lib/components/tree/edgePath.ts) ships:
+[`edgePath.ts`](../../apps/tree-editor/src/lib/components/tree/edgePath.ts) ships:
 
 - straight bond, quadratic-bezier bundled bond (holten 2006) for long cross-lineage spans.
 - straight vertical drops, bridge-hops (small arcs) at unavoidable perpendicular crossings.
@@ -530,7 +533,7 @@ each entry: **data**, **segment**, **sketch**, **routing**, **scale-out**. sketc
 
 ## 6. schema migration sketch
 
-each bump ships with a `Migration` in [`apps/web/src/lib/domain/schema.ts`](../../apps/web/src/lib/domain/schema.ts) (see [`agents.md`](../agents.md) §8.3). proposed sequence:
+each bump ships with a `Migration` in [`apps/tree-editor/src/lib/domain/schema.ts`](../../apps/tree-editor/src/lib/domain/schema.ts) (see [`agents.md`](../agents.md) §8.3). proposed sequence:
 
 1. **v1 → v2**: `motherId` / `fatherId` → `parentIds: ParentRef[]` where `ParentRef = { personId; role?; pedi? }`. legacy two-slot data converts trivially (mother + father → two entries with `role: 'mother'|'father'`, `pedi: 'birth'`). already queued.
 2. **v2 → v3**: `CoupleRecord` → `UnionRecord { partnerIds: PersonId[]; kind?; closed?; ... }`. legacy `{leftId, rightId}` → `partnerIds: [leftId, rightId]`. already queued.
@@ -545,15 +548,15 @@ each bump has minimal blast radius because the migrations are pure data transfor
 
 ## 7. routing considerations
 
-### 7.1 layered engine ([`passes/`](../../apps/web/src/lib/layout/passes/))
+### 7.1 layered engine ([`passes/`](../../apps/tree-editor/src/lib/layout/passes/))
 
-- **layer.ts**: generalize rank assignment so a child with N parents picks the **highest-rank-1** as its rank; off-rank parents become ghosts on the rank above the child. avoids the current "single parent rank-assignment" defect (see [`bugs.md`](../bugs.md) - 12% of drops have negative height).
+- **layer.ts**: generalize rank assignment so a child with N parents picks the **highest-rank-1** as its rank; off-rank parents become ghosts on the rank above the child. this is a distinct generalization from the 2-parent "12% of drops have negative height" defect, which [`bugs.md`](../bugs.md) records as fixed (14 May 2026, commit `7f12a72`, via a couple-equalisation post-pass in `layer.ts`) - the N-parent case above still needs its own rule.
 - **order.ts**: replace `spouseGroup` 2-element constraint with `unionCluster` of arbitrary size; cluster must remain contiguous along its rank. for N-ary unions where partners span ranks, the constraint loosens to "ghost adjacency" the same way today.
 - **place.ts**: gap policy needs a third tier - `INTRA_UNION` (tight, < DELTA) for closed N-unions, `INTER_UNION_SAME_PARENT` (medium) for open polycules sharing a node, `BRANCH_GAP` (loose) for unrelated. spouse-bar midpoint becomes union-centroid; for non-coplanar unions, centroid is projected onto the highest-rank partner's row.
 - **route.ts**: bond becomes union-manifold; one bus per coplanar partner set, plus L-bonds to off-rank partners (already supported as a pattern for ghost spouses). parent-drop fans out from a parent-gather node at the union centroid. half-sibship bus segmentation runs at the role boundary.
-- **A\* obstacle-avoidance** (queued in [`to-do.md`](../to-do.md)) becomes load-bearing once overlays start crossing the skeleton. each overlay layer routes independently but shares the routing graph (corners of card AABBs + row-gutter alignment lines) so overlay edges hop instead of crossing.
+- **A\* obstacle-avoidance** for the *skeleton* itself is still queued in [`to-do.md`](../to-do.md) - becomes load-bearing once overlays start crossing the skeleton. for *overlays*, this already shipped, just in the family-view engine rather than here: [`engines/family-view/overlayRouter.ts`](../../apps/tree-editor/src/lib/layout/engines/family-view/overlayRouter.ts) runs A* over a card-AABB grid with the exact routing-graph shape sketched below (corners of card AABBs + row-gutter alignment lines), so overlay edges hop instead of crossing.
 
-### 7.2 hyperbolic engine ([`engines/hyperbolic-lr/`](../../apps/web/src/lib/layout/engines/hyperbolic-lr/))
+### 7.2 hyperbolic engine ([`engines/hyperbolic-lr/`](../../apps/tree-editor/src/lib/layout/engines/hyperbolic-lr/))
 
 - wedge allocation already supports irregular sub-wedge widths (see [`hyperbolic-geometry`] skill). **N-ary unions** fit naturally: each partner gets a small wedge, the union centroid is their hyperbolic barycentre, and children fan from the centroid. open polycules without a centroid use the hyperbolic equivalent of force-directed routing.
 - **identity arcs / sworn bonds**: hyperbolic geodesics already, just with a different style.
@@ -579,7 +582,7 @@ storing them as `relationships[]` (v3→v4 above) keeps the skeleton's domain op
 
 ordered by "smallest schema bump → largest payoff":
 
-1. **stroke palette + role-driven rendering** in [`edgePath.ts`](../../apps/web/src/lib/components/tree/edgePath.ts). zero schema change; immediately surfaces the `adopted` / `half` / `divorced` distinctions that are already in the enum but invisible. one-evening change.
+1. **stroke palette + role-driven rendering** in [`edgePath.ts`](../../apps/tree-editor/src/lib/components/tree/edgePath.ts). zero schema change; immediately surfaces the `adopted` / `half` / `divorced` distinctions that are already in the enum but invisible. one-evening change.
 2. **per-role color + dash table** + view-menu toggles for them.
 3. **`parentIds[]` migration** (v1→v2 in [`to-do.md`](../to-do.md)). unlocks multi-parent, donor/surrogate, adoption-vs-bio, sealings.
 4. **multi-parent-drop renderer** (parent gather node). lets the new schema show up on the canvas.
@@ -590,7 +593,7 @@ ordered by "smallest schema bump → largest payoff":
 9. **`Group[]` schema + frame / hull / band renderer**. dynasties, houses, factions.
 10. **consanguinity surfacing** (COI badge, duplicate-ancestor highlighting, double-line consanguineous bonds).
 11. **sibship decorators** (twins, batches).
-12. **A\* obstacle-avoidance router** ([`to-do.md`](../to-do.md) entry). load-bearing once overlays exist.
+12. **A\* obstacle-avoidance router**. shipped for overlays as `engines/family-view/overlayRouter.ts`; the skeleton-routing version remains a [`to-do.md`](../to-do.md) entry.
 
 each of 1-12 stands on its own; nothing must ship together with anything else.
 
@@ -598,7 +601,7 @@ each of 1-12 stands on its own; nothing must ship together with anything else.
 
 ## 9. export tiers - compatible vs accurate `.gdz`
 
-the richer the schema gets (§§3-6), the bigger the gap between "what we can preserve" and "what other tools can read". today there's one export, a single GEDCOM-5.5-ish `.gdz` that loses anything outside the FamilyEcho dialect (see [`io/warnings.ts`](../../apps/web/src/lib/io/warnings.ts) for the current drop set). proposal: two tiers of `.gdz`, sharing the same bundle layout (`gedcom.ged` + `media/<personId>.<ext>` + `manifest.json` per the GEDZIP spec) so the carrier never forks - only the `gedcom.ged` content differs. the future native-JSON export noted in [`agents.md`](../agents.md) §8.2 is deferred from this proposal (dual-payload bundles introduced too many "which side of the archive is authoritative" edge cases for the value they'd add).
+the richer the schema gets (§§3-6), the bigger the gap between "what we can preserve" and "what other tools can read". today there's one export, a single GEDCOM-5.5-ish `.gdz` that loses anything outside the FamilyEcho dialect (see [`io/warnings.ts`](../../apps/tree-editor/src/lib/io/warnings.ts) for the current drop set). proposal: two tiers of `.gdz`, sharing the same bundle layout (`gedcom.ged` + `media/<personId>.<ext>` + `manifest.json` per the GEDZIP spec) so the carrier never forks - only the `gedcom.ged` content differs. the future native-JSON export noted in [`agents.md`](../agents.md) §8.2 is deferred from this proposal (dual-payload bundles introduced too many "which side of the archive is authoritative" edge cases for the value they'd add).
 
 ### 9.1 tier 1: compatible gdz (today's default, evolved to gedcom 7)
 
@@ -630,7 +633,7 @@ lossy degradation table for the new vocabulary:
 | `confidence` / `hidden` per edge | dropped | minor |
 | self-couple, self-parent (time loop), explicit ancestral cycle | **exporter errors out**; no graceful GEDCOM fallback exists | file would be malformed; user redirected to tier 2 |
 
-user picks tier 1 when round-trip through another genealogy tool matters. validator surfaces a dropped-fields banner (already wired via [`io/warnings.ts`](../../apps/web/src/lib/io/warnings.ts) - just needs the new field set) before the download starts.
+user picks tier 1 when round-trip through another genealogy tool matters. validator surfaces a dropped-fields banner (already wired via [`io/warnings.ts`](../../apps/tree-editor/src/lib/io/warnings.ts) - just needs the new field set) before the download starts.
 
 ### 9.2 tier 2: accurate gdz (gedcom 7 + registered extension tags)
 
@@ -668,9 +671,9 @@ file → export menu offers two explicit choices with one-line subtitles:
 - **GEDZIP (compatible)** - "works with Ancestry, MyHeritage, Gramps. Loses fictional details."
 - **GEDZIP (accurate)** - "preserves everything. Other tools see extras as comments." *(default)*
 
-the existing dropped-fields banner runs against both tiers separately ([`fieldsDroppedFor`](../../apps/web/src/lib/io/warnings.ts) gains a per-tier branch); the user sees the diff before downloading.
+the existing dropped-fields banner runs against both tiers separately ([`fieldsDroppedFor`](../../apps/tree-editor/src/lib/io/warnings.ts) gains a per-tier branch); the user sees the diff before downloading.
 
-`ExportTarget` in [`io/warnings.ts`](../../apps/web/src/lib/io/warnings.ts) becomes `'gedzip-compatible' | 'gedzip-accurate'`; existing `'gedzip'` callers map to `'gedzip-compatible'` for back-compat. (the `'json'` target reserved in [`agents.md`](../agents.md) §8.2 stays out of scope here; if it lands later it joins this enum as a third value, no other changes needed.)
+`ExportTarget` in [`io/warnings.ts`](../../apps/tree-editor/src/lib/io/warnings.ts) becomes `'gedzip-compatible' | 'gedzip-accurate'`; existing `'gedzip'` callers map to `'gedzip-compatible'` for back-compat. (the `'json'` target reserved in [`agents.md`](../agents.md) §8.2 stays out of scope here; if it lands later it joins this enum as a third value, no other changes needed.)
 
 ### 9.4 minimum information loss for tier 1 (compatible)
 
@@ -714,5 +717,5 @@ internal:
 
 - [`notes/agents.md`](../agents.md) §8.1 (permissive schema rule), §8.3 (migration runner contract)
 - [`notes/to-do.md`](../to-do.md) - queued schema bumps (`parentIds[]`, `relationships[]`, birthOrder, family naming)
-- [`notes/bugs.md`](../bugs.md) - multi-spouse bond routing defect + negative-drop defect (both load-bearing prerequisites for n-ary union routing)
+- [`notes/bugs.md`](../bugs.md) - multi-spouse bond routing defect (fixed 26 May 2026) + negative-drop defect (fixed 14 May 2026); both were load-bearing prerequisites for n-ary union routing and are now closed
 - [`hyperbolic-geometry`] skill, [`tree-layout-ir`] skill, [`tree-debugger`] skill

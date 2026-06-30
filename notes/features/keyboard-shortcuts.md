@@ -4,6 +4,8 @@ planning notes - figure out the right bindings before wiring any of this up.
 not all of these are implemented or even decided on; the goal here is to pick
 defaults that match what our audience already has muscle memory for.
 
+**status (30 June 2026)**: most of this shipped. `apps/tree-editor/src/lib/shortcuts.ts` is the runtime single-source-of-truth for bindings and cites this doc as its spec; the `?` help overlay recommended in "what to build first" below shipped as `ShortcutsOverlay.svelte` (now in `packages/attu-ui/src/lib/components/help/`), wired through `packages/attu-ui/src/lib/keyboard.ts`. treat this file as the design rationale behind the shipped bindings, not an open proposal - check `shortcuts.ts` for the current authoritative combo list.
+
 ## prior art surveyed
 
 - **family tree maker** - F2 person index, F3 spouses, F4/F5 jump to wife/husband parents, F6 first child, F8/Alt+F8 next/prev sibling. relative-direction navigation, but f-keys are awful muscle memory and we're not on windows.

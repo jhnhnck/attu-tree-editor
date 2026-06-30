@@ -12,6 +12,7 @@ one-time install steps for new contributors. expect ~5 minutes start to finish o
 | pnpm | 10 | install once; see below |
 | python | 3.13 | matches doom-bot; pyenv recommended |
 | uv | 0.11+ | astral installer or `pip install --user uv` |
+| caddy | 2+ | required by `pnpm dev` - fronts tree-editor, wiki-editor, and fastapi on :8000, see `scripts/Caddyfile.dev` |
 | docker | 24+ | optional; only for the backend container |
 
 ---
@@ -38,7 +39,6 @@ cd /srv/services/attu-wiki-dev/devel/FamilyTreeEditor
 
 # javascript side
 pnpm install
-pnpm exec playwright install chromium
 
 # python side
 cd apps/server
@@ -57,16 +57,15 @@ pnpm verify
 
 | command | what it does |
 | :--- | :--- |
-| `pnpm dev` | vite dev server on :5173 with hmr; proxies `/api` -> `:8000` |
-| `pnpm server:dev` | uvicorn with `--reload` on :8000 |
-| `pnpm test:unit` | vitest run (web only) |
-| `pnpm test:unit:watch` | vitest watch mode |
-| `pnpm test:e2e` | playwright (chromium + mobile) |
-| `pnpm server:test` | pytest |
-| `pnpm format` | prettier write |
+| `pnpm dev` | `scripts/dev.zsh`: caddy on :8000 fronting tree-editor (:5173), wiki-editor (:5174), and fastapi (:8001) |
+| `pnpm tree-server:dev` | uvicorn with `--reload` on :8000, standalone (no caddy, no wiki-editor) |
+| `pnpm test:unit` | vitest run (tree-editor only; no e2e layer - the playwright suite was removed) |
+| `pnpm -F tree-editor test:unit:watch` | vitest watch mode |
+| `pnpm tree-server:test` | pytest |
+| `pnpm -F tree-editor format` | prettier write |
 | `pnpm verify` | the ci sweep |
 
-run web and server in two terminals; the vite proxy handles cors during development. for production previews use `pnpm build && pnpm exec vite preview`.
+`pnpm dev` is the normal entry point and starts both SPAs plus the backend behind one caddy port. for production previews use `pnpm build && pnpm -F tree-editor preview`.
 
 ---
 
@@ -91,7 +90,7 @@ four sources, no `.env` at runtime. see [`notes/agents.md`](../agents.md) §4 fo
 
 ```bash
 # 1) point pydantic-settings at a local toml
-TREES_CONFIG_PATH=./trees-config.toml pnpm server:dev
+TREES_CONFIG_PATH=./trees-config.toml pnpm tree-server:dev
 ```
 
 or skip the toml entirely; defaults are dev-friendly (sqlite at `/app/data/attu_tree.db` won't exist, so set `database_url` in a local toml, or override via `TREES_CONFIG_PATH`). when running the spa via `pnpm dev`, vite serves at `/` (no `/trees/` prefix); the linkResolver falls back to the build-time `VITE_WIKI_BASE_URL` env var or the default `https://attuproject.org`.
@@ -103,5 +102,5 @@ never commit `data/trees-config.toml` - it carries `[secrets]`. ask the operator
 ## metadata
 
 ```yaml
-last_updated: 23 May 2026
+last_updated: 30 June 2026
 ```

@@ -82,9 +82,13 @@ supports dark/light via `prefers-color-scheme` and `data-theme="dark"|"light"` o
 | --- | --- |
 | `ZoomWidget` | scale display + zoom controls for a canvas view |
 | `BackButton` | canonical "go back" button for canvas overlays |
-| `CanvasChromeDock` | floating chrome dock for canvas tools |
-| `Window` / `WindowOverlay` | dockable/floating panel system |
-| `DockRegistration` | registers a panel into the dock system |
+| `DockSurface` | mounts floating (popped-out) panels and the active dialog |
+| `DockCorner` | renders the pill row + panels for one corner |
+| `DockEntry` | registration bridge - declares an item into `dockStore` via props |
+| `DockPanel` | floating chrome: titlebar, corner-aware controls, drag-to-move |
+| `DockDialog` | fixed centered dialog with blurred backdrop |
+
+see `notes/features/dock-kit.md` for the full dock/window system (states, store API, registration pattern).
 
 ### help + palette
 
@@ -118,6 +122,7 @@ interface MenuItem {
     disabled?: boolean;
     danger?: boolean;
     checked?: boolean | undefined; // true = filled check, false = outlined box, omit = no indicator
+    submenu?: readonly MenuEntry[]; // flyout submenu - renders a ▶ indicator, opens on hover
 }
 
 type MenuEntry = MenuItem | "divider";
@@ -205,6 +210,9 @@ treeRename: () => shellRef?.startEdit(),
 | `logo` | snippet | — | left-most identity mark (SVG) |
 | `tools` | snippet | — | icon toolbar buttons after menus |
 | `auth` | snippet | — | auth strip (Shell wraps it in `ml-auto`) |
+| `dock` | snippet | — | corner-pinned overlay (pills, dock windows) rendered on top of content |
+| `dockCorner` | `"tl" \| "tr" \| "bl" \| "br"` | `"bl"` | which corner the `dock` snippet anchors to |
+| `toolbar` | snippet | — | full-width toolbar row between the header and content area |
 | `overlays` | snippet | — | `position:fixed` overlays outside the content clip |
 | `children` | snippet | required | main content area |
 
@@ -214,7 +222,7 @@ treeRename: () => shellRef?.startEdit(),
 2. **`tools`** is separated from `MenuBar` by an auto-inserted divider. omit the snippet entirely if there are no tool buttons.
 3. **`auth`** is wrapped in `ml-auto` by Shell — don't add it yourself.
 4. **`overlays`** renders after the content area div (outside `overflow-hidden`) — use for `position:fixed` overlays that must not be clipped.
-5. **`children`** go inside Shell's `<div class="relative min-h-0 flex-1 overflow-hidden">`. use `h-full` on the outermost child.
+5. **`children`** go inside Shell's `<div class="relative flex flex-col min-h-0 flex-1 overflow-hidden">`. use `h-full` on the outermost child.
 6. **icon buttons are `h-7 w-7`** — 28px square, `flex items-center justify-center`, `rounded`, `hover:bg-canvas`. use `size={17} strokeWidth={2.5}` for lucide icons.
 
 ---
@@ -233,5 +241,5 @@ treeRename: () => shellRef?.startEdit(),
 ## metadata
 
 ```yaml
-last_updated: 19 June 2026
+last_updated: 30 June 2026
 ```

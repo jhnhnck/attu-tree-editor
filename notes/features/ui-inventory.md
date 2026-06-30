@@ -1,4 +1,4 @@
-complete map of every user-facing surface, option, and control in the FamilyTreeEditor SPA as of 2026-05-27.
+complete map of every user-facing surface, option, and control in the FamilyTreeEditor SPA as of 2026-06-30.
 
 <!-- toc -->
 
@@ -19,8 +19,7 @@ complete map of every user-facing surface, option, and control in the FamilyTree
     - [tab 3: bonds](#tab-3-bonds)
     - [tab 4: groups](#tab-4-groups)
     - [tab 5: sibship](#tab-5-sibship)
-    - [tab 6: details](#tab-6-details)
-    - [tab 7: bio](#tab-7-bio)
+    - [tab 6: bio](#tab-6-bio)
 - [right-click context menu](#right-click-context-menu)
 - [canvas controls](#canvas-controls)
 - [family-view per-card controls](#family-view-per-card-controls)
@@ -48,20 +47,20 @@ how every persistent and transient surface in the SPA is organized:
 FamilyTreeEditor SPA
 ├── top bar
 │   ├── auth bar
-│   ├── save status pill
 │   └── progress strip
 ├── menu bar (6 dropdowns)
 ├── canvas
 │   ├── zoom widget
 │   ├── right-click menu
 │   └── per-card controls (family view only)
-├── inspector panel (7 tabs)
-├── bottom-left
+├── inspector panel (6 tabs)
+├── dock corner (bottom-left by default, configurable)
+│   ├── save status pill
 │   ├── stats pill (layered only)
 │   ├── debug pill
 │   └── debug panel
 └── transient overlays
-    ├── modals (7)
+    ├── modals (8)
     ├── command palette
     ├── popovers (3)
     └── toasts
@@ -99,7 +98,6 @@ menu bar
 │   ├── select tool
 │   ├── show inspector
 │   ├── layout engine
-│   ├── set default
 │   └── overlays
 ├── insert
 │   ├── add child
@@ -113,15 +111,19 @@ menu bar
 │   ├── reset layout
 │   └── center on root
 └── help
-    └── keyboard shortcuts
+    ├── keyboard shortcuts
+    ├── debug mode
+    └── about
 ```
+
+"set current engine as default" moved off the View menu into settings (layout tab) - see the settings dialog row below.
 
 ---
 
 ## menu bar
 
-source: `apps/web/src/lib/components/shell/MenuBar.svelte`
-commands: `apps/web/src/lib/components/palette/commands.ts`
+source: `packages/attu-ui/src/lib/components/shell/MenuBar.svelte` (shared with wiki-editor)
+commands: `apps/tree-editor/src/lib/components/palette/commands.ts`
 
 ### file
 
@@ -152,7 +154,6 @@ commands: `apps/web/src/lib/components/palette/commands.ts`
 - select tool
 - show inspector
 - layout engine _(radio)_: family view / layered / hyperbolic
-- set current engine as default
 - overlays _(7 toggles)_: path highlight, generation badges, sworn bonds, transformations, severances, group frames, consanguinity
 
 ### insert
@@ -173,26 +174,31 @@ commands: `apps/web/src/lib/components/palette/commands.ts`
 ### help
 
 - keyboard shortcuts
+- debug mode _(toggle)_
+- about…
 
 ---
 
 ## modals / dialogs
 
-| dialog              | source                         | controls                                                                                                                          |
-| ------------------- | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
-| open tree           | `shell/OpenDialog.svelte`      | search field, tree list, preview pane (count / root / sample people), open from url…, delete _(danger)_, cancel, open             |
-| settings            | `shell/SettingsDialog.svelte`  | theme radio (light / dark / auto), inspector side radio (left / right)                                                            |
-| share tree          | `shell/ShareDialog.svelte`     | view link + copy, grants list with per-user revoke, add grant form (discord id, role dropdown editor/viewer, share button), close |
-| admin panel         | `shell/AdminPanel.svelte`      | users table with delete per row _(admin only)_                                                                                    |
-| sign-in (link code) | `shell/LinkCodeDialog.svelte`  | 6-char code, copy button, status display, countdown timer, cancel                                                                 |
-| keyboard shortcuts  | `help/ShortcutsOverlay.svelte` | shortcuts grouped by category, macos vs windows/linux variants, close                                                             |
-| portrait cropper    | `editor/CropperDialog.svelte`  | image preview, drag-to-pan, crop overlay with draggable corners, zoom slider, cancel / save                                       |
+these render as `DockDialog`s registered via `DockEntry kind="dialog"` - see [dock-kit.md](dock-kit.md). all but open tree now live in `packages/attu-ui/src/lib/components/` (shared with wiki-editor where applicable).
+
+| dialog              | source                                          | controls                                                                                                                          |
+| ------------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| open tree           | `apps/tree-editor/…/shell/OpenDialog.svelte`      | search field, tree list, preview pane (count / root / sample people), open from url…, delete _(danger)_, cancel, open             |
+| settings            | `packages/attu-ui/…/shell/SettingsDialog.svelte`  | 3 tabs - appearance (theme radio, dock corner radio), layout (inspector side radio, default engine radio), advanced (smooth diff / crossing minimisation / secondary union toggles) |
+| share tree          | `packages/attu-ui/…/shell/ShareDialog.svelte`     | view link + copy, grants list with per-user revoke, add grant form (discord id, role dropdown editor/viewer, share button), close |
+| admin panel         | `packages/attu-ui/…/shell/AdminPanel.svelte`      | users table with delete per row _(admin only)_                                                                                    |
+| sign-in (link code) | `packages/attu-ui/…/shell/LinkCodeDialog.svelte`  | 6-char code, copy button, status display, countdown timer, cancel                                                                 |
+| about               | `packages/attu-ui/…/shell/AboutDialog.svelte`     | app info, close                                                                                                                    |
+| keyboard shortcuts  | `packages/attu-ui/…/help/ShortcutsOverlay.svelte` | shortcuts grouped by category, macos vs windows/linux variants, close                                                             |
+| portrait cropper    | `packages/attu-ui/…/editor/CropperDialog.svelte`  | image preview, drag-to-pan, crop overlay with draggable corners, zoom slider, cancel / save                                       |
 
 ---
 
 ## command palette
 
-source: `apps/web/src/lib/components/palette/CommandPalette.svelte`
+source: `packages/attu-ui/src/lib/components/palette/CommandPalette.svelte`
 
 two modes:
 
@@ -210,7 +216,7 @@ two modes:
 
 ## inspector panel
 
-source: `apps/web/src/lib/components/inspector/Inspector.svelte`
+source: `apps/tree-editor/src/lib/components/inspector/Inspector.svelte`
 
 **empty state:** tree summary - people count, couples count, root name, last edit time
 
@@ -232,6 +238,9 @@ source: `inspector/PersonalTab.svelte`
 - origin cause _(shown when origin kind is set)_
 - birth date, death date _(haracalnde date pickers)_
 - birth order number
+- occupation, location
+- wiki title with autocomplete dropdown and view link (opens wiki page in new tab)
+- display dropdown: normal / faded _(faded renders dimmed on canvas)_
 
 ### tab 2: connections
 
@@ -240,7 +249,6 @@ source: `inspector/ConnectionsTab.svelte`
 - **parents:** mother row, father row (edit / unlink per row), extra parent rows with pedi dropdown, add parent
 - **unions:** per union - kind radio (romantic / civil / religious / ritual / cohabit / sworn), date, closed flag; per partner - name link, remove, preferred-star toggle; add partner
 - **children:** per child - name link, birth order, remove; add child
-- **trace path to:** button opens person chooser, sets `traceTargetId` for canvas highlight (action currently no-op, see bugs.md)
 
 ### tab 3: bonds
 
@@ -263,15 +271,7 @@ source: `inspector/SibshipTab.svelte`
 - sibship decorator list
 - create and edit controls
 
-### tab 6: details
-
-source: `inspector/DetailsTab.svelte`
-
-- occupation, location
-- wiki title with autocomplete dropdown and view link (opens wiki page in new tab)
-- display dropdown: normal / faded _(faded renders dimmed on canvas)_
-
-### tab 7: bio
+### tab 6: bio
 
 placeholder, not yet implemented
 
@@ -279,7 +279,7 @@ placeholder, not yet implemented
 
 ## right-click context menu
 
-source: `apps/web/src/App.svelte` (menuItems), `apps/web/src/lib/components/ui/ContextMenu.svelte`
+source: `apps/tree-editor/src/App.svelte` (menuItems), `packages/attu-ui/src/lib/components/ui/ContextMenu.svelte`
 
 - edit person _(opens personal tab)_
 - edit connections _(opens connections tab)_
@@ -297,7 +297,7 @@ read-only mode shows only "edit person".
 
 ## canvas controls
 
-source: `apps/web/src/lib/components/canvas/ZoomWidget.svelte`
+source: `packages/attu-ui/src/lib/components/canvas/ZoomWidget.svelte`
 
 ```text
 ┌─────────────────────────────────────────────┐
@@ -317,7 +317,7 @@ source: `apps/web/src/lib/components/canvas/ZoomWidget.svelte`
 
 ## family-view per-card controls
 
-source: `apps/web/src/lib/components/tree/FamilyViewCanvas.svelte`
+source: `apps/tree-editor/src/lib/components/tree/FamilyViewCanvas.svelte`
 
 per-card overlay affordances that appear on cards in family-view mode:
 
@@ -332,7 +332,7 @@ per-card overlay affordances that appear on cards in family-view mode:
 
 ## bottom-left area
 
-source: `apps/web/src/App.svelte`
+source: `apps/tree-editor/src/App.svelte`, registered into the shared dock corner stack (`packages/attu-ui/src/lib/components/dock/`) via `DockEntry` - see [dock-kit.md](dock-kit.md). despite the section name, the corner is configurable (settings > appearance > dock corner) and bottom-left is just the default.
 
 ### stats pill _(layered engine only)_
 
@@ -376,7 +376,7 @@ source: `tree/InstancePopover.svelte`
 
 ### wiki title autocomplete
 
-source: `inspector/DetailsTab.svelte`
+source: `inspector/PersonalTab.svelte`
 
 - appears below wiki title input when typing
 - list of matching wiki pages
@@ -386,17 +386,18 @@ source: `inspector/DetailsTab.svelte`
 
 ## top bar
 
-| component        | source                        | function                                      |
-| ---------------- | ----------------------------- | --------------------------------------------- |
-| auth bar         | `shell/AuthBar.svelte`        | sign in / sign out button                     |
-| save status pill | `shell/SaveStatusPill.svelte` | synced / saving / error indicator             |
-| progress strip   | `shell/ProgressStrip.svelte`  | progress bar for import and export operations |
+| component      | source                                          | function                                      |
+| -------------- | ------------------------------------------------ | --------------------------------------------- |
+| auth bar       | `packages/attu-ui/…/shell/AuthBar.svelte`         | sign in / sign out button                     |
+| progress strip | `packages/attu-ui/…/shell/ProgressStrip.svelte`   | progress bar for import and export operations |
+
+save status pill moved out of the top bar into the dock corner stack (see [bottom-left area](#bottom-left-area)) - it's now a `DockEntry` pill+panel pair, `packages/attu-ui/src/lib/components/dock/SaveStatusPill.svelte`.
 
 ---
 
 ## transient notifications
 
-source: `apps/web/src/lib/components/ui/Toasts.svelte`
+source: `packages/attu-ui/src/lib/components/ui/Toasts.svelte`
 
 - types: info, success, error
 - auto-dismiss, stacked top-right corner
@@ -407,25 +408,26 @@ source: `apps/web/src/lib/components/ui/Toasts.svelte`
 
 | surface           | type           | notable                              |
 | ----------------- | -------------- | ------------------------------------ |
-| menu bar          | 5 dropdowns    | 40+ items with radio + toggle states |
+| menu bar          | 6 dropdowns    | 40+ items with radio + toggle states |
 | command palette   | modal search   | 50+ commands + people, fuzzy         |
 | open tree         | modal          | tree list + preview pane             |
-| settings          | modal          | theme, inspector side                |
+| settings          | modal          | 3 tabs: appearance, layout, advanced |
 | share tree        | modal          | grants management                    |
 | admin panel       | modal          | user table (admin only)              |
 | sign-in           | modal          | discord link code + countdown        |
+| about             | modal          | app info                             |
 | shortcuts         | modal          | reference overlay                    |
 | portrait cropper  | modal          | drag crop + zoom                     |
-| inspector         | side panel     | 7 tabs, 80+ fields                   |
+| inspector         | side panel     | 6 tabs, 80+ fields                   |
 | context menu      | floating       | 8 person actions                     |
 | zoom widget       | canvas toolbar | slider, fit, percent input           |
-| stats pill        | bottom-left    | click to toggle inspector            |
-| debug panel       | bottom-left    | 20+ debug toggles + json dump        |
+| save status pill  | dock corner    | synced / saving / error indicator    |
+| stats pill        | dock corner    | click to toggle inspector            |
+| debug panel       | dock corner    | 20+ debug toggles + json dump        |
 | person chooser    | popover        | fuzzy search + create                |
 | instance popover  | floating       | multi-instance picker                |
 | wiki autocomplete | dropdown       | wiki page suggestions                |
 | auth bar          | top            | sign in / out                        |
-| save status       | top            | sync state                           |
 | progress strip    | top            | operation progress                   |
 | toasts            | overlay        | auto-dismiss notifications           |
 
@@ -436,14 +438,15 @@ source: `apps/web/src/lib/components/ui/Toasts.svelte`
 - [../bugs.md](../bugs.md) - active bug log; UI defects cross-referenced from this inventory live there
 - [../to-do.md](../to-do.md) - feature / polish / UX backlog; planned UI changes land here
 - [keyboard-shortcuts.md](keyboard-shortcuts.md) - canonical shortcut list rendered into the Help > Keyboard shortcuts overlay
+- [dock-kit.md](dock-kit.md) - the shared dock corner/pill/panel/dialog system backing the modals, save status pill, stats pill, and debug panel
 
 ---
 
 ## metadata
 
 ```yaml
-last_updated: 28 May 2026
+last_updated: 30 June 2026
 top_level_surfaces: 12
-inspector_tabs: 7
+inspector_tabs: 6
 menu_bar_dropdowns: 6
 ```
