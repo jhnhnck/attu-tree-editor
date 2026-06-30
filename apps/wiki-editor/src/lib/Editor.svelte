@@ -1,21 +1,41 @@
 <script lang="ts">
     import { onMount, onDestroy } from "svelte";
-    import { EditorView, keymap, drawSelection, dropCursor, rectangularSelection, crosshairCursor, highlightActiveLine, highlightSpecialChars, lineNumbers, scrollPastEnd } from "@codemirror/view";
+    import {
+        EditorView,
+        keymap,
+        drawSelection,
+        dropCursor,
+        rectangularSelection,
+        crosshairCursor,
+        highlightActiveLine,
+        highlightSpecialChars,
+        lineNumbers,
+        scrollPastEnd,
+    } from "@codemirror/view";
     import { EditorState } from "@codemirror/state";
     import { history, historyKeymap, defaultKeymap, undo, redo } from "@codemirror/commands";
     import { bracketMatching, indentOnInput } from "@codemirror/language";
     import { wikitext } from "$lib/lang-wikitext";
-    import { closeBrackets, closeBracketsKeymap, autocompletion, completionKeymap } from "@codemirror/autocomplete";
+    import {
+        closeBrackets,
+        closeBracketsKeymap,
+        autocompletion,
+        completionKeymap,
+    } from "@codemirror/autocomplete";
     import { highlightSelectionMatches, searchKeymap } from "@codemirror/search";
+    import {
+        toggleBold,
+        toggleItalic,
+        toggleBoldItalic,
+        toggleStrikethrough,
+        toggleSuperscript,
+        toggleSubscript,
+        toggleInlineCode,
+        toggleNowiki,
+    } from "$lib/commands";
 
     type ContextType =
-        | "selection"
-        | "wikilink"
-        | "external-link"
-        | "template"
-        | "reference"
-        | "table"
-        | "image";
+        "selection" | "wikilink" | "external-link" | "template" | "reference" | "table" | "image";
 
     interface Props {
         line?: number;
@@ -145,6 +165,11 @@
         highlightSelectionMatches(),
         indentOnInput(),
         keymap.of([
+            { key: "Mod-b", run: toggleBold },
+            { key: "Mod-i", run: toggleItalic },
+            { key: "Mod-.", run: toggleSuperscript },
+            { key: "Mod-,", run: toggleSubscript },
+            { key: "Mod-`", run: toggleInlineCode },
             ...defaultKeymap,
             ...historyKeymap,
             ...closeBracketsKeymap,
@@ -162,23 +187,29 @@
         EditorState.transactionFilter.of((tr) => {
             if (!tr.isUserEvent("input.paste")) return tr;
             let from: number | null = null;
-            tr.changes.iterChanges((fromA) => { if (from === null) from = fromA; });
+            tr.changes.iterChanges((fromA) => {
+                if (from === null) from = fromA;
+            });
             if (from === null) return tr;
             return [tr, { selection: { anchor: from }, scrollIntoView: true }];
         }),
         EditorView.domEventHandlers({
-            mousedown() { isDragging = true; return false; },
+            mousedown() {
+                isDragging = true;
+                return false;
+            },
             mouseup(_, view) {
                 isDragging = false;
                 onselectionchange?.(!view.state.selection.main.empty);
                 return false;
             },
             wheel(event, view) {
-                if (event.deltaMode === 0) return false;  // trackpad pixels: native is fine
+                if (event.deltaMode === 0) return false; // trackpad pixels: native is fine
                 event.preventDefault();
                 let dy = event.deltaY;
-                if (event.deltaMode === 1) dy *= 20;       // lines → px (firefox wheel)
-                else if (event.deltaMode === 2) dy *= 400;  // pages → px
+                if (event.deltaMode === 1)
+                    dy *= 20; // lines → px (firefox wheel)
+                else if (event.deltaMode === 2) dy *= 400; // pages → px
                 view.scrollDOM.scrollTop += dy * 0.35;
                 return true;
             },
@@ -230,6 +261,38 @@
         const coords = view.coordsAtPos(sel.head);
         if (!coords) return null;
         return { x: coords.left, y: coords.top };
+    }
+
+    export function applyBold(): void {
+        if (view) toggleBold(view);
+    }
+
+    export function applyItalic(): void {
+        if (view) toggleItalic(view);
+    }
+
+    export function applyBoldItalic(): void {
+        if (view) toggleBoldItalic(view);
+    }
+
+    export function applyStrikethrough(): void {
+        if (view) toggleStrikethrough(view);
+    }
+
+    export function applySuperscript(): void {
+        if (view) toggleSuperscript(view);
+    }
+
+    export function applySubscript(): void {
+        if (view) toggleSubscript(view);
+    }
+
+    export function applyInlineCode(): void {
+        if (view) toggleInlineCode(view);
+    }
+
+    export function applyNowiki(): void {
+        if (view) toggleNowiki(view);
     }
 </script>
 

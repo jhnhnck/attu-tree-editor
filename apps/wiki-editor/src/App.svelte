@@ -61,13 +61,21 @@
 
     let { title: pageTitle }: { title: string } = $props();
 
-    let editor:
-        | {
-              undoEdit: () => void;
-              redoEdit: () => void;
-              getCursorCoords: () => { x: number; y: number } | null;
-          }
-        | undefined;
+    let editor: EditorBinding | undefined = $state();
+
+    interface EditorBinding {
+        undoEdit: () => void;
+        redoEdit: () => void;
+        getCursorCoords: () => { x: number; y: number } | null;
+        applyBold: () => void;
+        applyItalic: () => void;
+        applyBoldItalic: () => void;
+        applyStrikethrough: () => void;
+        applySuperscript: () => void;
+        applySubscript: () => void;
+        applyInlineCode: () => void;
+        applyNowiki: () => void;
+    }
 
     let selectionCoords = $state<{ x: number; y: number } | null>(null);
     let hasSelection = $state(false);
@@ -78,13 +86,7 @@
     }
 
     type ContextType =
-        | "selection"
-        | "wikilink"
-        | "external-link"
-        | "template"
-        | "reference"
-        | "table"
-        | "image";
+        "selection" | "wikilink" | "external-link" | "template" | "reference" | "table" | "image";
 
     let contextMenu = $state<{ type: ContextType; x: number; y: number } | null>(null);
 
@@ -337,17 +339,46 @@
         {
             label: "format",
             items: [
-                { label: "bold", icon: Bold, shortcut: "Ctrl+B", onclick: () => {} },
-                { label: "italic", icon: Italic, shortcut: "Ctrl+I", onclick: () => {} },
-                { label: "bold + italic", onclick: () => {} },
+                {
+                    label: "bold",
+                    icon: Bold,
+                    shortcut: "Ctrl+B",
+                    onclick: () => editor?.applyBold(),
+                },
+                {
+                    label: "italic",
+                    icon: Italic,
+                    shortcut: "Ctrl+I",
+                    onclick: () => editor?.applyItalic(),
+                },
+                { label: "bold + italic", onclick: () => editor?.applyBoldItalic() },
                 "divider",
-                { label: "strikethrough", icon: Strikethrough, onclick: () => {} },
-                { label: "superscript", icon: Superscript, shortcut: "Ctrl+.", onclick: () => {} },
-                { label: "subscript", icon: Subscript, shortcut: "Ctrl+,", onclick: () => {} },
+                {
+                    label: "strikethrough",
+                    icon: Strikethrough,
+                    onclick: () => editor?.applyStrikethrough(),
+                },
+                {
+                    label: "superscript",
+                    icon: Superscript,
+                    shortcut: "Ctrl+.",
+                    onclick: () => editor?.applySuperscript(),
+                },
+                {
+                    label: "subscript",
+                    icon: Subscript,
+                    shortcut: "Ctrl+,",
+                    onclick: () => editor?.applySubscript(),
+                },
                 "divider",
-                { label: "inline code", icon: Code, shortcut: "Ctrl+`", onclick: () => {} },
+                {
+                    label: "inline code",
+                    icon: Code,
+                    shortcut: "Ctrl+`",
+                    onclick: () => editor?.applyInlineCode(),
+                },
                 { label: "computer block", onclick: () => {} },
-                { label: "nowiki span", onclick: () => {} },
+                { label: "nowiki span", onclick: () => editor?.applyNowiki() },
                 "divider",
                 { label: "remove markup", onclick: () => {} },
             ],
@@ -440,7 +471,7 @@
         <BookOpen size={18} strokeWidth={2} class="text-accent shrink-0" />
     {/snippet}
     {#snippet toolbar()}
-        <Toolbar />
+        <Toolbar {editor} />
     {/snippet}
     {#snippet overlays()}
         <SelectionBar coords={selectionCoords} />

@@ -41,17 +41,33 @@
         "block quote",
     ] as const;
 
+    interface EditorBinding {
+        applyBold: () => void;
+        applyItalic: () => void;
+        applyStrikethrough: () => void;
+        applySuperscript: () => void;
+        applySubscript: () => void;
+        applyInlineCode: () => void;
+        applyNowiki: () => void;
+    }
+
+    interface Props {
+        editor?: EditorBinding | undefined;
+    }
+
+    let { editor }: Props = $props();
+
     let styleOpen = $state(false);
     let overflowOpen = $state(false);
     let currentStyle = $state<string>("paragraph");
 </script>
 
-{#snippet btn(Icon: Component, title: string)}
+{#snippet btn(Icon: Component, title: string, onclick: () => void = () => {})}
     <button
         type="button"
         class="flex h-7 w-7 shrink-0 items-center justify-center rounded text-fg hover:bg-canvas"
         {title}
-        onclick={() => {}}
+        {onclick}
     >
         <Icon size={15} strokeWidth={2} />
     </button>
@@ -109,10 +125,10 @@
     {@render divider()}
 
     <!-- character -->
-    {@render btn(Bold, "Bold (Ctrl+B)")}
-    {@render btn(Italic, "Italic (Ctrl+I)")}
-    {@render btn(Strikethrough, "Strikethrough")}
-    {@render btn(Code, "Inline code (Ctrl+`)")}
+    {@render btn(Bold, "Bold (Ctrl+B)", () => editor?.applyBold())}
+    {@render btn(Italic, "Italic (Ctrl+I)", () => editor?.applyItalic())}
+    {@render btn(Strikethrough, "Strikethrough", () => editor?.applyStrikethrough())}
+    {@render btn(Code, "Inline code (Ctrl+`)", () => editor?.applyInlineCode())}
     {@render divider()}
 
     <!-- links -->
@@ -171,21 +187,28 @@
             <div
                 class="absolute right-0 top-full z-50 mt-1 rounded border border-line bg-canvas-elev py-1 shadow-lg"
             >
-                {#snippet omenuitem(Icon: Component, label: string)}
+                {#snippet omenuitem(
+                    Icon: Component,
+                    label: string,
+                    onAction: () => void = () => {},
+                )}
                     <button
                         type="button"
                         class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-fg hover:bg-canvas"
                         onclick={() => {
                             overflowOpen = false;
+                            onAction();
                         }}
                     >
                         <Icon size={13} strokeWidth={2} />
                         {label}
                     </button>
                 {/snippet}
-                {@render omenuitem(Superscript, "Superscript (Ctrl+.)")}
-                {@render omenuitem(Subscript, "Subscript (Ctrl+,)")}
-                {@render omenuitem(Braces, "Nowiki wrap")}
+                {@render omenuitem(Superscript, "Superscript (Ctrl+.)", () =>
+                    editor?.applySuperscript(),
+                )}
+                {@render omenuitem(Subscript, "Subscript (Ctrl+,)", () => editor?.applySubscript())}
+                {@render omenuitem(Braces, "Nowiki wrap", () => editor?.applyNowiki())}
                 {@render omenuitem(PenLine, "Signature")}
                 {@render omenuitem(Quote, "Template")}
                 {@render omenuitem(LayoutGrid, "Gallery")}
