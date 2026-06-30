@@ -22,12 +22,12 @@
     }
     let { prefs }: Props = $props();
 
-    type Tab = "appearance" | "editor" | "autosave" | "preview";
+    type Tab = "appearance" | "editor" | "drafts" | "preview";
 
     const TABS: { id: Tab; label: string }[] = [
         { id: "appearance", label: "appearance" },
         { id: "editor", label: "editor" },
-        { id: "autosave", label: "autosave" },
+        { id: "drafts", label: "drafts" },
         { id: "preview", label: "preview" },
     ];
 
@@ -61,11 +61,9 @@
         "Dracula",
         "Solarized Dark",
     ] as const;
-    const AUTOSAVE_INTERVALS = ["30 seconds", "1 minute", "2 minutes", "5 minutes"] as const;
     const AUTOSAVE_STORAGE = ["Browser storage", "Session only"] as const;
     const PREVIEW_MODES = ["Editor only", "Side-by-side", "Preview only"] as const;
     const PREVIEW_TRIGGERS = ["On save", "On typing (delay)", "Manual"] as const;
-    const PREVIEW_THEMES = ["Match site theme", "Light", "Dark"] as const;
 </script>
 
 <div class="min-w-80">
@@ -223,22 +221,14 @@
             {@render selectRow("syntax theme", "color scheme for wikitext syntax highlighting", SYNTAX_THEMES, prefs.syntaxTheme, (v) =>
                 prefs.setSyntaxTheme(v))}
         </fieldset>
-    {:else if tab === "autosave"}
+    {:else if tab === "drafts"}
         <fieldset>
-            <legend class="text-fg-muted mb-1.5 text-[11px] uppercase tracking-wider">autosave</legend>
-            {@render toggleRow("enable autosave", "periodically save editor content to storage", prefs.autosaveEnabled, () =>
+            <legend class="text-fg-muted mb-1.5 text-[11px] uppercase tracking-wider">drafts</legend>
+            {@render toggleRow("enable draft saving", "save editor content to browser storage while you work", prefs.autosaveEnabled, () =>
                 prefs.setAutosaveEnabled(!prefs.autosaveEnabled))}
             {@render selectRow(
-                "interval",
-                "how often the editor content is saved",
-                AUTOSAVE_INTERVALS,
-                prefs.autosaveInterval,
-                (v) => prefs.setAutosaveInterval(v),
-                !prefs.autosaveEnabled,
-            )}
-            {@render selectRow(
                 "storage",
-                "where saves are kept; session only = cleared on tab close",
+                "where drafts are kept; session only = cleared on tab close",
                 AUTOSAVE_STORAGE,
                 prefs.autosaveStorage,
                 (v) => prefs.setAutosaveStorage(v),
@@ -252,8 +242,6 @@
                 prefs.setPreviewMode(v))}
             {@render selectRow("update trigger", "when the preview refreshes after changes", PREVIEW_TRIGGERS, prefs.previewTrigger, (v) =>
                 prefs.setPreviewTrigger(v))}
-            {@render selectRow("preview theme", "color scheme for the rendered preview", PREVIEW_THEMES, prefs.previewTheme, (v) =>
-                prefs.setPreviewTheme(v))}
         </fieldset>
     {/if}
 </div>
