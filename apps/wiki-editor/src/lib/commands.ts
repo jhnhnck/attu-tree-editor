@@ -299,3 +299,51 @@ export const clearBlockMarkup: Command = (view) => {
     view.dispatch(state.update(tr));
     return true;
 };
+
+// --- phase 2: link commands ---
+
+// wikilink-with-display first, then plain wikilink, then the remaining inline
+// tokens - order matters: the 5-quote run must go before 3/2-quote so a
+// bold+italic span doesn't leave a stray '' or ''' behind
+const REMOVE_MARKUP_PATTERNS: ReadonlyArray<readonly [RegExp, string]> = [
+    [/\[\[([^|\]]+)\|([^\]]+)\]\]/g, "$2"],
+    [/\[\[([^\]]+)\]\]/g, "$1"],
+    [/'''''/g, ""],
+    [/'''/g, ""],
+    [/''/g, ""],
+    [/\{\{/g, ""],
+    [/\}\}/g, ""],
+    [/<ref[^>]*>/g, ""],
+    [/<\/ref>/g, ""],
+];
+
+function stripMarkup(text: string): string {
+    return REMOVE_MARKUP_PATTERNS.reduce(
+        (acc, [re, replacement]) => acc.replace(re, replacement),
+        text,
+    );
+}
+
+export const removeMarkup: Command = (view) => {
+    const { state } = view;
+    const tr = state.changeByRange((range) => {
+        if (range.empty) return { range };
+        const text = state.sliceDoc(range.from, range.to);
+        const newText = stripMarkup(text);
+        if (newText === text) return { range };
+        return {
+            changes: { from: range.from, to: range.to, insert: newText },
+            range: EditorSelection.range(range.from, range.from + newText.length),
+        };
+    });
+    view.dispatch(state.update(tr));
+    return true;
+};
+
+export function buildWikilinkText(target: string, display: string): string {
+    return display && display !== target ? `[[${target}|${display}]]` : `[[${target}]]`;
+}
+
+export function buildExternalLinkText(url: string, label: string): string {
+    return label ? `[${url} ${label}]` : url;
+}

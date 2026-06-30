@@ -61,9 +61,10 @@
 
     interface Props {
         editor?: EditorBinding | undefined;
+        onopenlinkpopover?: (kind: "wikilink" | "external-link") => void;
     }
 
-    let { editor }: Props = $props();
+    let { editor, onopenlinkpopover }: Props = $props();
 
     let styleOpen = $state(false);
     let overflowOpen = $state(false);
@@ -149,8 +150,10 @@
     {@render divider()}
 
     <!-- links -->
-    {@render btn(Link2, "Wikilink (Ctrl+K)")}
-    {@render btn(ExternalLink, "External link (Ctrl+Shift+K)")}
+    {@render btn(Link2, "Wikilink (Ctrl+K)", () => onopenlinkpopover?.("wikilink"))}
+    {@render btn(ExternalLink, "External link (Ctrl+Shift+K)", () =>
+        onopenlinkpopover?.("external-link"),
+    )}
     {@render divider()}
 
     <!-- lists -->

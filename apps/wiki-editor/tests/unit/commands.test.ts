@@ -18,6 +18,9 @@ import {
     insertHorizontalRule,
     insertPreformatted,
     clearBlockMarkup,
+    removeMarkup,
+    buildWikilinkText,
+    buildExternalLinkText,
 } from "$lib/commands";
 
 // headless EditorView - no `parent`, so no DOM attach is needed for dispatch to work
@@ -308,5 +311,62 @@ describe("clearBlockMarkup", () => {
         const view = viewWithSelection("plain text", 3, 3);
         clearBlockMarkup(view);
         expect(view.state.doc.toString()).toBe("plain text");
+    });
+});
+
+describe("removeMarkup", () => {
+    it("converts a wikilink with display text to the display text", () => {
+        const doc = "see [[Page|the page]] for details";
+        const view = viewWithSelection(doc, 4, 22);
+        removeMarkup(view);
+        expect(view.state.doc.toString()).toBe("see the page for details");
+    });
+
+    it("converts a plain wikilink to the link target", () => {
+        const doc = "see [[Page]] for details";
+        const view = viewWithSelection(doc, 4, 12);
+        removeMarkup(view);
+        expect(view.state.doc.toString()).toBe("see Page for details");
+    });
+
+    it("strips bold, italic, and bold+italic quote runs", () => {
+        const doc = "'''bold''' and ''italic'' and '''''both'''''";
+        const view = viewWithSelection(doc, 0, doc.length);
+        removeMarkup(view);
+        expect(view.state.doc.toString()).toBe("bold and italic and both");
+    });
+
+    it("strips template braces and ref tags", () => {
+        const doc = "{{cite}} text <ref>note</ref>";
+        const view = viewWithSelection(doc, 0, doc.length);
+        removeMarkup(view);
+        expect(view.state.doc.toString()).toBe("cite text note");
+    });
+
+    it("is a no-op when nothing is selected", () => {
+        const view = viewWithSelection("'''bold'''", 3, 3);
+        removeMarkup(view);
+        expect(view.state.doc.toString()).toBe("'''bold'''");
+    });
+});
+
+describe("buildWikilinkText / buildExternalLinkText", () => {
+    it("wikilink with a display text different from the target uses the pipe form", () => {
+        expect(buildWikilinkText("Page", "the page")).toBe("[[Page|the page]]");
+    });
+
+    it("wikilink with no display text or matching display text uses the plain form", () => {
+        expect(buildWikilinkText("Page", "")).toBe("[[Page]]");
+        expect(buildWikilinkText("Page", "Page")).toBe("[[Page]]");
+    });
+
+    it("external link with a label wraps both in brackets", () => {
+        expect(buildExternalLinkText("https://example.com", "Example")).toBe(
+            "[https://example.com Example]",
+        );
+    });
+
+    it("external link with no label is the bare url", () => {
+        expect(buildExternalLinkText("https://example.com", "")).toBe("https://example.com");
     });
 });

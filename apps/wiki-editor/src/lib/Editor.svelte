@@ -40,10 +40,15 @@
         insertHorizontalRule,
         insertPreformatted,
         clearBlockMarkup,
+        removeMarkup,
+        buildWikilinkText,
+        buildExternalLinkText,
     } from "$lib/commands";
 
     type ContextType =
         "selection" | "wikilink" | "external-link" | "template" | "reference" | "table" | "image";
+
+    type LinkPopoverKind = "wikilink" | "external-link";
 
     interface Props {
         line?: number;
@@ -51,6 +56,7 @@
         selectionLength?: number;
         onselectionchange?: (hasSelection: boolean) => void;
         oncontextmenu?: (ctx: { type: ContextType; x: number; y: number }) => void;
+        onopenlinkpopover?: (kind: LinkPopoverKind) => void;
     }
 
     let {
@@ -59,6 +65,7 @@
         selectionLength = $bindable(0),
         onselectionchange,
         oncontextmenu,
+        onopenlinkpopover,
     }: Props = $props();
 
     let editorEl: HTMLDivElement;
@@ -184,6 +191,20 @@
             { key: "Mod-5", run: setHeading(5) },
             { key: "Mod-6", run: setHeading(6) },
             { key: "Tab", run: indent, shift: outdent },
+            {
+                key: "Mod-k",
+                run: () => {
+                    onopenlinkpopover?.("wikilink");
+                    return true;
+                },
+            },
+            {
+                key: "Mod-Shift-k",
+                run: () => {
+                    onopenlinkpopover?.("external-link");
+                    return true;
+                },
+            },
             ...defaultKeymap,
             ...historyKeymap,
             ...closeBracketsKeymap,
@@ -271,7 +292,6 @@
     export function getCursorCoords(): { x: number; y: number } | null {
         if (!view) return null;
         const sel = view.state.selection.main;
-        if (sel.empty) return null;
         const coords = view.coordsAtPos(sel.head);
         if (!coords) return null;
         return { x: coords.left, y: coords.top };
@@ -343,6 +363,53 @@
 
     export function applyClearBlockMarkup(): void {
         if (view) clearBlockMarkup(view);
+    }
+
+    export function applyRemoveMarkup(): void {
+        if (view) removeMarkup(view);
+    }
+
+    export function getLinkPopoverContext(): {
+        x: number;
+        y: number;
+        from: number;
+        to: number;
+        initialText: string;
+    } | null {
+        if (!view) return null;
+        const sel = view.state.selection.main;
+        const coords = getCursorCoords();
+        if (!coords) return null;
+        return {
+            x: coords.x,
+            y: coords.y,
+            from: sel.from,
+            to: sel.to,
+            initialText: sel.empty ? "" : view.state.sliceDoc(sel.from, sel.to),
+        };
+    }
+
+    export function insertWikilink(
+        from: number,
+        to: number,
+        target: string,
+        display: string,
+    ): void {
+        if (!view) return;
+        const text = buildWikilinkText(target, display);
+        view.dispatch({
+            changes: { from, to, insert: text },
+            selection: { anchor: from + text.length },
+        });
+    }
+
+    export function insertExternalLink(from: number, to: number, url: string, label: string): void {
+        if (!view) return;
+        const text = buildExternalLinkText(url, label);
+        view.dispatch({
+            changes: { from, to, insert: text },
+            selection: { anchor: from + text.length },
+        });
     }
 </script>
 

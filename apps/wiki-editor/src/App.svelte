@@ -55,6 +55,7 @@
     import Editor from "./lib/Editor.svelte";
     import Toolbar from "./lib/Toolbar.svelte";
     import SelectionBar from "./lib/SelectionBar.svelte";
+    import LinkPopover from "./lib/LinkPopover.svelte";
     import SettingsModal from "./lib/SettingsModal.svelte";
     import ShortcutsOverlay from "./lib/ShortcutsOverlay.svelte";
     import { createWikiPreferencesStore, type Theme as WikiTheme, type DockCorner as WikiDockCorner } from "./lib/state/preferences.svelte.js";
@@ -66,6 +67,7 @@
     interface EditorBinding {
         undoEdit: () => void;
         redoEdit: () => void;
+        focus: () => void;
         getCursorCoords: () => { x: number; y: number } | null;
         applyBold: () => void;
         applyItalic: () => void;
@@ -84,6 +86,16 @@
         applyHorizontalRule: () => void;
         applyPreformatted: () => void;
         applyClearBlockMarkup: () => void;
+        applyRemoveMarkup: () => void;
+        getLinkPopoverContext: () => {
+            x: number;
+            y: number;
+            from: number;
+            to: number;
+            initialText: string;
+        } | null;
+        insertWikilink: (from: number, to: number, target: string, display: string) => void;
+        insertExternalLink: (from: number, to: number, url: string, label: string) => void;
     }
 
     let selectionCoords = $state<{ x: number; y: number } | null>(null);
@@ -92,6 +104,41 @@
     function handleSelectionChange(hasSelection_: boolean) {
         hasSelection = hasSelection_;
         selectionCoords = hasSelection_ && editor ? editor.getCursorCoords() : null;
+    }
+
+    type LinkPopoverState = {
+        kind: "wikilink" | "external-link";
+        x: number;
+        y: number;
+        from: number;
+        to: number;
+        initialText: string;
+    };
+
+    let linkPopover = $state<LinkPopoverState | null>(null);
+
+    function openLinkPopover(kind: "wikilink" | "external-link"): void {
+        const ctx = editor?.getLinkPopoverContext();
+        if (!ctx) return;
+        linkPopover = { kind, ...ctx };
+    }
+
+    function confirmLinkPopover(primary: string, secondary: string): void {
+        if (!linkPopover || !editor) return;
+        if (primary.trim()) {
+            if (linkPopover.kind === "wikilink") {
+                editor.insertWikilink(linkPopover.from, linkPopover.to, primary, secondary);
+            } else {
+                editor.insertExternalLink(linkPopover.from, linkPopover.to, primary, secondary);
+            }
+        }
+        linkPopover = null;
+        editor.focus();
+    }
+
+    function cancelLinkPopover(): void {
+        linkPopover = null;
+        editor?.focus();
     }
 
     type ContextType =
@@ -267,12 +314,17 @@
             label: "insert",
             items: [
                 // links — most common wiki insert action
-                { label: "wikilink…", icon: Link2, shortcut: "Ctrl+K", onclick: () => {} },
+                {
+                    label: "wikilink…",
+                    icon: Link2,
+                    shortcut: "Ctrl+K",
+                    onclick: () => openLinkPopover("wikilink"),
+                },
                 {
                     label: "external link…",
                     icon: ExternalLink,
                     shortcut: "Ctrl+Shift+K",
-                    onclick: () => {},
+                    onclick: () => openLinkPopover("external-link"),
                 },
                 "divider",
                 // headings — H2 and H3 cover 90% of article structure
@@ -401,7 +453,7 @@
                 { label: "computer block", onclick: () => {} },
                 { label: "nowiki span", onclick: () => editor?.applyNowiki() },
                 "divider",
-                { label: "remove markup", onclick: () => {} },
+                { label: "remove markup", onclick: () => editor?.applyRemoveMarkup() },
             ],
         },
         {
@@ -492,16 +544,26 @@
         <BookOpen size={18} strokeWidth={2} class="text-accent shrink-0" />
     {/snippet}
     {#snippet toolbar()}
-        <Toolbar {editor} />
+        <Toolbar {editor} onopenlinkpopover={openLinkPopover} />
     {/snippet}
     {#snippet overlays()}
-        <SelectionBar coords={selectionCoords} />
+        <SelectionBar coords={selectionCoords} {editor} onopenlinkpopover={openLinkPopover} />
         {#if contextMenu}
             <ContextMenu
                 x={contextMenu.x}
                 y={contextMenu.y}
                 items={contextMenuItems}
                 onclose={() => (contextMenu = null)}
+            />
+        {/if}
+        {#if linkPopover}
+            <LinkPopover
+                kind={linkPopover.kind}
+                x={linkPopover.x}
+                y={linkPopover.y}
+                initialPrimary={linkPopover.initialText}
+                onconfirm={confirmLinkPopover}
+                oncancel={cancelLinkPopover}
             />
         {/if}
         <DockSurface />
@@ -513,6 +575,7 @@
             bind:this={editor}
             onselectionchange={handleSelectionChange}
             oncontextmenu={handleContextMenu}
+            onopenlinkpopover={openLinkPopover}
         />
 
         <!-- dock corner renders all registered pills and windows -->
