@@ -84,11 +84,12 @@
 
     .modal-panel {
         position: fixed;
-        inset: 0;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
         z-index: 51;
         display: flex;
         flex-direction: column;
-        margin: auto;
         width: max-content;
         max-width: min(36rem, calc(100vw - 2rem));
         max-height: calc(100vh - 4rem);
