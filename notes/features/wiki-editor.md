@@ -32,8 +32,10 @@ apps/wiki-editor/src/
 └── lib/
     ├── index.ts                 # public exports (Editor, Toolbar, SelectionBar, SettingsModal, ShortcutsOverlay)
     ├── Editor.svelte             # CodeMirror 6 wikitext editor
-    ├── Toolbar.svelte            # formatting toolbar above the editor
-    ├── SelectionBar.svelte       # floating action bar on text selection
+    ├── Toolbar.svelte            # formatting toolbar above the editor - functional, see "format commands" below
+    ├── SelectionBar.svelte       # floating action bar on text selection - functional, see "format commands" below
+    ├── LinkPopover.svelte        # inline target/display-text or url/label form for wikilink + external-link insertion
+    ├── commands.ts                # CodeMirror Command functions for every format/insert action (bold, headings, lists, links, etc.)
     ├── SettingsModal.svelte      # 4-tab preferences dialog (mounted as DockDialog)
     ├── ShortcutsOverlay.svelte   # keyboard shortcuts dialog (DockDialog)
     ├── shortcuts.ts              # shortcut list rendered by ShortcutsOverlay
@@ -59,11 +61,20 @@ imports from `@attu/ui`:
 - `ContextMenu` - right-click context menu primitive
 
 reactive state in App.svelte:
-- `editor` - object exposing `undoEdit()`, `redoEdit()`, `getCursorCoords()`
+- `editor` - `$state()`-backed object exposing `undoEdit()`, `redoEdit()`, `getCursorCoords()`, `focus()`, plus an `apply*()` method per format/block command in `commands.ts` (`applyBold`, `applyHeading(level)`, `applyIndent`, etc.), `applyRemoveMarkup()`, `getLinkPopoverContext()`, `insertWikilink(...)`, `insertExternalLink(...)`. must be `$state()`, not a plain `let` - it's bound via `bind:this` on `<Editor>` and threaded into `Toolbar`/`SelectionBar` as a prop, which needs reactive propagation to pick up the post-mount value
 - `selectionCoords` - `{x, y} | null`; updated by `handleSelectionChange()`
 - `hasSelection` - boolean derived from selection state
+- `linkPopover` - `{kind, x, y, from, to, initialText} | null`; set by `openLinkPopover()`, renders `<LinkPopover>` when non-null
 
 the editor instance is passed down to `Toolbar` and `SelectionBar` via props; `SelectionBar` positions itself at `selectionCoords`.
+
+## format commands
+
+`commands.ts` exports one CodeMirror `Command` (or `Command`-returning factory) per action - inline character wraps (bold/italic/strikethrough/superscript/subscript/inline-code/nowiki, with quote-count-aware bold+italic overlap handling), block structure (headings, lists, indent/outdent, blockquote, horizontal rule, preformatted, clear-markup), and link/markup-removal commands (`removeMarkup`, `buildWikilinkText`, `buildExternalLinkText`). `Editor.svelte` wraps each in an `apply*()` method and binds the matching keyboard shortcut (`Ctrl+B/I/./,/\``, `Ctrl+2..6`, `Tab`/`Shift+Tab`, `Ctrl+K`/`Ctrl+Shift+K`) directly in its CodeMirror keymap.
+
+every command is wired on at least the `Toolbar` and the `format`/`insert` menus in `App.svelte`; `Bold`/`Italic`/`Wikilink`/`External link`/`Remove markup` are also wired on `SelectionBar` (its other buttons - strikethrough, code, toggle comment, nowiki, superscript, subscript - remain stubs, as does the right-click context menu's "selection" item set; neither surface was in scope for the commands work).
+
+wikilink and external-link insertion go through `LinkPopover.svelte`: an inline form (two inputs + confirm/cancel) positioned at the cursor via `Editor.getCursorCoords()` and clamped into the viewport, following the same `role="presentation"`/`role="dialog"` + imperative-focus convention as `DockDialog.svelte`. Escape cancels without inserting; Enter or the insert button commits `[[target|display]]` / `[url label]` via `Editor.insertWikilink()` / `insertExternalLink()`.
 
 `App.svelte` also owns `prefs`, a `createWikiPreferencesStore()` instance (`lib/state/preferences.svelte.ts`); it's hydrated from localStorage on mount and passed to `SettingsModal`.
 
