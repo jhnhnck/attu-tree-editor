@@ -10,6 +10,14 @@ import {
     toggleSubscript,
     toggleInlineCode,
     toggleNowiki,
+    setHeading,
+    insertListItem,
+    indent,
+    outdent,
+    insertBlockquote,
+    insertHorizontalRule,
+    insertPreformatted,
+    clearBlockMarkup,
 } from "$lib/commands";
 
 // headless EditorView - no `parent`, so no DOM attach is needed for dispatch to work
@@ -150,5 +158,155 @@ describe("tag-based toggles", () => {
         const view = viewWithSelection("hello world", 7, 7);
         toggleInlineCode(view);
         expect(view.state.doc.toString()).toBe("hello <code>world</code>");
+    });
+});
+
+describe("setHeading", () => {
+    it("wraps a plain line in the given heading level", () => {
+        const view = viewWithSelection("Title", 2, 2);
+        setHeading(2)(view);
+        expect(view.state.doc.toString()).toBe("== Title ==");
+    });
+
+    it("strips the heading when the line already has that level", () => {
+        const view = viewWithSelection("== Title ==", 5, 5);
+        setHeading(2)(view);
+        expect(view.state.doc.toString()).toBe("Title");
+    });
+
+    it("replaces the level when the line has a different heading level", () => {
+        const view = viewWithSelection("== Title ==", 5, 5);
+        setHeading(3)(view);
+        expect(view.state.doc.toString()).toBe("=== Title ===");
+    });
+});
+
+describe("insertListItem", () => {
+    it("prepends the bullet marker", () => {
+        const view = viewWithSelection("item", 0, 0);
+        insertListItem("*")(view);
+        expect(view.state.doc.toString()).toBe("* item");
+    });
+
+    it("prepends the numbered marker", () => {
+        const view = viewWithSelection("item", 0, 0);
+        insertListItem("#")(view);
+        expect(view.state.doc.toString()).toBe("# item");
+    });
+
+    it("removes the marker when already present (toggle)", () => {
+        const view = viewWithSelection("* item", 3, 3);
+        insertListItem("*")(view);
+        expect(view.state.doc.toString()).toBe("item");
+    });
+});
+
+describe("indent / outdent", () => {
+    it("indent adds a ':' marker to a plain line", () => {
+        const view = viewWithSelection("item", 0, 0);
+        indent(view);
+        expect(view.state.doc.toString()).toBe(":item");
+    });
+
+    it("indent extends an existing bullet marker by one level", () => {
+        const view = viewWithSelection("* item", 3, 3);
+        indent(view);
+        expect(view.state.doc.toString()).toBe("** item");
+    });
+
+    it("indent extends an existing numbered marker by one level", () => {
+        const view = viewWithSelection("# item", 3, 3);
+        indent(view);
+        expect(view.state.doc.toString()).toBe("## item");
+    });
+
+    it("indent shifts the cursor to stay on the same character, not just clamp", () => {
+        // cursor sits between 'i' and 't' in "* i|tem"
+        const view = viewWithSelection("* item", 3, 3);
+        indent(view);
+        // after indent the same boundary is one position further right: "** i|tem"
+        expect(view.state.selection.main.head).toBe(4);
+    });
+
+    it("outdent removes one level from a nested marker", () => {
+        const view = viewWithSelection("** item", 4, 4);
+        outdent(view);
+        expect(view.state.doc.toString()).toBe("* item");
+    });
+
+    it("outdent fully removes a single-level marker, dropping the orphan space", () => {
+        const view = viewWithSelection("* item", 3, 3);
+        outdent(view);
+        expect(view.state.doc.toString()).toBe("item");
+    });
+
+    it("outdent on a plain line is a no-op", () => {
+        const view = viewWithSelection("item", 0, 0);
+        outdent(view);
+        expect(view.state.doc.toString()).toBe("item");
+    });
+});
+
+describe("insertBlockquote", () => {
+    it("prefixes the current line when nothing is selected", () => {
+        const view = viewWithSelection("item", 0, 0);
+        insertBlockquote(view);
+        expect(view.state.doc.toString()).toBe(": item");
+    });
+
+    it("prefixes every line spanned by a multi-line selection", () => {
+        const doc = "line1\nline2";
+        const view = viewWithSelection(doc, 0, doc.length);
+        insertBlockquote(view);
+        expect(view.state.doc.toString()).toBe(": line1\n: line2");
+    });
+});
+
+describe("insertHorizontalRule", () => {
+    it("inserts a horizontal rule at the cursor", () => {
+        const view = viewWithSelection("before after", 6, 6);
+        insertHorizontalRule(view);
+        expect(view.state.doc.toString()).toBe("before\n----\n after");
+    });
+});
+
+describe("insertPreformatted", () => {
+    it("prefixes the current line with a space for a single-line selection", () => {
+        const view = viewWithSelection("item", 0, 0);
+        insertPreformatted(view);
+        expect(view.state.doc.toString()).toBe(" item");
+    });
+
+    it("wraps a multi-line selection in <pre>...</pre>", () => {
+        const doc = "line1\nline2";
+        const view = viewWithSelection(doc, 0, doc.length);
+        insertPreformatted(view);
+        expect(view.state.doc.toString()).toBe("<pre>line1\nline2</pre>");
+    });
+});
+
+describe("clearBlockMarkup", () => {
+    it("strips heading markup", () => {
+        const view = viewWithSelection("== Title ==", 5, 5);
+        clearBlockMarkup(view);
+        expect(view.state.doc.toString()).toBe("Title");
+    });
+
+    it("strips a list marker", () => {
+        const view = viewWithSelection("* item", 3, 3);
+        clearBlockMarkup(view);
+        expect(view.state.doc.toString()).toBe("item");
+    });
+
+    it("strips a nested list marker run in one pass", () => {
+        const view = viewWithSelection("**# item", 5, 5);
+        clearBlockMarkup(view);
+        expect(view.state.doc.toString()).toBe("item");
+    });
+
+    it("leaves a plain line unchanged", () => {
+        const view = viewWithSelection("plain text", 3, 3);
+        clearBlockMarkup(view);
+        expect(view.state.doc.toString()).toBe("plain text");
     });
 });

@@ -75,6 +75,15 @@
         applySubscript: () => void;
         applyInlineCode: () => void;
         applyNowiki: () => void;
+        applyHeading: (level: 2 | 3 | 4 | 5 | 6) => void;
+        applyBulletList: () => void;
+        applyNumberedList: () => void;
+        applyIndent: () => void;
+        applyOutdent: () => void;
+        applyBlockquote: () => void;
+        applyHorizontalRule: () => void;
+        applyPreformatted: () => void;
+        applyClearBlockMarkup: () => void;
     }
 
     let selectionCoords = $state<{ x: number; y: number } | null>(null);
@@ -267,31 +276,43 @@
                 },
                 "divider",
                 // headings — H2 and H3 cover 90% of article structure
-                { label: "heading 2", onclick: () => {} },
-                { label: "heading 3", onclick: () => {} },
+                { label: "heading 2", onclick: () => editor?.applyHeading(2) },
+                { label: "heading 3", onclick: () => editor?.applyHeading(3) },
                 {
                     label: "more headings",
                     submenu: [
-                        { label: "heading 4", onclick: () => {} },
-                        { label: "heading 5", onclick: () => {} },
-                        { label: "heading 6", onclick: () => {} },
+                        { label: "heading 4", onclick: () => editor?.applyHeading(4) },
+                        { label: "heading 5", onclick: () => editor?.applyHeading(5) },
+                        { label: "heading 6", onclick: () => editor?.applyHeading(6) },
                         "divider",
-                        { label: "horizontal rule", onclick: () => {} },
-                        { label: "block quote", onclick: () => {} },
-                        { label: "preformatted block", onclick: () => {} },
+                        { label: "horizontal rule", onclick: () => editor?.applyHorizontalRule() },
+                        { label: "block quote", onclick: () => editor?.applyBlockquote() },
+                        { label: "preformatted block", onclick: () => editor?.applyPreformatted() },
                     ],
                 },
                 "divider",
                 // lists
-                { label: "bullet list item", icon: List, onclick: () => {} },
-                { label: "numbered list item", icon: ListOrdered, onclick: () => {} },
+                { label: "bullet list item", icon: List, onclick: () => editor?.applyBulletList() },
+                {
+                    label: "numbered list item",
+                    icon: ListOrdered,
+                    onclick: () => editor?.applyNumberedList(),
+                },
                 {
                     label: "more lists",
                     submenu: [
                         { label: "definition term / definition", onclick: () => {} },
                         "divider",
-                        { label: "increase indent", icon: Indent, onclick: () => {} },
-                        { label: "decrease indent", icon: Outdent, onclick: () => {} },
+                        {
+                            label: "increase indent",
+                            icon: Indent,
+                            onclick: () => editor?.applyIndent(),
+                        },
+                        {
+                            label: "decrease indent",
+                            icon: Outdent,
+                            onclick: () => editor?.applyOutdent(),
+                        },
                     ],
                 },
                 "divider",

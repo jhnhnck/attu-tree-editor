@@ -32,6 +32,14 @@
         toggleSubscript,
         toggleInlineCode,
         toggleNowiki,
+        setHeading,
+        insertListItem,
+        indent,
+        outdent,
+        insertBlockquote,
+        insertHorizontalRule,
+        insertPreformatted,
+        clearBlockMarkup,
     } from "$lib/commands";
 
     type ContextType =
@@ -170,6 +178,12 @@
             { key: "Mod-.", run: toggleSuperscript },
             { key: "Mod-,", run: toggleSubscript },
             { key: "Mod-`", run: toggleInlineCode },
+            { key: "Mod-2", run: setHeading(2) },
+            { key: "Mod-3", run: setHeading(3) },
+            { key: "Mod-4", run: setHeading(4) },
+            { key: "Mod-5", run: setHeading(5) },
+            { key: "Mod-6", run: setHeading(6) },
+            { key: "Tab", run: indent, shift: outdent },
             ...defaultKeymap,
             ...historyKeymap,
             ...closeBracketsKeymap,
@@ -293,6 +307,42 @@
 
     export function applyNowiki(): void {
         if (view) toggleNowiki(view);
+    }
+
+    export function applyHeading(level: 2 | 3 | 4 | 5 | 6): void {
+        if (view) setHeading(level)(view);
+    }
+
+    export function applyBulletList(): void {
+        if (view) insertListItem("*")(view);
+    }
+
+    export function applyNumberedList(): void {
+        if (view) insertListItem("#")(view);
+    }
+
+    export function applyIndent(): void {
+        if (view) indent(view);
+    }
+
+    export function applyOutdent(): void {
+        if (view) outdent(view);
+    }
+
+    export function applyBlockquote(): void {
+        if (view) insertBlockquote(view);
+    }
+
+    export function applyHorizontalRule(): void {
+        if (view) insertHorizontalRule(view);
+    }
+
+    export function applyPreformatted(): void {
+        if (view) insertPreformatted(view);
+    }
+
+    export function applyClearBlockMarkup(): void {
+        if (view) clearBlockMarkup(view);
     }
 </script>
 

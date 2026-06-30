@@ -49,6 +49,14 @@
         applySubscript: () => void;
         applyInlineCode: () => void;
         applyNowiki: () => void;
+        applyHeading: (level: 2 | 3 | 4 | 5 | 6) => void;
+        applyBulletList: () => void;
+        applyNumberedList: () => void;
+        applyIndent: () => void;
+        applyOutdent: () => void;
+        applyBlockquote: () => void;
+        applyPreformatted: () => void;
+        applyClearBlockMarkup: () => void;
     }
 
     interface Props {
@@ -60,6 +68,14 @@
     let styleOpen = $state(false);
     let overflowOpen = $state(false);
     let currentStyle = $state<string>("paragraph");
+
+    function applyParagraphStyle(style: (typeof PARAGRAPH_STYLES)[number]): void {
+        if (!editor) return;
+        if (style === "paragraph") editor.applyClearBlockMarkup();
+        else if (style === "preformatted") editor.applyPreformatted();
+        else if (style === "block quote") editor.applyBlockquote();
+        else editor.applyHeading(Number(style.slice("heading ".length)) as 2 | 3 | 4 | 5 | 6);
+    }
 </script>
 
 {#snippet btn(Icon: Component, title: string, onclick: () => void = () => {})}
@@ -114,6 +130,7 @@
                         onclick={() => {
                             currentStyle = style;
                             styleOpen = false;
+                            applyParagraphStyle(style);
                         }}
                     >
                         {style}
@@ -137,10 +154,10 @@
     {@render divider()}
 
     <!-- lists -->
-    {@render btn(List, "Bullet list")}
-    {@render btn(ListOrdered, "Numbered list")}
-    {@render btn(Indent, "Increase indent")}
-    {@render btn(Outdent, "Decrease indent")}
+    {@render btn(List, "Bullet list", () => editor?.applyBulletList())}
+    {@render btn(ListOrdered, "Numbered list", () => editor?.applyNumberedList())}
+    {@render btn(Indent, "Increase indent", () => editor?.applyIndent())}
+    {@render btn(Outdent, "Decrease indent", () => editor?.applyOutdent())}
     {@render divider()}
 
     <!-- insert -->
