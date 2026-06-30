@@ -74,6 +74,7 @@
 - :o: `high priority` `high effort` field-level merge on autosave conflict (currently last-write-wins via revision check; needs per-field diff + merge for concurrent edits to different people)
 - :o: `low priority` `low effort` document the deployment-time invariant that `cors_origins` must be an explicit allowlist (never wildcard) when `allow_credentials=True`; add a startup assertion in `main.py` if we want it enforced
 - :o: `future idea` `medium effort` real-time multi-user collaboration via websocket
+- :o: `low priority` `low effort` `packages/api-client` `onUnauthorized(handler)` has no clear/unset API - sets module-level state for the lifetime of the module instance, so a later test in the same file can still see an earlier test's stale handler. low severity in production (registered once at startup); fix by accepting `undefined` to clear, or adding a `clearOnUnauthorized()` helper. 🎯 carried in from plan: attu-packages-test-coverage
 
 ### wiki integration
 
@@ -121,6 +122,12 @@ tracked gaps in the FamilyScript spec the parser does not yet model. each line i
 - :o: `low priority` `low effort` `lang-wikitext` mismatched heading marks (`== Heading ===`) have no unit test - the closing `===` is consumed as content and degrades gracefully, just unverified. 🎯 carried in from plan: wiki-editor-syntax (B06)
 - :o: `low priority` `low effort` `lang-wikitext` heading-content tokenizer builds a `new RegExp(...)` on every `token()` call instead of hoisting it - negligible at heading scale, noted for a future perf pass. 🎯 carried in from plan: wiki-editor-syntax (B07)
 - :o: `low priority` `no effort` two multi-line comment blocks in `lang-wikitext/index.ts` (above `boldItalicTag` and `WikitextState`) exceed the one-short-line-max comment style rule - trim next time the file is touched. 🎯 carried in from plan: wiki-editor-syntax (B04)
+- :o: `medium priority` `low effort` `App.svelte`'s hand-written `editor: { undoEdit; redoEdit; getCursorCoords }` interface has drifted from `Editor.svelte`'s actual exported surface - `Editor.svelte` now also exports `getContent()`, `setContent()`, and `focus()`, none of which are reflected in the App.svelte type. switch to a derived/exported type from `Editor.svelte` instead of hand-maintaining the shape. 🎯 carried in from plan: wiki-editor-ui-chrome
+- :o: `low priority` `low effort` `ContextType` union is defined independently in both `Editor.svelte` and `App.svelte` - will drift if the type changes; extract to a shared lib file. 🎯 carried in from plan: wiki-editor-ui-chrome
+- :o: `low priority` `low effort` `DockDialog` (shared `@attu/ui` component, used by both apps) doesn't restore focus to the triggering element on close - real focus management was deferred when this was still wiki-editor's stub `SettingsModal`. 🎯 carried in from plan: wiki-editor-ui-chrome
+- :o: `low priority` `low effort` `DockDialog` (shared `@attu/ui` component) uses `role="dialog"` on a `<div>` rather than a native `<dialog>` element, with Escape handled via a `svelte:window` listener - acceptable for now; converting would need layout rework for the full-screen overlay case. 🎯 carried in from plan: wiki-editor-ui-chrome
+- :o: `low priority` `low effort` `Editor.svelte` reference/image detection regex is single-line only (`<ref>...</ref>` must be on one line; `[[File:...]]` is a simple match) - multi-line refs or nested brackets aren't detected. stub-quality by original plan spec. 🎯 carried in from plan: wiki-editor-ui-chrome
+- :o: `medium priority` `medium effort` wiki-editor has no e2e test harness - `apps/wiki-editor/tests/` contains only `unit/`. deferred to `wiki-editor-build-pipeline` or a standalone testing plan. 🎯 carried in from plan: wiki-editor-ui-chrome
 
 ### housekeeping
 
@@ -218,5 +225,5 @@ items are grouped first by view if specific to one, then by component. within ea
 ```yaml
 last_updated: 30 Jun 2026
 total_completed: 27
-notes: 5 wiki-editor entries migrated in from wiki-editor-syntax plan during pre-merge (30 Jun 2026)
+notes: 5 wiki-editor entries migrated in from wiki-editor-syntax plan during pre-merge (30 Jun 2026); 7 more (1 backend+sync+security, 6 wiki-editor) migrated in from attu-packages-test-coverage and wiki-editor-ui-chrome during a backfill audit of pre-existing archived plans (30 Jun 2026)
 ```

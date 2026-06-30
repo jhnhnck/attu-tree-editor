@@ -46,6 +46,7 @@
 
 ### wiki-editor
 
+- :o: `low priority` `low effort` `SelectionBar` overlaps the toolbar when the selected text is on the first visible editor line (`coords.y` lands near the toolbar bottom) - cosmetic only, no positioning/collision guard yet. 🎯 carried in from plan: wiki-editor-ui-chrome
 - :o: `low priority` `low effort` `lang-wikitext` external-link opening bracket `[` gets the URL token color instead of the muted bracket color (`extLinkBracket` is only emitted for the closing `]`) - inconsistent with how wikilink brackets are styled. fix alongside the image/file link token design revisit. 🎯 carried in from plan: wiki-editor-syntax (B01)
 - :o: `low priority` `low effort` `lang-wikitext` table captions (`tableCap`) render in monospace - mapped to `tags.meta`, which inherits the `pre` rule's `fontFamily: var(--font-mono)`. fix by splitting `pre` onto a custom tag or giving `tableCap` its own tag. 🎯 carried in from plan: wiki-editor-syntax (B08)
 - :o: `medium priority` `medium effort` `lang-wikitext` `inTable` parser state is never reset in `blankLine()` - a missed `|}` close leaves `state.inTable = true` for the rest of the document, so any later stray `|` gets highlighted as a table separator. degrades gracefully (dim, non-destructive misstyling) but is a real state leak. 🎯 carried in from plan: wiki-editor-syntax (B10)
@@ -165,5 +166,5 @@ items are grouped first by view if specific to one (family-view, tree-view, hype
 ```yaml
 last_updated: 30 Jun 2026
 total_fixed: 51
-notes: recomputeAfterCollapse+expandedSecondaryUnions fix (28 May 2026) absorbed into the adjacent-finding note on the "also show alongside" open entry; no standalone fixed entry added; 4 wiki-editor entries migrated in from wiki-editor-syntax and wiki-editor-theme plans during pre-merge (30 Jun 2026)
+notes: recomputeAfterCollapse+expandedSecondaryUnions fix (28 May 2026) absorbed into the adjacent-finding note on the "also show alongside" open entry; no standalone fixed entry added; 4 wiki-editor entries migrated in from wiki-editor-syntax and wiki-editor-theme plans during pre-merge (30 Jun 2026); 1 more migrated in from wiki-editor-ui-chrome during a backfill audit of pre-existing archived plans (30 Jun 2026)
 ```
