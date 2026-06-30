@@ -57,7 +57,7 @@
     import SelectionBar from "./lib/SelectionBar.svelte";
     import SettingsModal from "./lib/SettingsModal.svelte";
     import ShortcutsOverlay from "./lib/ShortcutsOverlay.svelte";
-    import { createWikiPreferencesStore } from "./lib/state/preferences.js";
+    import { createWikiPreferencesStore } from "./lib/state/preferences.svelte.js";
 
     let { title: pageTitle }: { title: string } = $props();
 

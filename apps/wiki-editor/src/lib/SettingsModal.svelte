@@ -12,7 +12,7 @@
         CornerDownLeft,
         CornerDownRight,
     } from "@lucide/svelte";
-    import type { WikiPreferencesStore, Theme, DockCorner } from "./state/preferences.js";
+    import type { WikiPreferencesStore, Theme, DockCorner } from "./state/preferences.svelte.js";
 
     interface Props {
         prefs: WikiPreferencesStore;
