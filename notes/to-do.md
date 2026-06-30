@@ -128,6 +128,7 @@ tracked gaps in the FamilyScript spec the parser does not yet model. each line i
 - :o: `low priority` `low effort` `DockDialog` (shared `@attu/ui` component) uses `role="dialog"` on a `<div>` rather than a native `<dialog>` element, with Escape handled via a `svelte:window` listener - acceptable for now; converting would need layout rework for the full-screen overlay case. 🎯 carried in from plan: wiki-editor-ui-chrome
 - :o: `low priority` `low effort` `Editor.svelte` reference/image detection regex is single-line only (`<ref>...</ref>` must be on one line; `[[File:...]]` is a simple match) - multi-line refs or nested brackets aren't detected. stub-quality by original plan spec. 🎯 carried in from plan: wiki-editor-ui-chrome
 - :o: `medium priority` `medium effort` wiki-editor has no e2e test harness - `apps/wiki-editor/tests/` contains only `unit/`. deferred to `wiki-editor-build-pipeline` or a standalone testing plan. 🎯 carried in from plan: wiki-editor-ui-chrome
+- :o: `low priority` `medium effort` right-click context menu's "selection" type items (bold / italic / wikilink… / wrap in nowiki) and `SelectionBar`'s Strikethrough/Code/Toggle-comment/Nowiki-wrap/Superscript/Subscript buttons remain stub-only - the format-commands work wired Toolbar, the Format/Insert menus, and SelectionBar's Bold/Italic/Wikilink/External-link/Remove-markup, but neither the context menu nor the rest of SelectionBar was named in any phase's DoD. same underlying commands already exist (`commands.ts`); this is pure wiring. the two surfaces pair naturally as one small follow-up plan. 🎯 carried in from plan: wiki-editor-format-commands
 
 ### housekeeping
 
@@ -225,5 +226,5 @@ items are grouped first by view if specific to one, then by component. within ea
 ```yaml
 last_updated: 30 Jun 2026
 total_completed: 27
-notes: 5 wiki-editor entries migrated in from wiki-editor-syntax plan during pre-merge (30 Jun 2026); 7 more (1 backend+sync+security, 6 wiki-editor) migrated in from attu-packages-test-coverage and wiki-editor-ui-chrome during a backfill audit of pre-existing archived plans (30 Jun 2026)
+notes: 5 wiki-editor entries migrated in from wiki-editor-syntax plan during pre-merge (30 Jun 2026); 7 more (1 backend+sync+security, 6 wiki-editor) migrated in from attu-packages-test-coverage and wiki-editor-ui-chrome during a backfill audit of pre-existing archived plans (30 Jun 2026); 1 more migrated in from wiki-editor-format-commands during pre-merge (30 Jun 2026)
 ```
