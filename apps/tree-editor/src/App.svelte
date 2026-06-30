@@ -137,7 +137,7 @@
     } from "@attu/ui";
     import { saveStatusGlyph, type SaveStatus } from "$lib/components/shell/saveStatusGlyph";
     import { createPortraitUrlCache } from "$lib/state/portraitUrls.svelte";
-    import { createPreferencesStore } from "$lib/state/preferences.svelte";
+    import { createPreferencesStore, type Theme, type InspectorSide } from "$lib/state/preferences.svelte";
     import { makeAutosaver } from "$lib/state/autosave";
     import { syncStore } from "$lib/state/sync.svelte";
     import { onUnauthorized, trees as treesApi } from "$lib/api/client";
@@ -618,6 +618,43 @@
     // changes persist immediately.
     let selectedEngine = $state<EngineKind>(DEFAULT_ENGINE);
     let defaultEngine = $state<EngineKind>(readDefaultEngine());
+
+    // snapshot/revert for settings dialog discard
+    type SettingsSnapshot = {
+        corner: "bl" | "tl" | "tr" | "br";
+        defaultEngine: EngineKind;
+        smoothDiff: boolean;
+        crossingMin: boolean;
+        secondaryUnion: boolean;
+        theme: Theme;
+        inspectorSide: InspectorSide;
+    };
+    let settingsSnapshot = $state<SettingsSnapshot | null>(null);
+
+    function snapshotSettings(): void {
+        settingsSnapshot = {
+            corner,
+            defaultEngine,
+            smoothDiff: smoothDiffEnabled,
+            crossingMin: crossingMinEnabled,
+            secondaryUnion: secondaryUnionEnabled,
+            theme: prefs.theme,
+            inspectorSide: prefs.inspectorSide,
+        };
+    }
+
+    function revertSettings(): void {
+        const s = settingsSnapshot;
+        if (!s) return;
+        corner = s.corner;
+        defaultEngine = s.defaultEngine;
+        smoothDiffEnabled = s.smoothDiff;
+        crossingMinEnabled = s.crossingMin;
+        secondaryUnionEnabled = s.secondaryUnion;
+        prefs.setTheme(s.theme);
+        prefs.setInspectorSide(s.inspectorSide);
+        settingsSnapshot = null;
+    }
 
     // stats pill mounts in the bottom-left chrome bar whenever the active
     // engine emits onlayoutstats (layered + family-view today; hyperbolic
@@ -2976,7 +3013,11 @@
             <!-- dialog registrations: DockSurface renders these when dockStore.activeDialog matches -->
 
             {#snippet settingsModalRender(_ctx: { forcedCollapse: boolean })}
-                <DockDialog id="settings" title="Settings">
+                <DockDialog id="settings" title="Settings"
+                    onopen={snapshotSettings}
+                    onsave={() => { settingsSnapshot = null; }}
+                    ondiscard={revertSettings}
+                >
                     {#snippet children()}
                         <SettingsDialog
                             {prefs}

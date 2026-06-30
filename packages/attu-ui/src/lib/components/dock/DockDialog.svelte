@@ -7,7 +7,7 @@
 -->
 <script lang="ts">
     import type { Snippet } from "svelte";
-    import { X } from "@lucide/svelte";
+    import { X, Check } from "@lucide/svelte";
     import { dockStore } from "./store.svelte.js";
 
     interface Props {
@@ -16,9 +16,11 @@
         size?: "md" | "lg";
         children?: Snippet;
         onopen?: () => void;
+        onsave?: () => void;
+        ondiscard?: () => void;
     }
 
-    let { id, title, size = "md", children, onopen }: Props = $props();
+    let { id, title, size = "md", children, onopen, onsave, ondiscard }: Props = $props();
 
     function close(): void {
         dockStore.closeDialog();
@@ -57,13 +59,24 @@
 >
     <div class="modal-header">
         <span class="text-xs text-fg-muted lowercase">{title ?? id}</span>
-        <button
-            type="button"
-            class="fte-window-control fte-window-control-close"
-            data-dialog-control
-            aria-label="close"
-            onclick={close}
-        ><X size={10} strokeWidth={2.5} /></button>
+        <div class="flex items-center gap-1">
+            {#if onsave}
+                <button
+                    type="button"
+                    class="fte-window-control fte-window-control-confirm"
+                    data-dialog-control
+                    aria-label="save"
+                    onclick={() => { onsave?.(); close(); }}
+                ><Check size={10} strokeWidth={2.5} /></button>
+            {/if}
+            <button
+                type="button"
+                class="fte-window-control fte-window-control-close"
+                data-dialog-control
+                aria-label="close"
+                onclick={() => { ondiscard?.(); close(); }}
+            ><X size={10} strokeWidth={2.5} /></button>
+        </div>
     </div>
     {#if children}
         <div class="modal-body">

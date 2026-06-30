@@ -64,6 +64,7 @@
     const PREVIEW_THEMES = ["Match site theme", "Light", "Dark"] as const;
 </script>
 
+<div class="min-w-80">
 <!-- tab bar -->
 <div class="-mx-3 -mt-3 mb-4 flex shrink-0 border-b border-line px-2">
     {#each TABS as t (t.id)}
@@ -157,7 +158,7 @@
 {/snippet}
 
 <!-- content area -->
-<div class="min-h-0 overflow-y-auto">
+<div class="h-56 overflow-y-auto">
     {#if tab === "appearance"}
         {@render iconRadio("theme", THEME_OPTIONS, prefs.theme, (v) =>
             prefs.setTheme(v as Theme))}
@@ -228,4 +229,5 @@
                 prefs.setPreviewTheme(v))}
         </fieldset>
     {/if}
+</div>
 </div>

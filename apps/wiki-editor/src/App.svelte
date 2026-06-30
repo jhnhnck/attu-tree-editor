@@ -57,7 +57,7 @@
     import SelectionBar from "./lib/SelectionBar.svelte";
     import SettingsModal from "./lib/SettingsModal.svelte";
     import ShortcutsOverlay from "./lib/ShortcutsOverlay.svelte";
-    import { createWikiPreferencesStore } from "./lib/state/preferences.svelte.js";
+    import { createWikiPreferencesStore, type Theme as WikiTheme, type DockCorner as WikiDockCorner } from "./lib/state/preferences.svelte.js";
 
     let { title: pageTitle }: { title: string } = $props();
 
@@ -169,6 +169,48 @@
     const prefs = createWikiPreferencesStore();
     prefs.hydrate();
     const corner = $derived(prefs.corner);
+
+    // snapshot/revert for settings dialog discard
+    type WikiSettingsSnapshot = {
+        theme: WikiTheme; corner: WikiDockCorner;
+        fontFamily: string; fontSize: string; tabSize: string; syntaxTheme: string;
+        lineWrap: boolean; lineNumbers: boolean; minimap: boolean;
+        bracketMatching: boolean; trimTrailingWhitespace: boolean;
+        autosaveEnabled: boolean; autosaveInterval: string; autosaveStorage: string;
+        previewMode: string; previewTrigger: string; previewTheme: string;
+    };
+    let wikiSettingsSnapshot = $state<WikiSettingsSnapshot | null>(null);
+
+    function snapshotWikiSettings(): void {
+        wikiSettingsSnapshot = {
+            theme: prefs.theme, corner: prefs.corner,
+            fontFamily: prefs.fontFamily, fontSize: prefs.fontSize,
+            tabSize: prefs.tabSize, syntaxTheme: prefs.syntaxTheme,
+            lineWrap: prefs.lineWrap, lineNumbers: prefs.lineNumbers,
+            minimap: prefs.minimap, bracketMatching: prefs.bracketMatching,
+            trimTrailingWhitespace: prefs.trimTrailingWhitespace,
+            autosaveEnabled: prefs.autosaveEnabled, autosaveInterval: prefs.autosaveInterval,
+            autosaveStorage: prefs.autosaveStorage, previewMode: prefs.previewMode,
+            previewTrigger: prefs.previewTrigger, previewTheme: prefs.previewTheme,
+        };
+    }
+
+    function revertWikiSettings(): void {
+        const s = wikiSettingsSnapshot;
+        if (!s) return;
+        prefs.setTheme(s.theme); prefs.setCorner(s.corner);
+        prefs.setFontFamily(s.fontFamily); prefs.setFontSize(s.fontSize);
+        prefs.setTabSize(s.tabSize); prefs.setSyntaxTheme(s.syntaxTheme);
+        prefs.setLineWrap(s.lineWrap); prefs.setLineNumbers(s.lineNumbers);
+        prefs.setMinimap(s.minimap); prefs.setBracketMatching(s.bracketMatching);
+        prefs.setTrimTrailingWhitespace(s.trimTrailingWhitespace);
+        prefs.setAutosaveEnabled(s.autosaveEnabled);
+        prefs.setAutosaveInterval(s.autosaveInterval);
+        prefs.setAutosaveStorage(s.autosaveStorage);
+        prefs.setPreviewMode(s.previewMode); prefs.setPreviewTrigger(s.previewTrigger);
+        prefs.setPreviewTheme(s.previewTheme);
+        wikiSettingsSnapshot = null;
+    }
 
     const menus: MenuConfig[] = [
         {
@@ -446,7 +488,11 @@
 
         <!-- modal: preferences -->
         {#snippet settingsModalRender(_ctx: import("@attu/ui").DockRenderCtx)}
-            <DockDialog id="settings" title="Preferences" size="lg">
+            <DockDialog id="settings" title="Preferences" size="lg"
+                onopen={snapshotWikiSettings}
+                onsave={() => { wikiSettingsSnapshot = null; }}
+                ondiscard={revertWikiSettings}
+            >
                 {#snippet children()}
                     <SettingsModal {prefs} />
                 {/snippet}
