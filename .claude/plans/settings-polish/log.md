@@ -37,3 +37,17 @@ No unexpected issues. The `last:border-0` Tailwind modifier on `toggleRow`/`sele
 ## revision after phase 1
 
 No plan changes. Next: phase 2 (wiki-editor content corrections).
+
+## starting phase 2 — 2026-06-30
+
+worktree: `.claude/worktrees/settings-polish/` · branch: `phase/settings-polish/2`
+
+**DoD:** "Drafts" tab visible; no Interval row; Preview tab has no "preview theme" row; typecheck clean.
+
+## phase 2 retro — 2026-06-30
+
+Delivered: `type Tab` union changed `"autosave"` → `"drafts"`; TABS array label updated; "drafts" tab content: toggle label changed to "enable draft saving", "interval" select removed, "storage" select kept with updated desc; preview tab: "preview theme" select removed. `AUTOSAVE_INTERVALS` and `PREVIEW_THEMES` consts deleted (unused). Commit `3417f1c`.
+
+Typecheck: 2 errors initially from unused consts — removed them, then 0 errors.
+
+All plan DoD items complete. Ready for merge.
