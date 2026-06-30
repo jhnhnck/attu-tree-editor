@@ -67,12 +67,6 @@ export interface CommandHandlers {
     viewEngineLayered: () => void;
     viewEngineHyperbolic: () => void;
     /**
-     * Phase 6 (family-view): set the currently-active engine as the
-     * per-browser default. Writes `fte.defaultEngine` so future first-runs
-     * (cleared Dexie, fresh browser, etc.) start in this engine.
-     */
-    viewSetCurrentEngineAsDefault: () => void;
-    /**
      * Phase 6 (family-view): toggles the path-highlight overlay on/off.
      * Persisted via `fte.overlays.pathHighlight` localStorage key with a
      * default of `true` (the Phase 3 path highlight ships on-by-default).
@@ -335,16 +329,6 @@ export function buildCommands(
             icon: icons["view.engineHyperbolic"],
             checked: enabled.engineHyperbolicActive,
             run: h.viewEngineHyperbolic,
-        },
-        {
-            // Phase 6: writes `fte.defaultEngine` to the currently-active
-            // engine so the next first-run picks it up. Useful for users
-            // who prefer the layered or hyperbolic engine but had Phase 0
-            // flip the default to family-view.
-            id: "view.setCurrentEngineAsDefault",
-            label: "Set current engine as default",
-            group: "View",
-            run: h.viewSetCurrentEngineAsDefault,
         },
         // Overlays sub-list — Phase 6 enables the path-highlight entry
         // (default on; toggled via `fte.overlays.pathHighlight`). The

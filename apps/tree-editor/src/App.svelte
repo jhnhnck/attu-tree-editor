@@ -166,6 +166,7 @@
     import {
         DEFAULT_ENGINE,
         loadEngineSetting,
+        readDefaultEngine,
         saveEngineSetting,
         writeDefaultEngine,
         type EngineKind,
@@ -616,6 +617,7 @@
     // proband at centre) based on this. Hydrated from settings on mount;
     // changes persist immediately.
     let selectedEngine = $state<EngineKind>(DEFAULT_ENGINE);
+    let defaultEngine = $state<EngineKind>(readDefaultEngine());
 
     // stats pill mounts in the bottom-left chrome bar whenever the active
     // engine emits onlayoutstats (layered + family-view today; hyperbolic
@@ -1747,15 +1749,6 @@
         viewEngineFamilyView: () => void switchEngine("family-view"),
         viewEngineLayered: () => void switchEngine("layered"),
         viewEngineHyperbolic: () => void switchEngine("hyperbolic"),
-        viewSetCurrentEngineAsDefault: () => {
-            // Phase 6: writes the active engine to fte.defaultEngine so a
-            // fresh first-run picks it up. The active engine is whatever
-            // `selectedEngine` reads as right now; toast confirms which
-            // engine just won the default slot so the user knows the
-            // command applied to the right one.
-            writeDefaultEngine(selectedEngine);
-            toasts.push(`${selectedEngine} is the new default engine`, "success", 2000);
-        },
         viewOverlayPathHighlightToggle: () => {
             // Phase 6: real toggle. Flips the local state + persists the
             // preference, so the View menu's check tracks live and a
@@ -1966,15 +1959,6 @@
 
     const fileMenu = $derived<MenuConfig>(menuFromGroup("file", "File"));
     const editMenu = $derived<MenuConfig>(menuFromGroup("edit", "Edit"));
-    // dock corner picker. radio-style — exactly one corner is active;
-    // selecting persists via localStorage (fte.dock.corner).
-    const DOCK_CORNER_ITEMS: ReadonlyArray<{ corner: "bl" | "tl" | "tr" | "br"; label: string }> = [
-        { corner: "tl", label: "dock corner: top-left" },
-        { corner: "tr", label: "dock corner: top-right" },
-        { corner: "bl", label: "dock corner: bottom-left" },
-        { corner: "br", label: "dock corner: bottom-right" },
-    ];
-
     // canvas-chrome-v2 phase 3: the full Panels section — every dock window,
     // listed in dock-priority order with a static label (the live window
     // titles carry dynamic suffixes we don't want in the menu). the 5
@@ -2016,12 +2000,6 @@
         label: "view",
         items: [
             ...menuFromGroup("view", "View").items,
-            "divider",
-            ...DOCK_CORNER_ITEMS.map((c) => ({
-                label: c.label,
-                checked: corner === c.corner,
-                onclick: () => (corner = c.corner),
-            })),
             "divider",
             ...DOCK_PANEL_ENTRIES.map((p) => ({
                 label: panelMenuLabel(p.id, p.label),
@@ -3000,7 +2978,40 @@
             {#snippet settingsModalRender(_ctx: { forcedCollapse: boolean })}
                 <DockDialog id="settings" title="Settings">
                     {#snippet children()}
-                        <SettingsDialog {prefs} />
+                        <SettingsDialog
+                            {prefs}
+                            {corner}
+                            oncornerchange={(c) => (corner = c)}
+                            engine={defaultEngine}
+                            onenginedefaultchange={(e) => {
+                                defaultEngine = e;
+                                writeDefaultEngine(e);
+                            }}
+                            smoothDiff={smoothDiffEnabled}
+                            onsmoothDiffChange={(v) => {
+                                smoothDiffEnabled = v;
+                                try {
+                                    if (typeof localStorage !== "undefined")
+                                        localStorage.setItem(SMOOTH_DIFF_LS_KEY, String(v));
+                                } catch { /* quota / disabled storage is non-fatal */ }
+                            }}
+                            crossingMin={crossingMinEnabled}
+                            oncrossingMinChange={(v) => {
+                                crossingMinEnabled = v;
+                                try {
+                                    if (typeof localStorage !== "undefined")
+                                        localStorage.setItem(CROSSING_MIN_LS_KEY, String(v));
+                                } catch { /* quota / disabled storage is non-fatal */ }
+                            }}
+                            secondaryUnion={secondaryUnionEnabled}
+                            onsecondaryUnionChange={(v) => {
+                                secondaryUnionEnabled = v;
+                                try {
+                                    if (typeof localStorage !== "undefined")
+                                        localStorage.setItem(SECONDARY_UNION_LS_KEY, String(v));
+                                } catch { /* quota / disabled storage is non-fatal */ }
+                            }}
+                        />
                     {/snippet}
                 </DockDialog>
             {/snippet}
