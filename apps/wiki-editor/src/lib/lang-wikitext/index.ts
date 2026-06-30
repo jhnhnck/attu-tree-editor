@@ -452,10 +452,10 @@ const wikitextLanguage = StreamLanguage.define<WikitextState>({
 });
 
 const wikitextHighlight = HighlightStyle.define([
-    // user text formatting - weight/style only, no color
-    { tag: tags.strong, fontWeight: "900" },
-    { tag: tags.emphasis, fontStyle: "italic" },
-    { tag: boldItalicTag, fontWeight: "900", fontStyle: "italic" },
+    // user text formatting
+    { tag: tags.strong, fontWeight: "900", color: "var(--color-syn-type)" },
+    { tag: tags.emphasis, fontStyle: "italic", color: "var(--color-syn-label)" },
+    { tag: boldItalicTag, fontWeight: "900", fontStyle: "italic", color: "var(--color-syn-string)" },
     // inline code - monospace + subtle bg tint
     {
         tag: tags.monospace,
