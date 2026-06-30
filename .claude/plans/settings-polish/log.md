@@ -19,3 +19,21 @@ No downstream implications.
 ## revision after phase 0
 
 No plan changes. Next: phase 1 (control visual redesign).
+
+## starting phase 1 — 2026-06-30
+
+worktree: `.claude/worktrees/settings-polish/` · branch: `phase/settings-polish/1`
+
+**DoD:** toggle switches colored dots; selects use custom flyout; labels lowercase; every row has desc.
+
+## phase 1 retro — 2026-06-30
+
+Delivered: `fte-window-control-on`/`-off` CSS classes in theme.css; `toggleRow` in both settings files redesigned to colored dot with `Plus`/`Minus` icons and `desc` param; `selectRow` in `SettingsModal.svelte` replaced with custom flyout using `openSelect = $state<string | null>(null)` keyed by label; `iconRadio` gains `desc` param; all tab labels and row labels lowercase; description strings at every call site. Commit `b625b8d`.
+
+Typecheck: same workaround as phase 0 — rm+ln -sf to redirect @attu/ui to worktree, then restore. All 3 packages: 0 errors.
+
+No unexpected issues. The `last:border-0` Tailwind modifier on `toggleRow`/`selectRow` removes the bottom border from the last item in a group without extra markup.
+
+## revision after phase 1
+
+No plan changes. Next: phase 2 (wiki-editor content corrections).
