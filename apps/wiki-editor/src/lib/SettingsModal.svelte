@@ -1,9 +1,8 @@
 <!--
     wiki-editor preferences body — body-only, wrapped in DockDialog by App.svelte.
-    close is handled by DockDialog's × button or the footer button below.
+    close is handled by DockDialog's × button.
 -->
 <script lang="ts">
-    import { dockStore, Button } from "@attu/ui";
     import { SHORTCUTS } from "./shortcuts.js";
 
     type Tab = "editor" | "autosave" | "preview" | "shortcuts" | "account";
@@ -175,9 +174,3 @@
     {/if}
 </div>
 
-<!-- footer -->
-<div class="-mx-3 -mb-3 mt-3 flex shrink-0 items-center justify-end border-t border-line px-6 py-3">
-    <Button variant="ghost" onclick={() => dockStore.closeDialog()}>
-        {#snippet children()}close{/snippet}
-    </Button>
-</div>
