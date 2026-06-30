@@ -185,6 +185,22 @@ pnpm verify          # full ci sweep
 
 `pnpm dev` may conflict with a long-running container instance - if you see EADDRINUSE, stop the container before launching the worktree's dev server.
 
+**running `svelte-check` inside a worktree**: worktrees don't have their own `node_modules` - the `.githooks/post-checkout` hook symlinks each app's `node_modules` from the main repo. this means `node_modules/@attu/ui` resolves to the *main repo's* built `packages/attu-ui`, not the worktree's. to typecheck worktree changes to `packages/attu-ui`, temporarily redirect the symlink:
+
+```sh
+MAIN=/path/to/main-repo  WT=/path/to/worktree
+# redirect
+rm "$MAIN/apps/tree-editor/node_modules/@attu/ui"
+ln -sf "$WT/packages/attu-ui" "$MAIN/apps/tree-editor/node_modules/@attu/ui"
+# typecheck
+cd "$WT/apps/tree-editor" && "$MAIN/apps/tree-editor/node_modules/.bin/svelte-check" --tsconfig tsconfig.json
+# restore
+rm "$MAIN/apps/tree-editor/node_modules/@attu/ui"
+ln -sf "../../../../packages/attu-ui" "$MAIN/apps/tree-editor/node_modules/@attu/ui"
+```
+
+repeat for `apps/wiki-editor` if it consumes the changed `@attu/ui` code. apps that don't touch `packages/attu-ui` can use the symlinked node_modules as-is.
+
 ### canvas-chrome dock
 
 the dock lives in `packages/attu-ui/src/lib/components/dock/` and is shared by both SPAs. see [`notes/features/dock-kit.md`](features/dock-kit.md) for the full API, state machine, CSS primitives, registration pattern, and priority-space convention. the key components are: `DockStore` (singleton in `store.svelte.ts`), `DockCorner` (renders the pill row + stacked panels), `DockPanel` (floating chrome with titlebar), `DockDialog` (fixed centered dialog with backdrop), `DockSurface` (mounts floating panels and active dialog), `DockEntry` (registration bridge), `SaveStatusPill` + `StatsPill` (shared pill+panel pairs). apps mount `<DockCorner corner="bl" />` plus `<DockSurface />` and register items via `<DockEntry>`.
