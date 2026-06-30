@@ -30,6 +30,17 @@
     --color-danger: hsl(0 80% 65%);
     --color-editor-bg: hsl(45 15% 7%);
     --color-editor-selection: hsl(210 18% 26%);
+    /* melange syntax highlight palette (dark) */
+    --color-syn-link:     #7394b5;
+    --color-syn-label:    #ab7cb5;
+    --color-syn-keyword:  #ab7cb5;
+    --color-syn-type:     #d9a549;
+    --color-syn-variable: #85a36b;
+    --color-syn-tag:      #5fa5a0;
+    --color-syn-string:   #c97654;
+    --color-syn-comment:  #7b6a55;
+    --color-syn-struct:   #56504a;
+    --color-syn-invalid:  #e46876;
 }
 
 @media (prefers-color-scheme: light) {
@@ -44,6 +55,17 @@
         --color-danger: hsl(0 70% 45%);
         --color-editor-bg: hsl(45 30% 95%);
         --color-editor-selection: hsl(210 40% 70%);
+        /* melange syntax highlight palette (light) */
+        --color-syn-link:     #3060a0;
+        --color-syn-label:    #8048a0;
+        --color-syn-keyword:  #8048a0;
+        --color-syn-type:     #b87028;
+        --color-syn-variable: #587840;
+        --color-syn-tag:      #287868;
+        --color-syn-string:   #b05030;
+        --color-syn-comment:  #8b7d6b;
+        --color-syn-struct:   #9e9386;
+        --color-syn-invalid:  #c03840;
     }
 }
 
@@ -58,6 +80,17 @@
     --color-danger: hsl(0 70% 45%);
     --color-editor-bg: hsl(45 30% 95%);
     --color-editor-selection: hsl(210 40% 70%);
+    /* melange syntax highlight palette (light) */
+    --color-syn-link:     #3060a0;
+    --color-syn-label:    #8048a0;
+    --color-syn-keyword:  #8048a0;
+    --color-syn-type:     #b87028;
+    --color-syn-variable: #587840;
+    --color-syn-tag:      #287868;
+    --color-syn-string:   #b05030;
+    --color-syn-comment:  #8b7d6b;
+    --color-syn-struct:   #9e9386;
+    --color-syn-invalid:  #c03840;
 }
 
 :root[data-theme="dark"] {
@@ -71,6 +104,17 @@
     --color-danger: hsl(0 80% 65%);
     --color-editor-bg: hsl(45 15% 7%);
     --color-editor-selection: hsl(210 18% 26%);
+    /* melange syntax highlight palette (dark) */
+    --color-syn-link:     #7394b5;
+    --color-syn-label:    #ab7cb5;
+    --color-syn-keyword:  #ab7cb5;
+    --color-syn-type:     #d9a549;
+    --color-syn-variable: #85a36b;
+    --color-syn-tag:      #5fa5a0;
+    --color-syn-string:   #c97654;
+    --color-syn-comment:  #7b6a55;
+    --color-syn-struct:   #56504a;
+    --color-syn-invalid:  #e46876;
 }
 
 html {

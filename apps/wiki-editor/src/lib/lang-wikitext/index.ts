@@ -452,51 +452,58 @@ const wikitextLanguage = StreamLanguage.define<WikitextState>({
 });
 
 const wikitextHighlight = HighlightStyle.define([
-    // phase 0 - inline
-    { tag: tags.strong, fontWeight: "700" },
+    // user text formatting - weight/style only, no color
+    { tag: tags.strong, fontWeight: "900" },
     { tag: tags.emphasis, fontStyle: "italic" },
-    { tag: boldItalicTag, fontWeight: "700", fontStyle: "italic" },
+    { tag: boldItalicTag, fontWeight: "900", fontStyle: "italic" },
+    // inline code - monospace + subtle bg tint
     {
         tag: tags.monospace,
         fontFamily: "var(--font-mono)",
         fontSize: "0.875em",
         backgroundColor: "color-mix(in srgb, var(--color-fg) 6%, transparent)",
     },
-    { tag: [tags.bracket, tags.separator], color: "var(--color-fg-muted)", opacity: "0.6" },
-    { tag: tags.link, color: "var(--color-accent)" },
-    { tag: tags.labelName, color: "var(--color-accent-strong)" },
-    { tag: tags.url, color: "var(--color-accent)", textDecoration: "underline" },
-    { tag: tags.blockComment, color: "var(--color-fg-muted)", fontStyle: "italic" },
-    { tag: tags.escape, color: "var(--color-fg-muted)" },
-    // phase 1 - block level
-    { tag: tags.punctuation, color: "var(--color-fg-muted)", opacity: "0.5" },
-    { tag: tags.heading1, fontWeight: "700", color: "var(--color-fg)" },
-    { tag: tags.heading2, fontWeight: "700", color: "var(--color-fg)" },
-    { tag: tags.heading3, fontWeight: "600", color: "var(--color-fg)" },
-    { tag: tags.heading4, fontWeight: "600", color: "var(--color-fg)" },
-    { tag: tags.heading5, fontWeight: "500", color: "var(--color-fg)" },
-    { tag: tags.heading6, fontWeight: "500", color: "var(--color-fg)" },
-    { tag: tags.contentSeparator, color: "var(--color-fg-muted)", opacity: "0.4" },
-    { tag: tags.list, color: "var(--color-accent)", fontWeight: "600" },
-    { tag: tags.definitionKeyword, color: "var(--color-accent)", fontWeight: "600" },
-    { tag: tags.content, color: "var(--color-fg-muted)" },
-    { tag: tags.meta, color: "var(--color-fg-muted)", fontFamily: "var(--font-mono)" },
-    // phase 2 - templates, refs, tables
-    // tags.brace inherits from tags.bracket (dim/muted) - no new rule needed
-    { tag: tags.variableName, color: "var(--color-accent-strong)" },
-    { tag: tags.typeName, color: "var(--color-accent)" },
-    { tag: tags.keyword, color: "var(--color-accent)", fontStyle: "italic" },
-    { tag: tags.tagName, color: "var(--color-accent-strong)", fontWeight: "600" },
-    { tag: tags.heading, fontWeight: "600", color: "var(--color-fg)" },
-    // phase 3 - categories, files, magic words, misc html
-    { tag: tags.namespace, color: "var(--color-fg-muted)", fontWeight: "600" },
-    { tag: tags.processingInstruction, color: "var(--color-fg-muted)", fontStyle: "italic" },
-    { tag: tags.string, color: "var(--color-fg-muted)" },
-    {
-        tag: tags.invalid,
-        color: "color-mix(in srgb, red 60%, var(--color-fg))",
-        textDecoration: "underline wavy",
-    },
+    // structural punctuation - dim, recede into background
+    { tag: [tags.bracket, tags.separator], color: "var(--color-syn-struct)" },
+    { tag: tags.punctuation, color: "var(--color-syn-struct)" },
+    { tag: tags.contentSeparator, color: "var(--color-syn-struct)" },
+    { tag: tags.brace, color: "var(--color-syn-struct)" },
+    // links
+    { tag: tags.link, color: "var(--color-syn-link)" },
+    { tag: tags.labelName, color: "var(--color-syn-label)" },
+    { tag: tags.url, color: "var(--color-syn-tag)", textDecoration: "underline" },
+    // comments and suppressed content - italic only on HTML comments
+    { tag: tags.blockComment, color: "var(--color-syn-comment)", fontStyle: "italic" },
+    { tag: tags.escape, color: "var(--color-syn-comment)" },
+    // headings - distinct color per level + weight
+    { tag: tags.heading1, color: "var(--color-syn-invalid)", fontWeight: "800" },
+    { tag: tags.heading2, color: "var(--color-syn-string)", fontWeight: "700" },
+    { tag: tags.heading3, color: "var(--color-syn-type)", fontWeight: "700" },
+    { tag: tags.heading4, color: "var(--color-syn-tag)", fontWeight: "600" },
+    { tag: tags.heading5, color: "var(--color-syn-label)", fontWeight: "600" },
+    { tag: tags.heading6, color: "var(--color-syn-link)", fontWeight: "600" },
+    // list and definition markers
+    { tag: tags.list, color: "var(--color-syn-type)" },
+    { tag: tags.definitionKeyword, color: "var(--color-syn-type)" },
+    { tag: tags.content, color: "var(--color-syn-comment)" },
+    // preformatted, signature, table caption share monospace gray
+    { tag: tags.meta, color: "var(--color-syn-comment)", fontFamily: "var(--font-mono)" },
+    // templates
+    { tag: tags.typeName, color: "var(--color-syn-type)" },
+    { tag: tags.variableName, color: "var(--color-syn-variable)" },
+    { tag: tags.keyword, color: "var(--color-syn-keyword)" },
+    // ref and html tags
+    { tag: tags.tagName, color: "var(--color-syn-tag)", fontWeight: "600" },
+    // table header row - orange like list markers
+    { tag: tags.heading, color: "var(--color-syn-type)", fontWeight: "600" },
+    // namespace prefix (Category:, File:)
+    { tag: tags.namespace, color: "var(--color-syn-tag)", fontWeight: "600" },
+    // magic words (__NOTOC__ etc)
+    { tag: tags.processingInstruction, color: "var(--color-syn-keyword)" },
+    // math opaque block content
+    { tag: tags.string, color: "var(--color-syn-string)" },
+    // bare bracket errors
+    { tag: tags.invalid, color: "var(--color-syn-invalid)", textDecoration: "underline wavy" },
 ]);
 
 export function wikitext(): LanguageSupport {
