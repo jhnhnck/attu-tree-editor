@@ -12,6 +12,12 @@
         CornerDownLeft,
         CornerDownRight,
     } from "@lucide/svelte";
+    import type { WikiPreferencesStore, Theme, DockCorner } from "./state/preferences.js";
+
+    interface Props {
+        prefs: WikiPreferencesStore;
+    }
+    let { prefs }: Props = $props();
 
     type Tab = "appearance" | "editor" | "autosave" | "preview";
 
@@ -23,10 +29,6 @@
     ];
 
     let tab = $state<Tab>("appearance");
-
-    // --- appearance ---
-    type Theme = "light" | "dark" | "auto";
-    type DockCorner = "bl" | "tl" | "tr" | "br";
 
     const THEME_OPTIONS: { value: Theme; label: string; icon: typeof Sun }[] = [
         { value: "light", label: "light", icon: Sun },
@@ -45,10 +47,6 @@
         { value: "br", label: "bottom-right", icon: CornerDownRight },
     ];
 
-    let theme = $state<Theme>("auto");
-    let corner = $state<DockCorner>("bl");
-
-    // --- editor ---
     const FONT_FAMILIES = ["JetBrains Mono", "Fira Code", "Cascadia Code", "monospace"] as const;
     const FONT_SIZES = ["12px", "13px", "14px", "15px", "16px"] as const;
     const TAB_SIZES = ["2", "4"] as const;
@@ -59,33 +57,11 @@
         "Dracula",
         "Solarized Dark",
     ] as const;
-
-    let fontFamily = $state<string>("JetBrains Mono");
-    let fontSize = $state<string>("14px");
-    let tabSize = $state<string>("4");
-    let syntaxTheme = $state<string>("Attu Dark");
-    let lineWrap = $state(false);
-    let lineNumbers = $state(true);
-    let minimap = $state(false);
-    let bracketMatching = $state(true);
-    let trimTrailingWhitespace = $state(true);
-
-    // --- autosave ---
     const AUTOSAVE_INTERVALS = ["30 seconds", "1 minute", "2 minutes", "5 minutes"] as const;
     const AUTOSAVE_STORAGE = ["Browser storage", "Session only"] as const;
-
-    let autosaveEnabled = $state(false);
-    let autosaveInterval = $state<string>("1 minute");
-    let autosaveStorage = $state<string>("Browser storage");
-
-    // --- preview ---
     const PREVIEW_MODES = ["Editor only", "Side-by-side", "Preview only"] as const;
     const PREVIEW_TRIGGERS = ["On save", "On typing (delay)", "Manual"] as const;
     const PREVIEW_THEMES = ["Match site theme", "Light", "Dark"] as const;
-
-    let previewMode = $state<string>("Editor only");
-    let previewTrigger = $state<string>("On save");
-    let previewTheme = $state<string>("Match site theme");
 </script>
 
 <!-- tab bar -->
@@ -183,67 +159,60 @@
 <!-- content area -->
 <div class="min-h-0 overflow-y-auto">
     {#if tab === "appearance"}
-        {@render iconRadio("theme", THEME_OPTIONS, theme, (v) => (theme = v as Theme))}
-        {@render iconRadio("dock corner", CORNER_OPTIONS, corner, (v) => (corner = v as DockCorner))}
+        {@render iconRadio("theme", THEME_OPTIONS, prefs.theme, (v) =>
+            prefs.setTheme(v as Theme))}
+        {@render iconRadio("dock corner", CORNER_OPTIONS, prefs.corner, (v) =>
+            prefs.setCorner(v as DockCorner))}
     {:else if tab === "editor"}
         <fieldset class="mb-4">
             <legend class="text-fg-muted mb-1.5 text-[11px] uppercase tracking-wider">text</legend>
-            {@render selectRow("Font family", FONT_FAMILIES, fontFamily, (v) => (fontFamily = v))}
-            {@render selectRow("Font size", FONT_SIZES, fontSize, (v) => (fontSize = v))}
+            {@render selectRow("Font family", FONT_FAMILIES, prefs.fontFamily, (v) =>
+                prefs.setFontFamily(v))}
+            {@render selectRow("Font size", FONT_SIZES, prefs.fontSize, (v) =>
+                prefs.setFontSize(v))}
         </fieldset>
         <fieldset class="mb-4">
             <legend class="text-fg-muted mb-1.5 text-[11px] uppercase tracking-wider"
                 >editing</legend
             >
-            {@render selectRow("Tab size", TAB_SIZES, tabSize, (v) => (tabSize = v))}
-            {@render toggleRow("Line wrap", lineWrap, () => (lineWrap = !lineWrap))}
-            {@render toggleRow("Line numbers", lineNumbers, () => (lineNumbers = !lineNumbers))}
-            {@render toggleRow("Minimap", minimap, () => (minimap = !minimap))}
-            {@render toggleRow(
-                "Bracket matching",
-                bracketMatching,
-                () => (bracketMatching = !bracketMatching),
-            )}
-            {@render toggleRow(
-                "Trim trailing whitespace",
-                trimTrailingWhitespace,
-                () => (trimTrailingWhitespace = !trimTrailingWhitespace),
-            )}
+            {@render selectRow("Tab size", TAB_SIZES, prefs.tabSize, (v) => prefs.setTabSize(v))}
+            {@render toggleRow("Line wrap", prefs.lineWrap, () =>
+                prefs.setLineWrap(!prefs.lineWrap))}
+            {@render toggleRow("Line numbers", prefs.lineNumbers, () =>
+                prefs.setLineNumbers(!prefs.lineNumbers))}
+            {@render toggleRow("Minimap", prefs.minimap, () => prefs.setMinimap(!prefs.minimap))}
+            {@render toggleRow("Bracket matching", prefs.bracketMatching, () =>
+                prefs.setBracketMatching(!prefs.bracketMatching))}
+            {@render toggleRow("Trim trailing whitespace", prefs.trimTrailingWhitespace, () =>
+                prefs.setTrimTrailingWhitespace(!prefs.trimTrailingWhitespace))}
         </fieldset>
         <fieldset>
             <legend class="text-fg-muted mb-1.5 text-[11px] uppercase tracking-wider"
                 >syntax</legend
             >
-            {@render selectRow(
-                "Syntax theme",
-                SYNTAX_THEMES,
-                syntaxTheme,
-                (v) => (syntaxTheme = v),
-            )}
+            {@render selectRow("Syntax theme", SYNTAX_THEMES, prefs.syntaxTheme, (v) =>
+                prefs.setSyntaxTheme(v))}
         </fieldset>
     {:else if tab === "autosave"}
         <fieldset>
             <legend class="text-fg-muted mb-1.5 text-[11px] uppercase tracking-wider"
                 >autosave</legend
             >
-            {@render toggleRow(
-                "Enable autosave",
-                autosaveEnabled,
-                () => (autosaveEnabled = !autosaveEnabled),
-            )}
+            {@render toggleRow("Enable autosave", prefs.autosaveEnabled, () =>
+                prefs.setAutosaveEnabled(!prefs.autosaveEnabled))}
             {@render selectRow(
                 "Interval",
                 AUTOSAVE_INTERVALS,
-                autosaveInterval,
-                (v) => (autosaveInterval = v),
-                !autosaveEnabled,
+                prefs.autosaveInterval,
+                (v) => prefs.setAutosaveInterval(v),
+                !prefs.autosaveEnabled,
             )}
             {@render selectRow(
                 "Storage",
                 AUTOSAVE_STORAGE,
-                autosaveStorage,
-                (v) => (autosaveStorage = v),
-                !autosaveEnabled,
+                prefs.autosaveStorage,
+                (v) => prefs.setAutosaveStorage(v),
+                !prefs.autosaveEnabled,
             )}
         </fieldset>
     {:else if tab === "preview"}
@@ -251,19 +220,12 @@
             <legend class="text-fg-muted mb-1.5 text-[11px] uppercase tracking-wider"
                 >preview</legend
             >
-            {@render selectRow("Default mode", PREVIEW_MODES, previewMode, (v) => (previewMode = v))}
-            {@render selectRow(
-                "Update trigger",
-                PREVIEW_TRIGGERS,
-                previewTrigger,
-                (v) => (previewTrigger = v),
-            )}
-            {@render selectRow(
-                "Preview theme",
-                PREVIEW_THEMES,
-                previewTheme,
-                (v) => (previewTheme = v),
-            )}
+            {@render selectRow("Default mode", PREVIEW_MODES, prefs.previewMode, (v) =>
+                prefs.setPreviewMode(v))}
+            {@render selectRow("Update trigger", PREVIEW_TRIGGERS, prefs.previewTrigger, (v) =>
+                prefs.setPreviewTrigger(v))}
+            {@render selectRow("Preview theme", PREVIEW_THEMES, prefs.previewTheme, (v) =>
+                prefs.setPreviewTheme(v))}
         </fieldset>
     {/if}
 </div>

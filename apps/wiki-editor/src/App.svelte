@@ -57,6 +57,7 @@
     import SelectionBar from "./lib/SelectionBar.svelte";
     import SettingsModal from "./lib/SettingsModal.svelte";
     import ShortcutsOverlay from "./lib/ShortcutsOverlay.svelte";
+    import { createWikiPreferencesStore } from "./lib/state/preferences.js";
 
     let { title: pageTitle }: { title: string } = $props();
 
@@ -165,29 +166,9 @@
                           ],
     );
 
-    // dock corner — persisted to localStorage
-    const WIKI_DOCK_CORNER_LS_KEY = "wiki.dock.corner";
-    function readCornerPref(): "bl" | "tl" | "tr" | "br" {
-        try {
-            const raw =
-                typeof localStorage === "undefined"
-                    ? null
-                    : localStorage.getItem(WIKI_DOCK_CORNER_LS_KEY);
-            if (raw === "bl" || raw === "tl" || raw === "tr" || raw === "br") return raw;
-        } catch {
-            // ignore
-        }
-        return "bl";
-    }
-    let corner = $state<"bl" | "tl" | "tr" | "br">(readCornerPref());
-    $effect(() => {
-        try {
-            if (typeof localStorage !== "undefined")
-                localStorage.setItem(WIKI_DOCK_CORNER_LS_KEY, corner);
-        } catch {
-            // ignore
-        }
-    });
+    const prefs = createWikiPreferencesStore();
+    prefs.hydrate();
+    const corner = $derived(prefs.corner);
 
     const menus: MenuConfig[] = [
         {
@@ -467,7 +448,7 @@
         {#snippet settingsModalRender(_ctx: import("@attu/ui").DockRenderCtx)}
             <DockDialog id="settings" title="Preferences" size="lg">
                 {#snippet children()}
-                    <SettingsModal />
+                    <SettingsModal {prefs} />
                 {/snippet}
             </DockDialog>
         {/snippet}
