@@ -114,6 +114,14 @@ tracked gaps in the FamilyScript spec the parser does not yet model. each line i
 - :o: `low priority` `low effort` family-view debug `showLastEditHalo` has no positive-case e2e (toggle on → edit a card → halo appears); reproducing requires double-clicking through to the inspector, which the bottom-left debug-panel chrome intercepts at narrow viewports. underlying `debugLastEditedId` is exercised by `redraw-on-edit.spec.ts` already; the overlay just re-renders the halo from the same prop. (family-view-debug plan phase 5.)
 - :o: `low priority` `low effort` document the `[data-person-id]` overlay-vs-card locator trap in `notes/agents.md` next time the §test-fixtures section is touched - overlay layers that emit `data-person-id` attrs can grab e2e locators waiting for the canvas after a toggle is on. workaround in phase-5 tests was `button[data-person-id]`. (family-view-debug plan phase 5.)
 
+### wiki-editor
+
+- :o: `medium priority` `medium effort` `lang-wikitext` template parameter keys and values (`name=` and the content between `|` separators) are not highlighted - original plan spec called for `tags.propertyName`/`tags.string` but was dropped mid-phase because positional vs. named params need extra parser-state tracking. 🎯 carried in from plan: wiki-editor-syntax (B09)
+- :o: `low priority` `low effort` `lang-wikitext/index.ts` `headingMark` maps to the shared `tags.punctuation` rather than its own tag - harmless today since no other token shares that tag, but any future token mapped to `tags.punctuation` would silently inherit the dim heading-mark style. convert to a dedicated `headingMarkTag = Tag.define()` if a visual conflict ever appears. 🎯 carried in from plan: wiki-editor-syntax (B05)
+- :o: `low priority` `low effort` `lang-wikitext` mismatched heading marks (`== Heading ===`) have no unit test - the closing `===` is consumed as content and degrades gracefully, just unverified. 🎯 carried in from plan: wiki-editor-syntax (B06)
+- :o: `low priority` `low effort` `lang-wikitext` heading-content tokenizer builds a `new RegExp(...)` on every `token()` call instead of hoisting it - negligible at heading scale, noted for a future perf pass. 🎯 carried in from plan: wiki-editor-syntax (B07)
+- :o: `low priority` `no effort` two multi-line comment blocks in `lang-wikitext/index.ts` (above `boldItalicTag` and `WikitextState`) exceed the one-short-line-max comment style rule - trim next time the file is touched. 🎯 carried in from plan: wiki-editor-syntax (B04)
+
 ### housekeeping
 
 - `high priority` `low effort` assign any to-dos without an effort or category; update priorities; move completed and sort all
@@ -208,6 +216,7 @@ items are grouped first by view if specific to one, then by component. within ea
 ### metadata
 
 ```yaml
-last_updated: 29 Jun 2026
+last_updated: 30 Jun 2026
 total_completed: 27
+notes: 5 wiki-editor entries migrated in from wiki-editor-syntax plan during pre-merge (30 Jun 2026)
 ```

@@ -44,6 +44,13 @@
 
 - :o: `high priority` `low effort` portrait cropper mobile interface unverified - ios safari `<canvas>` inside a native `<dialog>` may not deliver two distinct `pointerId`s for two-finger pinch-zoom; probe scaffolded at `apps/web/public/probes/touch.html` but never run on real hardware. paired exif-orientation probe at `apps/web/public/probes/exif.html` is also unrun. cropperjs (which handled mobile) is already removed; if the multi-touch probe returns "no", recovery is `git revert d3693a9 && pnpm install` to restore the legacy dialog. probes themselves are ~1 afternoon on a real iphone.
 
+### wiki-editor
+
+- :o: `low priority` `low effort` `lang-wikitext` external-link opening bracket `[` gets the URL token color instead of the muted bracket color (`extLinkBracket` is only emitted for the closing `]`) - inconsistent with how wikilink brackets are styled. fix alongside the image/file link token design revisit. 🎯 carried in from plan: wiki-editor-syntax (B01)
+- :o: `low priority` `low effort` `lang-wikitext` table captions (`tableCap`) render in monospace - mapped to `tags.meta`, which inherits the `pre` rule's `fontFamily: var(--font-mono)`. fix by splitting `pre` onto a custom tag or giving `tableCap` its own tag. 🎯 carried in from plan: wiki-editor-syntax (B08)
+- :o: `medium priority` `medium effort` `lang-wikitext` `inTable` parser state is never reset in `blankLine()` - a missed `|}` close leaves `state.inTable = true` for the rest of the document, so any later stray `|` gets highlighted as a table separator. degrades gracefully (dim, non-destructive misstyling) but is a real state leak. 🎯 carried in from plan: wiki-editor-syntax (B10)
+- :o: `low priority` `low effort` wiki-editor theme.css `--color-syn-struct` measures ~2.7:1 contrast against the dark editor background (target ~3:1+ to match the other syntax tokens) - may need a bump from `#56504a` to roughly `#70685e`. visual verification of the full Melange palette in a running browser was also never completed before merge. 🎯 carried in from plan: wiki-editor-theme
+
 ---
 
 ## fixed
@@ -156,7 +163,7 @@ items are grouped first by view if specific to one (family-view, tree-view, hype
 ### metadata
 
 ```yaml
-last_updated: 29 Jun 2026
+last_updated: 30 Jun 2026
 total_fixed: 51
-notes: recomputeAfterCollapse+expandedSecondaryUnions fix (28 May 2026) absorbed into the adjacent-finding note on the "also show alongside" open entry; no standalone fixed entry added
+notes: recomputeAfterCollapse+expandedSecondaryUnions fix (28 May 2026) absorbed into the adjacent-finding note on the "also show alongside" open entry; no standalone fixed entry added; 4 wiki-editor entries migrated in from wiki-editor-syntax and wiki-editor-theme plans during pre-merge (30 Jun 2026)
 ```
