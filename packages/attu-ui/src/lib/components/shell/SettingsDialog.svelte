@@ -2,8 +2,6 @@
     FamilyTreeEditor - settings body (theme, inspector side, layout flags).
     body-only component: wrapped in DockDialog by the caller.
 
-    auto-commits on change (no save/cancel, per design profile).
-
     licensed under the MIT license; see LICENSE.md for full text
 -->
 <script lang="ts">
@@ -20,6 +18,8 @@
         Layers,
         Network,
         CircleDot,
+        Plus,
+        Minus,
     } from "@lucide/svelte";
     import type { PreferencesStore, Theme, InspectorSide } from "../../state/preferences.js";
 
@@ -56,9 +56,9 @@
 
     type Tab = "appearance" | "layout" | "advanced";
     const TABS: { id: Tab; label: string }[] = [
-        { id: "appearance", label: "Appearance" },
-        { id: "layout", label: "Layout" },
-        { id: "advanced", label: "Advanced" },
+        { id: "appearance", label: "appearance" },
+        { id: "layout", label: "layout" },
+        { id: "advanced", label: "advanced" },
     ];
     let tab = $state<Tab>("appearance");
 
@@ -105,12 +105,14 @@
 
 {#snippet iconRadio(
     legend: string,
+    desc: string,
     options: { value: string; label: string; icon: typeof Sun }[],
     value: string,
     onchange: (v: string) => void,
 )}
     <fieldset class="mb-4 last:mb-0">
-        <legend class="text-fg-muted mb-1.5 text-[11px] uppercase tracking-wider">{legend}</legend>
+        <legend class="text-fg-muted mb-0.5 text-[11px] uppercase tracking-wider">{legend}</legend>
+        <p class="text-fg-muted mb-2 text-xs">{desc}</p>
         <div role="radiogroup" aria-label={legend} class="flex gap-1.5">
             {#each options as opt (opt.value)}
                 {@const Icon = opt.icon}
@@ -134,24 +136,23 @@
     </fieldset>
 {/snippet}
 
-{#snippet toggleRow(label: string, checked: boolean, onchange: () => void)}
+{#snippet toggleRow(label: string, desc: string, checked: boolean, onchange: () => void)}
     <div class="flex items-center justify-between border-b border-line py-2.5 last:border-0">
-        <span class="text-sm text-fg">{label}</span>
+        <div class="mr-4 min-w-0">
+            <p class="text-sm text-fg">{label}</p>
+            <p class="mt-0.5 text-xs text-fg-muted">{desc}</p>
+        </div>
         <button
             type="button"
             role="switch"
             aria-checked={checked}
             aria-label={label}
             onclick={onchange}
-            class="relative h-5 w-9 rounded-full border transition-colors {checked
-                ? 'border-accent bg-accent/10'
-                : 'border-line bg-canvas'}"
+            class="fte-window-control shrink-0 {checked
+                ? 'fte-window-control-on'
+                : 'fte-window-control-off'}"
         >
-            <div
-                class="absolute top-[3px] h-3.5 w-3.5 rounded-full transition-[left] {checked
-                    ? 'left-5 bg-accent'
-                    : 'left-0.5 bg-fg-muted'}"
-            ></div>
+            {#if checked}<Plus size={8} strokeWidth={2.5} />{:else}<Minus size={8} strokeWidth={2.5} />{/if}
         </button>
     </div>
 {/snippet}
@@ -159,21 +160,21 @@
 <!-- content -->
 <div class="h-56 overflow-y-auto">
     {#if tab === "appearance"}
-        {@render iconRadio("theme", THEME_OPTIONS, prefs.theme, (v) =>
+        {@render iconRadio("theme", "color scheme for the interface", THEME_OPTIONS, prefs.theme, (v) =>
             prefs.setTheme(v as Theme))}
-        {@render iconRadio("dock corner", CORNER_OPTIONS, corner, (v) =>
+        {@render iconRadio("dock corner", "where the dock panel appears on screen", CORNER_OPTIONS, corner, (v) =>
             oncornerchange(v as DockCorner))}
     {:else if tab === "layout"}
-        {@render iconRadio("inspector side", SIDE_OPTIONS, prefs.inspectorSide, (v) =>
+        {@render iconRadio("inspector side", "which side the inspector opens on", SIDE_OPTIONS, prefs.inspectorSide, (v) =>
             prefs.setInspectorSide(v as InspectorSide))}
-        {@render iconRadio("default engine", ENGINE_OPTIONS, engine, (v) =>
+        {@render iconRadio("default engine", "layout engine used when opening a tree", ENGINE_OPTIONS, engine, (v) =>
             onenginedefaultchange(v as EngineKind))}
     {:else if tab === "advanced"}
-        {@render toggleRow("smooth diff animation", smoothDiff, () =>
+        {@render toggleRow("smooth diff animation", "animate transitions when the tree layout changes", smoothDiff, () =>
             onsmoothDiffChange(!smoothDiff))}
-        {@render toggleRow("crossing minimisation", crossingMin, () =>
+        {@render toggleRow("crossing minimisation", "reduce edge crossings in the layout (slower)", crossingMin, () =>
             oncrossingMinChange(!crossingMin))}
-        {@render toggleRow("secondary union expansion", secondaryUnion, () =>
+        {@render toggleRow("secondary union expansion", "expand secondary unions into separate rows", secondaryUnion, () =>
             onsecondaryUnionChange(!secondaryUnion))}
     {/if}
 </div>
